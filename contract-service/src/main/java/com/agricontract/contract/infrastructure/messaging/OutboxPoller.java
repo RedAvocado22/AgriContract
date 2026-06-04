@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-// Outbox Pattern poller: đọc PENDING events từ contract_domain_events → publish RabbitMQ → mark PUBLISHED
-// Phase 1: @Scheduled polling 1s. Phase 2: nâng lên Debezium CDC.
+// Outbox Pattern poller: reads PENDING events from contract_domain_events → publishes to RabbitMQ → marks PUBLISHED
+// Phase 1: @Scheduled polling every 1s. Phase 2: upgrade to Debezium CDC.
 @Component
 @RequiredArgsConstructor
 @Slf4j

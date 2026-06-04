@@ -7,7 +7,7 @@ import lombok.Getter;
 import java.time.LocalDate;
 import java.util.List;
 
-// Aggregate Root — service phức tạp nhất
+// Aggregate Root — most complex service
 // State machine:
 //   OFFERED → SIGNED | CANCELLED_BY_BUYER | CANCELLED_BY_SELLER
 //   SIGNED  → GOODS_DELIVERED | DISPUTED
@@ -20,7 +20,7 @@ public class Contract {
     private String listingId;
     private String sellerId;
     private String buyerId;
-    private String productName;       // snapshot tại thời điểm offer
+    private String productName;       // snapshot at offer time
     private Quantity quantity;        // snapshot
     private Money agreedPrice;        // snapshot
     private LocalDate deliveryDeadline;
@@ -38,28 +38,28 @@ public class Contract {
         throw new UnsupportedOperationException("TODO");
     }
 
-    /** Seller ký → SIGNED. Trigger: close listing (Feign) + lock escrow (event) */
+    /** Seller signs → SIGNED. Triggers: close listing (Feign) + lock escrow (event) */
     public void sign(String actorId) { /* TODO */ }
 
-    /** Buyer rút offer → CANCELLED_BY_BUYER */
+    /** Buyer withdraws offer → CANCELLED_BY_BUYER */
     public void cancelByBuyer(String actorId, String reason) { /* TODO */ }
 
-    /** Seller từ chối → CANCELLED_BY_SELLER */
+    /** Seller rejects offer → CANCELLED_BY_SELLER */
     public void cancelBySeller(String actorId, String reason) { /* TODO */ }
 
-    /** Seller xác nhận đã giao hàng → GOODS_DELIVERED */
+    /** Seller confirms goods shipped → GOODS_DELIVERED */
     public void confirmDelivery(String actorId) { /* TODO */ }
 
-    /** Buyer xác nhận nhận hàng → SETTLED. Trigger: release escrow (event) */
+    /** Buyer confirms receipt → SETTLED. Triggers: release escrow (event) */
     public void settle(String actorId) { /* TODO */ }
 
-    /** Buyer mở tranh chấp → DISPUTED */
+    /** Buyer opens dispute → DISPUTED */
     public void dispute(String actorId, String reason) { /* TODO */ }
 
-    /** Admin phân xử → ARBITRATED. Trigger: penalty escrow (event) */
+    /** Admin arbitrates → ARBITRATED. Triggers: penalty escrow (event) */
     public void arbitrate(Money penalty, boolean penalizeBuyer) { /* TODO */ }
 
-    /** Drain domain events cho Outbox Poller publish lên RabbitMQ */
+    /** Drain domain events for Outbox Poller to publish to RabbitMQ */
     public List<DomainEvent> pullDomainEvents() {
         // TODO
         return List.of();

@@ -6,7 +6,7 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 
-// Entity — append-only financial ledger (không bao giờ update, chỉ insert)
+// Entity — append-only financial ledger (never updated, only inserted)
 @Getter
 public class EscrowTransaction {
 

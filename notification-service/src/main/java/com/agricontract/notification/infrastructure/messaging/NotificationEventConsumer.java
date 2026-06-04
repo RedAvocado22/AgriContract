@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-// Retry: 3 lần với exponential backoff (1s → 2s → 4s) trước khi mark FAILED
-// Idempotency: check eventId trước khi gửi email
+// Retry: 3 attempts with exponential backoff (1s → 2s → 4s) before marking FAILED
+// Idempotency: check eventId before sending email
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -16,7 +16,7 @@ public class NotificationEventConsumer {
 
     @RabbitListener(queues = "notification.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
-        // TODO: gửi email cho buyer + seller
+        // TODO: send email to buyer + seller
     }
 
     @RabbitListener(queues = "notification.contract.cancelled")

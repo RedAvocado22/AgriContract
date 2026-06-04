@@ -8,7 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-// Append-only — không bao giờ UPDATE, chỉ INSERT
+// Append-only — never UPDATE, only INSERT
 @Entity
 @Table(name = "escrow_transactions")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

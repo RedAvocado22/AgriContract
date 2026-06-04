@@ -8,7 +8,7 @@ import lombok.Getter;
 import java.util.List;
 
 // Aggregate Root
-// Idempotency: dùng contractId làm idempotency key
+// Idempotency: contractId is used as the idempotency key
 // State machine: LOCKED → RELEASED | PENALIZED_BUYER | PENALIZED_SELLER | ARBITRATED
 @Getter
 public class EscrowAccount {
@@ -23,19 +23,19 @@ public class EscrowAccount {
 
     private EscrowAccount() {}
 
-    /** Gọi khi nhận event contract.signed */
+    /** Called on contract.signed event */
     public static EscrowAccount lock(String contractId, String buyerId,
                                       String sellerId, Money amount) {
         // TODO
         throw new UnsupportedOperationException("TODO");
     }
 
-    /** Gọi khi nhận event contract.settled → escrow released to seller */
+    /** Called on contract.settled event → escrow released to seller */
     public void release() { /* TODO */ }
 
-    /** Gọi khi nhận event contract.arbitrated với penalizeBuyer=true */
+    /** Called on contract.arbitrated event with penalizeBuyer=true */
     public void penalizeBuyer(Money penalty) { /* TODO */ }
 
-    /** Gọi khi nhận event contract.arbitrated với penalizeBuyer=false */
+    /** Called on contract.arbitrated event with penalizeBuyer=false */
     public void penalizeSeller(Money penalty) { /* TODO */ }
 }
