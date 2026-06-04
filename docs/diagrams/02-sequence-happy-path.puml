@@ -1,0 +1,86 @@
+@startuml Happy Path — OFFERED → SIGNED → GOODS_DELIVERED → SETTLED
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName Arial
+
+title Happy Path: Contract Lifecycle\nOFFERED → SIGNED → GOODS_DELIVERED → SETTLED
+
+actor Seller
+actor Buyer
+participant "API Gateway" as GW
+participant "product-service" as PS
+participant "contract-service" as CS
+database "contract_db\n(+ outbox)" as CDB
+participant "Outbox Poller" as OP
+queue "RabbitMQ" as MQ
+participant "escrow-service" as ES
+participant "notification-service" as NS
+
+== 1. Seller đăng Listing ==
+Seller -> GW : POST /api/v1/listings
+GW -> PS : forward
+PS -> PS : Listing.create() [ACTIVE]
+PS --> Seller : 201 listingId
+
+== 2. Buyer tạo Offer ==
+Buyer -> GW : POST /api/v1/contracts\n{listingId, agreedPrice, quantity}
+GW -> CS : forward (X-User-Id: buyerId)
+CS -> CS : Contract.offer() [OFFERED]
+CS -> CDB : save contract + ContractOfferedEvent (PENDING)
+CS --> Buyer : 201 contractId
+
+== 3. Seller ký Contract ==
+Seller -> GW : PUT /api/v1/contracts/{id}/sign
+GW -> CS : forward (X-User-Id: sellerId)
+CS -> CS : Contract.sign() [OFFERED → SIGNED]
+CS -> PS : PUT /listings/{id}/close [OpenFeign SYNC]
+PS -> PS : Listing.close() [ACTIVE → CLOSED]
+PS --> CS : 200 OK
+CS -> CDB : save contract + ContractSignedEvent (PENDING)
+CS --> Seller : 200 OK
+
+== 4. Outbox Poller publish ==
+OP -> CDB : SELECT PENDING events
+CDB --> OP : [ContractSignedEvent]
+OP -> MQ : publish routing-key: contract.signed
+OP -> CDB : UPDATE status=PUBLISHED
+
+== 5. Escrow lock (async) ==
+MQ -> ES : contract.signed
+ES -> ES : check contractId idempotency
+ES -> ES : EscrowAccount.lock() [LOCKED]
+note right of ES: Escrow LOCKED\nMock Phase 1
+
+== 6. Notification (async) ==
+MQ -> NS : contract.signed
+NS -> NS : check eventId idempotency
+NS -> NS : send email to buyer + seller
+note right of NS: "Hợp đồng đã được ký"
+
+== 7. Seller xác nhận giao hàng ==
+Seller -> GW : PUT /api/v1/contracts/{id}/confirm-delivery
+GW -> CS : forward
+CS -> CS : Contract.confirmDelivery() [SIGNED → GOODS_DELIVERED]
+CS -> CDB : save + GoodsDeliveredEvent (PENDING)
+CS --> Seller : 200 OK
+OP -> MQ : publish contract.goods_delivered
+MQ -> NS : notify buyer to confirm receipt
+
+== 8. Buyer xác nhận nhận hàng → Settle ==
+Buyer -> GW : PUT /api/v1/contracts/{id}/settle
+GW -> CS : forward
+CS -> CS : Contract.settle() [GOODS_DELIVERED → SETTLED]
+CS -> CDB : save + ContractSettledEvent (PENDING)
+CS --> Buyer : 200 OK
+OP -> MQ : publish contract.settled
+
+== 9. Escrow release (async) ==
+MQ -> ES : contract.settled
+ES -> ES : EscrowAccount.release() [LOCKED → RELEASED]
+note right of ES: Tiền về tay Seller\n(Mock: log only)
+
+MQ -> NS : contract.settled
+NS -> NS : send email to both parties
+note right of NS: "Hợp đồng hoàn tất\nEscrow released"
+
+@enduml

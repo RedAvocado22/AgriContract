@@ -1,0 +1,72 @@
+@startuml AgriContract - System Architecture
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+skinparam defaultFontName Arial
+
+title AgriContract — System Architecture (Phase 1 MVP)
+
+actor "Seller (HTX)" as Seller
+actor "Buyer (Doanh nghiệp)" as Buyer
+
+rectangle "AgriContract Platform" {
+    rectangle "Frontend\n[React / Next.js]" as FE
+
+    rectangle "API Gateway\n[Spring Cloud Gateway :8888]\n• JWT validate via Keycloak JWKS\n• Inject X-User-Id header\n• Route to services" as GW
+
+    database "Keycloak\n[:8080]\nRealm: agricontract\nRoles: SELLER / BUYER / ADMIN" as KC
+
+    rectangle "RabbitMQ\n[:5672]\nTopic Exchange: agricontract.events\nRouting: <domain>.<entity>.<event>" as MQ
+
+    rectangle "user-service\n[:8081]" as US
+    rectangle "product-service\n[:8082]" as PS
+    rectangle "contract-service\n[:8083]\n⭐ Outbox Pattern" as CS
+    rectangle "escrow-service\n[:8084]\n⭐ Idempotency" as ES
+    rectangle "notification-service\n[:8085]\n⭐ Retry 3x" as NS
+
+    database "user_db\n[MySQL]" as UDB
+    database "product_db\n[MySQL]" as PDB
+    database "contract_db\n[MySQL]\n+ contract_domain_events\n(outbox table)" as CDB
+    database "escrow_db\n[MySQL]" as ESDB
+    database "notification_db\n[MySQL]" as NDB
+
+    rectangle "MailHog\n[:8025]\nSMTP Mock" as MAIL
+}
+
+Seller --> FE
+Buyer --> FE
+FE --> GW : HTTPS + JWT
+GW --> KC : validate JWKS
+GW --> US : REST
+GW --> PS : REST
+GW --> CS : REST
+GW --> ES : REST
+
+CS --> PS : PUT /listings/{id}/close\n[OpenFeign — SYNC]\nclose listing khi SIGNED
+
+CS --> MQ : publish domain events\n(via Outbox Poller)
+MQ --> ES : contract.signed\ncontract.settled\ncontract.arbitrated
+MQ --> NS : all events
+
+ES --> ESDB
+CS --> CDB
+US --> UDB
+PS --> PDB
+NS --> NDB
+NS --> MAIL : JavaMailSender
+
+note right of CS
+  Outbox Pattern:
+  1. Save contract + events in same TX
+  2. @Scheduled poller reads PENDING
+  3. Publish to RabbitMQ
+  4. Mark PUBLISHED
+end note
+
+note right of ES
+  Idempotency:
+  contractId = idempotency key
+  Skip if escrow already LOCKED
+end note
+
+@enduml

@@ -1,0 +1,47 @@
+@startuml escrow_db Schema
+!theme plain
+skinparam backgroundColor #FAFAFA
+title escrow-service — escrow_db
+
+entity "escrow_accounts" as EA {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * escrow_id : VARCHAR(255) <<UNIQUE>>
+    * contract_id : VARCHAR(255) <<UNIQUE>> (idempotency key)
+    * buyer_user_id : VARCHAR(255)
+    * seller_user_id : VARCHAR(255)
+    * total_amount : DECIMAL(15,2)
+    * currency : VARCHAR(10)
+    * status : ENUM(LOCKED, RELEASED,\n  PENALIZED_BUYER, PENALIZED_SELLER,\n  ARBITRATED)
+    * created_at : DATETIME
+    * updated_at : DATETIME
+}
+
+entity "escrow_transactions" as ET {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * transaction_id : VARCHAR(255) <<UNIQUE>>
+    * escrow_id : VARCHAR(255) <<FK>>
+    * transaction_type : ENUM(LOCK, RELEASE,\n  PENALIZE_BUYER, PENALIZE_SELLER,\n  ARBITRATION)
+    * amount : DECIMAL(15,2)
+    * currency : VARCHAR(10)
+    note : TEXT
+    * created_at : DATETIME
+}
+
+EA ||--o{ ET : "ledger\n(append-only)"
+
+note right of ET
+  Append-only financial ledger.
+  KHÔNG bao giờ UPDATE — chỉ INSERT.
+  Mỗi operation tạo 1 transaction record.
+  Đây là audit trail tài chính.
+end note
+
+note right of EA
+  Idempotency: contractId là UNIQUE
+  Nếu escrow đã LOCKED → bỏ qua event lock lần 2.
+  (RabbitMQ at-least-once delivery)
+end note
+
+@enduml

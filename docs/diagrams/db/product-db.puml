@@ -1,0 +1,45 @@
+@startuml product_db Schema
+!theme plain
+skinparam backgroundColor #FAFAFA
+title product-service — product_db
+
+entity "products" as P {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * product_id : VARCHAR(255) <<UNIQUE>>
+    * name : VARCHAR(255)
+    * unit : VARCHAR(50) (kg, tấn, bao...)
+    category : VARCHAR(100)
+    * created_at : DATETIME
+    * updated_at : DATETIME
+}
+
+entity "listings" as L {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * listing_id : VARCHAR(255) <<UNIQUE>>
+    * seller_id : VARCHAR(255) (ref user_profiles.user_id)
+    * product_id : VARCHAR(255) (ref products.product_id)
+    * product_name : VARCHAR(255) <<snapshot>>
+    * quantity : DECIMAL(15,3)
+    * quantity_unit : VARCHAR(50)
+    * price_floor : DECIMAL(15,2)
+    * currency : VARCHAR(10)
+    * delivery_deadline : DATE
+    * status : ENUM(ACTIVE, CLOSED, EXPIRED)
+    * created_at : DATETIME
+    * updated_at : DATETIME
+}
+
+P ||--o{ L : "referenced by\n(product_id snapshot)"
+
+note right of L
+  State machine:
+  ACTIVE → CLOSED (contract signed)
+  ACTIVE → EXPIRED (deadline passed)
+
+  product_name là snapshot — không thay đổi
+  khi product bị sửa sau khi listing tạo.
+end note
+
+@enduml

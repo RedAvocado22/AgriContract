@@ -1,0 +1,34 @@
+@startuml notification_db Schema
+!theme plain
+skinparam backgroundColor #FAFAFA
+title notification-service — notification_db
+
+entity "notification_logs" as NL {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * notification_id : VARCHAR(255) <<UNIQUE>>
+    * event_id : VARCHAR(255) <<UNIQUE>> (dedup key)
+    * user_id : VARCHAR(255)
+    * channel : ENUM(EMAIL)
+    * subject : VARCHAR(500)
+    * body : TEXT
+    * status : ENUM(PENDING, SENT, FAILED)
+    * retry_count : INT
+    * created_at : DATETIME
+    * updated_at : DATETIME
+}
+
+note right of NL
+  Idempotency: event_id là UNIQUE
+  → không gửi email 2 lần cho cùng 1 event.
+
+  Retry logic:
+  - Max 3 lần
+  - Backoff: 1s → 2s → 4s
+  - Sau 3 lần → status = FAILED
+
+  Phase 1: JavaMailSender + MailHog (SMTP mock)
+  Phase 2: SendGrid API
+end note
+
+@enduml

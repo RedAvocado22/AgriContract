@@ -1,0 +1,79 @@
+@startuml Cancel Flow & Dispute Flow
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName Arial
+
+title Cancel Flow (khi OFFERED) & Dispute Flow (khi SIGNED)
+
+actor Seller
+actor Buyer
+actor Admin
+participant "API Gateway" as GW
+participant "contract-service" as CS
+database "contract_db" as CDB
+participant "Outbox Poller" as OP
+queue "RabbitMQ" as MQ
+participant "escrow-service" as ES
+participant "notification-service" as NS
+
+== CASE A: Cancel khi OFFERED (không cần compensate escrow) ==
+
+note over Buyer, CS: Contract ở trạng thái OFFERED\n(escrow chưa được lock)
+
+Buyer -> GW : PUT /api/v1/contracts/{id}/cancel\n{reason: "Thay đổi kế hoạch"}
+GW -> CS : forward (X-User-Id: buyerId)
+CS -> CS : Contract.cancelByBuyer() [OFFERED → CANCELLED_BY_BUYER]
+CS -> CDB : save + ContractCancelledEvent (PENDING)
+CS --> Buyer : 200 OK
+
+OP -> MQ : publish contract.cancelled
+MQ -> NS : contract.cancelled
+NS -> NS : notify buyer + seller
+note right of NS: Không cần compensate escrow\nvì chưa SIGNED
+
+== CASE B: Cancel khi OFFERED bởi Seller ==
+
+Seller -> GW : PUT /api/v1/contracts/{id}/cancel\n{reason: "Không còn hàng"}
+GW -> CS : forward (X-User-Id: sellerId)
+CS -> CS : Contract.cancelBySeller() [OFFERED → CANCELLED_BY_SELLER]
+CS -> CDB : save + ContractCancelledEvent (PENDING)
+CS --> Seller : 200 OK
+OP -> MQ : publish contract.cancelled
+MQ -> NS : notify both
+
+== CASE C: Dispute & Arbitration (sau khi SIGNED) ==
+
+note over Buyer, ES: Contract ở trạng thái SIGNED\nEscrow đang LOCKED
+
+Buyer -> GW : PUT /api/v1/contracts/{id}/dispute\n{reason: "Hàng không đúng chất lượng"}
+GW -> CS : forward (X-User-Id: buyerId)
+CS -> CS : Contract.dispute() [SIGNED → DISPUTED]
+CS -> CDB : save + ContractDisputedEvent (PENDING)
+CS --> Buyer : 200 OK
+
+OP -> MQ : publish contract.disputed
+MQ -> NS : contract.disputed
+NS -> NS : notify admin + seller
+note right of NS: "Có tranh chấp — cần Admin xử lý"
+
+== Admin phân xử ==
+
+Admin -> GW : PUT /api/v1/contracts/{id}/arbitrate\n{penalizeBuyer: false, penaltyAmount: 500000}
+GW -> CS : forward
+CS -> CS : Contract.arbitrate() [DISPUTED → ARBITRATED]
+CS -> CDB : save + ContractArbitratedEvent (PENDING)
+CS --> Admin : 200 OK
+
+OP -> MQ : publish contract.arbitrated
+
+MQ -> ES : contract.arbitrated
+alt penalizeBuyer = false (Seller thắng)
+    ES -> ES : EscrowAccount.penalizeSeller() [→ PENALIZED_SELLER]\nnote: Tiền về Buyer, Seller chịu penalty
+else penalizeBuyer = true (Buyer thắng bị phạt)
+    ES -> ES : EscrowAccount.penalizeBuyer() [→ PENALIZED_BUYER]\nnote: Tiền về Seller, Buyer chịu penalty
+end
+
+MQ -> NS : contract.arbitrated
+NS -> NS : notify both parties về kết quả phán xử
+
+@enduml
