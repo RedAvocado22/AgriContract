@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: api-gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_URI:http://localhost:8080/realms/agricontract/protocol/openid-connect/certs}
+  cloud:
+    gateway:
+      routes:
+        - id: user-service
+          uri: ${USER_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/users/**
+        - id: product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/products/**, /api/v1/listings/**
+        - id: contract-service
+          uri: ${CONTRACT_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/contracts/**
+        - id: escrow-service
+          uri: ${ESCROW_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/escrows/**
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/notifications/**
+      default-filters:
+        - TokenRelay=
+
+server:
+  port: ${SERVER_PORT:8888}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
