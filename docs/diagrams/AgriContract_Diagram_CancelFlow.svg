@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" viewBox="0 0 680 510">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#333" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<rect width="680" height="510" fill="white"/>
+
+<!-- Participants -->
+<rect x="10" y="16" width="88" height="34" rx="4" fill="white" stroke="#222" stroke-width="1.2"/>
+<text font-family="Arial" font-size="11" font-weight="600" x="54" y="38" text-anchor="middle">Buyer / Seller</text>
+
+<rect x="154" y="16" width="100" height="34" rx="4" fill="white" stroke="#222" stroke-width="1.2"/>
+<text font-family="Arial" font-size="11" font-weight="600" x="204" y="38" text-anchor="middle">contract-svc</text>
+
+<rect x="310" y="16" width="100" height="34" rx="4" fill="white" stroke="#222" stroke-width="1.2"/>
+<text font-family="Arial" font-size="11" font-weight="600" x="360" y="38" text-anchor="middle">escrow-svc</text>
+
+<rect x="466" y="16" width="104" height="34" rx="4" fill="white" stroke="#888" stroke-width="1"/>
+<text font-family="Arial" font-size="11" font-weight="600" x="518" y="38" text-anchor="middle">notification-svc</text>
+
+<!-- Lifelines -->
+<line x1="54" y1="50" x2="54" y2="486" stroke="#ccc" stroke-width="0.5" stroke-dasharray="3 3"/>
+<line x1="204" y1="50" x2="204" y2="486" stroke="#ccc" stroke-width="0.5" stroke-dasharray="3 3"/>
+<line x1="360" y1="50" x2="360" y2="486" stroke="#ccc" stroke-width="0.5" stroke-dasharray="3 3"/>
+<line x1="518" y1="50" x2="518" y2="486" stroke="#ccc" stroke-width="0.5" stroke-dasharray="3 3"/>
+
+<!-- Case A header -->
+<text font-family="Arial" font-size="11" font-weight="600" x="30" y="72" fill="#222">Case A — Buyer cancels after ACTIVE</text>
+
+<line x1="54" y1="86" x2="196" y2="86" stroke="#333" stroke-width="1" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="125" y="80" text-anchor="middle" fill="#333">PUT /cancel (cancelledBy=BUYER)</text>
+<text font-family="Arial" font-size="10" x="206" y="98" fill="#888">→ CANCELLED</text>
+
+<line x1="204" y1="112" x2="352" y2="112" stroke="#333" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="278" y="106" text-anchor="middle" fill="#333">event: contract.cancelled (BUYER)</text>
+<text font-family="Arial" font-size="10" x="362" y="124" fill="#888">PENALIZED_BUYER:</text>
+<text font-family="Arial" font-size="10" x="362" y="138" fill="#888">penalty → Seller, rest refund → Buyer</text>
+
+<line x1="360" y1="150" x2="510" y2="150" stroke="#333" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="434" y="144" text-anchor="middle" fill="#333">event: escrow.penalized</text>
+<text font-family="Arial" font-size="10" x="472" y="162" fill="#888">email → both parties</text>
+
+<!-- Divider A/B -->
+<line x1="20" y1="178" x2="660" y2="178" stroke="#ccc" stroke-width="0.4" stroke-dasharray="2 4"/>
+
+<!-- Case B -->
+<text font-family="Arial" font-size="11" font-weight="600" x="30" y="196" fill="#222">Case B — Seller cancels after ACTIVE</text>
+
+<line x1="54" y1="210" x2="196" y2="210" stroke="#333" stroke-width="1" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="125" y="204" text-anchor="middle" fill="#333">PUT /cancel (cancelledBy=SELLER)</text>
+<text font-family="Arial" font-size="10" x="206" y="222" fill="#888">→ CANCELLED</text>
+
+<line x1="204" y1="236" x2="352" y2="236" stroke="#333" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="278" y="230" text-anchor="middle" fill="#333">event: contract.cancelled (SELLER)</text>
+<text font-family="Arial" font-size="10" x="362" y="248" fill="#888">PENALIZED_SELLER:</text>
+<text font-family="Arial" font-size="10" x="362" y="262" fill="#888">full refund → Buyer (+ Seller penalty)</text>
+
+<line x1="360" y1="274" x2="510" y2="274" stroke="#333" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="434" y="268" text-anchor="middle" fill="#333">event: escrow.penalized</text>
+<text font-family="Arial" font-size="10" x="472" y="286" fill="#888">email → both parties</text>
+
+<!-- Divider B/C -->
+<line x1="20" y1="302" x2="660" y2="302" stroke="#ccc" stroke-width="0.4" stroke-dasharray="2 4"/>
+
+<!-- Case C -->
+<text font-family="Arial" font-size="11" font-weight="600" x="30" y="320" fill="#222">Case C — Buyer disputes after DELIVERED</text>
+
+<line x1="54" y1="334" x2="196" y2="334" stroke="#333" stroke-width="1" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="125" y="328" text-anchor="middle" fill="#333">PUT /dispute</text>
+<text font-family="Arial" font-size="10" x="206" y="346" fill="#888">→ DISPUTED</text>
+
+<line x1="204" y1="360" x2="352" y2="360" stroke="#333" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="278" y="354" text-anchor="middle" fill="#333">event: contract.disputed</text>
+<text font-family="Arial" font-size="10" x="362" y="372" fill="#888">→ ARBITRATED (hold funds)</text>
+
+<line x1="352" y1="392" x2="212" y2="392" stroke="#aaa" stroke-width="0.8" stroke-dasharray="3 2" marker-end="url(#arrow)"/>
+<text font-family="Arial" font-size="10" x="282" y="386" text-anchor="middle" fill="#888">Admin: PUT /escrow/{id}/arbitrate</text>
+<text font-family="Arial" font-size="10" x="206" y="404" fill="#888">manual decision → contract updated</text>
+
+<!-- Legend -->
+<line x1="30" y1="444" x2="70" y2="444" stroke="#333" stroke-width="1"/>
+<text font-family="Arial" font-size="10" x="76" y="448" fill="#666">sync REST</text>
+<line x1="170" y1="444" x2="210" y2="444" stroke="#333" stroke-width="1" stroke-dasharray="4 2"/>
+<text font-family="Arial" font-size="10" x="216" y="448" fill="#666">async event (RabbitMQ)</text>
+<line x1="390" y1="444" x2="430" y2="444" stroke="#aaa" stroke-width="0.8" stroke-dasharray="3 2"/>
+<text font-family="Arial" font-size="10" x="436" y="448" fill="#666">sync response / admin action</text>
+</svg>

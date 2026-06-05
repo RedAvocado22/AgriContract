@@ -11,6 +11,8 @@ target/
 .vscode/
 *.swp
 
+notes/
+
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
