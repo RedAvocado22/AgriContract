@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgriContract — Dev Notes</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1>🌾 AgriContract</h1>
+    <p>Dev Notes — local only</p>
+  </div>
+
+  <div class="nav-section">Bắt đầu</div>
+  <a href="#overview"        class="nav-link active"><span class="nav-icon">🗺️</span> Tổng quan</a>
+  <a href="#run"             class="nav-link"><span class="nav-icon">▶️</span> Chạy local</a>
+
+  <div class="nav-section">Architecture</div>
+  <a href="#clean-arch"      class="nav-link"><span class="nav-icon">📦</span> Clean Architecture</a>
+  <a href="#ddd"             class="nav-link"><span class="nav-icon">🧩</span> DDD — Aggregate, VO</a>
+  <a href="#state-machine"   class="nav-link"><span class="nav-icon">🔄</span> Contract State Machine</a>
+
+  <div class="nav-section">Patterns</div>
+  <a href="#outbox"          class="nav-link"><span class="nav-icon">📬</span> Outbox Pattern</a>
+  <a href="#saga"            class="nav-link"><span class="nav-icon">🎭</span> Choreography Saga</a>
+  <a href="#idempotency"     class="nav-link"><span class="nav-icon">🔑</span> Idempotency</a>
+
+  <div class="nav-section">Services</div>
+  <a href="#events"          class="nav-link"><span class="nav-icon">📡</span> RabbitMQ Events</a>
+  <a href="#auth"            class="nav-link"><span class="nav-icon">🔐</span> Keycloak & JWT</a>
+  <a href="#services-detail" class="nav-link"><span class="nav-icon">⚙️</span> Chi tiết từng service</a>
+</nav>
+
+<!-- ══ MAIN ═════════════════════════════════════════════════ -->
+<main class="main">
+
+<!-- ─── TỔNG QUAN ─────────────────────────────────────────── -->
+<section class="section" id="overview">
+  <div class="section-label">📌 Tổng quan</div>
+  <h1>AgriContract — Hệ thống hợp đồng nông sản B2B</h1>
+  <p>Nền tảng số hóa giao dịch hợp đồng nông sản B2B cho phép HTX và doanh nghiệp thu mua ký kết hợp đồng điện tử với cơ chế <strong>escrow tự thực thi</strong>.</p>
+
+  <h2>Cấu trúc thư mục</h2>
+  <pre><code>AgriContract/
+├── pom.xml                 <span class="c">← Parent POM — shared dependency versions</span>
+├── docker-compose.yml      <span class="c">← Chạy toàn bộ hệ thống: docker compose up -d</span>
+├── .env.example            <span class="c">← Copy → .env rồi điền password thật</span>
+│
+├── api-gateway/            <span class="c">← :8888 — cổng vào duy nhất từ frontend</span>
+├── user-service/           <span class="c">← :8081 — quản lý UserProfile</span>
+├── product-service/        <span class="c">← :8082 — Product catalog + Listing</span>
+├── contract-service/       <span class="c">← :8083 — Contract (service phức tạp nhất)</span>
+├── escrow-service/         <span class="c">← :8084 — Giữ tiền + ledger</span>
+├── notification-service/   <span class="c">← :8085 — Email notifications</span>
+│
+└── docs/diagrams/          <span class="c">← PlantUML: mở bằng VSCode + PlantUML extension</span></code></pre>
+
+  <h2>Luồng request tổng quát</h2>
+  <div class="flow">
+    <div class="flow-box">Frontend</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">API Gateway :8888</div>
+    <span class="flow-note">(validate JWT, inject X-User-Id)</span>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">Service :808x</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">MySQL</div>
+  </div>
+  <div class="flow">
+    <div class="flow-box">contract-service</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">outbox table</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">RabbitMQ</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">escrow-service</div>
+    <span class="flow-note">+ notification-service</span>
+  </div>
+
+  <h2>Infrastructure ports</h2>
+  <table>
+    <tr><th>Service</th><th>Port</th><th>Ghi chú</th></tr>
+    <tr><td>Keycloak</td><td>8080</td><td>Admin UI: localhost:8080 / admin:admin</td></tr>
+    <tr><td>RabbitMQ Management</td><td>15672</td><td>guest:guest</td></tr>
+    <tr><td>MailHog UI</td><td>8025</td><td>Xem email được gửi trong dev</td></tr>
+    <tr><td>user-db (MySQL)</td><td>3307</td><td>mysql -h 127.0.0.1 -P 3307 -u root -p</td></tr>
+    <tr><td>product-db</td><td>3308</td><td></td></tr>
+    <tr><td>contract-db</td><td>3309</td><td>Có thêm bảng contract_domain_events (outbox)</td></tr>
+    <tr><td>escrow-db</td><td>3310</td><td></td></tr>
+    <tr><td>notification-db</td><td>3311</td><td></td></tr>
+  </table>
+</section>
+
+<!-- ─── CHẠY LOCAL ────────────────────────────────────────── -->
+<section class="section" id="run">
+  <div class="section-label">▶️ Chạy local</div>
+  <h1>Cách chạy hệ thống</h1>
+
+  <h2>Bước 1 — Chuẩn bị .env</h2>
+  <pre><code>cp .env.example .env
+<span class="c"># Giữ nguyên giá trị mặc định cho dev là được</span></code></pre>
+
+  <h2>Bước 2 — Chạy toàn bộ infrastructure</h2>
+  <pre><code><span class="c"># Khởi động Keycloak, RabbitMQ, MailHog, 5 MySQL databases</span>
+docker compose up -d keycloak rabbitmq mailhog user-db product-db contract-db escrow-db notification-db
+
+<span class="c"># Kiểm tra tất cả đã healthy chưa</span>
+docker compose ps</code></pre>
+
+  <h2>Bước 3 — Cấu hình Keycloak</h2>
+  <pre><code><span class="c"># Vào http://localhost:8080 → Admin Console (admin/admin)
+# Tạo Realm: agricontract
+# Tạo Roles: SELLER, BUYER, ADMIN
+# Tạo Client: agricontract-frontend (public)</span></code></pre>
+
+  <h2>Bước 4 — Build và chạy services</h2>
+  <pre><code><span class="c"># Build tất cả (từ thư mục root)</span>
+mvn clean package -DskipTests
+
+<span class="c"># Chạy từng service riêng để debug</span>
+cd user-service && mvn spring-boot:run
+cd product-service && mvn spring-boot:run
+<span class="c"># ...</span>
+
+<span class="c"># Hoặc chạy tất cả qua Docker</span>
+docker compose up -d</code></pre>
+
+  <div class="callout warn">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-body">
+      <strong>Lưu ý thứ tự khởi động</strong>
+      Services Spring Boot phải <code>depends_on</code> với MySQL và Keycloak đã healthy. Docker Compose đã config sẵn điều này với <code>condition: service_healthy</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ─── CLEAN ARCHITECTURE ────────────────────────────────── -->
+<section class="section" id="clean-arch">
+  <div class="section-label">📦 Architecture</div>
+  <h1>Clean Architecture — Package Structure</h1>
+  <p>Mỗi service được chia thành 3 layer. <strong>Dependency chỉ chạy từ ngoài vào trong</strong> — infrastructure phụ thuộc vào domain, không bao giờ ngược lại.</p>
+
+  <pre><code>src/main/java/com/agricontract/{service}/
+│
+├── domain/              <span class="c">← Lớp trong cùng — pure Java, không import Spring/JPA</span>
+│   ├── model/           <span class="c">← Aggregate Roots, Entities</span>
+│   │   └── vo/          <span class="c">← Value Objects (record)</span>
+│   ├── event/           <span class="c">← Domain Events</span>
+│   └── repository/      <span class="c">← Repository interfaces (ports) — chỉ là interface</span>
+│
+├── application/         <span class="c">← Use cases và DTOs</span>
+│   ├── usecase/         <span class="c">← Interface cho từng use case</span>
+│   └── dto/             <span class="c">← Command (input) và Response (output)</span>
+│
+└── infrastructure/      <span class="c">← Lớp ngoài — code Spring/JPA/RabbitMQ ở đây</span>
+    ├── persistence/
+    │   ├── entity/      <span class="c">← JPA @Entity — KHÁC với Domain model</span>
+    │   ├── mapper/      <span class="c">← MapStruct: Domain ↔ JPA entity</span>
+    │   └── repository/  <span class="c">← Implement domain repository interface</span>
+    ├── messaging/        <span class="c">← RabbitMQ publisher/consumer</span>
+    ├── web/             <span class="c">← @RestController</span>
+    └── config/          <span class="c">← Spring @Configuration beans</span></code></pre>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">✅ Domain layer</div>
+      <p>Pure Java. Không có annotation Spring nào. Không biết database hay HTTP tồn tại. Đây là nơi viết business logic.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">✅ Application layer</div>
+      <p>Orchestrate use cases. Nhận Command từ controller, gọi domain model, lưu qua repository port.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">✅ Infrastructure layer</div>
+      <p>Implement các interface từ domain. Chứa code Spring, JPA, RabbitMQ. Có thể swap mà không ảnh hưởng domain.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">❌ Không được làm</div>
+      <p>Domain import <code>@Entity</code>, <code>@Service</code> của Spring. JPA entity lẫn lộn với domain model.</p>
+    </div>
+  </div>
+
+  <h2>Tại sao JPA Entity tách với Domain Model?</h2>
+  <p>Domain model <code>Contract.java</code> có business methods (<code>sign()</code>, <code>settle()</code>...), không có JPA annotation. JPA entity <code>ContractJpaEntity.java</code> chỉ là "table mapping" thuần túy. MapStruct convert giữa 2 thứ này.</p>
+
+  <pre><code><span class="c">// domain/model/Contract.java — pure business logic</span>
+<span class="a">@Getter</span>
+<span class="k">public class</span> <span class="n">Contract</span> {
+    <span class="k">private</span> ContractId contractId;
+    <span class="k">private</span> ContractStatus status;
+
+    <span class="k">public void</span> <span class="m">sign</span>(String actorId) { <span class="c">/* business logic */</span> }
+}
+
+<span class="c">// infrastructure/persistence/entity/ContractJpaEntity.java — chỉ là table</span>
+<span class="a">@Entity</span> <span class="a">@Table</span>(name = <span class="s">"contracts"</span>)
+<span class="k">public class</span> <span class="n">ContractJpaEntity</span> {
+    <span class="a">@Id</span> <span class="k">private</span> Long id;
+    <span class="a">@Column</span> <span class="k">private</span> String contractId;
+    <span class="a">@Enumerated</span>(EnumType.STRING) <span class="k">private</span> ContractStatus status;
+    <span class="c">// không có business method nào</span>
+}</code></pre>
+</section>
+
+<!-- ─── DDD ───────────────────────────────────────────────── -->
+<section class="section" id="ddd">
+  <div class="section-label">🧩 DDD</div>
+  <h1>Domain-Driven Design — Aggregate, VO, Entity</h1>
+
+  <h2>Value Object (VO) — Java Record</h2>
+  <p>Immutable. Không có identity — so sánh bằng value, không phải reference. Dùng <code>record</code> của Java 16+.</p>
+  <pre><code><span class="c">// Ví dụ: UserId, Money, Quantity, ContactInfo</span>
+<span class="k">public record</span> <span class="n">Money</span>(BigDecimal amount, String currency) {}
+
+<span class="c">// Tại sao không dùng String thẳng?</span>
+<span class="k">void</span> <span class="m">pay</span>(String amount, String currency)  <span class="c">// ← dễ nhầm thứ tự tham số</span>
+<span class="k">void</span> <span class="m">pay</span>(<span class="n">Money</span> money)                    <span class="c">// ← rõ ràng, type-safe</span></code></pre>
+
+  <h2>Entity</h2>
+  <p>Có identity (id). Có thể thay đổi state theo thời gian. Trong project này: <code>EscrowTransaction</code> là entity (có transactionId, append-only).</p>
+
+  <h2>Aggregate Root</h2>
+  <p>Là "cửa ngõ" vào một nhóm objects liên quan. <strong>Chỉ có thể modify thông qua Aggregate Root</strong>, không được sửa trực tiếp các object bên trong.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">🏠 UserProfile — Aggregate Root</div>
+      <p>Owns: <code>ContactInfo</code> (VO embed), <code>Role</code>, <code>VerificationStatus</code><br>Methods: <code>create()</code>, <code>verify()</code>, <code>reject()</code></p>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 Listing — Aggregate Root</div>
+      <p>Owns: <code>Quantity</code>, <code>Money</code> (VOs)<br>Methods: <code>create()</code>, <code>close()</code>, <code>expire()</code><br>State: ACTIVE → CLOSED | EXPIRED</p>
+    </div>
+    <div class="card">
+      <div class="card-title">📄 Contract — Aggregate Root ⭐</div>
+      <p>Phức tạp nhất. 8 business methods. Accumulate domain events. Snapshot data từ Listing tại thời điểm offer.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">💰 EscrowAccount — Aggregate Root</div>
+      <p>Owns: List&lt;EscrowTransaction&gt; (append-only ledger)<br>Methods: <code>lock()</code>, <code>release()</code>, <code>penalize()</code></p>
+    </div>
+  </div>
+
+  <h2>Private constructor + Static factory method</h2>
+  <p>Aggregate Root không có <code>public</code> constructor. Tạo instance chỉ qua static factory để đảm bảo invariants luôn đúng từ lúc tạo.</p>
+  <pre><code><span class="k">public class</span> <span class="n">Contract</span> {
+    <span class="k">private</span> <span class="n">Contract</span>() {}   <span class="c">// không ai new Contract() được</span>
+
+    <span class="c">// Chỉ tạo qua factory — validate trước khi tạo</span>
+    <span class="k">public static</span> <span class="n">Contract</span> <span class="m">offer</span>(ContractId id, String listingId, ...) {
+        <span class="c">// validate inputs</span>
+        <span class="c">// tạo contract với status = OFFERED</span>
+        <span class="c">// add ContractOfferedEvent vào domainEvents list</span>
+        <span class="k">return</span> contract;
+    }
+}</code></pre>
+
+  <h2>Snapshot — Tại sao Contract lưu lại productName, quantity?</h2>
+  <div class="callout info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-body">
+      <strong>Domain Invariant quan trọng</strong>
+      Khi buyer và seller đã ký hợp đồng, các điều khoản không được phép thay đổi — kể cả khi seller sau đó sửa listing. Contract snapshot lại <code>productName</code>, <code>quantity</code>, <code>agreedPrice</code> ngay lúc tạo. Đây <strong>không phải lỗi thiết kế</strong> — đây là yêu cầu nghiệp vụ.
+    </div>
+  </div>
+</section>
+
+<!-- ─── STATE MACHINE ─────────────────────────────────────── -->
+<section class="section" id="state-machine">
+  <div class="section-label">🔄 State Machine</div>
+  <h1>Contract State Machine</h1>
+
+  <h2>Happy Path</h2>
+  <div class="state-flow">
+    <div class="state-row">
+      <div class="state-box s-offered">OFFERED</div>
+      <div class="state-arrow">→</div>
+      <div class="state-box s-signed">SIGNED</div>
+      <div class="state-arrow">→</div>
+      <div class="state-box s-delivered">GOODS_DELIVERED</div>
+      <div class="state-arrow">→</div>
+      <div class="state-box s-settled">SETTLED</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Transition</th><th>Actor</th><th>Method</th><th>Side effects</th></tr>
+    <tr>
+      <td>→ OFFERED</td>
+      <td><span class="badge badge-blue">BUYER</span></td>
+      <td><code>Contract.offer()</code></td>
+      <td>Emit <code>ContractOfferedEvent</code></td>
+    </tr>
+    <tr>
+      <td>OFFERED → SIGNED</td>
+      <td><span class="badge badge-green">SELLER</span></td>
+      <td><code>Contract.sign()</code></td>
+      <td>Close listing (Feign sync) + emit <code>ContractSignedEvent</code> → escrow lock</td>
+    </tr>
+    <tr>
+      <td>SIGNED → GOODS_DELIVERED</td>
+      <td><span class="badge badge-green">SELLER</span></td>
+      <td><code>Contract.confirmDelivery()</code></td>
+      <td>Emit <code>GoodsDeliveredEvent</code> → notify buyer</td>
+    </tr>
+    <tr>
+      <td>GOODS_DELIVERED → SETTLED</td>
+      <td><span class="badge badge-blue">BUYER</span></td>
+      <td><code>Contract.settle()</code></td>
+      <td>Emit <code>ContractSettledEvent</code> → escrow release</td>
+    </tr>
+  </table>
+
+  <h2>Cancel Flow (chỉ khi OFFERED)</h2>
+  <div class="state-flow">
+    <div class="state-row">
+      <div class="state-box s-offered">OFFERED</div>
+      <div class="state-arrow">→</div>
+      <div class="state-box s-cancel">CANCELLED_BY_BUYER</div>
+      <div class="state-label">buyer rút offer</div>
+    </div>
+    <br>
+    <div class="state-row">
+      <div class="state-box s-offered">OFFERED</div>
+      <div class="state-arrow">→</div>
+      <div class="state-box s-cancel">CANCELLED_BY_SELLER</div>
+      <div class="state-label">seller từ chối</div>
+    </div>
+  </div>
+  <div class="callout success">
+    <span class="callout-icon">✅</span>
+    <div class="callout-body">
+      <strong>Không cần compensate escrow</strong>
+      Cancel chỉ được phép khi OFFERED — lúc này escrow chưa bị lock, nên không cần rollback.
+    </div>
+  </div>
+
+  <h2>Dispute Flow (khi SIGNED)</h2>
+  <div class="state-flow">
+    <div class="state-row">
+      <div class="state-box s-signed">SIGNED</div>
+      <div class="state-arrow">→</div>
+      <div class="state-box s-disputed">DISPUTED</div>
+      <div class="state-arrow">→</div>
+      <div class="state-box s-cancel">ARBITRATED</div>
+    </div>
+  </div>
+  <table>
+    <tr><th>Transition</th><th>Actor</th><th>Method</th><th>Escrow result</th></tr>
+    <tr>
+      <td>SIGNED → DISPUTED</td>
+      <td><span class="badge badge-blue">BUYER</span></td>
+      <td><code>Contract.dispute()</code></td>
+      <td>Escrow vẫn LOCKED, chờ admin</td>
+    </tr>
+    <tr>
+      <td>DISPUTED → ARBITRATED</td>
+      <td><span class="badge badge-purple">ADMIN</span></td>
+      <td><code>Contract.arbitrate()</code></td>
+      <td><code>penalizeBuyer=true</code> → PENALIZED_BUYER<br><code>penalizeBuyer=false</code> → PENALIZED_SELLER</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ─── OUTBOX ────────────────────────────────────────────── -->
+<section class="section" id="outbox">
+  <div class="section-label">📬 Pattern</div>
+  <h1>Outbox Pattern</h1>
+
+  <h2>Vấn đề cần giải quyết</h2>
+  <div class="callout danger">
+    <span class="callout-icon">❌</span>
+    <div class="callout-body">
+      <strong>Nếu không dùng Outbox</strong>
+      Contract-service save DB thành công nhưng publish RabbitMQ thất bại → escrow-service không bao giờ nhận được event → escrow không bao giờ được lock → hệ thống inconsistent.
+    </div>
+  </div>
+
+  <h2>Giải pháp</h2>
+  <p>Ghi event vào bảng <code>contract_domain_events</code> trong <strong>cùng một DB transaction</strong> với việc update contract. Một scheduler riêng đọc và publish.</p>
+
+  <pre><code><span class="c">// Trong cùng 1 DB transaction:</span>
+UPDATE contracts SET status = <span class="s">'SIGNED'</span> WHERE contract_id = ?
+INSERT INTO contract_domain_events (event_id, event_type, payload, status)
+  VALUES (?, <span class="s">'contract.signed'</span>, ?, <span class="s">'PENDING'</span>)
+
+<span class="c">// OutboxPoller (@Scheduled mỗi 1 giây):</span>
+SELECT * FROM contract_domain_events WHERE status = <span class="s">'PENDING'</span> LIMIT 50
+  → publish to RabbitMQ
+  → UPDATE status = <span class="s">'PUBLISHED'</span></code></pre>
+
+  <div class="card">
+    <div class="card-title">📋 Bảng contract_domain_events</div>
+    <p><code>event_id</code> — UUID unique<br>
+    <code>event_type</code> — vd: "contract.signed"<br>
+    <code>aggregate_id</code> — contractId<br>
+    <code>payload</code> — JSON của toàn bộ event<br>
+    <code>status</code> — PENDING | PUBLISHED | FAILED<br>
+    <code>published_at</code> — timestamp khi publish thành công</p>
+  </div>
+
+  <div class="callout info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-body">
+      <strong>Phase 1 vs Phase 2</strong>
+      Phase 1 dùng <code>@Scheduled</code> polling đơn giản. Phase 2 có thể nâng lên <strong>Debezium CDC</strong> (Change Data Capture) để giảm latency và tránh polling tốn resource.
+    </div>
+  </div>
+</section>
+
+<!-- ─── SAGA ──────────────────────────────────────────────── -->
+<section class="section" id="saga">
+  <div class="section-label">🎭 Pattern</div>
+  <h1>Choreography Saga</h1>
+  <p>Saga là cách handle distributed transaction khi không dùng 2-phase commit. Project dùng <strong>Choreography</strong> — không có orchestrator trung tâm.</p>
+
+  <h2>Choreography vs Orchestration</h2>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">✅ Choreography (đang dùng)</div>
+      <p>Mỗi service tự biết phải làm gì khi nhận event. Không có "god service" điều phối. Services độc lập hơn.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">❌ Orchestration (không dùng)</div>
+      <p>Có 1 Saga Orchestrator service điều phối toàn bộ flow. Phức tạp hơn, tạo single point of failure.</p>
+    </div>
+  </div>
+
+  <h2>Happy path flow</h2>
+  <pre><code><span class="n">contract-service</span>  → publish <span class="s">contract.signed</span>
+  <span class="n">escrow-service</span>   → subscribe → lock escrow
+  <span class="n">notif-service</span>    → subscribe → send email
+
+<span class="n">contract-service</span>  → publish <span class="s">contract.settled</span>
+  <span class="n">escrow-service</span>   → subscribe → release escrow
+  <span class="n">notif-service</span>    → subscribe → send email</code></pre>
+
+  <h2>Compensating transactions (khi fail)</h2>
+  <p>Choreography Saga không tự rollback. Mỗi service phải implement "compensating action" khi nhận cancel event.</p>
+  <pre><code><span class="c">// Nếu buyer cancel sau khi OFFERED (escrow chưa lock):</span>
+<span class="n">contract-service</span>  → publish <span class="s">contract.cancelled</span>
+  <span class="n">notif-service</span>    → subscribe → notify both parties
+  <span class="c">// escrow-service không cần làm gì — chưa lock</span>
+
+<span class="c">// Nếu dispute → arbitrate (escrow đang LOCKED):</span>
+<span class="n">contract-service</span>  → publish <span class="s">contract.arbitrated</span>
+  <span class="n">escrow-service</span>   → subscribe → penalize buyer/seller</code></pre>
+</section>
+
+<!-- ─── IDEMPOTENCY ───────────────────────────────────────── -->
+<section class="section" id="idempotency">
+  <div class="section-label">🔑 Pattern</div>
+  <h1>Idempotency</h1>
+  <p>RabbitMQ dùng <strong>at-least-once delivery</strong> — một event có thể được deliver nhiều lần. Mỗi consumer phải đảm bảo xử lý cùng event 2 lần không gây ra side effect.</p>
+
+  <h2>Escrow Service — contractId là idempotency key</h2>
+  <pre><code><span class="k">public void</span> <span class="m">onContractSigned</span>(Map event) {
+    String contractId = event.get(<span class="s">"contractId"</span>);
+
+    <span class="c">// Check trước khi xử lý</span>
+    <span class="k">if</span> (escrowRepo.existsByContractId(contractId)) {
+        log.warn(<span class="s">"Escrow already locked for contract {}, skipping"</span>, contractId);
+        <span class="k">return</span>;  <span class="c">// bỏ qua, không lock lần 2</span>
+    }
+
+    EscrowAccount.lock(contractId, buyerId, sellerId, amount);
+}</code></pre>
+
+  <h2>Notification Service — eventId là dedup key</h2>
+  <pre><code><span class="k">public void</span> <span class="m">onContractSigned</span>(Map event) {
+    String eventId = event.get(<span class="s">"eventId"</span>);
+
+    <span class="k">if</span> (notifRepo.existsByEventId(eventId)) {
+        <span class="k">return</span>;  <span class="c">// email đã gửi rồi, skip</span>
+    }
+
+    <span class="c">// Gửi email + lưu log</span>
+    sendEmail(...);
+    notifRepo.save(NotificationLog.of(eventId, ...));
+}</code></pre>
+
+  <table>
+    <tr><th>Service</th><th>Idempotency key</th><th>Check bằng</th></tr>
+    <tr><td>escrow-service</td><td><code>contractId</code></td><td><code>escrow_accounts.contract_id UNIQUE</code></td></tr>
+    <tr><td>notification-service</td><td><code>eventId</code></td><td><code>notification_logs.event_id UNIQUE</code></td></tr>
+    <tr><td>outbox poller</td><td><code>event_id</code></td><td><code>contract_domain_events.event_id UNIQUE</code></td></tr>
+  </table>
+</section>
+
+<!-- ─── EVENTS ────────────────────────────────────────────── -->
+<section class="section" id="events">
+  <div class="section-label">📡 RabbitMQ</div>
+  <h1>RabbitMQ Events</h1>
+
+  <h2>Exchange và Routing</h2>
+  <pre><code><span class="c">// 1 Topic Exchange duy nhất cho toàn bộ hệ thống</span>
+Exchange name: <span class="s">agricontract.events</span>
+Routing key pattern: <span class="s">&lt;domain&gt;.&lt;entity&gt;.&lt;event_type&gt;</span>
+
+<span class="c">// Ví dụ:</span>
+<span class="s">contract.signed</span>
+<span class="s">contract.cancelled</span>
+<span class="s">contract.goods_delivered</span>
+<span class="s">contract.settled</span>
+<span class="s">contract.disputed</span>
+<span class="s">contract.arbitrated</span></code></pre>
+
+  <h2>Event catalogue</h2>
+  <table>
+    <tr><th>Event</th><th>Publisher</th><th>Subscribers</th><th>Trigger</th></tr>
+    <tr>
+      <td><code>contract.signed</code></td>
+      <td>contract-svc</td>
+      <td>escrow-svc, notif-svc</td>
+      <td>Seller ký → escrow lock</td>
+    </tr>
+    <tr>
+      <td><code>contract.cancelled</code></td>
+      <td>contract-svc</td>
+      <td>notif-svc</td>
+      <td>Cancel khi OFFERED — không cần compensate escrow</td>
+    </tr>
+    <tr>
+      <td><code>contract.goods_delivered</code></td>
+      <td>contract-svc</td>
+      <td>notif-svc</td>
+      <td>Seller xác nhận giao hàng → notify buyer confirm</td>
+    </tr>
+    <tr>
+      <td><code>contract.settled</code></td>
+      <td>contract-svc</td>
+      <td>escrow-svc, notif-svc</td>
+      <td>Buyer confirm → escrow release to seller</td>
+    </tr>
+    <tr>
+      <td><code>contract.disputed</code></td>
+      <td>contract-svc</td>
+      <td>notif-svc</td>
+      <td>Buyer mở tranh chấp → notify admin</td>
+    </tr>
+    <tr>
+      <td><code>contract.arbitrated</code></td>
+      <td>contract-svc</td>
+      <td>escrow-svc, notif-svc</td>
+      <td>Admin phán xử → penalty escrow</td>
+    </tr>
+  </table>
+
+  <h2>Cấu trúc một event message</h2>
+  <pre><code>{
+  <span class="s">"eventId"</span>: <span class="s">"uuid-v4"</span>,          <span class="c">// idempotency key</span>
+  <span class="s">"eventType"</span>: <span class="s">"contract.signed"</span>, <span class="c">// routing key</span>
+  <span class="s">"aggregateId"</span>: <span class="s">"contract-uuid"</span>,  <span class="c">// contractId</span>
+  <span class="s">"occurredAt"</span>: <span class="s">"2026-06-05T..."</span>,
+  <span class="c">// ... payload fields tùy event type</span>
+  <span class="s">"contractId"</span>: <span class="s">"..."</span>,
+  <span class="s">"buyerId"</span>: <span class="s">"..."</span>,
+  <span class="s">"sellerId"</span>: <span class="s">"..."</span>,
+  <span class="s">"agreedPrice"</span>: 50000000,
+  <span class="s">"currency"</span>: <span class="s">"VND"</span>
+}</code></pre>
+</section>
+
+<!-- ─── AUTH ──────────────────────────────────────────────── -->
+<section class="section" id="auth">
+  <div class="section-label">🔐 Security</div>
+  <h1>Keycloak & JWT Authentication</h1>
+
+  <h2>Flow xác thực</h2>
+  <pre><code><span class="n">1. Frontend</span> → Keycloak :8080 (login với username/password)
+   ← JWT access token
+
+<span class="n">2. Frontend</span> → API Gateway :8888
+   Header: Authorization: Bearer &lt;jwt&gt;
+
+<span class="n">3. API Gateway</span> → Keycloak JWKS endpoint (validate chữ ký JWT)
+   → inject header <span class="s">X-User-Id: &lt;keycloak sub&gt;</span>
+   → forward request đến service
+
+<span class="n">4. Downstream services</span> — tin header X-User-Id
+   Không cần gọi lại Keycloak (tốn network)
+   Chỉ an toàn vì request đến từ Gateway qua internal Docker network</code></pre>
+
+  <h2>JWT Claims quan trọng</h2>
+  <table>
+    <tr><th>Claim</th><th>Ý nghĩa</th><th>Dùng để</th></tr>
+    <tr><td><code>sub</code></td><td>Keycloak user UUID</td><td>userId trong toàn bộ hệ thống</td></tr>
+    <tr><td><code>email</code></td><td>Email người dùng</td><td>Gửi notification</td></tr>
+    <tr><td><code>realm_access.roles</code></td><td>SELLER / BUYER / ADMIN</td><td>Authorization tại Gateway + service</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-body">
+      <strong>Phase 1 limitation</strong>
+      Downstream services tin header <code>X-User-Id</code> mà không verify. Điều này an toàn vì request chỉ đến từ Gateway qua Docker internal network. Phase 2 sẽ thêm mTLS hoặc signed header để tăng bảo mật.
+    </div>
+  </div>
+
+  <h2>user-service vs Keycloak</h2>
+  <p>Keycloak giữ <strong>credentials</strong> (password, token). user-service giữ <strong>profile</strong> (tên công ty, role, địa chỉ). Field <code>userId</code> trong <code>user_profiles</code> = Keycloak <code>sub</code>. Không bao giờ duplicate password vào user-service.</p>
+</section>
+
+<!-- ─── SERVICES DETAIL ───────────────────────────────────── -->
+<section class="section" id="services-detail">
+  <div class="section-label">⚙️ Services</div>
+  <h1>Chi tiết từng Service</h1>
+
+  <h2>contract-service — Service quan trọng nhất</h2>
+  <p>Implement Contract aggregate với đầy đủ 8 business methods:</p>
+  <pre><code><span class="k">public class</span> <span class="n">Contract</span> {
+    <span class="c">// Factory</span>
+    <span class="k">public static</span> Contract <span class="m">offer</span>(...)           <span class="c">// OFFERED</span>
+
+    <span class="c">// Happy path</span>
+    <span class="k">public void</span> <span class="m">sign</span>(String actorId)            <span class="c">// → SIGNED</span>
+    <span class="k">public void</span> <span class="m">confirmDelivery</span>(String actorId) <span class="c">// → GOODS_DELIVERED</span>
+    <span class="k">public void</span> <span class="m">settle</span>(String actorId)          <span class="c">// → SETTLED</span>
+
+    <span class="c">// Cancel (chỉ khi OFFERED)</span>
+    <span class="k">public void</span> <span class="m">cancelByBuyer</span>(String actorId, String reason)
+    <span class="k">public void</span> <span class="m">cancelBySeller</span>(String actorId, String reason)
+
+    <span class="c">// Dispute (khi SIGNED)</span>
+    <span class="k">public void</span> <span class="m">dispute</span>(String actorId, String reason)
+    <span class="k">public void</span> <span class="m">arbitrate</span>(Money penalty, boolean penalizeBuyer)
+
+    <span class="c">// Outbox — drain events để persist vào outbox table</span>
+    <span class="k">public</span> List&lt;DomainEvent&gt; <span class="m">pullDomainEvents</span>()
+}</code></pre>
+
+  <h2>product-service — Sync call quan trọng</h2>
+  <p>Khi contract-service nhận request <code>sign()</code>, nó phải gọi <strong>sync</strong> đến product-service để close listing <strong>trước</strong> khi emit event. Tại sao?</p>
+  <div class="callout info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-body">
+      <strong>Tránh race condition</strong>
+      Nếu close listing là async, có thể xảy ra race: 2 buyer cùng lúc sign 2 contract cho cùng 1 listing trước khi listing kịp close. Sync call đảm bảo listing CLOSED trước khi contract.signed được emit.
+    </div>
+  </div>
+
+  <h2>escrow-service — Append-only ledger</h2>
+  <p><code>EscrowTransaction</code> là append-only — không bao giờ UPDATE, chỉ INSERT. Mỗi operation tạo 1 record mới. Đây là audit trail tài chính.</p>
+  <pre><code><span class="c">// Mỗi lần lock/release/penalty → thêm 1 row vào escrow_transactions</span>
+<span class="c">// KHÔNG update row cũ</span>
+escrow_transactions:
+  LOCK    | 50,000,000 VND | 2026-06-01 ...
+  RELEASE | 50,000,000 VND | 2026-06-15 ...  <span class="c">← row mới</span></code></pre>
+
+  <h2>notification-service — Retry với exponential backoff</h2>
+  <pre><code><span class="c">// Retry 3 lần trước khi mark FAILED</span>
+attempt 1: send email → fail → wait 1s
+attempt 2: send email → fail → wait 2s
+attempt 3: send email → fail → wait 4s
+→ status = FAILED, cần manual intervention</code></pre>
+</section>
+
+</main>
+
+<script>
+  // Highlight active nav link on scroll
+  const sections = document.querySelectorAll('.section');
+  const navLinks = document.querySelectorAll('.nav-link');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
