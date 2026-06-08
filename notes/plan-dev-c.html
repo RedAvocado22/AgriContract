@@ -71,11 +71,16 @@
   <a href="#flyway" class="nav-link"><span class="nav-icon">🗄️</span> Flyway Migrations</a>
   <a href="#compose" class="nav-link"><span class="nav-icon">🐳</span> Docker Compose</a>
   <a href="#fe-setup" class="nav-link"><span class="nav-icon">⚛️</span> Frontend Project Setup</a>
+
 <div class="nav-section">Sprint 2 — Frontend Core</div>
+  <a href="#fe-auth" class="nav-link"><span class="nav-icon">🔐</span> Auth + Routing</a>
   <a href="#fe-listings" class="nav-link"><span class="nav-icon">📋</span> Listings Pages</a>
   <a href="#email" class="nav-link"><span class="nav-icon">✉️</span> Email Templates</a>
+
 <div class="nav-section">Sprint 3 — Frontend Contract Flow</div>
   <a href="#fe-contract" class="nav-link"><span class="nav-icon">🤝</span> Contract Flow UI</a>
+  <a href="#fe-escrow" class="nav-link"><span class="nav-icon">🔔</span> Escrow + Notification UI</a>
+  <a href="#fe-admin" class="nav-link"><span class="nav-icon">👑</span> Admin + Dashboard</a>
   <a href="#postman" class="nav-link"><span class="nav-icon">🧪</span> Postman Collection</a>
 </nav>
 
@@ -84,23 +89,23 @@
 <!-- ── OVERVIEW ─────────────────────────────────────────── -->
 <section class="section" id="overview">
   <div class="section-label">🗺️ Tổng quan</div>
-  <h1>DDA — Infra + Testing</h1>
+  <h1>DDA — Frontend + E2E Testing</h1>
 
   <div class="owner-card">
     <div class="owner-item">
       <div class="label">Sprint 1</div>
-      <div class="value">DB Schemas + Compose</div>
-      <div class="sub">Flyway + healthchecks</div>
+      <div class="value">Infra + Compose</div>
+      <div class="sub">Docker healthchecks</div>
     </div>
     <div class="owner-item">
       <div class="label">Sprint 2</div>
-      <div class="value">Email Templates</div>
-      <div class="sub">7 event types</div>
+      <div class="value">Saga E2E Test</div>
+      <div class="sub">Cross-service flows</div>
     </div>
     <div class="owner-item">
       <div class="label">Sprint 3</div>
-      <div class="value">Postman Collection</div>
-      <div class="sub">3 flows pass</div>
+      <div class="value">Frontend Master</div>
+      <div class="sub">All UI flows</div>
     </div>
   </div>
 
@@ -109,17 +114,17 @@
     <tr>
       <td><span class="badge badge-cyan">Sprint 1</span></td>
       <td>09/06 – 22/06</td>
-      <td>Flyway 5 services. Docker healthchecks. Frontend skeleton: Vite+React+TS, Keycloak adapter, Axios interceptor, Zustand store, TanStack Query setup, React Router.</td>
+      <td>Docker healthchecks. Frontend skeleton: Vite+React+TS, Keycloak adapter, Axios interceptor, Zustand store, TanStack Query setup, React Router.</td>
     </tr>
     <tr>
       <td><span class="badge badge-yellow">Sprint 2</span></td>
       <td>23/06 – 06/07</td>
-      <td>ListingsPage + CreateListingPage + LoginPage. Email templates. Mock API với static JSON cho phần backend chưa xong.</td>
+      <td>ListingsPage + CreateListingPage + LoginPage. Integration Saga Testing (E2E). Mock API cho phần backend chưa xong.</td>
     </tr>
     <tr>
       <td><span class="badge badge-purple">Sprint 3</span></td>
       <td>07/07 – 20/07</td>
-      <td>ContractDetailPage + NegotiationPanel + EscrowStatusCard + ContractActionsBar + NotificationFeed + DashboardPage + AdminArbitratePage. Postman 3 flows.</td>
+      <td>ContractDetailPage + NegotiationPanel + EscrowStatusCard + DashboardPage + AdminArbitratePage. Postman E2E Collection.</td>
     </tr>
   </table>
 
@@ -191,9 +196,8 @@ CREATE TABLE listings (
   quantity          DECIMAL(15,2) NOT NULL,
   agreed_price      DECIMAL(15,2) NOT NULL,
   currency          VARCHAR(3)    NOT NULL DEFAULT 'VND',
-  status            ENUM('OFFERED','SIGNED','GOODS_DELIVERED','SETTLED',
-                         'CANCELLED_BY_BUYER','CANCELLED_BY_SELLER',
-                         'DISPUTED','ARBITRATED') NOT NULL DEFAULT 'OFFERED',
+  status            ENUM('OFFERED','NEGOTIATING','SIGNED','ACTIVE','DELIVERED','SETTLED',
+                         'CANCELLED','DISPUTED','ARBITRATED') NOT NULL DEFAULT 'OFFERED',
   seller_signed     BOOLEAN       NOT NULL DEFAULT FALSE,
   buyer_signed      BOOLEAN       NOT NULL DEFAULT FALSE,
   delivery_deadline DATE          NOT NULL,
@@ -342,51 +346,85 @@ healthcheck:
   <div class="section-label">⚛️ Frontend</div>
   <h1>Frontend Project Setup</h1>
 
-  <p><strong>Stack:</strong> React + Vite + TypeScript. Zustand (client state: auth token, user info, UI state). TanStack Query (server state). Axios. React Router v6. Keycloak JS adapter. React Hook Form + Zod. Shadcn/ui + Tailwind.</p>
-  
+  <p><strong>Stack:</strong></p>
+  <ul>
+    <li>React + Vite + TypeScript (bắt buộc)</li>
+    <li>Zustand — client state: auth token, user info, UI state (modal open/close, active tab)</li>
+    <li>TanStack Query — server state: fetch/cache listings, contracts, escrow, notifications</li>
+    <li>Axios (HTTP client, inject Bearer token qua interceptor)</li>
+    <li>React Router v6</li>
+    <li>Keycloak JS adapter</li>
+    <li>React Hook Form + Zod (form validation)</li>
+    <li>Shadcn/ui + Tailwind (UI components)</li>
+  </ul>
+
   <div class="callout warn">
     <span class="callout-icon">⚠️</span>
     <div class="callout-body">
-      <strong>Rule:</strong> TanStack Query cho API data. Zustand cho thuần client state. Không dùng useState+useEffect+axios.get() thủ công.
+      <strong>Rule phân chia state — bắt buộc tuân theo:</strong><br>
+      - TanStack Query cho mọi data đến từ API: useQuery, useMutation<br>
+      - Zustand cho auth store và UI state thuần client<br>
+      - Không dùng useState + useEffect + axios.get() thủ công để fetch data — dùng TanStack Query thay thế
     </div>
   </div>
 
-  <h2>Keycloak JS Setup</h2>
+  <h2>Folder structure</h2>
+  <pre><code>frontend/src/
+├── api/          ← axios client + từng service api file
+├── components/   ← shared components
+├── pages/        ← route-level pages
+├── stores/       ← Zustand stores
+├── types/        ← TypeScript types/interfaces
+└── hooks/        ← custom hooks</code></pre>
+
+  <h2>Keycloak setup (src/auth/keycloak.ts)</h2>
   <pre><code>import Keycloak from 'keycloak-js';
 
 const keycloak = new Keycloak({
   url: 'http://localhost:8180',
   realm: 'agricontract',
-  clientId: 'agricontract-frontend'
+  clientId: 'agricontract-frontend',
 });
 
 export default keycloak;</code></pre>
 
-  <h2>Axios Interceptor</h2>
+  <h2>Axios client (src/api/client.ts)</h2>
   <pre><code>import axios from 'axios';
-import keycloak from './keycloak';
+import keycloak from '../auth/keycloak';
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8080/api/v1',
+  baseURL: 'http://localhost:8080',
 });
 
-apiClient.interceptors.request.use((config) => {
+apiClient.interceptors.request.use(config => {
   if (keycloak.token) {
     config.headers.Authorization = `Bearer ${keycloak.token}`;
   }
   return config;
 });
 
+apiClient.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401) keycloak.login();
+    return Promise.reject(err);
+  }
+);
+
 export default apiClient;</code></pre>
 
-  <h2>Mock Strategy</h2>
-  <p>Return static JSON for APIs that are not yet implemented on the backend.</p>
+  <h2>Mock strategy</h2>
+  <p>Trong Sprint 1-2 khi backend chưa xong, dùng static JSON mock trong từng api file. Ví dụ:</p>
+  <pre><code>// src/api/listingApi.ts
+export const listingApi = {
+  getAll: () => Promise.resolve(MOCK_LISTINGS), // thay bằng apiClient.get() khi backend xong
+};</code></pre>
 
   <div class="callout success">
     <span class="callout-icon">✅</span>
     <div class="callout-body">
-      <strong>Definition of Done</strong>
-      npm run dev works, login redirects to :8180, authStore.ts committed.
+      <strong>Definition of Done — Sprint 1</strong><br>
+      <code>npm run dev</code> chạy được. Login redirect sang Keycloak :8180. Sau login về lại app, không bị 401. <code>src/api/client.ts</code> và <code>src/stores/authStore.ts</code> committed để NHL/NMC dùng tham khảo.
     </div>
   </div>
 </section>
@@ -397,13 +435,16 @@ export default apiClient;</code></pre>
   <div class="section-label">📋 Frontend</div>
   <h1>Listings Pages</h1>
 
-  <p><strong>Pages:</strong></p>
-  <ul class="task-list">
-    <li><strong>/login</strong> <span>LoginPage</span></li>
-    <li><strong>/listings</strong> <span>ListingsPage</span></li>
-    <li><strong>/listings/:id</strong> <span>ListingDetailPage</span></li>
-    <li><strong>/listings/create</strong> <span>CreateListingPage</span></li>
-  </ul>
+  <p><strong>Pages cần build trong Sprint 2:</strong></p>
+  <table>
+    <tr><th>Route</th><th>Component</th><th>Unblock khi</th></tr>
+    <tr><td><code>/login</code></td><td>LoginPage</td><td>Sprint 1</td></tr>
+    <tr><td><code>/listings</code></td><td>ListingsPage</td><td>product-service xong (tuần 2)</td></tr>
+    <tr><td><code>/listings/:id</code></td><td>ListingDetailPage</td><td>product-service xong</td></tr>
+    <tr><td><code>/listings/create</code></td><td>CreateListingPage</td><td>product-service xong</td></tr>
+  </table>
+
+  <p><strong>Mock API cho phần chưa có backend:</strong> Dùng static JSON trong <code>src/api/</code> — wire thật khi NHL xong product-service cuối tuần 2.</p>
 </section>
 
 <!-- ── EMAIL TEMPLATES ────────────────────────────────── -->
@@ -526,23 +567,60 @@ export default apiClient;</code></pre>
   <div class="section-label">🤝 Frontend</div>
   <h1>Contract Flow UI</h1>
 
-  <p><strong>Pages:</strong></p>
-  <ul class="task-list">
-    <li><strong>/contracts</strong> <span>ContractsPage</span></li>
-    <li><strong>/contracts/:id</strong> <span>ContractDetailPage</span></li>
-    <li><strong>/dashboard</strong> <span>DashboardPage</span></li>
-    <li><strong>/admin/arbitrate/:id</strong> <span>AdminArbitratePage</span></li>
-  </ul>
+  <p><strong>Pages cần build trong Sprint 3:</strong></p>
+  <table>
+    <tr><th>Route</th><th>Component</th><th>Unblock khi</th></tr>
+    <tr><td><code>/contracts</code></td><td>ContractsPage</td><td>contract-service xong (tuần 3)</td></tr>
+    <tr><td><code>/contracts/:id</code></td><td>ContractDetailPage</td><td>contract-service xong</td></tr>
+    <tr><td><code>/dashboard</code></td><td>DashboardPage</td><td>Sprint 3</td></tr>
+    <tr><td><code>/admin/arbitrate/:id</code></td><td>AdminArbitratePage</td><td>escrow-service xong (tuần 4)</td></tr>
+  </table>
 
-  <h2>ContractActionsBar Logic</h2>
-  <ul class="task-list">
-    <li><strong>'OFFERED', 'NEGOTIATING'</strong> <span>Sign and Counter-offer.</span></li>
-    <li><strong>'ACTIVE'</strong> <span>Cancel. Confirm delivery (buyer only).</span></li>
-    <li><strong>'DELIVERED'</strong> <span>Dispute (buyer only).</span></li>
-  </ul>
+  <h2>ContractActionsBar — logic theo status (quan trọng):</h2>
+  <pre><code>const ContractActionsBar = ({ contract, userId }) => {
+  const isBuyer  = contract.buyerId === userId;
+  const isSeller = contract.sellerId === userId;
+
+  return (
+    &lt;div&gt;
+      {/* Cả hai bên ký */}
+      {['OFFERED', 'NEGOTIATING'].includes(contract.status) && (
+        &lt;Button onClick={handleSign}&gt;Ký hợp đồng&lt;/Button&gt;
+      )}
+
+      {/* Counter-offer */}
+      {['OFFERED', 'NEGOTIATING'].includes(contract.status) && (
+        &lt;Button variant="outline" onClick={handleCounterOffer}&gt;Đề xuất lại&lt;/Button&gt;
+      )}
+
+      {/* Cancel — từ ACTIVE trở đi */}
+      {contract.status === 'ACTIVE' && (
+        &lt;Button variant="destructive" onClick={handleCancel}&gt;Hủy hợp đồng&lt;/Button&gt;
+      )}
+
+      {/* Confirm delivery — chỉ buyer, từ ACTIVE */}
+      {contract.status === 'ACTIVE' && isBuyer && (
+        &lt;Button onClick={handleConfirmDelivery}&gt;Xác nhận nhận hàng&lt;/Button&gt;
+      )}
+
+      {/* Dispute — chỉ buyer, sau DELIVERED */}
+      {contract.status === 'DELIVERED' && isBuyer && (
+        &lt;Button variant="outline" onClick={handleDispute}&gt;Mở tranh chấp&lt;/Button&gt;
+      )}
+    &lt;/div&gt;
+  );
+};</code></pre>
 
   <h2>Polling SIGNED → ACTIVE</h2>
-  <p>Add polling logic: poll <code>GET /api/contracts/:id</code> every 3s.</p>
+  <p>Sau khi contract chuyển SIGNED, UI poll <code>GET /api/contracts/:id</code> mỗi 3 giây để detect khi escrow lock xong và state chuyển sang ACTIVE. Dừng poll khi state != SIGNED.</p>
+
+  <div class="callout success">
+    <span class="callout-icon">✅</span>
+    <div class="callout-body">
+      <strong>Definition of Done — Sprint 3 (DDA)</strong><br>
+      Login seller → tạo listing → login buyer → tạo offer → cả hai sign → UI tự detect ACTIVE (polling) → buyer confirm delivery → contract SETTLED. Không lỗi console. 3 Postman flows pass.
+    </div>
+  </div>
 </section>
 
 <!-- ── POSTMAN COLLECTION ─────────────────────────────── -->
@@ -564,7 +642,7 @@ export default apiClient;</code></pre>
     <div class="test-step"><div class="step-num">6</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/sign (seller token)</strong><p>Seller ký.</p></div></div>
     <div class="test-step"><div class="step-num">7</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/sign (buyer token)</strong><p>Buyer ký. Assert <code>status = SIGNED</code>. Listing → CLOSED.</p></div></div>
     <div class="test-step"><div class="step-num">8</div><div class="step-body"><strong>GET /api/v1/escrows/contract/{contractId} — delay 2s</strong><p>Đợi async saga. Assert <code>status = LOCKED</code>. Save <code>escrowId</code>.</p></div></div>
-    <div class="test-step"><div class="step-num">9</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/confirm-delivery (buyer token)</strong><p>Assert <code>status = GOODS_DELIVERED</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">9</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/confirm-delivery (buyer token)</strong><p>Assert <code>status = DELIVERED</code>.</p></div></div>
     <div class="test-step"><div class="step-num">10</div><div class="step-body"><strong>GET /api/v1/contracts/{contractId} — delay 2s</strong><p>Assert <code>status = SETTLED</code>.</p></div></div>
     <div class="test-step"><div class="step-num">11</div><div class="step-body"><strong>GET /api/v1/escrows/{escrowId}/transactions</strong><p>Assert có đúng 2 transactions: LOCK + RELEASE.</p></div></div>
     <div class="test-step"><div class="step-num">12</div><div class="step-body"><strong>MailHog check</strong><p><code>localhost:8025</code> — phải có ≥3 emails (signed, escrow locked, settled).</p></div></div>
@@ -573,12 +651,12 @@ export default apiClient;</code></pre>
   <h2>Flow 2 — Buyer Cancel</h2>
   <p>Repeat bước 1–8, sau đó:</p>
   <div>
-    <div class="test-step"><div class="step-num">9</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/cancel (buyer token)</strong><p>Body: <code>{"reason": "Không còn nhu cầu"}</code>. Assert <code>status = CANCELLED_BY_BUYER</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">9</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/cancel (buyer token)</strong><p>Body: <code>{"reason": "Không còn nhu cầu"}</code>. Assert <code>status = CANCELLED</code>.</p></div></div>
     <div class="test-step"><div class="step-num">10</div><div class="step-body"><strong>GET /api/v1/escrows/contract/{contractId} — delay 2s</strong><p>Assert <code>status = PENALIZED_BUYER</code>. Transactions: LOCK + PENALIZE_BUYER + RELEASE.</p></div></div>
   </div>
 
   <h2>Flow 3 — Dispute + Admin Arbitrate</h2>
-  <p>Repeat bước 1–9 (đến GOODS_DELIVERED), sau đó:</p>
+  <p>Repeat bước 1–9 (đến DELIVERED), sau đó:</p>
   <div>
     <div class="test-step"><div class="step-num">10</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/dispute (buyer token)</strong><p>Body: <code>{"reason": "Hàng không đúng chất lượng"}</code>. Assert <code>status = DISPUTED</code>.</p></div></div>
     <div class="test-step"><div class="step-num">11</div><div class="step-body"><strong>PUT /api/v1/escrows/{contractId}/arbitrate (admin token)</strong><p>Body: <code>{"buyerAmount": 30000000, "sellerAmount": 20000000}</code>. Assert escrow <code>status = ARBITRATED</code>.</p></div></div>
@@ -612,3 +690,4 @@ export default apiClient;</code></pre>
 </script>
 </body>
 </html>
+l>

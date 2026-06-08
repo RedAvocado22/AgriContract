@@ -109,13 +109,8 @@
   <div class="owner-card">
     <div class="owner-item">
       <div class="label">Services</div>
-      <div class="value">contract + escrow</div>
-      <div class="sub">api-gateway done 100%</div>
-    </div>
-    <div class="owner-item">
-      <div class="label">Frontend</div>
-      <div class="value">Buyer flow</div>
-      <div class="sub">Sprint 3</div>
+      <div class="value">contract + escrow + gateway</div>
+      <div class="sub">Flyway + Postman verify</div>
     </div>
     <div class="owner-item">
       <div class="label">Deadline</div>
@@ -129,7 +124,6 @@
     <tr><td>Keycloak setup + SHARED_CONTRACTS</td><td>Tuần 1 (09/06)</td><td>Unblock cả team — làm đầu tiên</td></tr>
     <tr><td>contract-service domain</td><td>Tuần 1–2</td><td>State machine + Outbox</td></tr>
     <tr><td>escrow-service domain + Saga wiring</td><td>Tuần 3–4</td><td>Song song với NHL product-service</td></tr>
-    <tr><td>Frontend Buyer flow</td><td>Tuần 5–6</td><td>Sau khi DDA setup FE skeleton</td></tr>
   </table>
 
   <h2>Timeline Sprints</h2>
@@ -422,9 +416,7 @@ curl http://localhost:8080/api/v1/listings \
 }
 
 <span class="k">private void</span> <span class="m">validateCancellable</span>() {
-    <span class="k">if</span> (this.status != <span class="n">ContractStatus</span>.OFFERED
-        && this.status != <span class="n">ContractStatus</span>.SIGNED
-        && this.status != <span class="n">ContractStatus</span>.ACTIVE) {
+    <span class="k">if</span> (this.status != <span class="n">ContractStatus</span>.ACTIVE) {
         <span class="k">throw new</span> <span class="n">IllegalStateException</span>(
             <span class="s">"Cannot cancel contract with status: "</span> + this.status);
     }
@@ -487,7 +479,7 @@ curl http://localhost:8080/api/v1/listings \
     <li><strong>sign(unknownUserId) → IllegalArgumentException</strong></li>
     <li><strong>sign() khi SIGNED → IllegalStateException</strong></li>
     <li><strong>activate() khi SIGNED → ACTIVE ✓</strong></li>
-    <li><strong>cancel() khi SIGNED → CANCELLED, event emitted</strong></li>
+    <li><strong>cancel() khi ACTIVE → CANCELLED, event emitted</strong></li>
     <li><strong>cancel() khi SETTLED → IllegalStateException</strong></li>
     <li><strong>confirmDelivery(buyerId) khi ACTIVE → DELIVERED</strong></li>
     <li><strong>confirmDelivery(sellerId) khi ACTIVE → IllegalArgumentException (wrong role)</strong></li>
@@ -817,7 +809,7 @@ jpaRepo.save(entity);</code></pre>
     }
 
     <span class="c">// escrow.released → settle contract</span>
-    <span class="a">@RabbitListener</span>(queues = <span class="s">"contract-service.escrow.released"</span>)
+    <span class="a">@RabbitListener</span>(queues = <span class="s">"contract-svc.escrow.released"</span>)
     <span class="a">@Transactional</span>
     <span class="k">public void</span> <span class="m">onEscrowReleased</span>(String payload) {
         <span class="n">Map</span>&lt;String, Object&gt; msg = parseJson(payload);
@@ -836,7 +828,7 @@ jpaRepo.save(entity);</code></pre>
     <span class="callout-icon">💡</span>
     <div class="callout-body">
       <strong>Queue names phải match với Dev C</strong>
-      Queue <code>contract-service.escrow.locked</code> và <code>contract-service.escrow.released</code> phải được khai báo trong <code>RabbitMQConfig</code> của contract-service và bind đúng vào exchange <code>agricontract.escrow</code> của escrow-service. Coordinate với Dev C về tên queue.
+      Queue <code>contract-svc.escrow.locked</code> và <code>contract-svc.escrow.released</code> phải được khai báo trong <code>RabbitMQConfig</code> của contract-service và bind đúng vào exchange <code>agricontract.escrow</code> của escrow-service. Coordinate với Dev C về tên queue.
     </div>
   </div>
 
@@ -846,12 +838,12 @@ jpaRepo.save(entity);</code></pre>
 
 <span class="a">@Bean</span>
 <span class="k">public</span> <span class="n">Queue</span> <span class="m">contractEscrowLockedQueue</span>() {
-    <span class="k">return</span> <span class="n">QueueBuilder</span>.durable(<span class="s">"contract-service.escrow.locked"</span>).build();
+    <span class="k">return</span> <span class="n">QueueBuilder</span>.durable(<span class="s">"contract-svc.escrow.locked"</span>).build();
 }
 
 <span class="a">@Bean</span>
 <span class="k">public</span> <span class="n">Queue</span> <span class="m">contractEscrowReleasedQueue</span>() {
-    <span class="k">return</span> <span class="n">QueueBuilder</span>.durable(<span class="s">"contract-service.escrow.released"</span>).build();
+    <span class="k">return</span> <span class="n">QueueBuilder</span>.durable(<span class="s">"contract-svc.escrow.released"</span>).build();
 }
 
 <span class="a">@Bean</span>
