@@ -10,13 +10,13 @@ actor "Seller (HTX)" as Seller
 actor "Buyer (Doanh nghiệp)" as Buyer
 
 rectangle "AgriContract Platform" {
-    rectangle "Frontend\n[React / Next.js]" as FE
+    rectangle "Frontend\n[React + Vite + TypeScript]" as FE
 
-    rectangle "API Gateway\n[Spring Cloud Gateway :8888]\n• JWT validate via Keycloak JWKS\n• Inject X-User-Id header\n• Route to services" as GW
+    rectangle "API Gateway\n[Spring Cloud Gateway :8080]\n• JWT validate via Keycloak JWKS\n• Inject X-User-Id header\n• Route to services" as GW
 
-    database "Keycloak\n[:8080]\nRealm: agricontract\nRoles: SELLER / BUYER / ADMIN" as KC
+    database "Keycloak\n[:8180]\nRealm: agricontract\nRoles: SELLER / BUYER / ADMIN" as KC
 
-    rectangle "RabbitMQ\n[:5672]\nTopic Exchange: agricontract.events\nRouting: <domain>.<entity>.<event>" as MQ
+    rectangle "RabbitMQ\n[:5672]\nTopic Exchange: agricontract.contracts\nTopic Exchange: agricontract.escrow\nRouting: <domain>.<entity>.<event>" as MQ
 
     rectangle "user-service\n[:8081]" as US
     rectangle "product-service\n[:8082]" as PS
@@ -45,7 +45,8 @@ GW --> ES : REST
 CS --> PS : PUT /listings/{id}/close\n[OpenFeign — SYNC]\nclose listing khi SIGNED
 
 CS --> MQ : publish domain events\n(via Outbox Poller)
-MQ --> ES : contract.signed\ncontract.settled\ncontract.arbitrated
+MQ --> ES : contract.signed\ncontract.delivered\ncontract.cancelled\ncontract.disputed
+MQ --> CS : escrow.locked\nescrow.released
 MQ --> NS : all events
 
 ES --> ESDB
@@ -67,6 +68,10 @@ note right of ES
   Idempotency:
   contractId = idempotency key
   Skip if escrow already LOCKED
+
+  Mock Balance:
+  Seeded co dinh — khong co
+  escrow.lock_failed trong Phase 1
 end note
 
 @enduml

@@ -1,9 +1,9 @@
-@startuml Happy Path — OFFERED → SIGNED → GOODS_DELIVERED → SETTLED
+@startuml Happy Path — OFFERED → SETTLED
 !theme plain
 skinparam backgroundColor #FAFAFA
 skinparam defaultFontName Arial
 
-title Happy Path: Contract Lifecycle\nOFFERED → SIGNED → GOODS_DELIVERED → SETTLED
+title Happy Path: Contract Lifecycle\nOFFERED → NEGOTIATING → SIGNED → ACTIVE → DELIVERED → SETTLED
 
 actor Seller
 actor Buyer
@@ -16,71 +16,84 @@ queue "RabbitMQ" as MQ
 participant "escrow-service" as ES
 participant "notification-service" as NS
 
-== 1. Seller đăng Listing ==
-Seller -> GW : POST /api/v1/listings
+== 1. Seller tạo Listing ==
+Seller -> GW : POST /api/listings
 GW -> PS : forward
 PS -> PS : Listing.create() [ACTIVE]
 PS --> Seller : 201 listingId
 
 == 2. Buyer tạo Offer ==
-Buyer -> GW : POST /api/v1/contracts\n{listingId, agreedPrice, quantity}
+Buyer -> GW : POST /api/contracts\n{listingId, proposedTerms}
 GW -> CS : forward (X-User-Id: buyerId)
-CS -> CS : Contract.offer() [OFFERED]
-CS -> CDB : save contract + ContractOfferedEvent (PENDING)
+CS -> CS : Contract.offer() → OFFERED
+CS -> CDB : save contract
 CS --> Buyer : 201 contractId
 
-== 3. Seller ký Contract ==
-Seller -> GW : PUT /api/v1/contracts/{id}/sign
+== 3. Đàm phán (0..n lần) ==
+note over Seller, CS: Cả hai bên có thể counter-offer\nMỗi lần append NegotiationEvent\nContract ở NEGOTIATING sau counter-offer đầu tiên
+
+== 4. Hai bên ký Contract ==
+note over Seller, Buyer: Mỗi bên gọi sign() riêng.\nSau lần ký đầu: vẫn OFFERED/NEGOTIATING.\nSau lần ký thứ hai (cả hai đã ký): → SIGNED
+
+Seller -> GW : PUT /api/contracts/{id}/sign
 GW -> CS : forward (X-User-Id: sellerId)
-CS -> CS : Contract.sign() [OFFERED → SIGNED]
+CS -> CS : Contract.sign(sellerId)\nAdd sellerId vào signatories set\nchưa đủ 2 — giữ nguyên state
+CS --> Seller : 200 OK
+
+Buyer -> GW : PUT /api/contracts/{id}/sign
+GW -> CS : forward (X-User-Id: buyerId)
+CS -> CS : Contract.sign(buyerId)\nsignatories.size() == 2 → SIGNED
 CS -> PS : PUT /listings/{id}/close [OpenFeign SYNC]
 PS -> PS : Listing.close() [ACTIVE → CLOSED]
 PS --> CS : 200 OK
 CS -> CDB : save contract + ContractSignedEvent (PENDING)
-CS --> Seller : 200 OK
+CS --> Buyer : 200 OK
 
-== 4. Outbox Poller publish ==
-OP -> CDB : SELECT PENDING events
+== 5. Outbox Poller publish ==
+OP -> CDB : SELECT WHERE status=PENDING
 CDB --> OP : [ContractSignedEvent]
 OP -> MQ : publish routing-key: contract.signed
 OP -> CDB : UPDATE status=PUBLISHED
 
-== 5. Escrow lock (async) ==
+== 6. Escrow lock (async) ==
 MQ -> ES : contract.signed
-ES -> ES : check contractId idempotency
-ES -> ES : EscrowAccount.lock() [LOCKED]
-note right of ES: Escrow LOCKED\nMock Phase 1
+ES -> ES : check contractId idempotency\n(nếu đã LOCKED thì skip)
+ES -> ES : EscrowAccount.lock()\nDeduct mock buyer balance → LOCKED
+ES -> MQ : publish escrow.locked
 
-== 6. Notification (async) ==
-MQ -> NS : contract.signed
+== 7. Contract → ACTIVE (async) ==
+MQ -> CS : escrow.locked
+CS -> CS : Contract.activate() → ACTIVE
+CS -> CDB : save
+
+== 8. Notification (async) ==
+MQ -> NS : escrow.locked
 NS -> NS : check eventId idempotency
-NS -> NS : send email to buyer + seller
-note right of NS: "Hợp đồng đã được ký"
+NS -> NS : send email to seller
+note right of NS : "Buyer đã lock escrow\nTiến hành giao hàng"
 
-== 7. Seller xác nhận giao hàng ==
-Seller -> GW : PUT /api/v1/contracts/{id}/confirm-delivery
-GW -> CS : forward
-CS -> CS : Contract.confirmDelivery() [SIGNED → GOODS_DELIVERED]
-CS -> CDB : save + GoodsDeliveredEvent (PENDING)
-CS --> Seller : 200 OK
-OP -> MQ : publish contract.goods_delivered
-MQ -> NS : notify buyer to confirm receipt
-
-== 8. Buyer xác nhận nhận hàng → Settle ==
-Buyer -> GW : PUT /api/v1/contracts/{id}/settle
-GW -> CS : forward
-CS -> CS : Contract.settle() [GOODS_DELIVERED → SETTLED]
-CS -> CDB : save + ContractSettledEvent (PENDING)
+== 9. Buyer xác nhận nhận hàng ==
+Buyer -> GW : PUT /api/contracts/{id}/confirm-delivery
+GW -> CS : forward (X-User-Id: buyerId)
+CS -> CS : Contract.confirmDelivery(buyerId) → DELIVERED
+CS -> CDB : save + ContractDeliveredEvent (PENDING)
 CS --> Buyer : 200 OK
-OP -> MQ : publish contract.settled
 
-== 9. Escrow release (async) ==
-MQ -> ES : contract.settled
-ES -> ES : EscrowAccount.release() [LOCKED → RELEASED]
-note right of ES: Tiền về tay Seller\n(Mock: log only)
+OP -> MQ : publish contract.delivered
 
-MQ -> NS : contract.settled
+== 10. Escrow release (async) ==
+MQ -> ES : contract.delivered
+ES -> ES : EscrowAccount.release()\nLOCKED → RELEASED\nAdd mock seller balance
+ES -> MQ : publish escrow.released
+
+== 11. Contract → SETTLED (async) ==
+MQ -> CS : escrow.released
+CS -> CS : Contract.settle() → SETTLED
+CS -> CDB : save
+
+== 12. Notification (async) ==
+MQ -> NS : escrow.released
 NS -> NS : send email to both parties
-note right of NS: "Hợp đồng hoàn tất\nEscrow released"
+note right of NS : "Escrow released\nHop dong da SETTLED"
 
 @enduml
