@@ -11,6 +11,9 @@ target/
 .vscode/
 *.swp
 
+# AI memory
+memory/
+
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
