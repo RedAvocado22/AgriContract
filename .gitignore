@@ -15,6 +15,7 @@ target/
 memory/
 CLAUDE.md
 GEMINI.md
+scripts/
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
