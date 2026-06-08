@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgriContract — Plan DDA</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .sprint-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; padding: 3px 10px;
+    border-radius: 20px; margin-bottom: 10px;
+  }
+  .sprint-1 { background: rgba(34,211,238,.1); color: var(--cyan); border: 1px solid rgba(34,211,238,.25); }
+  .sprint-2 { background: rgba(251,146,60,.1); color: var(--orange); border: 1px solid rgba(251,146,60,.25); }
+  .sprint-3 { background: rgba(192,132,252,.1); color: var(--purple); border: 1px solid rgba(192,132,252,.25); }
+
+  .task-list { list-style: none; padding: 0; margin: 12px 0; }
+  .task-list li {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 7px 12px; border-radius: 6px; font-size: 13px;
+    color: var(--text-muted); border-bottom: 1px solid var(--border);
+  }
+  .task-list li:last-child { border-bottom: none; }
+  .task-list li::before { content: '○'; color: var(--text-dim); font-size: 12px; margin-top: 2px; flex-shrink: 0; }
+  .task-list li strong { color: var(--text); font-weight: 600; display: block; }
+
+  .file-ref {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--orange); background: rgba(251,146,60,.08);
+    border: 1px solid rgba(251,146,60,.2); padding: 2px 8px;
+    border-radius: 4px; display: inline-block; margin: 2px 0;
+  }
+
+  .dep-box {
+    background: rgba(250,204,21,.05); border: 1px solid rgba(250,204,21,.2);
+    border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; font-size: 13px;
+  }
+  .dep-box .dep-title { font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--yellow); margin-bottom: 6px; }
+  .dep-box p { margin: 0; color: var(--text-muted); }
+
+  .owner-card { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .owner-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .owner-item .label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px; }
+  .owner-item .value { font-size: 13px; color: var(--text); font-weight: 600; }
+  .owner-item .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .test-step { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .test-step:last-child { border-bottom: none; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(108,142,255,.15); color: var(--primary);
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .step-body strong { color: var(--text); display: block; margin-bottom: 2px; }
+  .step-body p { margin: 0; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1>🌾 DDA — Plan</h1>
+    <p>Migrations · Infra · Email · Testing</p>
+  </div>
+
+  <div class="nav-section">Tổng quan</div>
+  <a href="#overview"     class="nav-link active"><span class="nav-icon">🗺️</span> Phân công & Timeline</a>
+
+<div class="nav-section">Sprint 1 — Foundation</div>
+  <a href="#flyway" class="nav-link"><span class="nav-icon">🗄️</span> Flyway Migrations</a>
+  <a href="#compose" class="nav-link"><span class="nav-icon">🐳</span> Docker Compose</a>
+  <a href="#fe-setup" class="nav-link"><span class="nav-icon">⚛️</span> Frontend Project Setup</a>
+<div class="nav-section">Sprint 2 — Frontend Core</div>
+  <a href="#fe-listings" class="nav-link"><span class="nav-icon">📋</span> Listings Pages</a>
+  <a href="#email" class="nav-link"><span class="nav-icon">✉️</span> Email Templates</a>
+<div class="nav-section">Sprint 3 — Frontend Contract Flow</div>
+  <a href="#fe-contract" class="nav-link"><span class="nav-icon">🤝</span> Contract Flow UI</a>
+  <a href="#postman" class="nav-link"><span class="nav-icon">🧪</span> Postman Collection</a>
+</nav>
+
+<main class="main">
+
+<!-- ── OVERVIEW ─────────────────────────────────────────── -->
+<section class="section" id="overview">
+  <div class="section-label">🗺️ Tổng quan</div>
+  <h1>DDA — Infra + Testing</h1>
+
+  <div class="owner-card">
+    <div class="owner-item">
+      <div class="label">Sprint 1</div>
+      <div class="value">DB Schemas + Compose</div>
+      <div class="sub">Flyway + healthchecks</div>
+    </div>
+    <div class="owner-item">
+      <div class="label">Sprint 2</div>
+      <div class="value">Email Templates</div>
+      <div class="sub">7 event types</div>
+    </div>
+    <div class="owner-item">
+      <div class="label">Sprint 3</div>
+      <div class="value">Postman Collection</div>
+      <div class="sub">3 flows pass</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Sprint</th><th>Thời gian</th><th>Deliverable</th></tr>
+    <tr>
+      <td><span class="badge badge-cyan">Sprint 1</span></td>
+      <td>09/06 – 22/06</td>
+      <td>Flyway 5 services. Docker healthchecks. Frontend skeleton: Vite+React+TS, Keycloak adapter, Axios interceptor, Zustand store, TanStack Query setup, React Router.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-yellow">Sprint 2</span></td>
+      <td>23/06 – 06/07</td>
+      <td>ListingsPage + CreateListingPage + LoginPage. Email templates. Mock API với static JSON cho phần backend chưa xong.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-purple">Sprint 3</span></td>
+      <td>07/07 – 20/07</td>
+      <td>ContractDetailPage + NegotiationPanel + EscrowStatusCard + ContractActionsBar + NotificationFeed + DashboardPage + AdminArbitratePage. Postman 3 flows.</td>
+    </tr>
+  </table>
+
+  <div class="dep-box">
+    <div class="dep-title">⚡ DDA unblocks cả team từ ngày 1</div>
+    <p>Flyway migrations phải xong <strong>trước</strong> khi NMC và NHL viết JPA entities. Nếu schema sai → cả team phải sửa lại mapping. Làm đầu tiên trong Sprint 1.</p>
+  </div>
+</section>
+
+<!-- ── FLYWAY MIGRATIONS ──────────────────────────────── -->
+<section class="section" id="flyway">
+  <div class="sprint-tag sprint-1">Sprint 1 · 09/06 – 22/06</div>
+  <div class="section-label">🗄️ Flyway</div>
+  <h1>Flyway Migration Scripts — 5 services</h1>
+
+  <p>Mỗi service tạo file tại <span class="file-ref">src/main/resources/db/migration/V1__init.sql</span>. Flyway tự chạy khi service start.</p>
+
+  <div class="dep-box">
+    <div class="dep-title">📦 Dependency (tất cả pom.xml)</div>
+    <p>Thêm vào <code>&lt;dependencies&gt;</code> của từng service:</p>
+  </div>
+  <pre><code>&lt;dependency&gt;
+    &lt;groupId&gt;org.flywaydb&lt;/groupId&gt;
+    &lt;artifactId&gt;flyway-mysql&lt;/artifactId&gt;
+&lt;/dependency&gt;</code></pre>
+
+  <h2>user-service</h2>
+  <span class="file-ref">user-service/src/main/resources/db/migration/V1__init.sql</span>
+  <pre><code>CREATE TABLE user_profiles (
+  user_id    VARCHAR(36)  PRIMARY KEY,
+  email      VARCHAR(255) NOT NULL UNIQUE,
+  org_name   VARCHAR(255) NOT NULL,
+  role       ENUM('SELLER','BUYER','ADMIN') NOT NULL,
+  created_at DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);</code></pre>
+
+  <h2>product-service</h2>
+  <span class="file-ref">product-service/src/main/resources/db/migration/V1__init.sql</span>
+  <pre><code>CREATE TABLE products (
+  product_id  VARCHAR(36)  PRIMARY KEY,
+  seller_id   VARCHAR(36)  NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  description TEXT,
+  unit        VARCHAR(50)  NOT NULL,
+  category    VARCHAR(100),
+  created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
+CREATE TABLE listings (
+  listing_id        VARCHAR(36)   PRIMARY KEY,
+  product_id        VARCHAR(36)   NOT NULL,
+  seller_id         VARCHAR(36)   NOT NULL,
+  quantity          DECIMAL(15,2) NOT NULL,
+  price_per_unit    DECIMAL(15,2) NOT NULL,
+  status            ENUM('ACTIVE','CLOSED','EXPIRED') NOT NULL DEFAULT 'ACTIVE',
+  delivery_deadline DATE          NOT NULL,
+  created_at        DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  CONSTRAINT fk_listing_product FOREIGN KEY (product_id) REFERENCES products(product_id)
+);</code></pre>
+
+  <h2>contract-service</h2>
+  <span class="file-ref">contract-service/src/main/resources/db/migration/V1__init.sql</span>
+  <pre><code>CREATE TABLE contracts (
+  contract_id       VARCHAR(36)   PRIMARY KEY,
+  listing_id        VARCHAR(36)   NOT NULL,
+  seller_id         VARCHAR(36)   NOT NULL,
+  buyer_id          VARCHAR(36)   NOT NULL,
+  product_name      VARCHAR(255)  NOT NULL,
+  quantity          DECIMAL(15,2) NOT NULL,
+  agreed_price      DECIMAL(15,2) NOT NULL,
+  currency          VARCHAR(3)    NOT NULL DEFAULT 'VND',
+  status            ENUM('OFFERED','SIGNED','GOODS_DELIVERED','SETTLED',
+                         'CANCELLED_BY_BUYER','CANCELLED_BY_SELLER',
+                         'DISPUTED','ARBITRATED') NOT NULL DEFAULT 'OFFERED',
+  seller_signed     BOOLEAN       NOT NULL DEFAULT FALSE,
+  buyer_signed      BOOLEAN       NOT NULL DEFAULT FALSE,
+  delivery_deadline DATE          NOT NULL,
+  cancel_reason     TEXT,
+  dispute_reason    TEXT,
+  created_at        DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at        DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                    ON UPDATE CURRENT_TIMESTAMP(6)
+);
+
+CREATE TABLE contract_domain_events (
+  event_id    VARCHAR(36)  PRIMARY KEY,
+  contract_id VARCHAR(36)  NOT NULL,
+  event_type  VARCHAR(100) NOT NULL,
+  payload     JSON         NOT NULL,
+  published   BOOLEAN      NOT NULL DEFAULT FALSE,
+  created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  INDEX idx_unpublished (published, created_at)
+);</code></pre>
+
+  <h2>escrow-service</h2>
+  <span class="file-ref">escrow-service/src/main/resources/db/migration/V1__init.sql</span>
+  <pre><code>CREATE TABLE escrow_accounts (
+  escrow_id   VARCHAR(36)   PRIMARY KEY,
+  contract_id VARCHAR(36)   NOT NULL UNIQUE,
+  amount      DECIMAL(15,2) NOT NULL,
+  currency    VARCHAR(3)    NOT NULL DEFAULT 'VND',
+  status      ENUM('LOCKED','RELEASED','PENALIZED_BUYER','PENALIZED_SELLER','ARBITRATED')
+              NOT NULL DEFAULT 'LOCKED',
+  created_at  DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at  DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+              ON UPDATE CURRENT_TIMESTAMP(6)
+);
+
+CREATE TABLE escrow_transactions (
+  tx_id      VARCHAR(36)   PRIMARY KEY,
+  escrow_id  VARCHAR(36)   NOT NULL,
+  type       ENUM('LOCK','RELEASE','PENALIZE_BUYER','PENALIZE_SELLER','ARBITRATE') NOT NULL,
+  amount     DECIMAL(15,2) NOT NULL,
+  note       VARCHAR(500),
+  created_at DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  CONSTRAINT fk_tx_escrow FOREIGN KEY (escrow_id) REFERENCES escrow_accounts(escrow_id)
+);</code></pre>
+
+  <h2>notification-service</h2>
+  <span class="file-ref">notification-service/src/main/resources/db/migration/V1__init.sql</span>
+  <pre><code>CREATE TABLE notification_logs (
+  log_id      VARCHAR(36)  PRIMARY KEY,
+  event_id    VARCHAR(36)  NOT NULL UNIQUE,
+  event_type  VARCHAR(100) NOT NULL,
+  recipient   VARCHAR(255),
+  status      ENUM('PENDING','SENT','FAILED') NOT NULL DEFAULT 'PENDING',
+  retry_count INT          NOT NULL DEFAULT 0,
+  error_msg   TEXT,
+  created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+              ON UPDATE CURRENT_TIMESTAMP(6)
+);</code></pre>
+</section>
+
+<!-- ── DOCKER COMPOSE HEALTHCHECK ─────────────────────── -->
+<section class="section" id="compose">
+  <div class="sprint-tag sprint-1">Sprint 1 · 09/06 – 22/06</div>
+  <div class="section-label">🐳 Docker Compose</div>
+  <h1>Healthcheck cho App Services</h1>
+
+  <p>DB và infra đã có healthcheck. Cần thêm cho 5 app services để <code>api-gateway</code> biết khi nào backend sẵn sàng.</p>
+
+  <h2>Bước 1 — Thêm Actuator vào tất cả pom.xml</h2>
+  <pre><code>&lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-actuator&lt;/artifactId&gt;
+&lt;/dependency&gt;</code></pre>
+
+  <h2>Bước 2 — Thêm vào docker-compose.yml</h2>
+  <p>Copy block <code>healthcheck</code> tương ứng vào từng service. <code>start_period: 60s</code> để JVM có thời gian khởi động.</p>
+
+  <pre><code><span class="c"># user-service (port 8081)</span>
+healthcheck:
+  test: ["CMD-SHELL", "curl -sf http://localhost:8081/actuator/health || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 60s
+
+<span class="c"># product-service (port 8082)</span>
+healthcheck:
+  test: ["CMD-SHELL", "curl -sf http://localhost:8082/actuator/health || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 60s
+
+<span class="c"># contract-service (port 8083)</span>
+healthcheck:
+  test: ["CMD-SHELL", "curl -sf http://localhost:8083/actuator/health || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 60s
+
+<span class="c"># escrow-service (port 8084)</span>
+healthcheck:
+  test: ["CMD-SHELL", "curl -sf http://localhost:8084/actuator/health || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 60s
+
+<span class="c"># notification-service (port 8085)</span>
+healthcheck:
+  test: ["CMD-SHELL", "curl -sf http://localhost:8085/actuator/health || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 60s</code></pre>
+
+  <h2>Bước 3 — api-gateway depends_on tất cả backend</h2>
+  <pre><code>api-gateway:
+  depends_on:
+    keycloak:
+      condition: service_healthy
+    user-service:
+      condition: service_healthy
+    product-service:
+      condition: service_healthy
+    contract-service:
+      condition: service_healthy
+    escrow-service:
+      condition: service_healthy
+    notification-service:
+      condition: service_healthy</code></pre>
+
+  <div class="callout info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-body">
+      <strong>Verify</strong>
+      Sau khi thêm xong: <code>docker compose up -d</code> → <code>docker compose ps</code> → tất cả services phải có status <code>healthy</code>, không còn <code>starting</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ── FRONTEND PROJECT SETUP ──────────────────────────── -->
+<section class="section" id="fe-setup">
+  <div class="sprint-tag sprint-1">Sprint 1 · 09/06 – 22/06</div>
+  <div class="section-label">⚛️ Frontend</div>
+  <h1>Frontend Project Setup</h1>
+
+  <p><strong>Stack:</strong> React + Vite + TypeScript. Zustand (client state: auth token, user info, UI state). TanStack Query (server state). Axios. React Router v6. Keycloak JS adapter. React Hook Form + Zod. Shadcn/ui + Tailwind.</p>
+  
+  <div class="callout warn">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-body">
+      <strong>Rule:</strong> TanStack Query cho API data. Zustand cho thuần client state. Không dùng useState+useEffect+axios.get() thủ công.
+    </div>
+  </div>
+
+  <h2>Keycloak JS Setup</h2>
+  <pre><code>import Keycloak from 'keycloak-js';
+
+const keycloak = new Keycloak({
+  url: 'http://localhost:8180',
+  realm: 'agricontract',
+  clientId: 'agricontract-frontend'
+});
+
+export default keycloak;</code></pre>
+
+  <h2>Axios Interceptor</h2>
+  <pre><code>import axios from 'axios';
+import keycloak from './keycloak';
+
+const apiClient = axios.create({
+  baseURL: 'http://localhost:8080/api/v1',
+});
+
+apiClient.interceptors.request.use((config) => {
+  if (keycloak.token) {
+    config.headers.Authorization = `Bearer ${keycloak.token}`;
+  }
+  return config;
+});
+
+export default apiClient;</code></pre>
+
+  <h2>Mock Strategy</h2>
+  <p>Return static JSON for APIs that are not yet implemented on the backend.</p>
+
+  <div class="callout success">
+    <span class="callout-icon">✅</span>
+    <div class="callout-body">
+      <strong>Definition of Done</strong>
+      npm run dev works, login redirects to :8180, authStore.ts committed.
+    </div>
+  </div>
+</section>
+
+<!-- ── FRONTEND LISTINGS PAGES ─────────────────────────── -->
+<section class="section" id="fe-listings">
+  <div class="sprint-tag sprint-2">Sprint 2 · 23/06 – 06/07</div>
+  <div class="section-label">📋 Frontend</div>
+  <h1>Listings Pages</h1>
+
+  <p><strong>Pages:</strong></p>
+  <ul class="task-list">
+    <li><strong>/login</strong> <span>LoginPage</span></li>
+    <li><strong>/listings</strong> <span>ListingsPage</span></li>
+    <li><strong>/listings/:id</strong> <span>ListingDetailPage</span></li>
+    <li><strong>/listings/create</strong> <span>CreateListingPage</span></li>
+  </ul>
+</section>
+
+<!-- ── EMAIL TEMPLATES ────────────────────────────────── -->
+<section class="section" id="email">
+  <div class="sprint-tag sprint-2">Sprint 2 · 23/06 – 06/07</div>
+  <div class="section-label">✉️ notification-service</div>
+  <h1>Email Templates — 7 events</h1>
+
+  <p>Phase 1: inline Java text block, không cần template engine. Verify tại <code>http://localhost:8025</code> (MailHog).</p>
+
+  <table>
+    <tr><th>Event</th><th>Người nhận</th><th>Subject</th></tr>
+    <tr><td><code>ContractSignedEvent</code></td><td>Seller + Buyer</td><td>[AgriContract] Hợp đồng đã được ký</td></tr>
+    <tr><td><code>EscrowLockedEvent</code></td><td>Seller</td><td>[AgriContract] Escrow đã lock — tiến hành giao hàng</td></tr>
+    <tr><td><code>GoodsDeliveredEvent</code></td><td>Seller</td><td>[AgriContract] Buyer xác nhận đã nhận hàng</td></tr>
+    <tr><td><code>EscrowReleasedEvent</code></td><td>Seller + Buyer</td><td>[AgriContract] Thanh toán đã giải phóng</td></tr>
+    <tr><td><code>ContractCancelledEvent</code></td><td>Seller + Buyer</td><td>[AgriContract] Hợp đồng đã bị hủy</td></tr>
+    <tr><td><code>EscrowPenalizedEvent</code></td><td>Bên bị phạt</td><td>[AgriContract] Thông báo phạt hợp đồng</td></tr>
+    <tr><td><code>ContractDisputedEvent</code></td><td>Admin + Seller + Buyer</td><td>[AgriContract][ADMIN] Tranh chấp mới cần xử lý</td></tr>
+  </table>
+
+  <h2>Pattern chung — áp dụng cho tất cả handlers</h2>
+  <span class="file-ref">notification-service/.../EmailTemplates.java</span>
+  <pre><code><span class="k">public class</span> <span class="n">EmailTemplates</span> {
+
+    <span class="k">public static</span> String <span class="m">contractSigned</span>(String contractId, String productName,
+                                              String agreedPrice, String deadline) {
+        <span class="k">return</span> <span class="s">"""
+            Hợp đồng đã được ký bởi cả hai bên.
+
+            Mã hợp đồng  : %s
+            Sản phẩm     : %s
+            Giá thỏa thuận: %s VNĐ
+            Hạn giao hàng : %s
+
+            Vui lòng chờ xác nhận khóa escrow trước khi giao hàng.
+            """</span>.formatted(contractId, productName, agreedPrice, deadline);
+    }
+
+    <span class="k">public static</span> String <span class="m">escrowLocked</span>(String contractId, String amount, String buyerOrg) {
+        <span class="k">return</span> <span class="s">"""
+            Escrow đã được khóa. Bạn có thể tiến hành giao hàng.
+
+            Mã hợp đồng : %s
+            Số tiền lock : %s VNĐ
+            Bên mua      : %s
+
+            Sau khi bên mua xác nhận nhận hàng, thanh toán sẽ được giải phóng tự động.
+            """</span>.formatted(contractId, amount, buyerOrg);
+    }
+
+    <span class="k">public static</span> String <span class="m">goodsDelivered</span>(String contractId, String buyerOrg) {
+        <span class="k">return</span> <span class="s">"""
+            Bên mua đã xác nhận nhận hàng.
+
+            Mã hợp đồng : %s
+            Bên mua      : %s
+
+            Hệ thống đang xử lý giải phóng thanh toán.
+            """</span>.formatted(contractId, buyerOrg);
+    }
+
+    <span class="k">public static</span> String <span class="m">escrowReleased</span>(String contractId, String amount, String settledAt) {
+        <span class="k">return</span> <span class="s">"""
+            Thanh toán đã được giải phóng thành công.
+
+            Mã hợp đồng   : %s
+            Số tiền nhận  : %s VNĐ
+            Ngày thanh toán: %s
+
+            Hợp đồng đã hoàn tất.
+            """</span>.formatted(contractId, amount, settledAt);
+    }
+
+    <span class="k">public static</span> String <span class="m">contractCancelled</span>(String contractId, String cancelledBy, String reason) {
+        <span class="k">return</span> <span class="s">"""
+            Hợp đồng đã bị hủy.
+
+            Mã hợp đồng : %s
+            Hủy bởi     : %s
+            Lý do        : %s
+            """</span>.formatted(contractId, cancelledBy, reason);
+    }
+
+    <span class="k">public static</span> String <span class="m">escrowPenalized</span>(String contractId, String penalizedParty, String amount) {
+        <span class="k">return</span> <span class="s">"""
+            Thông báo: bạn bị phạt do vi phạm hợp đồng.
+
+            Mã hợp đồng  : %s
+            Bên bị phạt  : %s
+            Số tiền phạt : %s VNĐ
+            """</span>.formatted(contractId, penalizedParty, amount);
+    }
+
+    <span class="k">public static</span> String <span class="m">contractDisputed</span>(String contractId, String buyerOrg, String timestamp) {
+        <span class="k">return</span> <span class="s">"""
+            [ADMIN] Có tranh chấp mới cần xử lý.
+
+            Mã hợp đồng : %s
+            Bên mua      : %s
+            Thời gian    : %s
+
+            Truy cập admin panel để phán xử.
+            """</span>.formatted(contractId, buyerOrg, timestamp);
+    }
+}</code></pre>
+
+  <div class="callout warn">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-body">
+      <strong>Verify sau mỗi event type</strong>
+      Test từng loại email qua Postman trigger → kiểm tra MailHog <code>localhost:8025</code>. Không đợi đến Sprint 3 mới test.
+    </div>
+  </div>
+</section>
+
+<!-- ── FRONTEND CONTRACT FLOW ──────────────────────────── -->
+<section class="section" id="fe-contract">
+  <div class="sprint-tag sprint-3">Sprint 3 · 07/07 – 20/07</div>
+  <div class="section-label">🤝 Frontend</div>
+  <h1>Contract Flow UI</h1>
+
+  <p><strong>Pages:</strong></p>
+  <ul class="task-list">
+    <li><strong>/contracts</strong> <span>ContractsPage</span></li>
+    <li><strong>/contracts/:id</strong> <span>ContractDetailPage</span></li>
+    <li><strong>/dashboard</strong> <span>DashboardPage</span></li>
+    <li><strong>/admin/arbitrate/:id</strong> <span>AdminArbitratePage</span></li>
+  </ul>
+
+  <h2>ContractActionsBar Logic</h2>
+  <ul class="task-list">
+    <li><strong>'OFFERED', 'NEGOTIATING'</strong> <span>Sign and Counter-offer.</span></li>
+    <li><strong>'ACTIVE'</strong> <span>Cancel. Confirm delivery (buyer only).</span></li>
+    <li><strong>'DELIVERED'</strong> <span>Dispute (buyer only).</span></li>
+  </ul>
+
+  <h2>Polling SIGNED → ACTIVE</h2>
+  <p>Add polling logic: poll <code>GET /api/contracts/:id</code> every 3s.</p>
+</section>
+
+<!-- ── POSTMAN COLLECTION ─────────────────────────────── -->
+<section class="section" id="postman">
+  <div class="sprint-tag sprint-3">Sprint 3 · 07/07 – 20/07</div>
+  <div class="section-label">🧪 Testing</div>
+  <h1>Postman Collection — 3 Flows</h1>
+
+  <p>File: <span class="file-ref">docs/AgriContract-Phase1.postman_collection.json</span></p>
+  <p>Environment variables cần setup: <code>baseUrl</code>, <code>sellerToken</code>, <code>buyerToken</code>, <code>adminToken</code>, <code>contractId</code>, <code>listingId</code>, <code>escrowId</code>.</p>
+
+  <h2>Flow 1 — Happy Path (SETTLED)</h2>
+  <div>
+    <div class="test-step"><div class="step-num">1</div><div class="step-body"><strong>POST /api/v1/users/register (seller token)</strong><p>Register seller. Save <code>sellerId</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">2</div><div class="step-body"><strong>POST /api/v1/users/register (buyer token)</strong><p>Register buyer. Save <code>buyerId</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">3</div><div class="step-body"><strong>POST /api/v1/products (seller token)</strong><p>Tạo product. Save <code>productId</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">4</div><div class="step-body"><strong>POST /api/v1/listings (seller token)</strong><p>Tạo listing. Save <code>listingId</code>. Assert <code>status = ACTIVE</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">5</div><div class="step-body"><strong>POST /api/v1/contracts (buyer token)</strong><p>Tạo contract từ listing. Save <code>contractId</code>. Assert <code>status = OFFERED</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">6</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/sign (seller token)</strong><p>Seller ký.</p></div></div>
+    <div class="test-step"><div class="step-num">7</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/sign (buyer token)</strong><p>Buyer ký. Assert <code>status = SIGNED</code>. Listing → CLOSED.</p></div></div>
+    <div class="test-step"><div class="step-num">8</div><div class="step-body"><strong>GET /api/v1/escrows/contract/{contractId} — delay 2s</strong><p>Đợi async saga. Assert <code>status = LOCKED</code>. Save <code>escrowId</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">9</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/confirm-delivery (buyer token)</strong><p>Assert <code>status = GOODS_DELIVERED</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">10</div><div class="step-body"><strong>GET /api/v1/contracts/{contractId} — delay 2s</strong><p>Assert <code>status = SETTLED</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">11</div><div class="step-body"><strong>GET /api/v1/escrows/{escrowId}/transactions</strong><p>Assert có đúng 2 transactions: LOCK + RELEASE.</p></div></div>
+    <div class="test-step"><div class="step-num">12</div><div class="step-body"><strong>MailHog check</strong><p><code>localhost:8025</code> — phải có ≥3 emails (signed, escrow locked, settled).</p></div></div>
+  </div>
+
+  <h2>Flow 2 — Buyer Cancel</h2>
+  <p>Repeat bước 1–8, sau đó:</p>
+  <div>
+    <div class="test-step"><div class="step-num">9</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/cancel (buyer token)</strong><p>Body: <code>{"reason": "Không còn nhu cầu"}</code>. Assert <code>status = CANCELLED_BY_BUYER</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">10</div><div class="step-body"><strong>GET /api/v1/escrows/contract/{contractId} — delay 2s</strong><p>Assert <code>status = PENALIZED_BUYER</code>. Transactions: LOCK + PENALIZE_BUYER + RELEASE.</p></div></div>
+  </div>
+
+  <h2>Flow 3 — Dispute + Admin Arbitrate</h2>
+  <p>Repeat bước 1–9 (đến GOODS_DELIVERED), sau đó:</p>
+  <div>
+    <div class="test-step"><div class="step-num">10</div><div class="step-body"><strong>PUT /api/v1/contracts/{contractId}/dispute (buyer token)</strong><p>Body: <code>{"reason": "Hàng không đúng chất lượng"}</code>. Assert <code>status = DISPUTED</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">11</div><div class="step-body"><strong>PUT /api/v1/escrows/{contractId}/arbitrate (admin token)</strong><p>Body: <code>{"buyerAmount": 30000000, "sellerAmount": 20000000}</code>. Assert escrow <code>status = ARBITRATED</code>.</p></div></div>
+    <div class="test-step"><div class="step-num">12</div><div class="step-body"><strong>MailHog check</strong><p>Email tranh chấp gửi admin + email kết quả cho cả hai bên.</p></div></div>
+  </div>
+
+  <div class="callout success">
+    <span class="callout-icon">✅</span>
+    <div class="callout-body">
+      <strong>Definition of Done — Phase 1</strong>
+      Cả 3 Postman flows pass. MailHog nhận đúng emails. <code>mvn test</code> xanh. <code>docker compose up -d</code> → toàn bộ services <code>healthy</code>.
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+  const sections = document.querySelectorAll('.section');
+  const navLinks = document.querySelectorAll('.nav-link');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

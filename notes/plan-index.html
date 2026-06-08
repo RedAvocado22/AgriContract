@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="vi">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>AgriContract — Sprint Plan</title>
+        <link rel="stylesheet" href="styles.css" />
+        <style>
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                flex-direction: column;
+                padding: 40px 20px;
+            }
+
+            .page-title {
+                text-align: center;
+                margin-bottom: 48px;
+            }
+            .page-title h1 {
+                font-size: 32px;
+                font-weight: 800;
+                letter-spacing: -0.5px;
+                margin-bottom: 6px;
+            }
+            .page-title p {
+                color: var(--text-muted);
+                font-size: 15px;
+            }
+
+            .dev-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 20px;
+                max-width: 920px;
+                width: 100%;
+            }
+
+            .dev-card {
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 28px;
+                text-decoration: none;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                transition: all 0.2s;
+                position: relative;
+                overflow: hidden;
+            }
+            .dev-card::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+            }
+            .dev-card.nmc::before {
+                background: var(--primary);
+            }
+            .dev-card.nhl::before {
+                background: var(--green);
+            }
+            .dev-card.dda::before {
+                background: var(--purple);
+            }
+
+            .dev-card:hover {
+                border-color: var(--border);
+                background: var(--bg-hover);
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            }
+
+            .dev-initials {
+                width: 52px;
+                height: 52px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 18px;
+                font-weight: 800;
+                letter-spacing: -0.5px;
+            }
+            .dev-card.nmc .dev-initials {
+                background: rgba(108, 142, 255, 0.15);
+                color: var(--primary);
+            }
+            .dev-card.nhl .dev-initials {
+                background: rgba(74, 222, 128, 0.15);
+                color: var(--green);
+            }
+            .dev-card.dda .dev-initials {
+                background: rgba(192, 132, 252, 0.15);
+                color: var(--purple);
+            }
+
+            .dev-name {
+                font-size: 20px;
+                font-weight: 800;
+                color: var(--text);
+                letter-spacing: -0.3px;
+            }
+            .dev-role {
+                font-size: 12px;
+                color: var(--text-muted);
+                margin-top: 2px;
+            }
+
+            .service-tags {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 4px;
+            }
+            .stag {
+                font-size: 11px;
+                font-weight: 600;
+                padding: 3px 9px;
+                border-radius: 20px;
+                border: 1px solid;
+            }
+            .dev-card.nmc .stag {
+                background: rgba(108, 142, 255, 0.08);
+                color: var(--primary);
+                border-color: rgba(108, 142, 255, 0.25);
+            }
+            .dev-card.nhl .stag {
+                background: rgba(74, 222, 128, 0.08);
+                color: var(--green);
+                border-color: rgba(74, 222, 128, 0.25);
+            }
+            .dev-card.dda .stag {
+                background: rgba(192, 132, 252, 0.08);
+                color: var(--purple);
+                border-color: rgba(192, 132, 252, 0.25);
+            }
+
+            .sprint-row {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .sprint-item {
+                display: flex;
+                align-items: flex-start;
+                gap: 8px;
+                font-size: 12px;
+                color: var(--text-muted);
+            }
+            .sprint-label {
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.8px;
+                text-transform: uppercase;
+                padding: 2px 6px;
+                border-radius: 10px;
+                white-space: nowrap;
+                flex-shrink: 0;
+                margin-top: 1px;
+            }
+            .s1 {
+                background: rgba(34, 211, 238, 0.1);
+                color: var(--cyan);
+            }
+            .s2 {
+                background: rgba(251, 146, 60, 0.1);
+                color: var(--orange);
+            }
+            .s3 {
+                background: rgba(192, 132, 252, 0.1);
+                color: var(--purple);
+            }
+
+            .open-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 10px;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                margin-top: auto;
+            }
+            .dev-card.nmc .open-btn {
+                background: rgba(108, 142, 255, 0.1);
+                color: var(--primary);
+            }
+            .dev-card.nhl .open-btn {
+                background: rgba(74, 222, 128, 0.1);
+                color: var(--green);
+            }
+            .dev-card.dda .open-btn {
+                background: rgba(192, 132, 252, 0.1);
+                color: var(--purple);
+            }
+            .dev-card:hover .open-btn {
+                opacity: 0.85;
+            }
+
+            hr.divider {
+                border: none;
+                border-top: 1px solid var(--border);
+                width: 100%;
+                max-width: 920px;
+                margin: 32px 0;
+            }
+
+            .info-row {
+                display: flex;
+                gap: 32px;
+                max-width: 920px;
+                width: 100%;
+            }
+            .info-item {
+                flex: 1;
+            }
+            .info-item .info-label {
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+                color: var(--text-dim);
+                margin-bottom: 6px;
+            }
+            .info-item .info-value {
+                font-size: 14px;
+                color: var(--text);
+                font-weight: 600;
+            }
+            .info-item .info-sub {
+                font-size: 12px;
+                color: var(--text-muted);
+                margin-top: 2px;
+            }
+
+            .ref-links {
+                display: flex;
+                gap: 10px;
+                max-width: 920px;
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .ref-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 7px 14px;
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: 600;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                color: var(--text-muted);
+                text-decoration: none;
+                transition: all 0.15s;
+            }
+            .ref-link:hover {
+                background: var(--bg-hover);
+                color: var(--text);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="page-title">
+            <h1>🌾 AgriContract — Phase 1 Sprint Plan</h1>
+            <p>
+                Deadline: <strong>24/7/2026</strong> &nbsp;·&nbsp; 3 Sprints
+                &nbsp;·&nbsp; 3 Developers
+            </p>
+        </div>
+
+        <div class="dev-grid">
+            <!-- NMC -->
+            <a href="plan-dev-b.html" class="dev-card nmc">
+                <div>
+                    <div class="dev-initials">NMC</div>
+                </div>
+                <div>
+                    <div class="dev-name">NMC</div>
+                    <div class="dev-role">BE Lead · Keycloak · Contracts</div>
+                </div>
+                <div class="service-tags">
+                    <span class="stag">Keycloak</span>
+                    <span class="stag">contract-service</span>
+                    <span class="stag">escrow-service</span>
+                    <span class="stag">api-gateway</span>
+                </div>
+                <div class="sprint-row">
+                    <div class="sprint-item">
+                        <span class="sprint-label s1">S1</span>
+                        Keycloak config · Contract aggregate · State machine · Domain events
+                    </div>
+                    <div class="sprint-item">
+                        <span class="sprint-label s2">S2</span>
+                        Use cases · OutboxPoller · Escrow aggregate + Saga
+                    </div>
+                    <div class="sprint-item">
+                        <span class="sprint-label s3">S3</span>
+                        Assist integration test + buffer + bug fix
+                    </div>
+                </div>
+                <div class="open-btn">Mở plan NMC →</div>
+            </a>
+
+            <!-- NHL -->
+            <a href="plan-dev-a.html" class="dev-card nhl">
+                <div>
+                    <div class="dev-initials">NHL</div>
+                </div>
+                <div>
+                    <div class="dev-name">NHL</div>
+                    <div class="dev-role">user · product · notification</div>
+                </div>
+                <div class="service-tags">
+                    <span class="stag">user-service</span>
+                    <span class="stag">product-service</span>
+                    <span class="stag">notification-service</span>
+                </div>
+                <div class="sprint-row">
+                    <div class="sprint-item">
+                        <span class="sprint-label s1">S1</span>
+                        User aggregate · Listing aggregate · Persistence
+                    </div>
+                    <div class="sprint-item">
+                        <span class="sprint-label s2">S2</span>
+                        REST APIs · Internal /close · Email consumer
+                    </div>
+                    <div class="sprint-item">
+                        <span class="sprint-label s3">S3</span>
+                        Assist integration test + buffer + bug fix
+                    </div>
+                </div>
+                <div class="open-btn">Mở plan NHL →</div>
+            </a>
+
+            <!-- DDA -->
+            <a href="plan-dev-c.html" class="dev-card dda">
+                <div>
+                    <div class="dev-initials">DDA</div>
+                </div>
+                <div>
+                    <div class="dev-name">DDA</div>
+                    <div class="dev-role">Frontend Owner · Infra · Testing</div>
+                </div>
+                <div class="service-tags">
+                    <span class="stag">Frontend</span>
+                    <span class="stag">Infra</span>
+                    <span class="stag">Testing</span>
+                </div>
+                <div class="sprint-row">
+                    <div class="sprint-item">
+                        <span class="sprint-label s1">S1</span>
+                        Flyway migrations · Docker healthchecks · Frontend setup
+                    </div>
+                    <div class="sprint-item">
+                        <span class="sprint-label s2">S2</span>
+                        Listings pages · Mock API · Email templates
+                    </div>
+                    <div class="sprint-item">
+                        <span class="sprint-label s3">S3</span>
+                        Contract flow UI · Dashboard · Postman collection
+                    </div>
+                </div>
+                <div class="open-btn">Mở plan DDA →</div>
+            </a>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="info-row">
+            <div class="info-item">
+                <div class="info-label">Sprint 1</div>
+                <div class="info-value">09/06 – 22/06</div>
+                <div class="info-sub">Domain logic + Persistence</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Sprint 2</div>
+                <div class="info-value">23/06 – 06/07</div>
+                <div class="info-sub">Application Layer + APIs + Messaging</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Sprint 3</div>
+                <div class="info-value">07/07 – 20/07</div>
+                <div class="info-sub">Frontend + Integration Tests</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Buffer</div>
+                <div class="info-value">21/07 – 24/07</div>
+                <div class="info-sub">Bug fix + Demo prep</div>
+            </div>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="ref-links">
+            <a href="architective.html" class="ref-link"
+                >📖 Architecture Notes</a
+            >
+            <a href="flow.html" class="ref-link">🔄 Flow Diagrams</a>
+        </div>
+    </body>
+</html>
