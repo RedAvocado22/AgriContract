@@ -11,8 +11,10 @@ target/
 .vscode/
 *.swp
 
-# AI memory
+# AI
 memory/
+CLAUDE.md
+GEMINI.md
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
