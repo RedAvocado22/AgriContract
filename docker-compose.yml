@@ -25,16 +25,17 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     command: start-dev
     ports:
-      - "8080:8080"
+      - "8180:8080"
     volumes:
       - keycloak_data:/opt/keycloak/data
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      test: ["CMD-SHELL", "(echo > /dev/tcp/localhost/8080) 2>/dev/null && exit 0 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -162,7 +163,7 @@ services:
     build: ./api-gateway
     container_name: api-gateway
     ports:
-      - "8888:8888"
+      - "8080:8888"
     environment:
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
       USER_SERVICE_URL: http://user-service:8081

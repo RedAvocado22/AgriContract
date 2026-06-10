@@ -29,11 +29,13 @@ spring:
           uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
           predicates:
             - Path=/api/v1/notifications/**
-      default-filters:
-        - TokenRelay=
 
 server:
   port: ${SERVER_PORT:8888}
+
+logging:
+  level:
+    org.springframework.security: DEBUG
 
 management:
   endpoints:
