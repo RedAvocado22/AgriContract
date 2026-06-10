@@ -1,18 +1,15 @@
 package com.agricontract.contract.domain.model;
 
-import com.agricontract.contract.domain.event.DomainEvent;
 import com.agricontract.contract.domain.model.vo.*;
 import lombok.Getter;
 
 import java.time.LocalDate;
-import java.util.List;
 
-// Aggregate Root — most complex service
+// Aggregate Root
 // State machine:
-//   OFFERED → SIGNED | CANCELLED_BY_BUYER | CANCELLED_BY_SELLER
-//   SIGNED  → GOODS_DELIVERED | DISPUTED
-//   GOODS_DELIVERED → SETTLED
-//   DISPUTED → ARBITRATED
+//   OFFERED → NEGOTIATING → SIGNED → ACTIVE → DELIVERED → SETTLED
+//   ACTIVE  → CANCELLED
+//   DELIVERED → DISPUTED
 @Getter
 public class Contract {
 
@@ -21,47 +18,55 @@ public class Contract {
     private String sellerId;
     private String buyerId;
     private String productName;       // snapshot at offer time
-    private Quantity quantity;        // snapshot
-    private Money agreedPrice;        // snapshot
+    private String buyerOrgName;      // snapshot at offer time
+    private String sellerOrgName;     // snapshot at offer time
+    private Quantity quantity;
+    private Money agreedPrice;
     private LocalDate deliveryDeadline;
     private ContractStatus status;
     private String cancelReason;
-    private Money penaltyAmount;
+    private String cancelledBy;       // "BUYER" or "SELLER"
 
     private Contract() {}
 
     public static Contract offer(ContractId contractId, String listingId,
                                   String buyerId, String sellerId,
-                                  String productName, Quantity quantity,
-                                  Money agreedPrice, LocalDate deliveryDeadline) {
-        // TODO
+                                  String productName, String buyerOrgName, String sellerOrgName,
+                                  Quantity quantity, Money agreedPrice,
+                                  LocalDate deliveryDeadline) {
         throw new UnsupportedOperationException("TODO");
     }
 
-    /** Seller signs → SIGNED. Triggers: close listing (Feign) + lock escrow (event) */
-    public void sign(String actorId) { /* TODO */ }
+    public void counterOffer(String userId) {
+        throw new UnsupportedOperationException("TODO");
+    }
 
-    /** Buyer withdraws offer → CANCELLED_BY_BUYER */
-    public void cancelByBuyer(String actorId, String reason) { /* TODO */ }
+    public void sign(String userId) {
+        throw new UnsupportedOperationException("TODO");
+    }
 
-    /** Seller rejects offer → CANCELLED_BY_SELLER */
-    public void cancelBySeller(String actorId, String reason) { /* TODO */ }
+    /** Called when escrow.locked event received */
+    public void activate() {
+        throw new UnsupportedOperationException("TODO");
+    }
 
-    /** Seller confirms goods shipped → GOODS_DELIVERED */
-    public void confirmDelivery(String actorId) { /* TODO */ }
+    /** Only BUYER can call, only from ACTIVE */
+    public void confirmDelivery(String buyerId) {
+        throw new UnsupportedOperationException("TODO");
+    }
 
-    /** Buyer confirms receipt → SETTLED. Triggers: release escrow (event) */
-    public void settle(String actorId) { /* TODO */ }
+    /** Called when escrow.released event received */
+    public void settle() {
+        throw new UnsupportedOperationException("TODO");
+    }
 
-    /** Buyer opens dispute → DISPUTED */
-    public void dispute(String actorId, String reason) { /* TODO */ }
+    /** Only from ACTIVE, both parties can cancel */
+    public void cancel(String userId, String reason) {
+        throw new UnsupportedOperationException("TODO");
+    }
 
-    /** Admin arbitrates → ARBITRATED. Triggers: penalty escrow (event) */
-    public void arbitrate(Money penalty, boolean penalizeBuyer) { /* TODO */ }
-
-    /** Drain domain events for Outbox Poller to publish to RabbitMQ */
-    public List<DomainEvent> pullDomainEvents() {
-        // TODO
-        return List.of();
+    /** Only BUYER, only from DELIVERED */
+    public void dispute(String buyerId, String reason) {
+        throw new UnsupportedOperationException("TODO");
     }
 }
