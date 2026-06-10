@@ -1,0 +1,17 @@
+meta {
+  name: GET /api/v1/contracts (protected, no token)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/v1/contracts
+  body: none
+  auth: none
+}
+
+tests {
+  test("should return 401 without token", function() {
+    expect(res.getStatus()).to.equal(401);
+  });
+}

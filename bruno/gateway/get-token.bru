@@ -1,0 +1,23 @@
+meta {
+  name: Get Token (buyer1)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: password
+  client_id: {{client_id}}
+  username: {{buyer_username}}
+  password: {{buyer_password}}
+}
+
+script:post-response {
+  const token = res.getBody().access_token;
+  bru.setEnvVar("token", token);
+}
