@@ -265,7 +265,7 @@ curl http://localhost:8080/api/v1/listings \
   <table>
     <tr><th>Event</th><th>Fields bắt buộc trong payload JSON</th></tr>
     <tr><td><code>ContractSignedEvent</code></td><td>eventId, eventType, contractId, listingId, sellerId, buyerId, agreedPrice, currency, deliveryDeadline</td></tr>
-    <tr><td><code>GoodsDeliveredEvent</code></td><td>eventId, eventType, contractId, sellerId, buyerId</td></tr>
+    <tr><td><code>ContractDeliveredEvent</code></td><td>eventId, eventType, contractId, sellerId, buyerId</td></tr>
     <tr><td><code>ContractCancelledEvent</code></td><td>eventId, eventType, contractId, cancelledBy, reason, sellerId, buyerId</td></tr>
     <tr><td><code>ContractDisputedEvent</code></td><td>eventId, eventType, contractId, buyerId, sellerId</td></tr>
     <tr><td><code>ContractSettledEvent</code></td><td>eventId, eventType, contractId, sellerId, buyerId</td></tr>
@@ -300,12 +300,6 @@ curl http://localhost:8080/api/v1/listings \
   </div>
   <div class="state-flow">
     <div class="state-row">
-      <div class="state-box s-signed">SIGNED</div>
-      <div class="state-arrow">→</div>
-      <div class="state-box s-cancel">CANCELLED</div>
-    </div>
-    <br>
-    <div class="state-row">
       <div class="state-box s-active">ACTIVE</div>
       <div class="state-arrow">→</div>
       <div class="state-box s-cancel">CANCELLED</div>
@@ -315,18 +309,23 @@ curl http://localhost:8080/api/v1/listings \
       <div class="state-box s-delivered">DELIVERED</div>
       <div class="state-arrow">→</div>
       <div class="state-box s-disputed">DISPUTED</div>
-      <div class="state-arrow">→</div>
-      <div class="state-box s-cancel">ARBITRATED</div>
     </div>
   </div>
 
+  <div class="callout info">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-body">
+      <strong>DISPUTED là terminal state của Contract</strong>
+      Contract dừng ở DISPUTED — không có state ARBITRATED trong contract. ARBITRATED là escrow state, không phải contract state. Khi Admin gọi PUT /escrow/{contractId}/arbitrate, chỉ EscrowAccount chuyển sang ARBITRATED. Contract vẫn ở DISPUTED.
+    </div>
+  </div>
   <div class="callout info">
     <span class="callout-icon">💡</span>
     <div class="callout-body">
       <strong>Giải thích State ACTIVE</strong>
       Chuyển trạng thái <code>SIGNED → ACTIVE</code> xảy ra khi nhận được event <code>escrow.locked</code>.
       <br><br>
-      Trong DB schema ENUM: add 'ACTIVE', change 'GOODS_DELIVERED' to 'DELIVERED', remove 'CANCELLED_BY_BUYER' and 'CANCELLED_BY_SELLER' and use 'CANCELLED'.
+      Trong DB schema ENUM: add 'ACTIVE', change 'GOODS_DELIVERED' to 'DELIVERED', remove 'CANCELLED_BY_BUYER' and 'CANCELLED_BY_SELLER' and use 'CANCELLED'. Không có 'ARBITRATED' trong Contract enum.
     </div>
   </div>
 
@@ -363,8 +362,10 @@ curl http://localhost:8080/api/v1/listings \
             <span class="s">"User "</span> + userId + <span class="s">" is not a party to this contract"</span>);
     }
 
-    <span class="c">// 2. Contract phải ở OFFERED để sign</span>
-    <span class="k">if</span> (this.status != <span class="n">ContractStatus</span>.OFFERED) {
+    <span class="c">// 2. Contract phải ở OFFERED hoặc NEGOTIATING để sign</span>
+    <span class="c">// NEGOTIATING xảy ra sau khi một bên counterOffer — vẫn phải ký được</span>
+    <span class="k">if</span> (this.status != <span class="n">ContractStatus</span>.OFFERED
+            && this.status != <span class="n">ContractStatus</span>.NEGOTIATING) {
         <span class="k">throw new</span> <span class="n">IllegalStateException</span>(
             <span class="s">"Cannot sign contract with status: "</span> + this.status);
     }
@@ -431,7 +432,7 @@ curl http://localhost:8080/api/v1/listings \
 
     this.status = <span class="n">ContractStatus</span>.DELIVERED;
     this.updatedAt = <span class="n">Instant</span>.now();
-    this.domainEvents.add(<span class="n">GoodsDeliveredEvent</span>.of(this.contractId.value(),
+    this.domainEvents.add(<span class="n">ContractDeliveredEvent</span>.of(this.contractId.value(),
         this.sellerId, this.buyerId));
 }
 
@@ -447,21 +448,16 @@ curl http://localhost:8080/api/v1/listings \
 <span class="k">public void</span> <span class="m">dispute</span>(String buyerId) {
     <span class="k">if</span> (!buyerId.equals(this.buyerId))
         <span class="k">throw new</span> <span class="n">IllegalArgumentException</span>(<span class="s">"Only buyer can open dispute"</span>);
-    <span class="k">if</span> (this.status != <span class="n">ContractStatus</span>.DELIVERED)
+    <span class="k">if</span> (this.status != <span class="n">ContractStatus</span>.DISPUTED)
         <span class="k">throw new</span> <span class="n">IllegalStateException</span>(...);
     this.status = <span class="n">ContractStatus</span>.DISPUTED;
     this.updatedAt = <span class="n">Instant</span>.now();
     this.domainEvents.add(<span class="n">ContractDisputedEvent</span>.of(this.contractId.value()));
 }
 
-<span class="k">public void</span> <span class="m">arbitrate</span>() {
-    <span class="c">// Gọi từ EscrowArbitratedEventHandler</span>
-    <span class="k">if</span> (this.status != <span class="n">ContractStatus</span>.DISPUTED)
-        <span class="k">throw new</span> <span class="n">IllegalStateException</span>(...);
-    this.status = <span class="n">ContractStatus</span>.ARBITRATED;
-    this.updatedAt = <span class="n">Instant</span>.now();
-    this.domainEvents.add(<span class="n">ContractArbitratedEvent</span>.of(this.contractId.value()));
-}</code></pre>
+<span class="c">// Không có arbitrate() trong Contract — ARBITRATED là escrow state.</span>
+<span class="c">// Admin gọi PUT /escrow/{contractId}/arbitrate → EscrowAccount.arbitrate() xử lý.</span>
+<span class="c">// Contract dừng ở DISPUTED.</span></code></pre>
 
   <h2>5. pullDomainEvents()</h2>
   <pre><code><span class="k">public</span> <span class="n">List</span>&lt;<span class="n">DomainEvent</span>&gt; <span class="m">pullDomainEvents</span>() {
@@ -474,13 +470,16 @@ curl http://localhost:8080/api/v1/listings \
   <span class="file-ref">contract-service/src/test/java/.../domain/model/ContractTest.java</span>
   <ul class="task-list">
     <li><strong>offer() → status = OFFERED, ContractOfferedEvent emitted</strong></li>
-    <li><strong>sign(sellerId) → vẫn OFFERED (buyer chưa ký)</strong></li>
+    <li><strong>sign(sellerId) khi OFFERED → vẫn OFFERED (buyer chưa ký)</strong></li>
     <li><strong>sign(buyerId) sau seller đã ký → SIGNED, ContractSignedEvent emitted</strong></li>
+    <li><strong>sign(sellerId) khi NEGOTIATING → vẫn NEGOTIATING (buyer chưa ký)</strong></li>
+    <li><strong>sign(buyerId) sau counterOffer (NEGOTIATING) → SIGNED, ContractSignedEvent emitted</strong></li>
     <li><strong>sign(unknownUserId) → IllegalArgumentException</strong></li>
     <li><strong>sign() khi SIGNED → IllegalStateException</strong></li>
     <li><strong>activate() khi SIGNED → ACTIVE ✓</strong></li>
     <li><strong>cancel() khi ACTIVE → CANCELLED, event emitted</strong></li>
     <li><strong>cancel() khi SETTLED → IllegalStateException</strong></li>
+    <li><strong>cancel() khi SIGNED → IllegalStateException (cancel chỉ từ ACTIVE)</strong></li>
     <li><strong>confirmDelivery(buyerId) khi ACTIVE → DELIVERED</strong></li>
     <li><strong>confirmDelivery(sellerId) khi ACTIVE → IllegalArgumentException (wrong role)</strong></li>
     <li><strong>confirmDelivery() khi OFFERED → IllegalStateException</strong></li>
@@ -527,7 +526,7 @@ curl http://localhost:8080/api/v1/listings \
       <td>escrow-service lock, notif-service</td>
     </tr>
     <tr>
-      <td><code>GoodsDeliveredEvent</code></td>
+      <td><code>ContractDeliveredEvent</code></td>
       <td>contractId, sellerId, buyerId</td>
       <td>escrow-service release, notif-service</td>
     </tr>
@@ -547,9 +546,9 @@ curl http://localhost:8080/api/v1/listings \
       <td>notif-service</td>
     </tr>
     <tr>
-      <td><code>ContractArbitratedEvent</code></td>
-      <td>contractId</td>
-      <td>notif-service</td>
+      <td colspan="3" style="font-style:italic; color:#999; font-size:12px;">
+        Không có ContractArbitratedEvent — ARBITRATED là escrow event. Contract dừng ở DISPUTED.
+      </td>
     </tr>
   </table>
 </section>
@@ -683,7 +682,7 @@ jpaRepo.save(entity);</code></pre>
     <span class="c">// Nếu contract vừa SIGNED → gọi Feign close listing TRƯỚC khi save</span>
     <span class="k">if</span> (contract.getStatus() == <span class="n">ContractStatus</span>.SIGNED) {
         productServiceClient.closeListing(
-            contract.getListingId(), <span class="s">"true"</span>  <span class="c">// X-Internal-Call header</span>
+            contract.getListingId(), <span class="s">"true"</span>  <span class="c">// X-Internal-Secret header</span>
         );
     }
 
@@ -762,11 +761,11 @@ jpaRepo.save(entity);</code></pre>
         <span class="k">return switch</span> (eventType) {
             <span class="k">case</span> <span class="s">"ContractOfferedEvent"</span>    -> <span class="s">"contract.offered"</span>;
             <span class="k">case</span> <span class="s">"ContractSignedEvent"</span>     -> <span class="s">"contract.signed"</span>;
-            <span class="k">case</span> <span class="s">"GoodsDeliveredEvent"</span>     -> <span class="s">"contract.delivered"</span>;
+            <span class="k">case</span> <span class="s">"ContractDeliveredEvent"</span>  -> <span class="s">"contract.delivered"</span>;
             <span class="k">case</span> <span class="s">"ContractCancelledEvent"</span>  -> <span class="s">"contract.cancelled"</span>;
             <span class="k">case</span> <span class="s">"ContractDisputedEvent"</span>   -> <span class="s">"contract.disputed"</span>;
             <span class="k">case</span> <span class="s">"ContractSettledEvent"</span>    -> <span class="s">"contract.settled"</span>;
-            <span class="k">case</span> <span class="s">"ContractArbitratedEvent"</span> -> <span class="s">"contract.arbitrated"</span>;
+            <span class="c">// Không có ContractArbitratedEvent — ARBITRATED là escrow state</span>
             <span class="k">default</span> -> <span class="k">throw new</span> <span class="n">IllegalArgumentException</span>(<span class="s">"Unknown event: "</span> + eventType);
         };
     }
@@ -814,6 +813,9 @@ jpaRepo.save(entity);</code></pre>
     <span class="k">public void</span> <span class="m">onEscrowReleased</span>(String payload) {
         <span class="n">Map</span>&lt;String, Object&gt; msg = parseJson(payload);
         String contractId = (String) msg.get(<span class="s">"contractId"</span>);
+        String eventId    = (String) msg.get(<span class="s">"eventId"</span>);
+        <span class="c">// Idempotency check — bắt buộc như onEscrowLocked</span>
+        <span class="k">if</span> (processedEventRepository.existsByEventId(eventId)) <span class="k">return</span>;
 
         <span class="n">Contract</span> contract = contractRepository.findById(contractId)
             .orElseThrow(() -> <span class="k">new</span> <span class="n">NotFoundException</span>(<span class="s">"Contract not found: "</span> + contractId));
@@ -821,6 +823,7 @@ jpaRepo.save(entity);</code></pre>
         contract.settle();
         contractRepository.save(contract);
         contract.pullDomainEvents().forEach(domainEventRepository::save);
+        processedEventRepository.save(<span class="k">new</span> <span class="n">ProcessedEvent</span>(eventId));
     }
 }</code></pre>
 
@@ -883,7 +886,7 @@ jpaRepo.save(entity);</code></pre>
     <span class="a">@PutMapping</span>(<span class="s">"/api/v1/listings/{listingId}/close"</span>)
     <span class="k">void</span> <span class="m">closeListing</span>(
         <span class="a">@PathVariable</span> String listingId,
-        <span class="a">@RequestHeader</span>(<span class="s">"X-Internal-Call"</span>) String internalFlag
+        <span class="a">@RequestHeader</span>(<span class="s">"X-Internal-Secret"</span>) String internalFlag
     );
 }
 
@@ -1057,8 +1060,14 @@ jpaRepo.save(entity);</code></pre>
         escrowAccountRepository.save(account);
 
         <span class="c">// Publish escrow.locked → contract-service sẽ nhận</span>
+        <span class="c">// Mọi event phải có eventId + occurredAt ở top-level — consumer dùng eventId để dedup</span>
         rabbitTemplate.convertAndSend(<span class="s">"agricontract.escrow"</span>, <span class="s">"escrow.locked"</span>,
-            objectMapper.writeValueAsString(<span class="n">Map</span>.of(<span class="s">"contractId"</span>, contractId)));
+            objectMapper.writeValueAsString(<span class="n">Map</span>.of(
+                <span class="s">"eventId"</span>, <span class="n">UUID</span>.randomUUID().toString(),
+                <span class="s">"occurredAt"</span>, <span class="n">Instant</span>.now().toString(),
+                <span class="s">"contractId"</span>, contractId,
+                <span class="s">"amount"</span>, account.getTotalAmount()
+            )));
     }
 
     <span class="a">@RabbitListener</span>(queues = <span class="s">"escrow-svc.contract.delivered"</span>)
@@ -1070,7 +1079,13 @@ jpaRepo.save(entity);</code></pre>
         escrowAccountRepository.save(account);
 
         rabbitTemplate.convertAndSend(<span class="s">"agricontract.escrow"</span>, <span class="s">"escrow.released"</span>,
-            objectMapper.writeValueAsString(<span class="n">Map</span>.of(<span class="s">"contractId"</span>, contractId)));
+            objectMapper.writeValueAsString(<span class="n">Map</span>.of(
+                <span class="s">"eventId"</span>, <span class="n">UUID</span>.randomUUID().toString(),
+                <span class="s">"occurredAt"</span>, <span class="n">Instant</span>.now().toString(),
+                <span class="s">"contractId"</span>, contractId,
+                <span class="s">"amount"</span>, account.getTotalAmount(),
+                <span class="s">"recipientId"</span>, account.getSellerUserId()
+            )));
     }
 
     <span class="a">@RabbitListener</span>(queues = <span class="s">"escrow-svc.contract.cancelled"</span>)
