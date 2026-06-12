@@ -1,5 +1,6 @@
 package com.agricontract.contract.domain.model;
 
+import com.agricontract.contract.domain.event.ContractOfferedEvent;
 import com.agricontract.contract.domain.event.DomainEvent;
 import com.agricontract.contract.domain.model.vo.CancelledBy;
 import com.agricontract.contract.domain.model.vo.ContractId;
@@ -7,6 +8,8 @@ import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
 import lombok.Getter;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -33,16 +36,31 @@ public class Contract {
     private List<DomainEvent> domainEvents;
 
     private Contract() {
+        this.signatories = new HashSet<>();
+        this.domainEvents = new ArrayList<>();
     }
 
     public static Contract offer(ContractId contractId, String listingId,
                                  String buyerId, String sellerId,
                                  String productName, String buyerOrgName, String sellerOrgName,
                                  ContractTerms terms) {
-        throw new UnsupportedOperationException("TODO");
+        Contract contract = new Contract();
+        contract.contractId = contractId;
+        contract.listingId = listingId;
+        contract.buyerId = buyerId;
+        contract.sellerId = sellerId;
+        contract.buyerOrgName = buyerOrgName;
+        contract.sellerOrgName = sellerOrgName;
+        contract.terms = terms;
+        contract.status = ContractStatus.OFFERED;
+        contract.productName = productName;
+
+        contract.domainEvents.add(new ContractOfferedEvent(contractId.value(), buyerId, sellerId, listingId, terms));
+
+        return contract;
     }
 
-    public void counterOffer(String userId) {
+    public void counterOffer(String userId, ContractTerms newTerms) {
         throw new UnsupportedOperationException("TODO");
     }
 
