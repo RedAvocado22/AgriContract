@@ -1,5 +1,6 @@
 package com.agricontract.contract.domain.model;
 
+import com.agricontract.contract.domain.event.ContractNegotiatingEvent;
 import com.agricontract.contract.domain.event.ContractOfferedEvent;
 import com.agricontract.contract.domain.event.DomainEvent;
 import com.agricontract.contract.domain.model.vo.CancelledBy;
@@ -61,7 +62,21 @@ public class Contract {
     }
 
     public void counterOffer(String userId, ContractTerms newTerms) {
-        throw new UnsupportedOperationException("TODO");
+        //Guard
+        if (!userId.equals(sellerId) && !userId.equals(buyerId)) {
+            throw new IllegalArgumentException("This user doesn't have right to access.");
+        }
+
+        if (this.status != ContractStatus.OFFERED && this.status != ContractStatus.NEGOTIATING) {
+            throw new IllegalArgumentException("This contract can't be update.");
+        }
+
+        //Mutate
+        this.status = ContractStatus.NEGOTIATING;
+        this.terms = newTerms;
+
+        //Emit
+        this.domainEvents.add(new ContractNegotiatingEvent(this.contractId.value(), userId, newTerms));
     }
 
     public void sign(String userId) {
