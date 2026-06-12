@@ -1,9 +1,11 @@
 package com.agricontract.contract.domain.event;
 
 import com.agricontract.contract.domain.model.vo.ContractTerms;
+import lombok.Getter;
 
 import java.util.UUID;
 
+@Getter
 public class ContractOfferedEvent extends DomainEvent {
     private String buyerId;
     private String sellerId;
@@ -16,5 +18,10 @@ public class ContractOfferedEvent extends DomainEvent {
         this.sellerId = sellerId;
         this.listingId = listingId;
         this.terms = terms;
+    }
+
+    @Override
+    public String getEventType() {
+        return "contract.offered";
     }
 }

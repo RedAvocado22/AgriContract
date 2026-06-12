@@ -1,9 +1,11 @@
 package com.agricontract.contract.domain.event;
 
 import com.agricontract.contract.domain.model.vo.ContractTerms;
+import lombok.Getter;
 
 import java.util.UUID;
 
+@Getter
 public class ContractNegotiatingEvent extends DomainEvent {
     private String proposedBy;
     private ContractTerms proposedTerms;
@@ -12,5 +14,10 @@ public class ContractNegotiatingEvent extends DomainEvent {
         super(contractId);
         this.proposedBy = proposedBy;
         this.proposedTerms = proposedTerms;
+    }
+
+    @Override
+    public String getEventType() {
+        return "contract.negotiating";
     }
 }
