@@ -9,11 +9,11 @@ import java.util.UUID;
 public abstract class DomainEvent {
     protected UUID eventId;
 
-    protected UUID contractId;
+    protected String contractId;
 
     protected Instant occurredAt;
 
-    protected DomainEvent(UUID contractId) {
+    protected DomainEvent(String contractId) {
         this.eventId = UUID.randomUUID();
         this.contractId = contractId;
         this.occurredAt = Instant.now();

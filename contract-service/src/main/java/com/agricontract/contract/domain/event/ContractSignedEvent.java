@@ -3,8 +3,6 @@ package com.agricontract.contract.domain.event;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
 import lombok.Getter;
 
-import java.util.UUID;
-
 @Getter
 public class ContractSignedEvent extends DomainEvent {
 
@@ -14,7 +12,7 @@ public class ContractSignedEvent extends DomainEvent {
     private ContractTerms terms;
 
     public ContractSignedEvent(
-            UUID contractId,
+            String contractId,
             String buyerId, String sellerId, String listingId,
             ContractTerms terms) {
         super(contractId);

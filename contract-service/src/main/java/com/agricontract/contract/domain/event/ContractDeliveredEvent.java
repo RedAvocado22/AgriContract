@@ -2,13 +2,11 @@ package com.agricontract.contract.domain.event;
 
 import lombok.Getter;
 
-import java.util.UUID;
-
 @Getter
 public class ContractDeliveredEvent extends DomainEvent {
     private String confirmedBy;
 
-    public ContractDeliveredEvent(UUID contractId, String confirmedBy) {
+    public ContractDeliveredEvent(String contractId, String confirmedBy) {
         super(contractId);
         this.confirmedBy = confirmedBy;
     }
