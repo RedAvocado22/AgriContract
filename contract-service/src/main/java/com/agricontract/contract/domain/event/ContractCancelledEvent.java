@@ -1,19 +1,22 @@
 package com.agricontract.contract.domain.event;
 
-import com.agricontract.contract.domain.model.vo.ContractStatus;
+import com.agricontract.contract.domain.model.vo.CancelledBy;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
-
 @Getter
-public class ContractCancelledEvent implements DomainEvent {
-    private String eventId;
-    private String eventType;
-    private String aggregateId;
-    private String contractId;
-    private String buyerId;
-    private String sellerId;
-    private ContractStatus cancellationType; // CANCELLED_BY_BUYER or CANCELLED_BY_SELLER
+public class ContractCancelledEvent extends DomainEvent {
+    private CancelledBy cancelledBy;
     private String reason;
-    private LocalDateTime occurredAt;
+
+    public ContractCancelledEvent(String contractId, String buyerEmail, String sellerEmail,
+                                  CancelledBy cancelledBy, String reason) {
+        super(contractId, buyerEmail, sellerEmail);
+        this.cancelledBy = cancelledBy;
+        this.reason = reason;
+    }
+
+    @Override
+    public String getEventType() {
+        return "contract.cancelled";
+    }
 }
