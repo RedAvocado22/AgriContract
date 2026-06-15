@@ -29,4 +29,16 @@ public class UserProfile {
     public void reject() { /* TODO */ }
 
     public void updateContactInfo(ContactInfo newInfo) { /* TODO */ }
+
+    public static UserProfile reconstitute(UserId userId, String organizationName,
+                                           Role role, ContactInfo contactInfo,
+                                           VerificationStatus verificationStatus) {
+        UserProfile p = new UserProfile();
+        p.userId = userId;
+        p.organizationName = organizationName;
+        p.role = role;
+        p.contactInfo = contactInfo;
+        p.verificationStatus = verificationStatus;
+        return p;
+    }
 }
