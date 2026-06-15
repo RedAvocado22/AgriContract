@@ -114,20 +114,41 @@ public class Contract {
      * Called when escrow.locked event received
      */
     public void activate() {
-        throw new UnsupportedOperationException("TODO");
+        //Guard
+        if (this.status != ContractStatus.SIGNED) {
+            throw new IllegalArgumentException("This contract can't be activated.");
+        }
+        //Mutate
+        this.status = ContractStatus.ACTIVE;
+        //Emit
+        this.domainEvents.add(new ContractActivatedEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail));
     }
 
     /**
      * Only BUYER can call, only from ACTIVE
      */
     public void confirmDelivery(String buyerId) {
-        throw new UnsupportedOperationException("TODO");
+        //Guard
+        if (!buyerId.equals(this.buyerId)) {
+            throw new IllegalArgumentException("This user doesn't have right to access.");
+        }
+        if (this.status != ContractStatus.ACTIVE) {
+            throw new IllegalArgumentException("This contract can't be confirmed.");
+        }
+        //Mutate
+        this.status = ContractStatus.DELIVERED;
+        //Emit
+        this.domainEvents.add(new ContractDeliveredEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, buyerId));
     }
 
     /**
      * Called when escrow.released event received
      */
     public void settle() {
+        //Guard
+        
+        //Mutate
+        //Emit
         throw new UnsupportedOperationException("TODO");
     }
 
@@ -135,6 +156,9 @@ public class Contract {
      * Only from ACTIVE, both parties can cancel
      */
     public void cancel(String userId, String reason) {
+        //Guard
+        //Mutate
+        //Emit
         throw new UnsupportedOperationException("TODO");
     }
 
@@ -142,6 +166,9 @@ public class Contract {
      * Only BUYER, only from DELIVERED
      */
     public void dispute(String buyerId, String reason) {
+        //Guard
+        //Mutate
+        //Emit
         throw new UnsupportedOperationException("TODO");
     }
 }
