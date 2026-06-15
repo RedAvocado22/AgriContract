@@ -8,8 +8,9 @@ public class ContractCancelledEvent extends DomainEvent {
     private CancelledBy cancelledBy;
     private String reason;
 
-    public ContractCancelledEvent(String contractId, CancelledBy cancelledBy, String reason) {
-        super(contractId);
+    public ContractCancelledEvent(String contractId, String buyerEmail, String sellerEmail,
+                                  CancelledBy cancelledBy, String reason) {
+        super(contractId, buyerEmail, sellerEmail);
         this.cancelledBy = cancelledBy;
         this.reason = reason;
     }

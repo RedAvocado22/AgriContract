@@ -13,8 +13,13 @@ public abstract class DomainEvent {
 
     protected Instant occurredAt;
 
-    protected DomainEvent(String contractId) {
+    protected String buyerEmail;
+    protected String sellerEmail;
+
+    protected DomainEvent(String contractId, String buyerEmail, String sellerEmail) {
         this.eventId = UUID.randomUUID();
+        this.buyerEmail = buyerEmail;
+        this.sellerEmail = sellerEmail;
         this.contractId = contractId;
         this.occurredAt = Instant.now();
     }

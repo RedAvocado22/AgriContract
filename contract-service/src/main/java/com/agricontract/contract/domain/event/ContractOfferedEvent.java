@@ -10,8 +10,9 @@ public class ContractOfferedEvent extends DomainEvent {
     private String listingId;
     private ContractTerms terms;
 
-    public ContractOfferedEvent(String contractId, String buyerId, String sellerId, String listingId, ContractTerms terms) {
-        super(contractId);
+    public ContractOfferedEvent(String contractId, String buyerEmail, String sellerEmail,
+                                String buyerId, String sellerId, String listingId, ContractTerms terms) {
+        super(contractId, buyerEmail, sellerEmail);
         this.buyerId = buyerId;
         this.sellerId = sellerId;
         this.listingId = listingId;

@@ -8,8 +8,9 @@ public class ContractNegotiatingEvent extends DomainEvent {
     private String proposedBy;
     private ContractTerms proposedTerms;
 
-    public ContractNegotiatingEvent(String contractId, String proposedBy, ContractTerms proposedTerms) {
-        super(contractId);
+    public ContractNegotiatingEvent(String contractId, String buyerEmail, String sellerEmail,
+                                    String proposedBy, ContractTerms proposedTerms) {
+        super(contractId, buyerEmail, sellerEmail);
         this.proposedBy = proposedBy;
         this.proposedTerms = proposedTerms;
     }

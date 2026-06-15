@@ -29,6 +29,8 @@ public class Contract {
     private String productName;       // snapshot at offer time
     private String buyerOrgName;      // snapshot at offer time
     private String sellerOrgName;     // snapshot at offer time
+    private String buyerEmail;        // snapshot at offer time
+    private String sellerEmail;       // snapshot at offer time
     private ContractTerms terms;
     private ContractStatus status;
     private String cancelReason;
@@ -44,6 +46,7 @@ public class Contract {
     public static Contract offer(ContractId contractId, String listingId,
                                  String buyerId, String sellerId,
                                  String productName, String buyerOrgName, String sellerOrgName,
+                                 String buyerEmail, String sellerEmail,
                                  ContractTerms terms) {
         Contract contract = new Contract();
         contract.contractId = contractId;
@@ -52,11 +55,13 @@ public class Contract {
         contract.sellerId = sellerId;
         contract.buyerOrgName = buyerOrgName;
         contract.sellerOrgName = sellerOrgName;
+        contract.buyerEmail = buyerEmail;
+        contract.sellerEmail = sellerEmail;
         contract.terms = terms;
         contract.status = ContractStatus.OFFERED;
         contract.productName = productName;
 
-        contract.domainEvents.add(new ContractOfferedEvent(contractId.value(), buyerId, sellerId, listingId, terms));
+        contract.domainEvents.add(new ContractOfferedEvent(contractId.value(), buyerEmail, sellerEmail, buyerId, sellerId, listingId, terms));
 
         return contract;
     }
@@ -76,10 +81,11 @@ public class Contract {
         this.terms = newTerms;
 
         //Emit
-        this.domainEvents.add(new ContractNegotiatingEvent(this.contractId.value(), userId, newTerms));
+        this.domainEvents.add(new ContractNegotiatingEvent(this.contractId.value(), buyerEmail, sellerEmail, userId, newTerms));
     }
 
     public void sign(String userId) {
+
         throw new UnsupportedOperationException("TODO");
     }
 

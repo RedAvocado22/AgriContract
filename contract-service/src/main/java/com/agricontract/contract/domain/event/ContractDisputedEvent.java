@@ -7,8 +7,9 @@ public class ContractDisputedEvent extends DomainEvent {
     private String disputedBy;
     private String reason;
 
-    public ContractDisputedEvent(String contractId, String disputedBy, String reason) {
-        super(contractId);
+    public ContractDisputedEvent(String contractId, String buyerEmail, String sellerEmail,
+                                 String disputedBy, String reason) {
+        super(contractId, buyerEmail, sellerEmail);
         this.disputedBy = disputedBy;
         this.reason = reason;
     }

@@ -6,8 +6,9 @@ import lombok.Getter;
 public class ContractDeliveredEvent extends DomainEvent {
     private String confirmedBy;
 
-    public ContractDeliveredEvent(String contractId, String confirmedBy) {
-        super(contractId);
+    public ContractDeliveredEvent(String contractId, String buyerEmail, String sellerEmail,
+                                  String confirmedBy) {
+        super(contractId, buyerEmail, sellerEmail);
         this.confirmedBy = confirmedBy;
     }
 
