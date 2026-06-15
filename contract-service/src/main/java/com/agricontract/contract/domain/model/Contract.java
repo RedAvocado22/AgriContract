@@ -5,6 +5,7 @@ import com.agricontract.contract.domain.model.vo.CancelledBy;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -33,7 +34,9 @@ public class Contract {
     private ContractStatus status;
     private String cancelReason;
     private CancelledBy cancelledBy;       // "BUYER" or "SELLER"
+    @Getter(AccessLevel.NONE)
     private Set<String> signatories;
+    @Getter(AccessLevel.NONE)
     private List<DomainEvent> domainEvents;
 
     private Contract() {
@@ -146,10 +149,13 @@ public class Contract {
      */
     public void settle() {
         //Guard
-        
+        if (this.status != ContractStatus.DELIVERED) {
+            throw new IllegalArgumentException("This contract can't be settled.");
+        }
         //Mutate
+        this.status = ContractStatus.SETTLED;
         //Emit
-        throw new UnsupportedOperationException("TODO");
+        this.domainEvents.add(new ContractSettledEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, this.buyerId, this.sellerId));
     }
 
     /**
@@ -157,9 +163,23 @@ public class Contract {
      */
     public void cancel(String userId, String reason) {
         //Guard
+        if (!userId.equals(this.sellerId) && !userId.equals(this.buyerId)) {
+            throw new IllegalArgumentException("This user doesn't have right to access.");
+        }
+
+        if (this.status != ContractStatus.ACTIVE) {
+            throw new IllegalArgumentException("This contract can't be cancelled.");
+        }
         //Mutate
+        this.status = ContractStatus.CANCELLED;
+        if (userId.equals(this.buyerId)) {
+            this.cancelledBy = CancelledBy.BUYER;
+        } else {
+            this.cancelledBy = CancelledBy.SELLER;
+        }
+        this.cancelReason = reason;
         //Emit
-        throw new UnsupportedOperationException("TODO");
+        this.domainEvents.add(new ContractCancelledEvent(this.contractId.value(), buyerEmail, sellerEmail, this.cancelledBy, reason));
     }
 
     /**
@@ -167,8 +187,22 @@ public class Contract {
      */
     public void dispute(String buyerId, String reason) {
         //Guard
+        if (!buyerId.equals(this.buyerId)) {
+            throw new IllegalArgumentException("This user doesn't have right to access.");
+        }
+
+        if (this.status != ContractStatus.DELIVERED) {
+            throw new IllegalArgumentException("This contract can't be disputed.");
+        }
         //Mutate
+        this.status = ContractStatus.DISPUTED;
         //Emit
-        throw new UnsupportedOperationException("TODO");
+        this.domainEvents.add(new ContractDisputedEvent(contractId.value(), buyerEmail, sellerEmail, buyerId, reason));
+    }
+
+    public List<DomainEvent> pullDomainEvents() {
+        List<DomainEvent> events = new ArrayList<>(this.domainEvents);
+        this.domainEvents.clear();
+        return events;
     }
 }
