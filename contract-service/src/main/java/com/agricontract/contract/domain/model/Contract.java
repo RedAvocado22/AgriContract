@@ -1,8 +1,6 @@
 package com.agricontract.contract.domain.model;
 
-import com.agricontract.contract.domain.event.ContractNegotiatingEvent;
-import com.agricontract.contract.domain.event.ContractOfferedEvent;
-import com.agricontract.contract.domain.event.DomainEvent;
+import com.agricontract.contract.domain.event.*;
 import com.agricontract.contract.domain.model.vo.CancelledBy;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
@@ -68,7 +66,7 @@ public class Contract {
 
     public void counterOffer(String userId, ContractTerms newTerms) {
         //Guard
-        if (!userId.equals(sellerId) && !userId.equals(buyerId)) {
+        if (!userId.equals(this.sellerId) && !userId.equals(this.buyerId)) {
             throw new IllegalArgumentException("This user doesn't have right to access.");
         }
 
@@ -81,12 +79,35 @@ public class Contract {
         this.terms = newTerms;
 
         //Emit
-        this.domainEvents.add(new ContractNegotiatingEvent(this.contractId.value(), buyerEmail, sellerEmail, userId, newTerms));
+        this.domainEvents.add(new ContractNegotiatingEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, userId, newTerms));
     }
 
     public void sign(String userId) {
+        //Guard
+        if (!userId.equals(sellerId) && !userId.equals(buyerId)) {
+            throw new IllegalArgumentException("This user doesn't have right to access.");
+        }
 
-        throw new UnsupportedOperationException("TODO");
+        if (this.status != ContractStatus.NEGOTIATING && this.status != ContractStatus.OFFERED) {
+            throw new IllegalArgumentException("This contract can't be update.");
+        }
+
+        if (signatories.contains(userId)) {
+            throw new IllegalArgumentException("This user already signed.");
+        }
+        //Mutate
+        this.signatories.add(userId);
+        if (this.signatories.contains(sellerId) && this.signatories.contains(buyerId)) {
+            this.status = ContractStatus.SIGNED;
+        }
+        //Emit
+        if (this.status == ContractStatus.SIGNED) {
+            this.domainEvents.add(new ContractSignedEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, this.buyerId, this.sellerId, this.listingId, this.terms));
+        } else {
+            Set<String> remaining = new HashSet<>(Set.of(buyerId, sellerId));
+            remaining.removeAll(signatories);
+            this.domainEvents.add(new ContractPartiallySignedEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, userId, remaining));
+        }
     }
 
     /**
