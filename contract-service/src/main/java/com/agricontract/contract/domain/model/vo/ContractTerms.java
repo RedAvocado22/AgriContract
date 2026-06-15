@@ -7,7 +7,8 @@ public record ContractTerms(
         Quantity quantity,
         Money agreedPrice,
         LocalDate deliveryDeadline,
-        BigDecimal penaltyRate,
+        BigDecimal buyerPenaltyRate,
+        BigDecimal sellerDepositRate,
         String qualitySpec
 ) {
 }
