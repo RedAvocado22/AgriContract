@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.persistence.entity;
 
+import com.agricontract.contract.domain.model.vo.CancelledBy;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -37,6 +38,18 @@ public class ContractJpaEntity {
     @Column(name = "product_name", nullable = false, length = 255)
     private String productName;
 
+    @Column(name = "buyer_org_name", nullable = false, length = 255)
+    private String buyerOrgName;
+
+    @Column(name = "seller_org_name", nullable = false, length = 255)
+    private String sellerOrgName;
+
+    @Column(name = "buyer_email", nullable = false, length = 255)
+    private String buyerEmail;
+
+    @Column(name = "seller_email", nullable = false, length = 255)
+    private String sellerEmail;
+
     @Column(nullable = false, precision = 15, scale = 3)
     private BigDecimal quantity;
 
@@ -52,6 +65,12 @@ public class ContractJpaEntity {
     @Column(name = "delivery_deadline", nullable = false)
     private LocalDate deliveryDeadline;
 
+    @Column(name = "penalty_rate", precision = 10, scale = 4)
+    private BigDecimal penaltyRate;
+
+    @Column(name = "quality_spec", columnDefinition = "TEXT")
+    private String qualitySpec;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ContractStatus status;
@@ -59,11 +78,12 @@ public class ContractJpaEntity {
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
 
-    @Column(name = "penalty_amount", precision = 15, scale = 2)
-    private BigDecimal penaltyAmount;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancelled_by", length = 10)
+    private CancelledBy cancelledBy;
 
-    @Column(name = "penalty_currency", length = 10)
-    private String penaltyCurrency;
+    @Column(columnDefinition = "TEXT")
+    private String signatories;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
