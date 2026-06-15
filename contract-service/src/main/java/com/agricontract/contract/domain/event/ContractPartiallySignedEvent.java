@@ -18,6 +18,6 @@ public class ContractPartiallySignedEvent extends DomainEvent {
 
     @Override
     public String getEventType() {
-        return "contract.partiallySigned";
+        return "contract.partially_signed";
     }
 }
