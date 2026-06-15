@@ -28,7 +28,8 @@ class ContractTest {
                 new Quantity(new BigDecimal("100"), "kg"),
                 new Money(new BigDecimal("500000"), "VND"),
                 LocalDate.now().plusDays(30),
-                new BigDecimal("0.05"),
+                new BigDecimal("0.30"),
+                new BigDecimal("0.10"),
                 "Grade A"
         );
     }
@@ -343,7 +344,8 @@ class ContractTest {
                 new Quantity(new BigDecimal("200"), "kg"),
                 new Money(new BigDecimal("450000"), "VND"),
                 LocalDate.now().plusDays(45),
-                new BigDecimal("0.05"),
+                new BigDecimal("0.30"),
+                new BigDecimal("0.10"),
                 "Grade B"
         );
     }
