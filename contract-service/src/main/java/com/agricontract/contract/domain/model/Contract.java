@@ -44,6 +44,34 @@ public class Contract {
         this.domainEvents = new ArrayList<>();
     }
 
+    public static Contract reconstitute(
+            ContractId contractId, String listingId,
+            String buyerId, String sellerId,
+            String productName, String buyerOrgName, String sellerOrgName,
+            String buyerEmail, String sellerEmail,
+            ContractTerms terms, ContractStatus status,
+            String cancelReason, CancelledBy cancelledBy,
+            Set<String> signatories) {
+        Contract contract = new Contract();
+
+        contract.contractId = contractId;
+        contract.listingId = listingId;
+        contract.productName = productName;
+        contract.buyerId = buyerId;
+        contract.buyerOrgName = buyerOrgName;
+        contract.buyerEmail = buyerEmail;
+        contract.sellerId = sellerId;
+        contract.sellerOrgName = sellerOrgName;
+        contract.sellerEmail = sellerEmail;
+        contract.terms = terms;
+        contract.status = status;
+        contract.cancelReason = cancelReason;
+        contract.cancelledBy = cancelledBy;
+        contract.signatories = new HashSet<>(signatories);
+
+        return contract;
+    }
+
     public static Contract offer(ContractId contractId, String listingId,
                                  String buyerId, String sellerId,
                                  String productName, String buyerOrgName, String sellerOrgName,
@@ -204,5 +232,9 @@ public class Contract {
         List<DomainEvent> events = new ArrayList<>(this.domainEvents);
         this.domainEvents.clear();
         return events;
+    }
+
+    public Set<String> getSignatories() {
+        return Set.copyOf(signatories);
     }
 }
