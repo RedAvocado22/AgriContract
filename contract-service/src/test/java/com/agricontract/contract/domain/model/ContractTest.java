@@ -324,6 +324,18 @@ class ContractTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    // ─── pullDomainEvents ─────────────────────────────────────────────────────
+
+    @Test
+    void pullDomainEvents_calledTwice_secondCallReturnsEmpty() {
+        Contract contract = offered();
+
+        contract.pullDomainEvents();
+        List<DomainEvent> second = contract.pullDomainEvents();
+
+        assertThat(second).isEmpty();
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     private ContractTerms newTerms() {
