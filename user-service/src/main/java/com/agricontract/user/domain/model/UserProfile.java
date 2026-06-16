@@ -22,7 +22,7 @@ public class UserProfile {
     private Role role;
     private ContactInfo contactInfo;
     private VerificationStatus verificationStatus;
-    private List<UserRegisteredEvent> domainEvents = new ArrayList<>();
+    private final List<UserRegisteredEvent> domainEvents = new ArrayList<>();
 
     private UserProfile() {}
 

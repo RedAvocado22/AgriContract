@@ -4,6 +4,7 @@ import com.agricontract.user.domain.model.vo.Role;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 public class UserRegisteredEvent {
@@ -15,12 +16,11 @@ public class UserRegisteredEvent {
     private final LocalDateTime occurredAt;
 
     private UserRegisteredEvent(String userId, String email, Role role) {
-        // TODO
-        this.eventId = null;
+        this.eventId = UUID.randomUUID().toString();
         this.userId = userId;
         this.email = email;
         this.role = role;
-        this.occurredAt = null;
+        this.occurredAt = LocalDateTime.now();
     }
 
     public static UserRegisteredEvent of(String userId, String email, Role role) {
