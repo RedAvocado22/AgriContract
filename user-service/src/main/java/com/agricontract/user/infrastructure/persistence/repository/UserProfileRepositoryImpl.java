@@ -18,19 +18,16 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
 
     @Override
     public UserProfile save(UserProfile userProfile) {
-        // TODO
-        throw new UnsupportedOperationException("TODO");
+        return mapper.toDomain(jpaRepository.save(mapper.toJpaEntity(userProfile)));
     }
 
     @Override
     public Optional<UserProfile> findById(UserId userId) {
-        // TODO
-        throw new UnsupportedOperationException("TODO");
+        return jpaRepository.findByUserId(userId.value()).map(mapper::toDomain);
     }
 
     @Override
     public boolean existsById(UserId userId) {
-        // TODO
-        throw new UnsupportedOperationException("TODO");
+        return jpaRepository.existsByUserId(userId.value());
     }
 }
