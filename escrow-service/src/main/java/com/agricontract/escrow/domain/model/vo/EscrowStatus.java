@@ -1,7 +1,8 @@
 package com.agricontract.escrow.domain.model.vo;
 
 public enum EscrowStatus {
-    LOCKED,
+    BUYER_LOCKED,
+    FULLY_LOCKED,
     RELEASED,
     PENALIZED_BUYER,
     PENALIZED_SELLER,
