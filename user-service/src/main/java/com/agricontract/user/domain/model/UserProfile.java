@@ -20,7 +20,7 @@ public class UserProfile {
 
     public static UserProfile create(UserId userId, String organizationName,
                                      Role role, ContactInfo contactInfo) {
-        // TODO
+
         throw new UnsupportedOperationException("TODO");
     }
 
