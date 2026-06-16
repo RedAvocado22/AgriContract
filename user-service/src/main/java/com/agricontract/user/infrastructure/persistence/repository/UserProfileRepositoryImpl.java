@@ -3,6 +3,7 @@ package com.agricontract.user.infrastructure.persistence.repository;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.UserProfileRepository;
+import com.agricontract.user.infrastructure.persistence.entity.UserProfileJpaEntity;
 import com.agricontract.user.infrastructure.persistence.mapper.UserProfileMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -18,19 +19,19 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
 
     @Override
     public UserProfile save(UserProfile userProfile) {
-        // TODO
-        throw new UnsupportedOperationException("TODO");
+        UserProfileJpaEntity entity = mapper.toJpaEntity(userProfile);
+        UserProfileJpaEntity savedEntity = jpaRepository.save(entity);
+        return  mapper.toDomain(savedEntity);
     }
 
     @Override
     public Optional<UserProfile> findById(UserId userId) {
-        // TODO
-        throw new UnsupportedOperationException("TODO");
+        Optional<UserProfileJpaEntity> userProfileJpaEntity = jpaRepository.findByUserId(userId.value());
+        return userProfileJpaEntity.map(mapper::toDomain);
     }
 
     @Override
     public boolean existsById(UserId userId) {
-        // TODO
-        throw new UnsupportedOperationException("TODO");
+        return jpaRepository.existsByUserId(userId.value());
     }
 }
