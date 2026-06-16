@@ -1,21 +1,26 @@
 package com.agricontract.contract.domain.event;
 
+import com.agricontract.contract.domain.model.vo.ContractTerms;
 import lombok.Getter;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
 @Getter
-public class ContractOfferedEvent implements DomainEvent {
-    private String eventId;
-    private String eventType;
-    private String aggregateId;
-    private String contractId;
+public class ContractOfferedEvent extends DomainEvent {
     private String buyerId;
     private String sellerId;
     private String listingId;
-    private String productName;
-    private BigDecimal agreedPrice;
-    private String currency;
-    private LocalDateTime occurredAt;
+    private ContractTerms terms;
+
+    public ContractOfferedEvent(String contractId, String buyerEmail, String sellerEmail,
+                                String buyerId, String sellerId, String listingId, ContractTerms terms) {
+        super(contractId, buyerEmail, sellerEmail);
+        this.buyerId = buyerId;
+        this.sellerId = sellerId;
+        this.listingId = listingId;
+        this.terms = terms;
+    }
+
+    @Override
+    public String getEventType() {
+        return "contract.offered";
+    }
 }

@@ -1,10 +1,28 @@
 package com.agricontract.contract.domain.event;
 
-import java.time.LocalDateTime;
+import lombok.Getter;
 
-public interface DomainEvent {
-    String getEventId();
-    String getEventType();
-    String getAggregateId();
-    LocalDateTime getOccurredAt();
+import java.time.Instant;
+import java.util.UUID;
+
+@Getter
+public abstract class DomainEvent {
+    protected UUID eventId;
+
+    protected String contractId;
+
+    protected Instant occurredAt;
+
+    protected String buyerEmail;
+    protected String sellerEmail;
+
+    protected DomainEvent(String contractId, String buyerEmail, String sellerEmail) {
+        this.eventId = UUID.randomUUID();
+        this.buyerEmail = buyerEmail;
+        this.sellerEmail = sellerEmail;
+        this.contractId = contractId;
+        this.occurredAt = Instant.now();
+    }
+
+    public abstract String getEventType();
 }
