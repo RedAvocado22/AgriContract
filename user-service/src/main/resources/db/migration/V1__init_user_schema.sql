@@ -8,8 +8,9 @@ CREATE TABLE user_profiles
     phone               VARCHAR(50),
     address             TEXT,
     verification_status ENUM('PENDING', 'VERIFIED', 'REJECTED') NOT NULL,
-    created_at          DATETIME     NOT NULL,
-    updated_at          DATETIME     NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
 
     PRIMARY KEY (id),
     UNIQUE KEY uk_user_profiles_user_id (user_id)
