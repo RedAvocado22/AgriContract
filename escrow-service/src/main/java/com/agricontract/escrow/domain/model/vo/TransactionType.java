@@ -7,5 +7,6 @@ public enum TransactionType {
     RELEASE,
     PENALIZE_BUYER,
     PENALIZE_SELLER,
-    ARBITRATION
+    ARBITRATION_BUYER,
+    ARBITRATION_SELLER,
 }

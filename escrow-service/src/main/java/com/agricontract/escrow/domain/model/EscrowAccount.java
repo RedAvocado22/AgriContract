@@ -165,9 +165,42 @@ public class EscrowAccount {
                 this.escrowId.value(),
                 TransactionType.REFUND_TO_BUYER,
                 this.totalAmount,
-                "Refund buyer payment3."
+                "Refund buyer payment."
         );
         this.transactions.add(refundToBuyer);
     }
 
+    public void arbitrate(Money buyerAmount, Money sellerAmount, String justification) {
+        //Guard
+        if (this.status != EscrowStatus.FULLY_LOCKED) {
+            throw new IllegalStateException("This payment not fully locked yet.");
+        }
+
+        if (!buyerAmount.add(sellerAmount).equals(this.totalAmount.add(this.sellerDeposit))) {
+            throw new IllegalArgumentException("Arbitration split must equal totalAmount + sellerDeposit.");
+        }
+
+        if (justification == null || justification.isBlank()) {
+            throw new IllegalArgumentException("Justification cannot be blank.");
+        }
+
+        //Mutate
+        this.status = EscrowStatus.ARBITRATED;
+        //Emit
+        EscrowTransaction buyerArbitration = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.ARBITRATION_BUYER,
+                buyerAmount,
+                justification
+        );
+        this.transactions.add(buyerArbitration);
+
+        EscrowTransaction sellerArbitration = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.ARBITRATION_SELLER,
+                sellerAmount,
+                justification
+        );
+        this.transactions.add(sellerArbitration);
+    }
 }
