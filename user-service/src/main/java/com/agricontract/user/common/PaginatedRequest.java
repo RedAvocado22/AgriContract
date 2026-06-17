@@ -13,10 +13,12 @@ import org.springframework.data.domain.Sort;
 @NoArgsConstructor
 public abstract class PaginatedRequest {
 
-    @Min(0) @Max(10000)
+    @Min(0)
+    @Max(10000)
     private Integer page = 0;
 
-    @Min(1) @Max(100)
+    @Min(1)
+    @Max(100)
     private Integer size = 20;
 
     private String sortBy;

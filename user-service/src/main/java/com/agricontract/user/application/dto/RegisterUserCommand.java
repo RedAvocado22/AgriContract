@@ -10,8 +10,9 @@ import lombok.Builder;
 public record RegisterUserCommand(
         @NotBlank String userId,
         @NotBlank String organizationName,
-        @NotNull  Role role,
+        @NotNull Role role,
         @Email @NotBlank String email,
         String phone,
         String address
-) {}
+) {
+}

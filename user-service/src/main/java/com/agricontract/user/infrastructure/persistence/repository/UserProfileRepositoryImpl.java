@@ -21,7 +21,7 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     public UserProfile save(UserProfile userProfile) {
         UserProfileJpaEntity entity = mapper.toJpaEntity(userProfile);
         UserProfileJpaEntity savedEntity = jpaRepository.save(entity);
-        return  mapper.toDomain(savedEntity);
+        return mapper.toDomain(savedEntity);
     }
 
     @Override
