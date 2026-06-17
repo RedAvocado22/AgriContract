@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_profiles")
-@Getter @Setter
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

@@ -17,14 +17,15 @@ import java.util.List;
 @Getter
 public class UserProfile {
 
+    private final List<UserRegisteredEvent> domainEvents = new ArrayList<>();
     private UserId userId;
     private String organizationName;
     private Role role;
     private ContactInfo contactInfo;
     private VerificationStatus verificationStatus;
-    private final List<UserRegisteredEvent> domainEvents = new ArrayList<>();
 
-    private UserProfile() {}
+    private UserProfile() {
+    }
 
     public static UserProfile create(UserId userId, String organizationName,
                                      Role role, ContactInfo contactInfo) {
@@ -41,6 +42,19 @@ public class UserProfile {
         ));
         return userProfile;
     }
+
+    public static UserProfile reconstitute(UserId userId, String organizationName,
+                                           Role role, ContactInfo contactInfo,
+                                           VerificationStatus verificationStatus) {
+        UserProfile userProfile = new UserProfile();
+        userProfile.userId = userId;
+        userProfile.organizationName = organizationName;
+        userProfile.role = role;
+        userProfile.contactInfo = contactInfo;
+        userProfile.verificationStatus = verificationStatus;
+        return userProfile;
+    }
+
     public List<UserRegisteredEvent> pullDomainEvents() {
         List<UserRegisteredEvent> events = new ArrayList<>(this.domainEvents);
         this.domainEvents.clear();
@@ -66,17 +80,5 @@ public class UserProfile {
             return;
         }
         this.contactInfo = newInfo;
-    }
-
-    public static UserProfile reconstitute(UserId userId, String organizationName,
-                                           Role role, ContactInfo contactInfo,
-                                           VerificationStatus verificationStatus) {
-        UserProfile userProfile = new UserProfile();
-        userProfile.userId = userId;
-        userProfile.organizationName = organizationName;
-        userProfile.role = role;
-        userProfile.contactInfo = contactInfo;
-        userProfile.verificationStatus = verificationStatus;
-        return userProfile;
     }
 }

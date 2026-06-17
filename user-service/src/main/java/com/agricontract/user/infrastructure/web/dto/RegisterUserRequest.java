@@ -1,14 +1,13 @@
-package com.agricontract.user.application.dto;
+package com.agricontract.user.infrastructure.web.dto;
 
 import com.agricontract.user.domain.model.vo.Role;
-import lombok.*;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class RegisterUserRequest {
-    private String organizationName;
-    private Role role;
-    private String phone;
-    private String address;
+
+public record RegisterUserRequest(String organizationName,
+                                  Role role,
+                                  String phone,
+                                  String address
+) {
+
+
 }

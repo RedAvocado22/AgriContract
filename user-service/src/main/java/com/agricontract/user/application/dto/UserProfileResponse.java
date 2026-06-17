@@ -13,4 +13,5 @@ public record UserProfileResponse(
         String phone,
         String address,
         VerificationStatus verificationStatus
-) {}
+) {
+}
