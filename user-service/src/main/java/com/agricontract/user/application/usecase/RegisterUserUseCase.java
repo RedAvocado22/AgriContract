@@ -1,8 +1,9 @@
 package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.RegisterUserCommand;
-import com.agricontract.user.application.dto.UserProfileResponse;
+import com.agricontract.user.application.dto.RegisterUserResult;
 
 public interface RegisterUserUseCase {
-    UserProfileResponse execute(RegisterUserCommand command);
+    RegisterUserResult execute(RegisterUserCommand command);
+
 }
