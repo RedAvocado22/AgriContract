@@ -45,21 +45,34 @@ public class EscrowAccount {
         account.totalAmount = amount;
         account.status = EscrowStatus.BUYER_LOCKED;
 
-        EscrowTransaction transaction = EscrowTransaction.create(account.escrowId.value(), TransactionType.LOCK, amount, "Lock buyer payment.");
-        account.transactions.add(transaction);
+        EscrowTransaction lockBuyerPayment = EscrowTransaction.create(
+                account.escrowId.value(),
+                TransactionType.LOCK,
+                amount,
+                "Lock buyer payment."
+        );
+        account.transactions.add(lockBuyerPayment);
         return account;
     }
 
     public void lockSellerDeposit(BigDecimal sellerDepositRate) {
+        //Guard
         if (this.status != EscrowStatus.BUYER_LOCKED) {
             throw new IllegalStateException("Buyer payment not locked yet.");
         }
 
+        //Mutate
         this.sellerDeposit = totalAmount.multiply(sellerDepositRate);
         this.status = EscrowStatus.FULLY_LOCKED;
 
-        EscrowTransaction transaction = EscrowTransaction.create(this.escrowId.value(), TransactionType.LOCK, this.sellerDeposit, "Lock seller deposit.");
-        this.transactions.add(transaction);
+        //Emit
+        EscrowTransaction lockSellerDeposit = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.LOCK,
+                this.sellerDeposit,
+                "Lock seller deposit."
+        );
+        this.transactions.add(lockSellerDeposit);
     }
 
     /**
@@ -68,33 +81,93 @@ public class EscrowAccount {
     public void release() {
         //Guard
         if (this.status != EscrowStatus.FULLY_LOCKED) {
-            throw new IllegalStateException("Buyer payment not locked yet.");
+            throw new IllegalStateException("This payment is not fully locked yet.");
         }
+
         //Mutate
         this.status = EscrowStatus.RELEASED;
+
         //Emit
-        EscrowTransaction release = EscrowTransaction.create(this.escrowId.value(), TransactionType.RELEASE, this.totalAmount, "Release buyer payment to seller.");
-        EscrowTransaction refundToSeller = EscrowTransaction.create(this.escrowId.value(), TransactionType.REFUND_TO_SELLER, this.sellerDeposit, "Refund seller deposit.");
-        this.transactions.add(release);
+        EscrowTransaction releaseToSeller = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.RELEASE,
+                this.totalAmount,
+                "Release buyer payment to seller."
+        );
+        this.transactions.add(releaseToSeller);
+
+        EscrowTransaction refundToSeller = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.REFUND_TO_SELLER,
+                this.sellerDeposit,
+                "Refund seller deposit."
+        );
         this.transactions.add(refundToSeller);
     }
 
     /**
      * Called on contract.arbitrated event with penalizeBuyer=true
      */
-    public void penalizeBuyer(Money penalty) {
+    public void penalizeBuyer(BigDecimal buyerPenaltyRate) {
         //Guard
+        if (this.status != EscrowStatus.FULLY_LOCKED) {
+            throw new IllegalStateException("This payment not fully locked yet.");
+        }
         //Mutate
+        this.status = EscrowStatus.PENALIZED_BUYER;
         //Emit
+        Money penalty = totalAmount.multiply(buyerPenaltyRate);
+
+        EscrowTransaction penalizedBuyer = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.PENALIZE_BUYER,
+                penalty,
+                "Penalize buyer payment to seller."
+        );
+        this.transactions.add(penalizedBuyer);
+
+        EscrowTransaction refundToBuyer = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.REFUND_TO_BUYER,
+                this.totalAmount.subtract(penalty),
+                "Refund buyer payment."
+        );
+        this.transactions.add(refundToBuyer);
+
+        EscrowTransaction refundToSeller = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.REFUND_TO_SELLER,
+                this.sellerDeposit,
+                "Refund seller deposit."
+        );
+        this.transactions.add(refundToSeller);
     }
 
     /**
      * Called on contract.arbitrated event with penalizeBuyer=false
      */
-    public void penalizeSeller(Money penalty) {
+    public void penalizeSeller() {
         //Guard
-        //Mutate
+        if (this.status != EscrowStatus.FULLY_LOCKED) {
+            throw new IllegalStateException("This payment not fully locked yet.");
+        }
+        this.status = EscrowStatus.PENALIZED_SELLER;
         //Emit
+        EscrowTransaction penalizedSeller = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.PENALIZE_SELLER,
+                this.sellerDeposit,
+                "Penalize seller deposit to buyer."
+        );
+        this.transactions.add(penalizedSeller);
+
+        EscrowTransaction refundToBuyer = EscrowTransaction.create(
+                this.escrowId.value(),
+                TransactionType.REFUND_TO_BUYER,
+                this.totalAmount,
+                "Refund buyer payment3."
+        );
+        this.transactions.add(refundToBuyer);
     }
 
 }
