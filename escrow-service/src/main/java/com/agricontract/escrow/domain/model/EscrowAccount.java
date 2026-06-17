@@ -67,8 +67,16 @@ public class EscrowAccount {
      */
     public void release() {
         //Guard
+        if (this.status != EscrowStatus.FULLY_LOCKED) {
+            throw new IllegalStateException("Buyer payment not locked yet.");
+        }
         //Mutate
+        this.status = EscrowStatus.RELEASED;
         //Emit
+        EscrowTransaction release = EscrowTransaction.create(this.escrowId.value(), TransactionType.RELEASE, this.totalAmount, "Release buyer payment to seller.");
+        EscrowTransaction refundToSeller = EscrowTransaction.create(this.escrowId.value(), TransactionType.REFUND_TO_SELLER, this.sellerDeposit, "Refund seller deposit.");
+        this.transactions.add(release);
+        this.transactions.add(refundToSeller);
     }
 
     /**
@@ -88,4 +96,5 @@ public class EscrowAccount {
         //Mutate
         //Emit
     }
+
 }
