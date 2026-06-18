@@ -207,7 +207,7 @@ public class Contract {
         }
         this.cancelReason = reason;
         //Emit
-        this.domainEvents.add(new ContractCancelledEvent(this.contractId.value(), buyerEmail, sellerEmail, this.cancelledBy, reason));
+        this.domainEvents.add(new ContractCancelledEvent(this.contractId.value(), buyerEmail, sellerEmail, this.cancelledBy, terms.buyerPenaltyRate(), reason));
     }
 
     /**
