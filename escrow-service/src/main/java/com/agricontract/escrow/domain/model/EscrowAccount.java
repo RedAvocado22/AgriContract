@@ -9,6 +9,7 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -202,5 +203,9 @@ public class EscrowAccount {
                 justification
         );
         this.transactions.add(sellerArbitration);
+    }
+
+    public List<EscrowTransaction> getTransactions() {
+        return Collections.unmodifiableList(this.transactions);
     }
 }
