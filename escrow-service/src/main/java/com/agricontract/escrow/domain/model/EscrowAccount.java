@@ -34,6 +34,23 @@ public class EscrowAccount {
         this.transactions = new ArrayList<>();
     }
 
+    public static EscrowAccount reconstitute(EscrowId escrowId, String contractId, String buyerUserId,
+            String sellerUserId, Money totalAmount, Money sellerDeposit, EscrowStatus status,
+            List<EscrowTransaction> transactions) {
+        EscrowAccount account = new EscrowAccount();
+
+        account.escrowId = escrowId;
+        account.contractId = contractId;
+        account.buyerUserId = buyerUserId;
+        account.sellerUserId = sellerUserId;
+        account.totalAmount = totalAmount;
+        account.sellerDeposit = sellerDeposit;
+        account.status = status;
+        account.transactions = new ArrayList<>(transactions);
+
+        return account;
+    }
+
     /**
      * Called on contract.signed event
      */
