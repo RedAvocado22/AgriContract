@@ -20,6 +20,10 @@ public class EscrowTransactionJpaEntity {
     @Column(name = "transaction_id", nullable = false, unique = true)
     private String transactionId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "escrow_account_id", nullable = false)
+    private EscrowAccountJpaEntity escrowAccount;
+
     @Column(name = "escrow_id", nullable = false)
     private String escrowId;
 
