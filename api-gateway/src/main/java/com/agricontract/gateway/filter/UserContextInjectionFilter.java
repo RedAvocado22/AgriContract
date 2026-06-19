@@ -1,5 +1,6 @@
 package com.agricontract.gateway.filter;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +19,9 @@ import java.util.Map;
 
 @Component
 public class UserContextInjectionFilter implements GlobalFilter {
+
+    @Value("${gateway.internal-secret}")
+    private String internalSecret;
 
     List<String> PUBLIC_PATHS = List.of(
             "/api/v1/listings",
@@ -69,6 +73,7 @@ public class UserContextInjectionFilter implements GlobalFilter {
                             .header("X-User-Id", id)
                             .header("X-User-Email", email)
                             .header("X-User-Role", roles)
+                            .header("X-Gateway-Secret", internalSecret)
                             .headers(h -> h.remove(HttpHeaders.AUTHORIZATION))
                             .build();
                     return chain.filter(exchange.mutate().request(mutated).build());

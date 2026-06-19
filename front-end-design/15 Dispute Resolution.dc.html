@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com" rel="preconnect" />
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1; display: inline-block; white-space: nowrap; direction: ltr; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; }
+  .amt { width:100%; height:42px; padding:0 44px 0 38px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; font-family:inherit; font-size:16px; color:#0f172a; text-align:right; outline:none; }
+  .amt:focus { border-color:#16a34a; box-shadow:0 0 0 1px #16a34a; }
+  input[type=text]::-webkit-inner-spin-button { -webkit-appearance:none; }
+</style>
+</helmet>
+<div style="min-height:100vh; background:#f8fafc; font-family:Geist,system-ui,sans-serif; color:#334155; -webkit-font-smoothing:antialiased; display:flex;">
+
+  <nav style="width:240px; flex:none; background:#fff; border-right:1px solid #e2e8f0; height:100vh; position:sticky; top:0; padding:24px 16px; display:flex; flex-direction:column; gap:4px;">
+    <div style="display:flex; align-items:center; gap:10px; padding:4px 12px 20px;"><div style="width:30px; height:30px; border-radius:6px; background:#16a34a; display:flex; align-items:center; justify-content:center; color:#fff; flex:none;"><span class="ms" style="font-size:18px;">eco</span></div><div><div style="font-size:16px; font-weight:600; color:#16a34a;">AgriContract</div><div style="font-size:12px; font-weight:500; color:#94a3b8;">B2B Platform</div></div></div>
+    <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none;"><span class="ms" style="font-size:20px;">dashboard</span>Dashboard</a>
+    <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none;"><span class="ms" style="font-size:20px;">list_alt</span>Listings</a>
+    <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none;"><span class="ms" style="font-size:20px;">description</span>Contracts</a>
+    <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none;"><span class="ms" style="font-size:20px;">account_balance_wallet</span>Escrow</a>
+    <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:600; color:#0f172a; background:#f1f5f9; text-decoration:none;"><span class="ms" style="font-size:20px; color:#16a34a;">shield_person</span>Admin</a>
+    <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none; margin-top:auto; border-top:1px solid #f1f5f9; padding-top:16px;"><span class="ms" style="font-size:20px;">account_circle</span>Admin Profile</a>
+  </nav>
+
+  <main style="flex:1; padding:32px; min-width:0;">
+    <div style="max-width:1280px; margin:0 auto;">
+
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:28px;">
+        <div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#64748b; margin-bottom:10px;"><a href="#" style="color:#64748b; text-decoration:none;">Admin</a><span class="ms" style="font-size:16px; color:#cbd5e1;">chevron_right</span><a href="#" style="color:#64748b; text-decoration:none;">Tranh chấp</a><span class="ms" style="font-size:16px; color:#cbd5e1;">chevron_right</span><span style="color:#334155;">#CT-2023-089</span></div>
+          <h1 style="font-size:24px; font-weight:600; color:#0f172a; margin:0 0 6px;">Phán quyết Tranh chấp #CT-2023-089</h1>
+          <p style="font-size:14px; color:#64748b; margin:0; max-width:620px;">Vui lòng xem xét chi tiết hợp đồng và lý do tranh chấp trước khi đưa ra phán quyết phân bổ quỹ Escrow.</p>
+        </div>
+        <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:9999px; background:#fee2e2; color:#b91c1c; font-size:12px; font-weight:500; white-space:nowrap;"><span style="width:6px; height:6px; border-radius:9999px; background:#dc2626;"></span>Đang chờ phán quyết</span>
+      </div>
+
+      <div style="display:flex; gap:24px; align-items:flex-start;">
+        <!-- Left -->
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:24px;">
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:24px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #f1f5f9;"><span class="ms" style="font-size:20px; color:#16a34a;">assignment</span><h3 style="font-size:18px; font-weight:600; color:#0f172a; margin:0;">Tóm tắt Hợp đồng</h3></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px 32px; margin-bottom:20px;">
+              <div style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; font-weight:500; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">Hàng hóa</span><span style="font-size:14px; font-weight:500; color:#0f172a;">Cà phê Robusta Loại 1</span></div>
+              <div style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; font-weight:500; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">Khối lượng</span><span style="font-size:14px; font-weight:500; color:#0f172a;">50 Tấn</span></div>
+              <div style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; font-weight:500; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">Người bán (Nông trại)</span><span style="font-size:14px; font-weight:600; color:#16a34a;">HTX Nông nghiệp Đắk Lắk</span></div>
+              <div style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; font-weight:500; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em;">Người mua (Nhà xuất khẩu)</span><span style="font-size:14px; font-weight:600; color:#16a34a;">Global Coffee Export JSC</span></div>
+            </div>
+            <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:6px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div><span style="font-size:12px; font-weight:500; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Tổng Giá trị Quỹ Escrow</span><span style="font-size:24px; font-weight:700; color:#0f172a;">2.250.000.000 VND</span></div>
+              <span class="ms" style="font-size:28px; color:#cbd5e1;">account_balance</span>
+            </div>
+          </div>
+
+          <div style="background:#fff; border:1px solid #fecaca; border-left:3px solid #dc2626; border-radius:8px; padding:24px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #f1f5f9;"><span class="ms" style="font-size:20px; color:#dc2626;">gavel</span><h3 style="font-size:18px; font-weight:600; color:#0f172a; margin:0;">Chi tiết Tranh chấp</h3></div>
+            <span style="display:inline-block; padding:4px 10px; background:#f1f5f9; color:#475569; border-radius:6px; font-size:12px; font-weight:500; margin-bottom:12px;">Người mở tranh chấp: Người mua (Global Coffee Export JSC)</span>
+            <h4 style="font-size:14px; font-weight:600; color:#0f172a; margin:0 0 10px;">Lý do: Chất lượng không đạt chuẩn hợp đồng</h4>
+            <p style="font-size:14px; color:#475569; line-height:22px; margin:0 0 20px; padding:16px; background:#f8fafc; border:1px dashed #e2e8f0; border-radius:6px;">Lô hàng 50 tấn cà phê Robusta giao ngày 15/10/2023 có tỷ lệ hạt đen, vỡ vượt quá 5% (thực tế kiểm định là 8.5%). Độ ẩm đo được là 14%, cao hơn mức 12.5% quy định trong hợp đồng. Chúng tôi yêu cầu bồi thường 15% giá trị hợp đồng để bù đắp chi phí xử lý và sấy lại, hoặc hoàn trả toàn bộ hàng.</p>
+            <h4 style="font-size:14px; font-weight:600; color:#0f172a; margin:0 0 10px;">Bằng chứng đính kèm:</h4>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <a href="#" style="display:flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; text-decoration:none; font-size:13px; color:#334155;"><span class="ms" style="font-size:18px; color:#64748b;">description</span>bien_ban_kiem_dinh_SGS.pdf</a>
+              <a href="#" style="display:flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; text-decoration:none; font-size:13px; color:#334155;"><span class="ms" style="font-size:18px; color:#64748b;">image</span>anh_mau_hat_loi.jpg</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: form -->
+        <div style="width:380px; flex:none; position:sticky; top:32px;">
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;"><div style="width:32px; height:32px; border-radius:9999px; background:#dcfce7; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:18px; color:#16a34a;">balance</span></div><h3 style="font-size:18px; font-weight:600; color:#0f172a; margin:0;">Quyết định Phân bổ Escrow</h3></div>
+
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:14px; font-weight:600; color:#0f172a;">Số tiền giải ngân cho Người mua</label>
+              <div style="position:relative;">
+                <span class="ms" style="position:absolute; left:12px; top:11px; font-size:20px; color:#94a3b8;">account_balance_wallet</span>
+                <input class="amt" type="text" placeholder="0" value="{{ buyer }}" onInput="{{ onBuyer }}" />
+                <span style="position:absolute; right:14px; top:13px; font-size:13px; color:#94a3b8; pointer-events:none;">VND</span>
+              </div>
+              <span style="font-size:13px; color:#64748b; margin-top:2px;">Đại diện cho: Global Coffee Export JSC</span>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:6px; margin-top:16px;">
+              <label style="font-size:14px; font-weight:600; color:#0f172a;">Số tiền giải ngân cho Người bán</label>
+              <div style="position:relative;">
+                <span class="ms" style="position:absolute; left:12px; top:11px; font-size:20px; color:#94a3b8;">account_balance_wallet</span>
+                <input class="amt" type="text" placeholder="0" value="{{ seller }}" onInput="{{ onSeller }}" />
+                <span style="position:absolute; right:14px; top:13px; font-size:13px; color:#94a3b8; pointer-events:none;">VND</span>
+              </div>
+              <span style="font-size:13px; color:#64748b; margin-top:2px;">Đại diện cho: HTX Nông nghiệp Đắk Lắk</span>
+            </div>
+
+            <div style="margin-top:16px; padding:12px; border-radius:6px; background:#f8fafc; border:1px solid #f1f5f9; display:flex; align-items:flex-start; gap:8px;">
+              <span class="ms" style="font-size:18px; color:#94a3b8; margin-top:1px;">info</span>
+              <div>
+                <p style="font-size:13px; color:#64748b; margin:0;">Tổng số tiền giải ngân phải bằng chính xác tổng giá trị Escrow.</p>
+                <p style="font-size:14px; font-weight:600; margin:4px 0 0; color: {{ statusColor }};">{{ statusText }}</p>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:6px; margin-top:16px;">
+              <label style="font-size:14px; font-weight:600; color:#0f172a;">Ghi chú Phán quyết (Nội bộ &amp; Gửi các bên)</label>
+              <textarea rows="3" placeholder="Nhập căn cứ đưa ra phán quyết..." style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; font-family:inherit; font-size:14px; color:#0f172a; outline:none; resize:vertical; line-height:21px;"></textarea>
+            </div>
+
+            <button type="button" onClick="{{ onSubmit }}" disabled="{{ submitDisabled }}" style="margin-top:20px; width:100%; height:44px; border:none; border-radius:6px; font-family:inherit; font-size:14px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:8px; background: {{ btnBg }}; color:#fff; cursor: {{ btnCursor }};"><span class="ms" style="font-size:18px;">gavel</span>{{ btnLabel }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Confirm dialog -->
+  <sc-if value="{{ dialogOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; background:rgba(15,23,42,0.5); z-index:100; display:flex; align-items:center; justify-content:center; padding:24px;">
+      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; max-width:440px; width:100%; overflow:hidden; box-shadow:0 20px 40px rgba(15,23,42,0.18);">
+        <div style="padding:20px 24px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:8px; background:#fef2f2;"><span class="ms" style="font-size:20px; color:#dc2626;">warning</span><h3 style="font-size:18px; font-weight:600; color:#0f172a; margin:0;">Xác nhận Phán quyết</h3></div>
+        <div style="padding:24px;">
+          <p style="font-size:14px; color:#475569; line-height:22px; margin:0 0 16px;">Hành động này là <strong style="color:#0f172a;">không thể hoàn tác</strong>. Quỹ Escrow sẽ được giải ngân theo tỷ lệ bạn vừa nhập và hợp đồng sẽ được đóng.</p>
+          <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:6px; padding:16px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:#64748b;">Người mua nhận:</span><span style="font-size:14px; font-weight:600; color:#0f172a;">{{ buyer }} VND</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="font-size:13px; color:#64748b;">Người bán nhận:</span><span style="font-size:14px; font-weight:600; color:#0f172a;">{{ seller }} VND</span></div>
+          </div>
+          <p style="font-size:13px; color:#64748b; margin:0;">Bạn có chắc chắn muốn thực hiện phán quyết này?</p>
+        </div>
+        <div style="padding:16px 24px; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; gap:12px;">
+          <button type="button" onClick="{{ onCancel }}" style="height:40px; padding:0 16px; background:#fff; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; font-size:14px; font-weight:500; cursor:pointer;">Hủy bỏ</button>
+          <button type="button" onClick="{{ onConfirm }}" style="height:40px; padding:0 16px; background:#16a34a; color:#fff; border:none; border-radius:6px; font-family:inherit; font-size:14px; font-weight:600; display:inline-flex; align-items:center; gap:6px; cursor:pointer;"><span class="ms" style="font-size:18px;">check_circle</span>Xác nhận</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Success toast -->
+  <sc-if value="{{ done }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; bottom:24px; right:24px; background:#fff; border:1px solid #16a34a; border-radius:8px; padding:16px 20px; box-shadow:0 10px 24px rgba(15,23,42,0.12); display:flex; align-items:center; gap:12px; z-index:110;">
+      <span class="ms" style="font-size:22px; color:#16a34a;">check_circle</span>
+      <div><h4 style="font-size:14px; font-weight:600; color:#0f172a; margin:0;">Đã xử lý thành công</h4><p style="font-size:13px; color:#64748b; margin:2px 0 0;">Phán quyết đã được lưu và quỹ đang được giải ngân.</p></div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { buyer: "", seller: "", dialogOpen: false, done: false };
+
+  fmt(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+  parse(s) { return parseInt((s || "").replace(/\./g, ""), 10) || 0; }
+  clean(v) { const d = (v || "").replace(/\D/g, ""); return d === "" ? "" : this.fmt(parseInt(d, 10)); }
+
+  renderVals() {
+    const TOTAL = 2250000000;
+    const b = this.parse(this.state.buyer);
+    const s = this.parse(this.state.seller);
+    const sum = b + s;
+    const filled = this.state.buyer !== "" && this.state.seller !== "";
+    const valid = filled && sum === TOTAL;
+
+    let statusText, statusColor;
+    if (valid) { statusText = "Tổng khớp chính xác (2.250.000.000 VND)"; statusColor = "#15803d"; }
+    else if (sum > TOTAL) { statusText = "Vượt quá quỹ: +" + this.fmt(sum - TOTAL) + " VND"; statusColor = "#dc2626"; }
+    else if (sum > 0) { statusText = "Còn thiếu: " + this.fmt(TOTAL - sum) + " VND"; statusColor = "#b45309"; }
+    else { statusText = "Tổng số tiền phải bằng 2.250.000.000 VND"; statusColor = "#64748b"; }
+
+    return {
+      buyer: this.state.buyer,
+      seller: this.state.seller,
+      dialogOpen: this.state.dialogOpen,
+      done: this.state.done,
+      statusText, statusColor,
+      submitDisabled: !valid || this.state.done,
+      btnBg: (valid && !this.state.done) ? "#16a34a" : "#94d3a8",
+      btnCursor: (valid && !this.state.done) ? "pointer" : "not-allowed",
+      btnLabel: this.state.done ? "Đã Phán quyết" : "Phán quyết & Kết thúc",
+      onBuyer: (e) => this.setState({ buyer: this.clean(e.target.value) }),
+      onSeller: (e) => this.setState({ seller: this.clean(e.target.value) }),
+      onSubmit: () => { if (!this.state.done) this.setState({ dialogOpen: true }); },
+      onCancel: () => this.setState({ dialogOpen: false }),
+      onConfirm: () => this.setState({ dialogOpen: false, done: true }),
+    };
+  }
+}
+</script>
+</body>
+</html>
