@@ -17,13 +17,13 @@ public class ContractEventConsumer {
         // TODO: idempotency check → EscrowAccount.lock()
     }
 
-    @RabbitListener(queues = "escrow.contract.settled")
-    public void onContractSettled(Map<String, Object> event) {
+    @RabbitListener(queues = "escrow.contract.delivered")
+    public void onContractDelivered(Map<String, Object> event) {
         // TODO: EscrowAccount.release()
     }
 
-    @RabbitListener(queues = "escrow.contract.arbitrated")
-    public void onContractArbitrated(Map<String, Object> event) {
+    @RabbitListener(queues = "escrow.contract.cancelled")
+    public void onContractCancelled(Map<String, Object> event) {
         // TODO: EscrowAccount.penalizeBuyer() or penalizeSeller()
     }
 }

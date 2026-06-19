@@ -22,6 +22,7 @@ public class EscrowMapper {
                 .sellerUserId(account.getSellerUserId())
                 .totalAmount(account.getTotalAmount().amount())
                 .sellerDeposit(account.getSellerDeposit() != null ? account.getSellerDeposit().amount() : null)
+                .sellerDepositRate(account.getSellerDepositRate())
                 .currency(account.getTotalAmount().currency())
                 .status(account.getStatus())
                 .build();
@@ -52,6 +53,7 @@ public class EscrowMapper {
                 totalAmount,
                 sellerDeposit,
                 entity.getStatus(),
+                entity.getSellerDepositRate(),
                 transactions
         );
     }

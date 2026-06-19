@@ -20,12 +20,12 @@ class EscrowAccountTest {
     private static final Money SELLER_DEPOSIT = new Money(new BigDecimal("1000000"), "VND");
 
     private EscrowAccount buyerLocked() {
-        return EscrowAccount.lockBuyerPayment(CONTRACT_ID, BUYER_ID, SELLER_ID, TOTAL_AMOUNT);
+        return EscrowAccount.lockBuyerPayment(CONTRACT_ID, BUYER_ID, SELLER_ID, SELLER_DEPOSIT_RATE, TOTAL_AMOUNT);
     }
 
     private EscrowAccount fullyLocked() {
         EscrowAccount account = buyerLocked();
-        account.lockSellerDeposit(SELLER_DEPOSIT_RATE);
+        account.lockSellerDeposit();
         return account;
     }
 
@@ -54,7 +54,7 @@ class EscrowAccountTest {
     void lockSellerDeposit_happyPath_transitionsToFullyLockedAndComputesDeposit() {
         EscrowAccount account = buyerLocked();
 
-        account.lockSellerDeposit(SELLER_DEPOSIT_RATE);
+        account.lockSellerDeposit();
 
         assertThat(account.getStatus()).isEqualTo(EscrowStatus.FULLY_LOCKED);
         assertThat(account.getSellerDeposit()).isEqualTo(SELLER_DEPOSIT);
@@ -69,7 +69,7 @@ class EscrowAccountTest {
     void lockSellerDeposit_whenNotBuyerLocked_throws() {
         EscrowAccount account = fullyLocked();
 
-        assertThatThrownBy(() -> account.lockSellerDeposit(SELLER_DEPOSIT_RATE))
+        assertThatThrownBy(account::lockSellerDeposit)
                 .isInstanceOf(IllegalStateException.class);
     }
 
