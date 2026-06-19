@@ -25,6 +25,7 @@ public class EscrowAccount {
     private String sellerUserId;
     private Money totalAmount;
     private Money sellerDeposit;
+    private BigDecimal sellerDepositRate;
     private EscrowStatus status;
     @Getter(AccessLevel.NONE)
     private List<EscrowTransaction> transactions; // append-only ledger
@@ -35,8 +36,9 @@ public class EscrowAccount {
     }
 
     public static EscrowAccount reconstitute(EscrowId escrowId, String contractId, String buyerUserId,
-            String sellerUserId, Money totalAmount, Money sellerDeposit, EscrowStatus status,
-            List<EscrowTransaction> transactions) {
+                                             String sellerUserId, Money totalAmount, Money sellerDeposit, EscrowStatus status,
+                                             BigDecimal sellerDepositRate,
+                                             List<EscrowTransaction> transactions) {
         EscrowAccount account = new EscrowAccount();
 
         account.escrowId = escrowId;
@@ -46,6 +48,7 @@ public class EscrowAccount {
         account.totalAmount = totalAmount;
         account.sellerDeposit = sellerDeposit;
         account.status = status;
+        account.sellerDepositRate = sellerDepositRate;
         account.transactions = new ArrayList<>(transactions);
 
         return account;
@@ -55,12 +58,14 @@ public class EscrowAccount {
      * Called on contract.signed event
      */
     public static EscrowAccount lockBuyerPayment(String contractId, String buyerId,
-                                                 String sellerId, Money amount) {
+                                                 String sellerId, BigDecimal sellerDepositRate,
+                                                 Money amount) {
         EscrowAccount account = new EscrowAccount();
         account.contractId = contractId;
         account.buyerUserId = buyerId;
         account.sellerUserId = sellerId;
         account.totalAmount = amount;
+        account.sellerDepositRate = sellerDepositRate;
         account.status = EscrowStatus.BUYER_LOCKED;
 
         EscrowTransaction lockBuyerPayment = EscrowTransaction.create(
@@ -73,14 +78,14 @@ public class EscrowAccount {
         return account;
     }
 
-    public void lockSellerDeposit(BigDecimal sellerDepositRate) {
+    public void lockSellerDeposit() {
         //Guard
         if (this.status != EscrowStatus.BUYER_LOCKED) {
             throw new IllegalStateException("Buyer payment not locked yet.");
         }
 
         //Mutate
-        this.sellerDeposit = totalAmount.multiply(sellerDepositRate);
+        this.sellerDeposit = totalAmount.multiply(this.sellerDepositRate);
         this.status = EscrowStatus.FULLY_LOCKED;
 
         //Emit

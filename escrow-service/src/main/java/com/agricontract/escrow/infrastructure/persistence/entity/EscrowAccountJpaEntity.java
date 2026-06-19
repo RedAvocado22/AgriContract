@@ -37,6 +37,9 @@ public class EscrowAccountJpaEntity {
     @Column(name = "seller_deposit", precision = 15, scale = 2)
     private BigDecimal sellerDeposit;
 
+    @Column(name = "seller_deposit_rate", precision = 5, scale = 4)
+    private BigDecimal sellerDepositRate;
+
     @Column(nullable = false, length = 10)
     private String currency;
 
