@@ -30,9 +30,6 @@ spring:
           predicates:
             - Path=/api/v1/notifications/**
 
-gateway:
-  internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
-
 server:
   port: ${SERVER_PORT:8888}
 
