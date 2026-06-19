@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com" rel="preconnect" />
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1; display: inline-block; white-space: nowrap; direction: ltr; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; }
+  .stat { background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:20px; }
+  .stat-k { font-size:12px; font-weight:500; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; }
+  .bar { flex:1; background:#f1f5f9; border-radius:4px 4px 0 0; }
+</style>
+</helmet>
+<div style="min-height:100vh; background:#f8fafc; font-family:Geist,system-ui,sans-serif; color:#334155; -webkit-font-smoothing:antialiased;">
+
+  <header style="position:sticky; top:0; z-index:50; height:60px; background:#fff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px;">
+    <div style="display:flex; align-items:center; gap:8px;"><div style="width:28px; height:28px; border-radius:6px; background:#16a34a; display:flex; align-items:center; justify-content:center; color:#fff; flex:none;"><span class="ms" style="font-size:17px;">eco</span></div><span style="font-size:18px; font-weight:600; color:#16a34a;">AgriContract</span></div>
+    <div style="display:flex; align-items:center; gap:8px; color:#475569;">
+      <button style="width:36px; height:36px; border:none; background:transparent; border-radius:6px; cursor:pointer; color:#475569;"><span class="ms" style="font-size:20px;">notifications</span></button>
+      <button style="width:36px; height:36px; border:none; background:transparent; border-radius:6px; cursor:pointer; color:#475569;"><span class="ms" style="font-size:22px;">account_circle</span></button>
+    </div>
+  </header>
+
+  <div style="display:flex; align-items:flex-start;">
+    <nav style="width:240px; flex:none; background:#fff; border-right:1px solid #e2e8f0; height:calc(100vh - 60px); position:sticky; top:60px; padding:24px 16px; display:flex; flex-direction:column; gap:4px;">
+      <div style="display:flex; align-items:center; gap:10px; padding:4px 12px 20px;"><div style="width:30px; height:30px; border-radius:6px; background:#16a34a; display:flex; align-items:center; justify-content:center; color:#fff; flex:none;"><span class="ms" style="font-size:18px;">eco</span></div><div><div style="font-size:16px; font-weight:600; color:#16a34a;">AgriContract</div><div style="font-size:12px; font-weight:500; color:#94a3b8;">B2B Platform</div></div></div>
+      <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:600; color:#0f172a; background:#f1f5f9; text-decoration:none;"><span class="ms" style="font-size:20px; color:#16a34a;">dashboard</span>Dashboard</a>
+      <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none;"><span class="ms" style="font-size:20px;">list_alt</span>Listings</a>
+      <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none;"><span class="ms" style="font-size:20px;">description</span>Contracts</a>
+      <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none;"><span class="ms" style="font-size:20px;">account_balance_wallet</span>Escrow</a>
+      <a href="#" style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:6px; font-size:14px; font-weight:500; color:#475569; text-decoration:none; margin-top:auto;"><span class="ms" style="font-size:20px;">shield_person</span>Admin</a>
+    </nav>
+
+    <main style="flex:1; padding:32px; min-width:0;">
+      <div style="max-width:1280px; margin:0 auto;">
+
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+          <div>
+            <h1 style="font-size:24px; font-weight:600; color:#0f172a; margin:0;">Tổng quan</h1>
+            <p style="font-size:14px; color:#64748b; margin:6px 0 0;">HTX Nông nghiệp Cư M'gar</p>
+          </div>
+          <button style="height:40px; padding:0 16px; background:#16a34a; color:#fff; border:none; border-radius:6px; font-family:inherit; font-size:14px; font-weight:600; display:inline-flex; align-items:center; gap:8px; cursor:pointer;"><span class="ms" style="font-size:18px;">add</span>Tạo Tin Đăng</button>
+        </div>
+
+        <div style="display:flex; gap:24px; align-items:flex-start;">
+          <!-- Left -->
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:20px;">
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+              <div class="stat">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;"><span class="stat-k">Tin đăng hoạt động</span><span class="ms" style="font-size:18px; color:#16a34a;">inventory_2</span></div>
+                <p style="font-size:30px; font-weight:700; color:#0f172a; margin:0;">8</p>
+              </div>
+              <div class="stat">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;"><span class="stat-k">Hợp đồng chờ ký</span><span class="ms" style="font-size:18px; color:#b45309;">pending_actions</span></div>
+                <p style="font-size:30px; font-weight:700; color:#0f172a; margin:0;">3</p>
+              </div>
+              <div class="stat">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;"><span class="stat-k">Tiền trong Escrow</span><span class="ms" style="font-size:18px; color:#b45309;">account_balance</span></div>
+                <p style="font-size:22px; font-weight:700; color:#0f172a; margin:0;">1.500.000.000 <span style="font-size:13px; font-weight:500; color:#94a3b8;">VND</span></p>
+              </div>
+            </div>
+
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:24px; min-height:320px; display:flex; flex-direction:column;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 style="font-size:18px; font-weight:600; color:#0f172a; margin:0;">Hiệu suất giao dịch</h3>
+                <span style="font-size:12px; font-weight:500; color:#15803d; background:#dcfce7; padding:3px 10px; border-radius:9999px;">+12% tháng này</span>
+              </div>
+              <div style="flex:1; display:flex; align-items:flex-end; gap:12px; padding-top:24px;">
+                <div class="bar" style="height:30%;"></div>
+                <div class="bar" style="height:45%;"></div>
+                <div class="bar" style="height:20%;"></div>
+                <div class="bar" style="height:60%;"></div>
+                <div class="bar" style="height:82%; background:#16a34a;"></div>
+                <div class="bar" style="height:50%;"></div>
+                <div class="bar" style="height:65%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: activity -->
+          <div style="width:340px; flex:none; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:16px; border-bottom:1px solid #f1f5f9;">
+              <h3 style="font-size:18px; font-weight:600; color:#0f172a; margin:0; display:flex; align-items:center; gap:8px;"><span class="ms" style="font-size:20px; color:#16a34a;">history</span>Hoạt động gần đây</h3>
+              <button style="background:none; border:none; color:#16a34a; font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;">Xem tất cả</button>
+            </div>
+            <ul style="margin:0; padding:0; list-style:none;">
+              <li style="padding:16px 0; border-bottom:1px solid #f1f5f9; display:flex; gap:12px; align-items:flex-start;">
+                <div style="flex:none; width:32px; height:32px; border-radius:9999px; background:#dbeafe; color:#2563eb; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:18px;">local_offer</span></div>
+                <div><p style="font-size:14px; color:#334155; margin:0; line-height:21px;">Đối tác <span style="font-weight:600; color:#0f172a;">Công ty XNK Cà phê VN</span> đã gửi Offer mới cho <span style="font-weight:600; color:#16a34a;">Tin đăng #892</span>.</p><span style="font-size:12px; color:#94a3b8; display:block; margin-top:4px;">10 phút trước</span></div>
+              </li>
+              <li style="padding:16px 0; border-bottom:1px solid #f1f5f9; display:flex; gap:12px; align-items:flex-start;">
+                <div style="flex:none; width:32px; height:32px; border-radius:9999px; background:#dcfce7; color:#15803d; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:18px;">draw</span></div>
+                <div><p style="font-size:14px; color:#334155; margin:0; line-height:21px;">Hợp đồng <span style="font-weight:600; color:#0f172a;">#123</span> đã được ký bởi hai bên.</p><span style="font-size:12px; color:#94a3b8; display:block; margin-top:4px;">2 giờ trước</span></div>
+              </li>
+              <li style="padding:16px 0; border-bottom:1px solid #f1f5f9; display:flex; gap:12px; align-items:flex-start;">
+                <div style="flex:none; width:32px; height:32px; border-radius:9999px; background:#fef3c7; color:#b45309; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:18px;">payments</span></div>
+                <div><p style="font-size:14px; color:#334155; margin:0; line-height:21px;">Khoản thanh toán đợt 1 cho Hợp đồng #118 đã được giải ngân từ Escrow.</p><span style="font-size:12px; color:#94a3b8; display:block; margin-top:4px;">Hôm qua</span></div>
+              </li>
+              <li style="padding:16px 0; display:flex; gap:12px; align-items:flex-start;">
+                <div style="flex:none; width:32px; height:32px; border-radius:9999px; background:#f1f5f9; color:#64748b; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:18px;">visibility</span></div>
+                <div><p style="font-size:14px; color:#334155; margin:0; line-height:21px;">Tin đăng "Cà phê Robusta xô" nhận được 45 lượt xem mới.</p><span style="font-size:12px; color:#94a3b8; display:block; margin-top:4px;">Hôm qua</span></div>
+              </li>
+            </ul>
+            <button style="width:100%; height:38px; margin-top:16px; background:#fff; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; font-size:14px; font-weight:500; cursor:pointer;">Tải thêm</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
