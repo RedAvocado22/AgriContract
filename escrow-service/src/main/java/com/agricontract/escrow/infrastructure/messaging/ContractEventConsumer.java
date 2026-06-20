@@ -12,17 +12,17 @@ import java.util.Map;
 @Slf4j
 public class ContractEventConsumer {
 
-    @RabbitListener(queues = "escrow.contract.signed")
+    @RabbitListener(queues = "escrow-svc.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
         // TODO: idempotency check → EscrowAccount.lock()
     }
 
-    @RabbitListener(queues = "escrow.contract.delivered")
+    @RabbitListener(queues = "escrow-svc.contract.delivered")
     public void onContractDelivered(Map<String, Object> event) {
         // TODO: EscrowAccount.release()
     }
 
-    @RabbitListener(queues = "escrow.contract.cancelled")
+    @RabbitListener(queues = "escrow-svc.contract.cancelled")
     public void onContractCancelled(Map<String, Object> event) {
         // TODO: EscrowAccount.penalizeBuyer() or penalizeSeller()
     }
