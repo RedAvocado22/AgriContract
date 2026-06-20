@@ -17,6 +17,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/listings/{listingId}").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/listings/{listingId}/close").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/listings", "/api/v1/products/{id}").permitAll()
                         .anyRequest().authenticated()
                 )

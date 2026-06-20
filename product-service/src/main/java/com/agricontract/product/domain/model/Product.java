@@ -12,12 +12,36 @@ public class Product {
     private String unit;
     private String category;
 
-    private Product() {}
-
-    public static Product create(ProductId productId, String name, String unit, String category) {
-        // TODO
-        throw new UnsupportedOperationException("TODO");
+    private Product() {
     }
 
-    public void updateDetails(String name, String unit, String category) { /* TODO */ }
+    public static Product reconstruct(ProductId productId, String name, String unit, String category) {
+        Product product = new Product();
+        product.productId = productId;
+        product.name = name;
+        product.unit = unit;
+        product.category = category;
+
+        return product;
+
+    }
+
+    public static Product create(ProductId productId, String name, String unit, String category) {
+        Product product = new Product();
+        product.productId = productId;
+        product.name = name;
+        product.unit = unit;
+        product.category = category;
+
+        return product;
+    }
+
+    public void updateDetails(String name, String unit, String category) {
+        if (this.productId == null) {
+            throw new IllegalArgumentException("Product id is null");
+        }
+        this.name = name;
+        this.unit = unit;
+        this.category = category;
+    }
 }

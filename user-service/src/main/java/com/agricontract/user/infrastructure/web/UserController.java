@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,6 +29,10 @@ public class UserController {
     ) {
         String userId = jwt.getSubject();
         String email = jwt.getClaimAsString("email");
+
+        if (!StringUtils.hasText(email)) {
+            throw new IllegalArgumentException("email claim is missing from JWT token");
+        }
 
         RegisterUserResult result = registerUserUseCase.execute(
                 new RegisterUserCommand(userId, req.organizationName(), req.role(), email, req.phone(), req.address())
