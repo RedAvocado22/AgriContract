@@ -65,8 +65,11 @@ public class ContractJpaEntity {
     @Column(name = "delivery_deadline", nullable = false)
     private LocalDate deliveryDeadline;
 
-    @Column(name = "penalty_rate", precision = 10, scale = 4)
-    private BigDecimal penaltyRate;
+    @Column(name = "buyer_penalty_rate", precision = 10, scale = 4)
+    private BigDecimal buyerPenaltyRate;
+
+    @Column(name = "seller_deposit_rate", precision = 10, scale = 4)
+    private BigDecimal sellerDepositRate;
 
     @Column(name = "quality_spec", columnDefinition = "TEXT")
     private String qualitySpec;

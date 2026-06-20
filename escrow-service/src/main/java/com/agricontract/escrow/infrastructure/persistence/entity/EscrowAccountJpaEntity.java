@@ -8,6 +8,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "escrow_accounts")
@@ -32,6 +34,9 @@ public class EscrowAccountJpaEntity {
     @Column(name = "total_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(name = "seller_deposit", precision = 15, scale = 2)
+    private BigDecimal sellerDeposit;
+
     @Column(nullable = false, length = 10)
     private String currency;
 
@@ -44,4 +49,8 @@ public class EscrowAccountJpaEntity {
 
     @UpdateTimestamp @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "escrowAccount", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<EscrowTransactionJpaEntity> transactions = new ArrayList<>();
 }
