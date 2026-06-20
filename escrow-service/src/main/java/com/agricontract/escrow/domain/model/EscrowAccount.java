@@ -1,5 +1,8 @@
 package com.agricontract.escrow.domain.model;
 
+import com.agricontract.escrow.domain.event.DomainEvent;
+import com.agricontract.escrow.domain.event.EscrowLockedEvent;
+import com.agricontract.escrow.domain.event.EscrowReleasedEvent;
 import com.agricontract.escrow.domain.model.vo.EscrowId;
 import com.agricontract.escrow.domain.model.vo.EscrowStatus;
 import com.agricontract.escrow.domain.model.vo.Money;
@@ -23,19 +26,25 @@ public class EscrowAccount {
     private String contractId;      // idempotency key
     private String buyerUserId;
     private String sellerUserId;
+    private String buyerEmail;
+    private String sellerEmail;
     private Money totalAmount;
     private Money sellerDeposit;
     private BigDecimal sellerDepositRate;
     private EscrowStatus status;
     @Getter(AccessLevel.NONE)
     private List<EscrowTransaction> transactions; // append-only ledger
+    @Getter(AccessLevel.NONE)
+    private List<DomainEvent> domainEvents;
 
     private EscrowAccount() {
         this.escrowId = new EscrowId(UUID.randomUUID().toString());
         this.transactions = new ArrayList<>();
+        this.domainEvents = new ArrayList<>();
     }
 
     public static EscrowAccount reconstitute(EscrowId escrowId, String contractId, String buyerUserId,
+                                             String buyerEmail, String sellerEmail,
                                              String sellerUserId, Money totalAmount, Money sellerDeposit, EscrowStatus status,
                                              BigDecimal sellerDepositRate,
                                              List<EscrowTransaction> transactions) {
@@ -44,6 +53,8 @@ public class EscrowAccount {
         account.escrowId = escrowId;
         account.contractId = contractId;
         account.buyerUserId = buyerUserId;
+        account.buyerEmail = buyerEmail;
+        account.sellerEmail = sellerEmail;
         account.sellerUserId = sellerUserId;
         account.totalAmount = totalAmount;
         account.sellerDeposit = sellerDeposit;
@@ -57,13 +68,17 @@ public class EscrowAccount {
     /**
      * Called on contract.signed event
      */
-    public static EscrowAccount lockBuyerPayment(String contractId, String buyerId,
-                                                 String sellerId, BigDecimal sellerDepositRate,
+    public static EscrowAccount lockBuyerPayment(String contractId,
+                                                 String buyerId, String sellerId,
+                                                 String buyerEmail, String sellerEmail,
+                                                 BigDecimal sellerDepositRate,
                                                  Money amount) {
         EscrowAccount account = new EscrowAccount();
         account.contractId = contractId;
         account.buyerUserId = buyerId;
         account.sellerUserId = sellerId;
+        account.buyerEmail = buyerEmail;
+        account.sellerEmail = sellerEmail;
         account.totalAmount = amount;
         account.sellerDepositRate = sellerDepositRate;
         account.status = EscrowStatus.BUYER_LOCKED;
@@ -96,6 +111,7 @@ public class EscrowAccount {
                 "Lock seller deposit."
         );
         this.transactions.add(lockSellerDeposit);
+        this.domainEvents.add(new EscrowLockedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail));
     }
 
     /**
@@ -126,6 +142,7 @@ public class EscrowAccount {
                 "Refund seller deposit."
         );
         this.transactions.add(refundToSeller);
+        this.domainEvents.add(new EscrowReleasedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail));
     }
 
     /**
@@ -225,6 +242,12 @@ public class EscrowAccount {
                 justification
         );
         this.transactions.add(sellerArbitration);
+    }
+
+    public List<DomainEvent> pullDomainEvents() {
+        List<DomainEvent> events = new ArrayList<>(this.domainEvents);
+        this.domainEvents.clear();
+        return events;
     }
 
     public List<EscrowTransaction> getTransactions() {

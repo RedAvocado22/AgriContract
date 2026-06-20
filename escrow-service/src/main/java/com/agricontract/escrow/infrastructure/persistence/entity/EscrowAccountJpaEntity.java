@@ -31,6 +31,12 @@ public class EscrowAccountJpaEntity {
     @Column(name = "seller_user_id", nullable = false)
     private String sellerUserId;
 
+    @Column(name = "buyer_email", nullable = false)
+    private String buyerEmail;
+
+    @Column(name = "seller_email", nullable = false)
+    private String sellerEmail;
+
     @Column(name = "total_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
 

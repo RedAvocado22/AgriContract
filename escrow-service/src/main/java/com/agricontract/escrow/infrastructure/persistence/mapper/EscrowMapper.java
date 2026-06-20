@@ -20,6 +20,8 @@ public class EscrowMapper {
                 .contractId(account.getContractId())
                 .buyerUserId(account.getBuyerUserId())
                 .sellerUserId(account.getSellerUserId())
+                .buyerEmail(account.getBuyerEmail())
+                .sellerEmail(account.getSellerEmail())
                 .totalAmount(account.getTotalAmount().amount())
                 .sellerDeposit(account.getSellerDeposit() != null ? account.getSellerDeposit().amount() : null)
                 .sellerDepositRate(account.getSellerDepositRate())
@@ -49,6 +51,8 @@ public class EscrowMapper {
                 new EscrowId(entity.getEscrowId()),
                 entity.getContractId(),
                 entity.getBuyerUserId(),
+                entity.getBuyerEmail(),
+                entity.getSellerEmail(),
                 entity.getSellerUserId(),
                 totalAmount,
                 sellerDeposit,
