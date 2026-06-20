@@ -15,12 +15,14 @@ class EscrowAccountTest {
     private static final String CONTRACT_ID = "contract-1";
     private static final String BUYER_ID = "buyer-1";
     private static final String SELLER_ID = "seller-1";
+    private static final String BUYER_EMAIL = "buyer@agricontract.test";
+    private static final String SELLER_EMAIL = "seller@agricontract.test";
     private static final Money TOTAL_AMOUNT = new Money(new BigDecimal("10000000"), "VND");
     private static final BigDecimal SELLER_DEPOSIT_RATE = new BigDecimal("0.1");
     private static final Money SELLER_DEPOSIT = new Money(new BigDecimal("1000000"), "VND");
 
     private EscrowAccount buyerLocked() {
-        return EscrowAccount.lockBuyerPayment(CONTRACT_ID, BUYER_ID, SELLER_ID, SELLER_DEPOSIT_RATE, TOTAL_AMOUNT);
+        return EscrowAccount.lockBuyerPayment(CONTRACT_ID, BUYER_ID, SELLER_ID, BUYER_EMAIL, SELLER_EMAIL, SELLER_DEPOSIT_RATE, TOTAL_AMOUNT);
     }
 
     private EscrowAccount fullyLocked() {
