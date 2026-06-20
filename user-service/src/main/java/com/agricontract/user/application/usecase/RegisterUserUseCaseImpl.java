@@ -8,6 +8,7 @@ import com.agricontract.user.domain.model.vo.ContactInfo;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,17 +23,23 @@ public class RegisterUserUseCaseImpl implements RegisterUserUseCase {
         return userProfileRepository.findById(new UserId(command.userId()))
                 .map(existing -> new RegisterUserResult(toResponse(existing), false))
                 .orElseGet(() -> {
-                    ContactInfo contactInfo = new ContactInfo(
-                            command.email(), command.phone(), command.address()
-                    );
-                    UserProfile profile = UserProfile.create(
-                            new UserId(command.userId()),
-                            command.organizationName(),
-                            command.role(),
-                            contactInfo
-                    );
-                    UserProfile saved = userProfileRepository.save(profile);
-                    return new RegisterUserResult(toResponse(saved), true);
+                    try {
+                        ContactInfo contactInfo = new ContactInfo(
+                                command.email(), command.phone(), command.address()
+                        );
+                        UserProfile profile = UserProfile.create(
+                                new UserId(command.userId()),
+                                command.organizationName(),
+                                command.role(),
+                                contactInfo
+                        );
+                        UserProfile saved = userProfileRepository.save(profile);
+                        return new RegisterUserResult(toResponse(saved), true);
+                    } catch (DataIntegrityViolationException e) {
+                        UserProfile existing = userProfileRepository.findById(new UserId(command.userId()))
+                                .orElseThrow(() -> e);
+                        return new RegisterUserResult(toResponse(existing), false);
+                    }
                 });
     }
 

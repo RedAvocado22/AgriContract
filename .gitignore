@@ -5,6 +5,7 @@ target/
 *.ear
 *.log
 .env
+.env.person2
 .DS_Store
 .idea/
 *.iml
