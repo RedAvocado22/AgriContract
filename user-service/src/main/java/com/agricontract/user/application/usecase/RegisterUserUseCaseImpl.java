@@ -34,6 +34,7 @@ public class RegisterUserUseCaseImpl implements RegisterUserUseCase {
                                 contactInfo
                         );
                         UserProfile saved = userProfileRepository.save(profile);
+                        // TODO (Sprint 2): call saved.pullDomainEvents() and publish via outbox
                         return new RegisterUserResult(toResponse(saved), true);
                     } catch (DataIntegrityViolationException e) {
                         UserProfile existing = userProfileRepository.findById(new UserId(command.userId()))
