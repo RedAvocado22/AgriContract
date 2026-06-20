@@ -9,9 +9,8 @@ import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.infrastructure.web.dto.RegisterUserRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,17 +20,19 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     private final GetUserProfileUseCase getUserProfileUseCase;
     private final RegisterUserUseCase registerUserUseCase;
+    @Value("${gateway.internal-secret}")
+    private String gatewaySecret;
+
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<UserProfileResponse>> register(
             @RequestBody @Valid RegisterUserRequest req,
-            @AuthenticationPrincipal Jwt jwt
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-User-Email") String email
     ) {
-        String userId = jwt.getSubject();
-        String email = jwt.getClaimAsString("email");
 
         if (!StringUtils.hasText(email)) {
-            throw new IllegalArgumentException("email claim is missing from JWT token");
+            throw new IllegalArgumentException("X-User-Email header is missing");
         }
 
         RegisterUserResult result = registerUserUseCase.execute(
@@ -48,19 +49,17 @@ public class UserController {
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getMyProfile(
-            @AuthenticationPrincipal Jwt jwt
+            @RequestHeader("X-User-Id") String userId
     ) {
-        String userId = jwt.getSubject();
-
         return ResponseEntity.ok(ApiResponse.ok(getUserProfileUseCase.execute(userId)));
     }
 
     @GetMapping("/{userId}")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getProfile(
             @PathVariable String userId,
-            @RequestHeader(value = "X-Internal-Call", required = false) String internalCall
+            @RequestHeader(value = "X-Gateway-Secret", required = false) String incomingSecret
     ) {
-        if (!"true".equals(internalCall)) {
+        if (!this.gatewaySecret.equals(incomingSecret)) {
             return ResponseEntity.status(403).body(ApiResponse.error("Forbidden"));
         }
         return ResponseEntity.ok(ApiResponse.ok(getUserProfileUseCase.execute(userId)));

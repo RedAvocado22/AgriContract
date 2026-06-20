@@ -13,11 +13,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${KEYCLOAK_JWK_URI:http://localhost:8180/realms/agricontract/protocol/openid-connect/certs}
+gateway:
+  internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
 
 server:
   port: ${SERVER_PORT:8081}
