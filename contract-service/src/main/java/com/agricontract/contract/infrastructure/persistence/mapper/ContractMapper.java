@@ -35,7 +35,8 @@ public class ContractMapper {
                 .agreedPrice(terms.agreedPrice().amount())
                 .currency(terms.agreedPrice().currency())
                 .deliveryDeadline(terms.deliveryDeadline())
-                .penaltyRate(terms.penaltyRate())
+                .buyerPenaltyRate(terms.buyerPenaltyRate())
+                .sellerDepositRate(terms.sellerDepositRate())
                 .qualitySpec(terms.qualitySpec())
                 .status(contract.getStatus())
                 .cancelReason(contract.getCancelReason())
@@ -49,7 +50,8 @@ public class ContractMapper {
                 new Quantity(e.getQuantity(), e.getQuantityUnit()),
                 new Money(e.getAgreedPrice(), e.getCurrency()),
                 e.getDeliveryDeadline(),
-                e.getPenaltyRate(),
+                e.getBuyerPenaltyRate(),
+                e.getSellerDepositRate(),
                 e.getQualitySpec()
         );
         return Contract.reconstitute(

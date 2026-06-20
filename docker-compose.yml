@@ -171,6 +171,7 @@ services:
       CONTRACT_SERVICE_URL: http://contract-service:8083
       ESCROW_SERVICE_URL: http://escrow-service:8084
       NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
     depends_on:
       keycloak:
         condition: service_healthy
@@ -250,6 +251,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
       RABBITMQ_HOST: rabbitmq
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
     depends_on:
       escrow-db:
         condition: service_healthy
