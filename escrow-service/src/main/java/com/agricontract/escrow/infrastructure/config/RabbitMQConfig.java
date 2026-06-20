@@ -1,5 +1,6 @@
 package com.agricontract.escrow.infrastructure.config;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
@@ -15,7 +16,7 @@ import java.util.List;
 
 @Configuration
 public class RabbitMQConfig {
-    
+
     @Bean
     public Declarables contractEventDeclarables() {
         TopicExchange exchangeContracts = new TopicExchange("agricontract.contracts", true, false);
@@ -43,7 +44,9 @@ public class RabbitMQConfig {
     // JSON <-> Object converter, shared by both the sender (rabbitTemplate) and receiver (rabbitListenerContainerFactory) below
     @Bean
     public MessageConverter jsonMessageConverter(ObjectMapper objectMapper) {
-        return new Jackson2JsonMessageConverter(objectMapper);
+        ObjectMapper amqpObjectMapper = objectMapper.copy();
+        amqpObjectMapper.configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true);
+        return new Jackson2JsonMessageConverter(amqpObjectMapper);
     }
 
     // SEND side (e.g. OutboxPoller.publish...) — uses jsonMessageConverter to serialize object -> JSON

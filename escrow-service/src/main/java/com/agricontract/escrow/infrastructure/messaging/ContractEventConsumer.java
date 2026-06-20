@@ -1,6 +1,8 @@
 package com.agricontract.escrow.infrastructure.messaging;
 
+import com.agricontract.escrow.application.dto.LockBuyerPaymentCommand;
 import com.agricontract.escrow.application.exception.EscrowAccountNotFoundException;
+import com.agricontract.escrow.application.usecase.LockBuyerPaymentUseCase;
 import com.agricontract.escrow.domain.event.DomainEvent;
 import com.agricontract.escrow.domain.model.EscrowAccount;
 import com.agricontract.escrow.domain.model.vo.EscrowStatus;
@@ -27,15 +29,14 @@ public class ContractEventConsumer {
     private final EscrowAccountRepository escrowAccountRepository;
     private final EscrowDomainEventJpaRepository escrowDomainEventJpaRepository;
     private final ObjectMapper objectMapper;
+    private final LockBuyerPaymentUseCase lockBuyerPaymentUseCase;
 
     @RabbitListener(queues = "escrow-svc.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
-        String contractId = (String) event.get("contractId");
+        lockBuyerPaymentUseCase.execute(parseSignedEvent(event));
+    }
 
-        if (escrowAccountRepository.existsByContractId(contractId)) {
-            return;
-        }
-
+    private LockBuyerPaymentCommand parseSignedEvent(Map<String, Object> event) {
         Map<String, Object> terms = (Map<String, Object>) event.get("terms");
         Map<String, Object> agreedPriceMap = (Map<String, Object>) terms.get("agreedPrice");
 
@@ -45,12 +46,12 @@ public class ContractEventConsumer {
 
         BigDecimal sellerDepositRate = new BigDecimal(terms.get("sellerDepositRate").toString());
 
-        EscrowAccount account = EscrowAccount.lockBuyerPayment(contractId,
+
+        return new LockBuyerPaymentCommand((String) event.get("contractId"),
                 (String) event.get("buyerId"), (String) event.get("sellerId"),
                 (String) event.get("buyerEmail"), (String) event.get("sellerEmail"),
                 sellerDepositRate, agreedMoney
         );
-        escrowAccountRepository.save(account);
     }
 
     @RabbitListener(queues = "escrow-svc.contract.delivered")
