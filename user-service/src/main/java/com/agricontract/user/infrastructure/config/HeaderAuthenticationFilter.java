@@ -1,0 +1,37 @@
+package com.agricontract.user.infrastructure.config;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+public class HeaderAuthenticationFilter extends OncePerRequestFilter {
+
+    private final String gatewaySecret;
+
+    public HeaderAuthenticationFilter(String gatewaySecret) {
+        this.gatewaySecret = gatewaySecret;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+
+        String headerSecret = request.getHeader("X-Gateway-Secret");
+
+        if (headerSecret == null || !headerSecret.equals(gatewaySecret)) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            response.getWriter().write(
+                    "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}"
+            );
+            return;
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}

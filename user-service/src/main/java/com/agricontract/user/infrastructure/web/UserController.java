@@ -9,7 +9,6 @@ import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.infrastructure.web.dto.RegisterUserRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -20,8 +19,6 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     private final GetUserProfileUseCase getUserProfileUseCase;
     private final RegisterUserUseCase registerUserUseCase;
-    @Value("${gateway.internal-secret}")
-    private String gatewaySecret;
 
 
     @PostMapping("/register")
@@ -56,12 +53,8 @@ public class UserController {
 
     @GetMapping("/{userId}")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getProfile(
-            @PathVariable String userId,
-            @RequestHeader(value = "X-Gateway-Secret", required = false) String incomingSecret
+            @PathVariable String userId
     ) {
-        if (!this.gatewaySecret.equals(incomingSecret)) {
-            return ResponseEntity.status(403).body(ApiResponse.error("Forbidden"));
-        }
         return ResponseEntity.ok(ApiResponse.ok(getUserProfileUseCase.execute(userId)));
     }
 
