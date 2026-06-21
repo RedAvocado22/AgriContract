@@ -2,8 +2,10 @@ package com.agricontract.escrow.infrastructure.web;
 
 import com.agricontract.escrow.application.dto.ArbitrateEscrowCommand;
 import com.agricontract.escrow.application.dto.ConfirmDepositCommand;
+import com.agricontract.escrow.application.dto.EscrowAccountResponse;
 import com.agricontract.escrow.application.usecase.ArbitrateEscrowUseCase;
 import com.agricontract.escrow.application.usecase.ConfirmDepositUseCase;
+import com.agricontract.escrow.application.usecase.GetEscrowByContractIdUseCase;
 import com.agricontract.escrow.common.ApiResponse;
 import com.agricontract.escrow.infrastructure.web.dto.ArbitrateRequest;
 import jakarta.validation.Valid;
@@ -20,11 +22,11 @@ public class EscrowController {
 
     private final ConfirmDepositUseCase confirmDepositUseCase;
     private final ArbitrateEscrowUseCase arbitrateEscrowUseCase;
+    private final GetEscrowByContractIdUseCase getEscrowByContractIdUseCase;
 
     @GetMapping("/contract/{contractId}")
-    public ResponseEntity<?> getByContractId(@PathVariable String contractId) {
-        // TODO
-        return ResponseEntity.ok().build();
+    public ResponseEntity<ApiResponse<EscrowAccountResponse>> getByContractId(@PathVariable String contractId) {
+        return ResponseEntity.ok(ApiResponse.ok(getEscrowByContractIdUseCase.execute(contractId)));
     }
 
     @GetMapping("/{escrowId}/transactions")
