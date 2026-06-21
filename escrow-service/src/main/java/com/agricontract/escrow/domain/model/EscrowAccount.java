@@ -2,10 +2,13 @@ package com.agricontract.escrow.domain.model;
 
 import com.agricontract.escrow.domain.event.DomainEvent;
 import com.agricontract.escrow.domain.event.EscrowLockedEvent;
+import com.agricontract.escrow.domain.event.EscrowPenalizedEvent;
 import com.agricontract.escrow.domain.event.EscrowReleasedEvent;
+import com.agricontract.escrow.domain.event.EscrowRefundedEvent;
 import com.agricontract.escrow.domain.model.vo.EscrowId;
 import com.agricontract.escrow.domain.model.vo.EscrowStatus;
 import com.agricontract.escrow.domain.model.vo.Money;
+import com.agricontract.escrow.domain.model.vo.Party;
 import com.agricontract.escrow.domain.model.vo.TransactionType;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -115,7 +118,7 @@ public class EscrowAccount {
     }
 
     /**
-     * Called on contract.settled event → escrow released to seller
+     * Called on contract.delivered event → escrow released to seller
      */
     public void release() {
         //Guard
@@ -143,10 +146,12 @@ public class EscrowAccount {
         );
         this.transactions.add(refundToSeller);
         this.domainEvents.add(new EscrowReleasedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail));
+        this.domainEvents.add(new EscrowRefundedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail,
+                Party.SELLER, this.sellerDeposit));
     }
 
     /**
-     * Called on contract.arbitrated event with penalizeBuyer=true
+     * Called on contract.cancelled event with cancelledBy=BUYER
      */
     public void penalizeBuyer(BigDecimal buyerPenaltyRate) {
         //Guard
@@ -181,10 +186,17 @@ public class EscrowAccount {
                 "Refund seller deposit."
         );
         this.transactions.add(refundToSeller);
+
+        this.domainEvents.add(new EscrowPenalizedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail,
+                Party.BUYER, penalty));
+        this.domainEvents.add(new EscrowRefundedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail,
+                Party.BUYER, this.totalAmount.subtract(penalty)));
+        this.domainEvents.add(new EscrowRefundedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail,
+                Party.SELLER, this.sellerDeposit));
     }
 
     /**
-     * Called on contract.arbitrated event with penalizeBuyer=false
+     * Called on contract.cancelled event with cancelledBy=SELLER
      */
     public void penalizeSeller() {
         //Guard
@@ -208,6 +220,11 @@ public class EscrowAccount {
                 "Refund buyer payment."
         );
         this.transactions.add(refundToBuyer);
+
+        this.domainEvents.add(new EscrowPenalizedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail,
+                Party.SELLER, this.sellerDeposit));
+        this.domainEvents.add(new EscrowRefundedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail,
+                Party.BUYER, this.totalAmount));
     }
 
     public void arbitrate(Money buyerAmount, Money sellerAmount, String justification) {
