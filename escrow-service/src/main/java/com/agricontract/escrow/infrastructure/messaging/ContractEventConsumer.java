@@ -1,22 +1,14 @@
 package com.agricontract.escrow.infrastructure.messaging;
 
 import com.agricontract.escrow.application.dto.LockBuyerPaymentCommand;
-import com.agricontract.escrow.application.exception.EscrowAccountNotFoundException;
+import com.agricontract.escrow.application.dto.ReleaseEscrowCommand;
 import com.agricontract.escrow.application.usecase.LockBuyerPaymentUseCase;
-import com.agricontract.escrow.domain.event.DomainEvent;
-import com.agricontract.escrow.domain.model.EscrowAccount;
-import com.agricontract.escrow.domain.model.vo.EscrowStatus;
+import com.agricontract.escrow.application.usecase.ReleaseEscrowUseCase;
 import com.agricontract.escrow.domain.model.vo.Money;
-import com.agricontract.escrow.domain.repository.EscrowAccountRepository;
-import com.agricontract.escrow.infrastructure.persistence.entity.EscrowDomainEventJpaEntity;
-import com.agricontract.escrow.infrastructure.persistence.repository.EscrowDomainEventJpaRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -26,10 +18,8 @@ import java.util.Map;
 @Slf4j
 public class ContractEventConsumer {
 
-    private final EscrowAccountRepository escrowAccountRepository;
-    private final EscrowDomainEventJpaRepository escrowDomainEventJpaRepository;
-    private final ObjectMapper objectMapper;
     private final LockBuyerPaymentUseCase lockBuyerPaymentUseCase;
+    private final ReleaseEscrowUseCase releaseEscrowUseCase;
 
     @RabbitListener(queues = "escrow-svc.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
@@ -46,7 +36,6 @@ public class ContractEventConsumer {
 
         BigDecimal sellerDepositRate = new BigDecimal(terms.get("sellerDepositRate").toString());
 
-
         return new LockBuyerPaymentCommand((String) event.get("contractId"),
                 (String) event.get("buyerId"), (String) event.get("sellerId"),
                 (String) event.get("buyerEmail"), (String) event.get("sellerEmail"),
@@ -55,39 +44,12 @@ public class ContractEventConsumer {
     }
 
     @RabbitListener(queues = "escrow-svc.contract.delivered")
-    @Transactional
     public void onContractDelivered(Map<String, Object> event) {
-        String contractId = (String) event.get("contractId");
+        releaseEscrowUseCase.execute(parseReleaseEvent(event));
+    }
 
-        EscrowAccount account = escrowAccountRepository.findByContractId(contractId)
-                .orElseThrow(() -> new EscrowAccountNotFoundException(contractId));
-
-        if (account.getStatus() == EscrowStatus.RELEASED) {
-            log.info("{} has been released", contractId);
-            return;
-        }
-
-        account.release();
-        escrowAccountRepository.save(account);
-
-        for (DomainEvent domainEvent : account.pullDomainEvents()) {
-            String payload;
-            try {
-                payload = objectMapper.writeValueAsString(domainEvent);
-            } catch (JsonProcessingException e) {
-                throw new IllegalStateException("Failed to serialize domain event " + domainEvent.getEventId(), e);
-            }
-
-            EscrowDomainEventJpaEntity entity = EscrowDomainEventJpaEntity.builder()
-                    .eventId(domainEvent.getEventId().toString())
-                    .eventType(domainEvent.getEventType())
-                    .aggregateId(account.getEscrowId().value())
-                    .payload(payload)
-                    .status(EscrowDomainEventJpaEntity.Status.PENDING)
-                    .build();
-
-            escrowDomainEventJpaRepository.save(entity);
-        }
+    private ReleaseEscrowCommand parseReleaseEvent(Map<String, Object> event) {
+        return new ReleaseEscrowCommand((String) event.get("contractId"));
     }
 
     @RabbitListener(queues = "escrow-svc.contract.cancelled")
