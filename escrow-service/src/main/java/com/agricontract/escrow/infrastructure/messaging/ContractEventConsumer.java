@@ -1,10 +1,13 @@
 package com.agricontract.escrow.infrastructure.messaging;
 
 import com.agricontract.escrow.application.dto.LockBuyerPaymentCommand;
+import com.agricontract.escrow.application.dto.PenalizeEscrowCommand;
 import com.agricontract.escrow.application.dto.ReleaseEscrowCommand;
 import com.agricontract.escrow.application.usecase.LockBuyerPaymentUseCase;
+import com.agricontract.escrow.application.usecase.PenalizeEscrowUseCase;
 import com.agricontract.escrow.application.usecase.ReleaseEscrowUseCase;
 import com.agricontract.escrow.domain.model.vo.Money;
+import com.agricontract.escrow.domain.model.vo.Party;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -20,6 +23,7 @@ public class ContractEventConsumer {
 
     private final LockBuyerPaymentUseCase lockBuyerPaymentUseCase;
     private final ReleaseEscrowUseCase releaseEscrowUseCase;
+    private final PenalizeEscrowUseCase penalizeEscrowUseCase;
 
     @RabbitListener(queues = "escrow-svc.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
@@ -54,6 +58,14 @@ public class ContractEventConsumer {
 
     @RabbitListener(queues = "escrow-svc.contract.cancelled")
     public void onContractCancelled(Map<String, Object> event) {
-        // TODO: EscrowAccount.penalizeBuyer() or penalizeSeller()
+        penalizeEscrowUseCase.execute(parseCancelledEvent(event));
+    }
+
+    private PenalizeEscrowCommand parseCancelledEvent(Map<String, Object> event) {
+        Party cancelledBy = Party.valueOf((String) event.get("cancelledBy"));
+        Object rate = event.get("buyerPenaltyRate");
+        BigDecimal buyerPenaltyRate = rate != null ? new BigDecimal(rate.toString()) : null;
+
+        return new PenalizeEscrowCommand((String) event.get("contractId"), cancelledBy, buyerPenaltyRate);
     }
 }
