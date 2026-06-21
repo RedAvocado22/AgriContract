@@ -1,7 +1,13 @@
 package com.agricontract.escrow.domain.model;
 
+import com.agricontract.escrow.domain.event.DomainEvent;
+import com.agricontract.escrow.domain.event.EscrowLockedEvent;
+import com.agricontract.escrow.domain.event.EscrowPenalizedEvent;
+import com.agricontract.escrow.domain.event.EscrowReleasedEvent;
+import com.agricontract.escrow.domain.event.EscrowRefundedEvent;
 import com.agricontract.escrow.domain.model.vo.EscrowStatus;
 import com.agricontract.escrow.domain.model.vo.Money;
+import com.agricontract.escrow.domain.model.vo.Party;
 import com.agricontract.escrow.domain.model.vo.TransactionType;
 import org.junit.jupiter.api.Test;
 
@@ -237,6 +243,105 @@ class EscrowAccountTest {
                 new Money(new BigDecimal("8000000"), "VND"),
                 "   "))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ─── domain events ───────────────────────────────────────────────────
+
+    @Test
+    void lockSellerDeposit_happyPath_emitsEscrowLockedEvent() {
+        EscrowAccount account = buyerLocked();
+
+        account.lockSellerDeposit();
+
+        List<DomainEvent> events = account.pullDomainEvents();
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0)).isInstanceOf(EscrowLockedEvent.class);
+        assertThat(events.get(0).getEventType()).isEqualTo("escrow.locked");
+    }
+
+    @Test
+    void release_happyPath_emitsReleasedAndRefundedToSellerEvents() {
+        EscrowAccount account = fullyLocked();
+        account.pullDomainEvents(); // discard lockSellerDeposit's event
+
+        account.release();
+
+        List<DomainEvent> events = account.pullDomainEvents();
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0)).isInstanceOf(EscrowReleasedEvent.class);
+        assertThat(events.get(1)).isInstanceOf(EscrowRefundedEvent.class);
+
+        EscrowRefundedEvent refunded = (EscrowRefundedEvent) events.get(1);
+        assertThat(refunded.getRecipient()).isEqualTo(Party.SELLER);
+        assertThat(refunded.getRefundAmount()).isEqualTo(SELLER_DEPOSIT);
+    }
+
+    @Test
+    void penalizeBuyer_happyPath_emitsPenalizedAndTwoRefundedEvents() {
+        EscrowAccount account = fullyLocked();
+        account.pullDomainEvents();
+        BigDecimal penaltyRate = new BigDecimal("0.3");
+        Money expectedPenalty = TOTAL_AMOUNT.multiply(penaltyRate);
+        Money expectedRefundToBuyer = TOTAL_AMOUNT.subtract(expectedPenalty);
+
+        account.penalizeBuyer(penaltyRate);
+
+        List<DomainEvent> events = account.pullDomainEvents();
+        assertThat(events).hasSize(3);
+
+        EscrowPenalizedEvent penalized = (EscrowPenalizedEvent) events.get(0);
+        assertThat(penalized.getPenalizedParty()).isEqualTo(Party.BUYER);
+        assertThat(penalized.getPenaltyAmount()).isEqualTo(expectedPenalty);
+
+        EscrowRefundedEvent refundToBuyer = (EscrowRefundedEvent) events.get(1);
+        assertThat(refundToBuyer.getRecipient()).isEqualTo(Party.BUYER);
+        assertThat(refundToBuyer.getRefundAmount()).isEqualTo(expectedRefundToBuyer);
+
+        EscrowRefundedEvent refundToSeller = (EscrowRefundedEvent) events.get(2);
+        assertThat(refundToSeller.getRecipient()).isEqualTo(Party.SELLER);
+        assertThat(refundToSeller.getRefundAmount()).isEqualTo(SELLER_DEPOSIT);
+    }
+
+    @Test
+    void penalizeSeller_happyPath_emitsPenalizedAndRefundedEvent() {
+        EscrowAccount account = fullyLocked();
+        account.pullDomainEvents();
+
+        account.penalizeSeller();
+
+        List<DomainEvent> events = account.pullDomainEvents();
+        assertThat(events).hasSize(2);
+
+        EscrowPenalizedEvent penalized = (EscrowPenalizedEvent) events.get(0);
+        assertThat(penalized.getPenalizedParty()).isEqualTo(Party.SELLER);
+        assertThat(penalized.getPenaltyAmount()).isEqualTo(SELLER_DEPOSIT);
+
+        EscrowRefundedEvent refundToBuyer = (EscrowRefundedEvent) events.get(1);
+        assertThat(refundToBuyer.getRecipient()).isEqualTo(Party.BUYER);
+        assertThat(refundToBuyer.getRefundAmount()).isEqualTo(TOTAL_AMOUNT);
+    }
+
+    @Test
+    void arbitrate_happyPath_emitsNoEvent() {
+        EscrowAccount account = fullyLocked();
+        account.pullDomainEvents();
+
+        account.arbitrate(
+                new Money(new BigDecimal("3000000"), "VND"),
+                new Money(new BigDecimal("8000000"), "VND"),
+                "reason");
+
+        assertThat(account.pullDomainEvents()).isEmpty();
+    }
+
+    @Test
+    void pullDomainEvents_clearsListAfterPull() {
+        EscrowAccount account = buyerLocked();
+        account.lockSellerDeposit();
+
+        account.pullDomainEvents();
+
+        assertThat(account.pullDomainEvents()).isEmpty();
     }
 
     // ─── getTransactions immutability ───────────────────────────────────

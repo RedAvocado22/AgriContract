@@ -1,11 +1,15 @@
 package com.agricontract.escrow.infrastructure.persistence.repository;
 
+import com.agricontract.escrow.domain.event.DomainEvent;
 import com.agricontract.escrow.domain.model.EscrowAccount;
 import com.agricontract.escrow.domain.model.vo.EscrowId;
 import com.agricontract.escrow.domain.repository.EscrowAccountRepository;
 import com.agricontract.escrow.infrastructure.persistence.entity.EscrowAccountJpaEntity;
+import com.agricontract.escrow.infrastructure.persistence.entity.EscrowDomainEventJpaEntity;
 import com.agricontract.escrow.infrastructure.persistence.entity.EscrowTransactionJpaEntity;
 import com.agricontract.escrow.infrastructure.persistence.mapper.EscrowMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +24,8 @@ public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
 
     private final EscrowAccountJpaRepository jpaRepo;
     private final EscrowMapper mapper;
+    private final ObjectMapper objectMapper;
+    private final EscrowDomainEventJpaRepository escrowDomainEventJpaRepository;
 
     @Override
     @Transactional
@@ -40,6 +46,25 @@ public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
         });
 
         EscrowAccountJpaEntity saved = jpaRepo.save(entity);
+
+        for (DomainEvent domainEvent : account.pullDomainEvents()) {
+            String payload;
+            try {
+                payload = objectMapper.writeValueAsString(domainEvent);
+            } catch (JsonProcessingException e) {
+                throw new IllegalStateException("Failed to serialize domain event " + domainEvent.getEventId(), e);
+            }
+
+            EscrowDomainEventJpaEntity event = EscrowDomainEventJpaEntity.builder()
+                    .eventId(domainEvent.getEventId().toString())
+                    .eventType(domainEvent.getEventType())
+                    .aggregateId(account.getEscrowId().value())
+                    .payload(payload)
+                    .status(EscrowDomainEventJpaEntity.Status.PENDING)
+                    .build();
+
+            escrowDomainEventJpaRepository.save(event);
+        }
         return mapper.toDomain(saved);
     }
 
