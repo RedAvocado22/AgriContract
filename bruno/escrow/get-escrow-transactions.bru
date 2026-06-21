@@ -1,0 +1,24 @@
+meta {
+  name: GET /api/v1/escrows/{escrowId}/transactions
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/api/v1/escrows/{{escrow_id}}/transactions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+tests {
+  test("should not return 401 with valid token", function() {
+    expect(res.getStatus()).to.not.equal(401);
+  });
+  test("data should be an array", function() {
+    expect(res.getBody().data).to.be.an('array');
+  });
+}
