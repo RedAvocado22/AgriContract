@@ -1,6 +1,7 @@
 package com.agricontract.escrow.domain.model;
 
 import com.agricontract.escrow.domain.event.DomainEvent;
+import com.agricontract.escrow.domain.event.EscrowLockBuyerPaymentEvent;
 import com.agricontract.escrow.domain.event.EscrowLockedEvent;
 import com.agricontract.escrow.domain.event.EscrowPenalizedEvent;
 import com.agricontract.escrow.domain.event.EscrowReleasedEvent;
@@ -248,8 +249,23 @@ class EscrowAccountTest {
     // ─── domain events ───────────────────────────────────────────────────
 
     @Test
+    void lockBuyerPayment_happyPath_emitsEscrowLockBuyerPaymentEvent() {
+        EscrowAccount account = buyerLocked();
+
+        List<DomainEvent> events = account.pullDomainEvents();
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0)).isInstanceOf(EscrowLockBuyerPaymentEvent.class);
+        assertThat(events.get(0).getEventType()).isEqualTo("escrow.buyer_locked");
+
+        EscrowLockBuyerPaymentEvent event = (EscrowLockBuyerPaymentEvent) events.get(0);
+        assertThat(event.getSellerDepositAmount()).isEqualTo(SELLER_DEPOSIT);
+        assertThat(event.getSellerDepositRate()).isEqualTo(SELLER_DEPOSIT_RATE);
+    }
+
+    @Test
     void lockSellerDeposit_happyPath_emitsEscrowLockedEvent() {
         EscrowAccount account = buyerLocked();
+        account.pullDomainEvents(); // discard lockBuyerPayment's event
 
         account.lockSellerDeposit();
 
