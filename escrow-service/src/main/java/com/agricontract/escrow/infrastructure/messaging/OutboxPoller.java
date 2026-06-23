@@ -31,6 +31,7 @@ public class OutboxPoller {
                 row.setStatus(PUBLISHED);
                 row.setPublishedAt(LocalDateTime.now());
                 repository.save(row);
+                log.debug("Published event {} ({}) to {}", row.getId(), row.getEventType(), EXCHANGE);
             } catch (AmqpException e) {
                 log.error("Event {} with type: {} is {}", row.getId(), row.getEventType(), e.getMessage());
             }

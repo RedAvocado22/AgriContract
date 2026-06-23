@@ -11,6 +11,7 @@ import com.agricontract.escrow.infrastructure.persistence.mapper.EscrowMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Repository
 @RequiredArgsConstructor
 public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
@@ -64,6 +66,7 @@ public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
                     .build();
 
             escrowDomainEventJpaRepository.save(event);
+            log.debug("Outbox event written: {} ({}) for escrow {}", event.getEventId(), event.getEventType(), event.getAggregateId());
         }
         return mapper.toDomain(saved);
     }

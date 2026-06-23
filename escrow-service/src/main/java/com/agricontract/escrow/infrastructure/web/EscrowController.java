@@ -10,6 +10,7 @@ import com.agricontract.escrow.application.usecase.GetEscrowByContractIdUseCase;
 import com.agricontract.escrow.application.usecase.GetEscrowTransactionsUseCase;
 import com.agricontract.escrow.common.ApiResponse;
 import com.agricontract.escrow.infrastructure.web.dto.ArbitrateRequest;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/escrows")
 @RequiredArgsConstructor
+@Tag(name = "Escrow", description = "EscrowAccount lifecycle: confirm deposit, arbitrate, query account/ledger")
 public class EscrowController {
 
     private final ConfirmDepositUseCase confirmDepositUseCase;
