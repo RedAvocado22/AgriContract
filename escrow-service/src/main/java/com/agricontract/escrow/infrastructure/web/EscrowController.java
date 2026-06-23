@@ -15,6 +15,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,13 +33,24 @@ public class EscrowController {
     private final GetEscrowTransactionsUseCase getEscrowTransactionsUseCase;
 
     @GetMapping("/contract/{contractId}")
-    public ResponseEntity<ApiResponse<EscrowAccountResponse>> getByContractId(@PathVariable String contractId) {
-        return ResponseEntity.ok(ApiResponse.ok(getEscrowByContractIdUseCase.execute(contractId)));
+    public ResponseEntity<ApiResponse<EscrowAccountResponse>> getByContractId(
+            @PathVariable String contractId, Authentication authentication) {
+        EscrowAccountResponse response = getEscrowByContractIdUseCase.execute(
+                contractId, authentication.getName(), isAdmin(authentication));
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @GetMapping("/{escrowId}/transactions")
-    public ResponseEntity<ApiResponse<List<EscrowTransactionResponse>>> getTransactions(@PathVariable String escrowId) {
-        return ResponseEntity.ok(ApiResponse.ok(getEscrowTransactionsUseCase.execute(escrowId)));
+    public ResponseEntity<ApiResponse<List<EscrowTransactionResponse>>> getTransactions(
+            @PathVariable String escrowId, Authentication authentication) {
+        List<EscrowTransactionResponse> response = getEscrowTransactionsUseCase.execute(
+                escrowId, authentication.getName(), isAdmin(authentication));
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    private boolean isAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
     }
 
     @PutMapping("/{contractId}/confirm-deposit")

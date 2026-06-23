@@ -7,5 +7,4 @@ import java.util.List;
 
 public interface EscrowDomainEventJpaRepository extends JpaRepository<EscrowDomainEventJpaEntity, Long> {
     List<EscrowDomainEventJpaEntity> findByStatusOrderByCreatedAtAsc(EscrowDomainEventJpaEntity.Status status);
-    boolean existsByEventId(String eventId);
 }
