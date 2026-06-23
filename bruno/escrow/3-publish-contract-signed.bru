@@ -1,0 +1,54 @@
+meta {
+  name: 3. Publish contract.signed (seed escrow account for tests below)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{rabbitmq_management_url}}/api/exchanges/%2f/agricontract.contracts/publish
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{rabbitmq_username}}
+  password: {{rabbitmq_password}}
+}
+
+body:json {
+  {
+    "properties": {"content_type": "application/json", "delivery_mode": 2},
+    "routing_key": "contract.signed",
+    "payload": {{event_payload_string}},
+    "payload_encoding": "string"
+  }
+}
+
+script:pre-request {
+  const contractId = "test-contract-" + Date.now();
+  const payload = {
+    contractId: contractId,
+    buyerId: bru.getEnvVar("buyer1_sub"),
+    sellerId: bru.getEnvVar("seller1_sub"),
+    buyerEmail: "buyer1@test.com",
+    sellerEmail: "seller1@test.com",
+    terms: {
+      agreedPrice: { amount: 5000000, currency: "VND" },
+      sellerDepositRate: 0.1
+    }
+  };
+  bru.setVar("test_contract_id", contractId);
+  bru.setVar("event_payload_string", JSON.stringify(JSON.stringify(payload)));
+}
+
+tests {
+  test("should be routed to a queue", function() {
+    expect(res.getBody().routed).to.equal(true);
+  });
+}
+
+script:post-response {
+  bru.setEnvVar("contract_id", bru.getVar("test_contract_id"));
+  // give the async RabbitMQ consumer time to create the escrow account before the next request queries it
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+}

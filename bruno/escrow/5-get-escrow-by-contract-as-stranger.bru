@@ -1,0 +1,21 @@
+meta {
+  name: 5. GET escrow by contract - as stranger (not buyer/seller) - expect 403
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/api/v1/escrows/contract/{{contract_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{stranger_token}}
+}
+
+tests {
+  test("should return 403 for a user not party to the contract", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}
