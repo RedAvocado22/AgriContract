@@ -16,14 +16,6 @@ public class EscrowTransactionRepositoryImpl implements EscrowTransactionReposit
     private final EscrowTransactionJpaRepository jpaRepo;
     private final EscrowMapper mapper;
 
-    // EscrowTransaction is not persisted standalone — it's part of the EscrowAccount
-    // aggregate and is cascade-saved through EscrowAccountRepository.save().
-    @Override
-    public EscrowTransaction save(EscrowTransaction transaction) {
-        throw new UnsupportedOperationException(
-                "EscrowTransaction is persisted via EscrowAccountRepository.save() as part of its aggregate");
-    }
-
     @Override
     @Transactional(readOnly = true)
     public List<EscrowTransaction> findByEscrowId(String escrowId) {

@@ -2,6 +2,7 @@ package com.agricontract.escrow.application.usecase;
 
 import com.agricontract.escrow.application.dto.EscrowAccountResponse;
 import com.agricontract.escrow.application.exception.EscrowAccountNotFoundException;
+import com.agricontract.escrow.application.exception.UnauthorizedEscrowActionException;
 import com.agricontract.escrow.domain.model.EscrowAccount;
 import com.agricontract.escrow.domain.model.vo.EscrowStatus;
 import com.agricontract.escrow.domain.model.vo.Money;
@@ -30,7 +31,7 @@ class GetEscrowByContractIdUseCaseTest {
         useCase = new GetEscrowByContractIdUseCase(escrowAccountRepository);
         when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.execute("contract-1"))
+        assertThatThrownBy(() -> useCase.execute("contract-1", "buyer-1", false))
                 .isInstanceOf(EscrowAccountNotFoundException.class);
     }
 
@@ -42,7 +43,7 @@ class GetEscrowByContractIdUseCaseTest {
                 new BigDecimal("0.1"), new Money(new BigDecimal("10000000"), "VND"));
         when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.of(account));
 
-        EscrowAccountResponse response = useCase.execute("contract-1");
+        EscrowAccountResponse response = useCase.execute("contract-1", "buyer-1", false);
 
         assertThat(response.contractId()).isEqualTo("contract-1");
         assertThat(response.buyerUserId()).isEqualTo("buyer-1");
@@ -62,9 +63,34 @@ class GetEscrowByContractIdUseCaseTest {
         account.lockSellerDeposit();
         when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.of(account));
 
-        EscrowAccountResponse response = useCase.execute("contract-1");
+        EscrowAccountResponse response = useCase.execute("contract-1", "seller-1", false);
 
         assertThat(response.sellerDeposit()).isEqualTo(new BigDecimal("1000000"));
         assertThat(response.status()).isEqualTo(EscrowStatus.FULLY_LOCKED);
+    }
+
+    @Test
+    void execute_requesterNotPartyAndNotAdmin_throwsUnauthorized() {
+        useCase = new GetEscrowByContractIdUseCase(escrowAccountRepository);
+        EscrowAccount account = EscrowAccount.lockBuyerPayment(
+                "contract-1", "buyer-1", "seller-1", "b@x.com", "s@x.com",
+                new BigDecimal("0.1"), new Money(new BigDecimal("10000000"), "VND"));
+        when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> useCase.execute("contract-1", "stranger-1", false))
+                .isInstanceOf(UnauthorizedEscrowActionException.class);
+    }
+
+    @Test
+    void execute_requesterIsAdmin_bypassesOwnershipCheck() {
+        useCase = new GetEscrowByContractIdUseCase(escrowAccountRepository);
+        EscrowAccount account = EscrowAccount.lockBuyerPayment(
+                "contract-1", "buyer-1", "seller-1", "b@x.com", "s@x.com",
+                new BigDecimal("0.1"), new Money(new BigDecimal("10000000"), "VND"));
+        when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.of(account));
+
+        EscrowAccountResponse response = useCase.execute("contract-1", "admin-1", true);
+
+        assertThat(response.contractId()).isEqualTo("contract-1");
     }
 }
