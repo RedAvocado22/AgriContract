@@ -1,15 +1,7 @@
 package com.agricontract.escrow.domain.model;
 
-import com.agricontract.escrow.domain.event.DomainEvent;
-import com.agricontract.escrow.domain.event.EscrowLockedEvent;
-import com.agricontract.escrow.domain.event.EscrowPenalizedEvent;
-import com.agricontract.escrow.domain.event.EscrowReleasedEvent;
-import com.agricontract.escrow.domain.event.EscrowRefundedEvent;
-import com.agricontract.escrow.domain.model.vo.EscrowId;
-import com.agricontract.escrow.domain.model.vo.EscrowStatus;
-import com.agricontract.escrow.domain.model.vo.Money;
-import com.agricontract.escrow.domain.model.vo.Party;
-import com.agricontract.escrow.domain.model.vo.TransactionType;
+import com.agricontract.escrow.domain.event.*;
+import com.agricontract.escrow.domain.model.vo.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -93,6 +85,11 @@ public class EscrowAccount {
                 "Lock buyer payment."
         );
         account.transactions.add(lockBuyerPayment);
+        account.domainEvents.add(new EscrowLockBuyerPaymentEvent(
+                account.escrowId.value(), account.contractId,
+                account.buyerEmail, account.sellerEmail,
+                account.totalAmount.multiply(account.sellerDepositRate), account.sellerDepositRate)
+        );
         return account;
     }
 
