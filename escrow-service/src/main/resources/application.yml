@@ -27,6 +27,12 @@ spring:
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
 
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+
 server:
   port: ${SERVER_PORT:8084}
 

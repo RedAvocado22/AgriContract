@@ -19,7 +19,10 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_ENDPOINTS = {
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html"
     };
 
     @Value("${gateway.internal-secret}")

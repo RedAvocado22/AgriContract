@@ -6,8 +6,10 @@ import com.agricontract.escrow.domain.model.EscrowAccount;
 import com.agricontract.escrow.domain.model.vo.Money;
 import com.agricontract.escrow.domain.repository.EscrowAccountRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ArbitrateEscrowUseCase {
@@ -23,5 +25,7 @@ public class ArbitrateEscrowUseCase {
 
         account.arbitrate(buyerAmount, sellerAmount, command.justification());
         escrowAccountRepository.save(account);
+        log.info("{} arbitrated: buyer={}, seller={}, justification={}",
+                command.contractId(), buyerAmount, sellerAmount, command.justification());
     }
 }

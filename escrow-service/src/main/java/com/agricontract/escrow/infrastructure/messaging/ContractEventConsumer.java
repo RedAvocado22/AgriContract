@@ -27,6 +27,7 @@ public class ContractEventConsumer {
 
     @RabbitListener(queues = "escrow-svc.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
+        log.info("Received contract.signed for contract {}", event.get("contractId"));
         lockBuyerPaymentUseCase.execute(parseSignedEvent(event));
     }
 
@@ -49,6 +50,7 @@ public class ContractEventConsumer {
 
     @RabbitListener(queues = "escrow-svc.contract.delivered")
     public void onContractDelivered(Map<String, Object> event) {
+        log.info("Received contract.delivered for contract {}", event.get("contractId"));
         releaseEscrowUseCase.execute(parseReleaseEvent(event));
     }
 
@@ -58,6 +60,7 @@ public class ContractEventConsumer {
 
     @RabbitListener(queues = "escrow-svc.contract.cancelled")
     public void onContractCancelled(Map<String, Object> event) {
+        log.info("Received contract.cancelled for contract {}", event.get("contractId"));
         penalizeEscrowUseCase.execute(parseCancelledEvent(event));
     }
 
