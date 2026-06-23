@@ -1,0 +1,31 @@
+meta {
+  name: 4. GET escrow by contract - as buyer (owner) - expect 200
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/api/v1/escrows/contract/{{contract_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("should return 200 for the contract's own buyer", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("buyerUserId should match the requester", function() {
+    expect(res.getBody().data.buyerUserId).to.equal(bru.getEnvVar("buyer1_sub"));
+  });
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body && body.data && body.data.escrowId) {
+    bru.setEnvVar("escrow_id", body.data.escrowId);
+  }
+}
