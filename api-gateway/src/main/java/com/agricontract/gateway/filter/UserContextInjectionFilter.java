@@ -43,6 +43,10 @@ public class UserContextInjectionFilter implements GlobalFilter {
         return exchange.getPrincipal()
                 .filter(p -> p instanceof JwtAuthenticationToken)
                 .cast(JwtAuthenticationToken.class)
+                .switchIfEmpty(Mono.defer(() -> {
+                    exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                    return exchange.getResponse().setComplete().then(Mono.empty());
+                }))
                 .flatMap(jwtAuth -> {
                     Jwt jwt = jwtAuth.getToken();
 
@@ -72,11 +76,7 @@ public class UserContextInjectionFilter implements GlobalFilter {
                     ServerHttpRequest decorated = new UserContextRequestDecorator(
                             exchange.getRequest(), id, email, roles, internalSecret);
                     return chain.filter(exchange.mutate().request(decorated).build());
-                })
-                .switchIfEmpty(Mono.defer(() -> {
-                    exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                    return exchange.getResponse().setComplete();
-                }));
+                });
     }
 
     /**
