@@ -3,6 +3,7 @@ package com.agricontract.escrow.infrastructure.messaging;
 import com.agricontract.escrow.application.dto.LockBuyerPaymentCommand;
 import com.agricontract.escrow.application.dto.PenalizeEscrowCommand;
 import com.agricontract.escrow.application.dto.ReleaseEscrowCommand;
+import com.agricontract.escrow.application.exception.InvalidEventPayloadException;
 import com.agricontract.escrow.application.usecase.LockBuyerPaymentUseCase;
 import com.agricontract.escrow.application.usecase.PenalizeEscrowUseCase;
 import com.agricontract.escrow.application.usecase.ReleaseEscrowUseCase;
@@ -32,20 +33,24 @@ public class ContractEventConsumer {
     }
 
     private LockBuyerPaymentCommand parseSignedEvent(Map<String, Object> event) {
-        Map<String, Object> terms = (Map<String, Object>) event.get("terms");
-        Map<String, Object> agreedPriceMap = (Map<String, Object>) terms.get("agreedPrice");
+        try {
+            Map<String, Object> terms = (Map<String, Object>) event.get("terms");
+            Map<String, Object> agreedPriceMap = (Map<String, Object>) terms.get("agreedPrice");
 
-        BigDecimal amount = new BigDecimal(agreedPriceMap.get("amount").toString());
-        String currency = (String) agreedPriceMap.get("currency");
-        Money agreedMoney = new Money(amount, currency);
+            BigDecimal amount = new BigDecimal(agreedPriceMap.get("amount").toString());
+            String currency = (String) agreedPriceMap.get("currency");
+            Money agreedMoney = new Money(amount, currency);
 
-        BigDecimal sellerDepositRate = new BigDecimal(terms.get("sellerDepositRate").toString());
+            BigDecimal sellerDepositRate = new BigDecimal(terms.get("sellerDepositRate").toString());
 
-        return new LockBuyerPaymentCommand((String) event.get("contractId"),
-                (String) event.get("buyerId"), (String) event.get("sellerId"),
-                (String) event.get("buyerEmail"), (String) event.get("sellerEmail"),
-                sellerDepositRate, agreedMoney
-        );
+            return new LockBuyerPaymentCommand((String) event.get("contractId"),
+                    (String) event.get("buyerId"), (String) event.get("sellerId"),
+                    (String) event.get("buyerEmail"), (String) event.get("sellerEmail"),
+                    sellerDepositRate, agreedMoney
+            );
+        } catch (RuntimeException e) {
+            throw new InvalidEventPayloadException("Malformed contract.signed payload: " + event + " (" + e + ")");
+        }
     }
 
     @RabbitListener(queues = "escrow-svc.contract.delivered")
@@ -55,7 +60,11 @@ public class ContractEventConsumer {
     }
 
     private ReleaseEscrowCommand parseReleaseEvent(Map<String, Object> event) {
-        return new ReleaseEscrowCommand((String) event.get("contractId"));
+        try {
+            return new ReleaseEscrowCommand((String) event.get("contractId"));
+        } catch (RuntimeException e) {
+            throw new InvalidEventPayloadException("Malformed contract.delivered payload: " + event + " (" + e + ")");
+        }
     }
 
     @RabbitListener(queues = "escrow-svc.contract.cancelled")
@@ -65,10 +74,14 @@ public class ContractEventConsumer {
     }
 
     private PenalizeEscrowCommand parseCancelledEvent(Map<String, Object> event) {
-        Party cancelledBy = Party.valueOf((String) event.get("cancelledBy"));
-        Object rate = event.get("buyerPenaltyRate");
-        BigDecimal buyerPenaltyRate = rate != null ? new BigDecimal(rate.toString()) : null;
+        try {
+            Party cancelledBy = Party.valueOf((String) event.get("cancelledBy"));
+            Object rate = event.get("buyerPenaltyRate");
+            BigDecimal buyerPenaltyRate = rate != null ? new BigDecimal(rate.toString()) : null;
 
-        return new PenalizeEscrowCommand((String) event.get("contractId"), cancelledBy, buyerPenaltyRate);
+            return new PenalizeEscrowCommand((String) event.get("contractId"), cancelledBy, buyerPenaltyRate);
+        } catch (RuntimeException e) {
+            throw new InvalidEventPayloadException("Malformed contract.cancelled payload: " + event + " (" + e + ")");
+        }
     }
 }
