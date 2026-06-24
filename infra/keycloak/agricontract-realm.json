@@ -420,7 +420,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-agricontract" ],
+    "realmRoles" : [ "default-roles-agricontract", "ADMIN" ],
     "notBefore" : 0,
     "groups" : [ ]
   }, {
@@ -443,7 +443,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-agricontract" ],
+    "realmRoles" : [ "default-roles-agricontract", "BUYER" ],
     "notBefore" : 0,
     "groups" : [ ]
   }, {
@@ -466,7 +466,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-agricontract" ],
+    "realmRoles" : [ "SELLER", "default-roles-agricontract" ],
     "notBefore" : 0,
     "groups" : [ ]
   }, {
@@ -489,7 +489,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-agricontract" ],
+    "realmRoles" : [ "SELLER", "default-roles-agricontract" ],
     "notBefore" : 0,
     "groups" : [ ]
   } ],
