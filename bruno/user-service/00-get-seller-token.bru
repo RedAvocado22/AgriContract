@@ -1,0 +1,33 @@
+meta {
+  name: Get Token (seller1)
+  type: http
+  seq: 0
+}
+
+post {
+  url: {{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: password
+  client_id: {{client_id}}
+  username: {{seller_username}}
+  password: {{seller_password}}
+}
+
+script:post-response {
+  const token = res.getBody().access_token;
+  bru.setEnvVar("seller_token", token);
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("access_token is present", function() {
+    expect(res.getBody().access_token).to.be.a("string");
+  });
+}

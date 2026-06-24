@@ -1,0 +1,34 @@
+meta {
+  name: GET /api/v1/users/me
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/v1/users/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("success flag is true", function() {
+    expect(res.getBody().success).to.equal(true);
+  });
+
+  test("userId matches registered_user_id", function() {
+    expect(res.getBody().data.userId).to.equal(bru.getEnvVar("registered_user_id"));
+  });
+
+  test("full profile includes phone and address", function() {
+    expect(res.getBody().data.phone).to.be.a("string");
+    expect(res.getBody().data.address).to.be.a("string");
+  });
+}
