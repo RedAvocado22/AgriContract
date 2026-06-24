@@ -1,0 +1,49 @@
+meta {
+  name: GET /api/v1/users/:userId (slim — no PII)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/api/v1/users/{{registered_user_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("success flag is true", function() {
+    expect(res.getBody().success).to.equal(true);
+  });
+
+  test("userId matches", function() {
+    expect(res.getBody().data.userId).to.equal(bru.getEnvVar("registered_user_id"));
+  });
+
+  test("organizationName is set", function() {
+    expect(res.getBody().data.organizationName).to.be.a("string");
+  });
+
+  test("email is present (Feign contract)", function() {
+    expect(res.getBody().data.email).to.be.a("string");
+  });
+
+  test("role is present (Feign contract)", function() {
+    expect(res.getBody().data.role).to.be.a("string");
+  });
+
+  test("phone is not exposed (IDOR fix)", function() {
+    expect(res.getBody().data.phone).to.equal(undefined);
+  });
+
+  test("address is not exposed (IDOR fix)", function() {
+    expect(res.getBody().data.address).to.equal(undefined);
+  });
+}

@@ -1,0 +1,37 @@
+meta {
+  name: POST /api/v1/users/register (idempotency → 200)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/users/register
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+body:json {
+  {
+    "organizationName": "Nong Trai ABC",
+    "phone": "0901234567",
+    "address": "Ha Noi"
+  }
+}
+
+tests {
+  test("should return 200 on duplicate registration", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("success flag is true", function() {
+    expect(res.getBody().success).to.equal(true);
+  });
+
+  test("userId is the same", function() {
+    expect(res.getBody().data.userId).to.equal(bru.getEnvVar("registered_user_id"));
+  });
+}

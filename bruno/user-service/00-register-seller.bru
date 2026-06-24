@@ -1,0 +1,52 @@
+meta {
+  name: POST /api/v1/users/register (first time → 201)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/api/v1/users/register
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+body:json {
+  {
+    "organizationName": "Nong Trai ABC",
+    "phone": "0901234567",
+    "address": "Ha Noi"
+  }
+}
+
+script:post-response {
+  const userId = res.getBody()?.data?.userId;
+  if (userId) {
+    bru.setEnvVar("registered_user_id", userId);
+  }
+}
+
+tests {
+  test("should return 201 on first registration", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("success flag is true", function() {
+    expect(res.getBody().success).to.equal(true);
+  });
+
+  test("should return userId", function() {
+    expect(res.getBody().data.userId).to.be.a("string");
+  });
+
+  test("role should be SELLER", function() {
+    expect(res.getBody().data.role).to.equal("SELLER");
+  });
+
+  test("verificationStatus should be PENDING", function() {
+    expect(res.getBody().data.verificationStatus).to.equal("PENDING");
+  });
+}
