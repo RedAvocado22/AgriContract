@@ -238,7 +238,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
       RABBITMQ_HOST: rabbitmq
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
       PRODUCT_SERVICE_URL: http://product-service:8082
+      USER_SERVICE_URL: http://user-service:8081
     depends_on:
       contract-db:
         condition: service_healthy
