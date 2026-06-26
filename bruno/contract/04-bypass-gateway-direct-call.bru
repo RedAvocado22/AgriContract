@@ -1,0 +1,24 @@
+meta {
+  name: 04. [Security] Bypass gateway — direct call without X-Gateway-Secret (expect 401/403)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{contract_service_url}}/api/v1/contracts
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "listingId": "any-listing",
+    "terms": {}
+  }
+}
+
+tests {
+  test("direct call without gateway secret should be rejected", function() {
+    expect(res.getStatus()).to.be.oneOf([401, 403]);
+  });
+}

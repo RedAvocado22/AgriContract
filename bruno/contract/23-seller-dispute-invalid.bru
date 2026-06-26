@@ -1,0 +1,27 @@
+meta {
+  name: 23. [Security] Seller tries to dispute (expect 403)
+  type: http
+  seq: 23
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/dispute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+body:json {
+  {
+    "reason": "seller trying to dispute"
+  }
+}
+
+tests {
+  test("seller dispute should return 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

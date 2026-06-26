@@ -1,0 +1,21 @@
+meta {
+  name: 30. [Error] Get non-existent contract (expect 404)
+  type: http
+  seq: 30
+}
+
+get {
+  url: {{base_url}}/api/v1/contracts/non-existent-contract-id-12345
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("non-existent contract should return 404", function() {
+    expect(res.getStatus()).to.equal(404);
+  });
+}

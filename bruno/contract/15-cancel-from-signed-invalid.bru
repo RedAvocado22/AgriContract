@@ -1,0 +1,27 @@
+meta {
+  name: 15. [Error] Cancel from SIGNED — invalid status (expect 400)
+  type: http
+  seq: 15
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/cancel
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "reason": "trying to cancel signed contract"
+  }
+}
+
+tests {
+  test("cancel from SIGNED should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

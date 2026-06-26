@@ -1,0 +1,21 @@
+meta {
+  name: 22. [Edge] Confirm delivery again — already DELIVERED (expect 400)
+  type: http
+  seq: 22
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/confirm-delivery
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("double confirm delivery should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

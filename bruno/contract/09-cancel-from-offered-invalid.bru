@@ -1,0 +1,27 @@
+meta {
+  name: 09. [Error] Cancel from OFFERED — invalid status (expect 400)
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/cancel
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "reason": "changed my mind"
+  }
+}
+
+tests {
+  test("cancel from OFFERED should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}
