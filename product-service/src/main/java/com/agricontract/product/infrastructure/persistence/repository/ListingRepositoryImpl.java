@@ -23,7 +23,15 @@ public class ListingRepositoryImpl implements ListingRepository {
 
     @Override
     public Listing save(Listing listing) {
-        ListingJpaEntity entity = listingMapper.toJpaEntity(listing);
+        ListingJpaEntity entity = listingJpaRepository
+                .findByListingId(listing.getListingId().value())
+                .map(existing -> {
+                    // only syncs status — extend here if new mutable fields are added to Listing
+                    existing.setStatus(listing.getStatus());
+                    return existing;
+                })
+                .orElseGet(() -> listingMapper.toJpaEntity(listing));
+
         ListingJpaEntity saved = listingJpaRepository.save(entity);
         return listingMapper.toDomain(saved);
     }

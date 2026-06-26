@@ -1,0 +1,33 @@
+meta {
+  name: GET /api/v1/listings/:listingId
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{product_service_url}}/api/v1/listings/{{listing_id}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("success flag is true", function() {
+    expect(res.getBody().success).to.equal(true);
+  });
+
+  test("listingId matches", function() {
+    expect(res.getBody().data.listingId).to.equal(bru.getEnvVar("listing_id"));
+  });
+
+  test("status is ACTIVE", function() {
+    expect(res.getBody().data.status).to.equal("ACTIVE");
+  });
+}

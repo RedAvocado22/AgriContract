@@ -1,28 +1,36 @@
 package com.agricontract.product.infrastructure.web;
 
+import com.agricontract.product.application.dto.CreateListingRequest;
 import com.agricontract.product.application.dto.ListingQueryRequest;
 import com.agricontract.product.application.dto.ListingResponse;
-import com.agricontract.product.application.usecase.CloseListingUseCase;
-import com.agricontract.product.application.usecase.GetListingUseCase;
-import com.agricontract.product.application.usecase.ListActiveListingsUseCase;
+import com.agricontract.product.application.usecase.*;
 import com.agricontract.product.common.ApiResponse;
 import com.agricontract.product.common.PaginatedResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/listings")
 @RequiredArgsConstructor
 public class ListingController {
+
+    @Value("${service.internal-secret}")
+    private String serviceInternalSecret;
+
     private final GetListingUseCase getListingUseCase;
     private final CloseListingUseCase closeListingUseCase;
     private final ListActiveListingsUseCase listActiveListingsUseCase;
+    private final CreateListingUseCase createListingUseCase;
+    private final GetSellerListingsUseCase getSellerListingsUseCase;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<PaginatedResponse<ListingResponse>>> getActiveListings(@ModelAttribute @Valid ListingQueryRequest request) {
+    public ResponseEntity<ApiResponse<PaginatedResponse<ListingResponse>>> getActiveListings(
+            @ModelAttribute @Valid ListingQueryRequest request) {
         Page<ListingResponse> result = listActiveListingsUseCase.execute(request.toPageable());
         return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result)));
     }
@@ -33,26 +41,32 @@ public class ListingController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    @PostMapping
-    public ResponseEntity<?> createListing(@RequestBody Object request) {
-        // TODO
-        return ResponseEntity.status(201).build();
+    @PreAuthorize("hasRole('SELLER')")
+    @GetMapping("/seller")
+    public ResponseEntity<ApiResponse<PaginatedResponse<ListingResponse>>> getSellerListings(
+            @ModelAttribute @Valid ListingQueryRequest request,
+            @RequestHeader("X-User-Id") String sellerId) {
+        Page<ListingResponse> result = getSellerListingsUseCase.execute(sellerId, request.toPageable());
+        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result)));
     }
 
-    /**
-     * Called by contract-service via OpenFeign to close a listing when contract is SIGNED.
-     */
+    @PreAuthorize("hasRole('SELLER')")
+    @PostMapping
+    public ResponseEntity<ApiResponse<ListingResponse>> createListing(
+            @RequestBody @Valid CreateListingRequest request,
+            @RequestHeader("X-User-Id") String sellerId) {
+        ListingResponse response = createListingUseCase.execute(sellerId, request);
+        return ResponseEntity.status(201).body(ApiResponse.ok(response));
+    }
+
     @PutMapping("/{listingId}/close")
     public ResponseEntity<ApiResponse<Void>> closeListing(
             @PathVariable String listingId,
-            @RequestHeader(value = "X-Internal-Call", required = false) String internalCall) {
-
-        if (!"true".equals(internalCall)) {
+            @RequestHeader(value = "X-Internal-Secret", required = false) String internalSecret) {
+        if (!serviceInternalSecret.equals(internalSecret)) {
             return ResponseEntity.status(403).body(ApiResponse.error("Forbidden"));
         }
-
         closeListingUseCase.execute(listingId);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
-
 }

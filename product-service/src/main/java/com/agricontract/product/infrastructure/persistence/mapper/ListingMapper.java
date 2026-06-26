@@ -1,5 +1,6 @@
 package com.agricontract.product.infrastructure.persistence.mapper;
 
+import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.Money;
@@ -23,6 +24,21 @@ public interface ListingMapper {
                 .currency(domain.getPriceFloor().currency())
                 .deliveryDeadline(domain.getDeliveryDeadline())
                 .status(domain.getStatus())
+                .build();
+    }
+
+    default ListingResponse toResponse(Listing listing) {
+        return ListingResponse.builder()
+                .listingId(listing.getListingId().value())
+                .sellerId(listing.getSellerId())
+                .productId(listing.getProductId().value())
+                .productName(listing.getProductName())
+                .quantity(listing.getQuantity().value())
+                .quantityUnit(listing.getQuantity().unit())
+                .priceFloor(listing.getPriceFloor().amount())
+                .currency(listing.getPriceFloor().currency())
+                .deliveryDeadline(listing.getDeliveryDeadline())
+                .status(listing.getStatus())
                 .build();
     }
 
