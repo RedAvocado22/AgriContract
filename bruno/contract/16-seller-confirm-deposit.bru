@@ -1,11 +1,11 @@
 meta {
-  name: 14. Sign Contract (seller — contract becomes SIGNED, listing closed)
+  name: 16. Seller confirm deposit → escrow FULLY_LOCKED → escrow.locked published
   type: http
-  seq: 14
+  seq: 16
 }
 
 put {
-  url: {{base_url}}/api/v1/contracts/{{contract_id}}/sign
+  url: {{base_url}}/api/v1/escrows/{{contract_id}}/confirm-deposit
   body: none
   auth: bearer
 }
@@ -17,6 +17,9 @@ auth:bearer {
 tests {
   test("should return 200", function() {
     expect(res.getStatus()).to.equal(200);
+  });
+  test("success flag is true", function() {
+    expect(res.getBody().success).to.equal(true);
   });
 }
 

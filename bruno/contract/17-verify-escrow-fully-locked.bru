@@ -1,0 +1,24 @@
+meta {
+  name: 17. Verify escrow FULLY_LOCKED (escrow.locked published → contract consumer activates)
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{base_url}}/api/v1/escrows/contract/{{contract_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("escrow status should be FULLY_LOCKED", function() {
+    expect(res.getBody().data.status).to.equal("FULLY_LOCKED");
+  });
+}
