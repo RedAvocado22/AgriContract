@@ -277,7 +277,7 @@ services:
     build: ./notification-service
     container_name: notification-service
     ports:
-      - "8085:8085"
+      - "8085:8085"11
     environment:
       DB_HOST: notification-db
       DB_NAME: notification_db
