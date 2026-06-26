@@ -1,0 +1,28 @@
+meta {
+  name: 03. Get Token (stranger)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: password
+  client_id: {{client_id}}
+  username: {{stranger_username}}
+  password: {{stranger_password}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+script:post-response {
+  bru.setEnvVar("stranger_token", res.getBody().access_token);
+}

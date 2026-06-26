@@ -1,0 +1,24 @@
+meta {
+  name: 14. Sign Contract (seller — contract becomes SIGNED, listing closed)
+  type: http
+  seq: 14
+}
+
+// NOTE: closeListing Feign call sẽ fail cho đến khi NHL fix X-Internal-Secret (issue #17).
+// Nếu step này fail, comment out listingPort.closeListing() tạm thời để test tiếp flow.
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/sign
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

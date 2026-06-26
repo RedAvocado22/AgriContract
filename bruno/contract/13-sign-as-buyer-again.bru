@@ -1,0 +1,21 @@
+meta {
+  name: 13. [Edge] Sign as buyer again — already signed (expect 400)
+  type: http
+  seq: 13
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/sign
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("double sign should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}
