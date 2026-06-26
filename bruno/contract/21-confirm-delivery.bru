@@ -22,3 +22,7 @@ tests {
     expect(res.getBody().data.status).to.equal("DELIVERED");
   });
 }
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+}

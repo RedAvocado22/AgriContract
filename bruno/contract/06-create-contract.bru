@@ -4,10 +4,6 @@ meta {
   seq: 6
 }
 
-// NOTE: closeListing (step sign-as-seller) sẽ thất bại cho đến khi NHL fix X-Internal-Secret
-// theo issue #17. Test vẫn pass nếu contract-service không throw lỗi khi Feign closeListing fail
-// (cần wrap Feign call trong try-catch hoặc NHL fix trước).
-
 post {
   url: {{base_url}}/api/v1/contracts
   body: json
