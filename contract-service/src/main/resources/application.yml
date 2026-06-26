@@ -23,6 +23,12 @@ spring:
     port: 5672
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+gateway:
+  internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
+
+service:
+  internal-secret: ${SERVICE_INTERNAL_SECRET:changeme-internal}
+
 
 feign:
   client:
@@ -37,9 +43,18 @@ server:
 product-service:
   url: ${PRODUCT_SERVICE_URL:http://localhost:8082}
 
+user-service:
+  url: ${USER_SERVICE_URL:http://localhost:8081}
+
 outbox:
   poller:
     fixed-delay-ms: 1000
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
 
 management:
   endpoints:
