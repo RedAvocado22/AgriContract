@@ -189,6 +189,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
     depends_on:
       user-db:
         condition: service_healthy

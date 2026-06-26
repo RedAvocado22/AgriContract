@@ -11,9 +11,11 @@ import java.io.IOException;
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private final String gatewaySecret;
+    private final String serviceInternalSecret;
 
-    public HeaderAuthenticationFilter(String gatewaySecret) {
+    public HeaderAuthenticationFilter(String gatewaySecret, String serviceInternalSecret) {
         this.gatewaySecret = gatewaySecret;
+        this.serviceInternalSecret = serviceInternalSecret;
     }
 
     @Override
@@ -27,17 +29,18 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        String headerSecret = request.getHeader("X-Gateway-Secret");
-
-        if (headerSecret == null || !headerSecret.equals(gatewaySecret)) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType("application/json");
-            response.getWriter().write(
-                    "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}"
-            );
+        if (gatewaySecret.equals(request.getHeader("X-Gateway-Secret"))) {
+            filterChain.doFilter(request, response);
             return;
         }
 
-        filterChain.doFilter(request, response);
+        if (serviceInternalSecret.equals(request.getHeader("X-Internal-Secret"))) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"success\":false,\"message\":\"Forbidden\",\"data\":null}");
     }
 }
