@@ -1,0 +1,25 @@
+meta {
+  name: GET /api/v1/listings/:listingId (verify CLOSED)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{product_service_url}}/api/v1/listings/{{listing_id}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("status should be CLOSED after close", function() {
+    expect(res.getBody().data.status).to.equal("CLOSED");
+  });
+}

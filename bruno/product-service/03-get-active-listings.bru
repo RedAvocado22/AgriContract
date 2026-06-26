@@ -1,0 +1,42 @@
+meta {
+  name: GET /api/v1/listings (public — all active)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{product_service_url}}/api/v1/listings
+  body: none
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+}
+
+params:query {
+  page: 0
+  size: 10
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("success flag is true", function() {
+    expect(res.getBody().success).to.equal(true);
+  });
+
+  test("content is an array", function() {
+    expect(res.getBody().data.content).to.be.an("array");
+  });
+
+  test("at least one listing returned", function() {
+    expect(res.getBody().data.content.length).to.be.greaterThan(0);
+  });
+
+  test("totalElements >= 1", function() {
+    expect(res.getBody().data.totalElements).to.be.greaterThan(0);
+  });
+}

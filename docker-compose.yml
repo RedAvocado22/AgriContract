@@ -72,6 +72,7 @@ services:
     container_name: user-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: user_db
     ports:
       - "3307:3306"
@@ -90,6 +91,7 @@ services:
     container_name: product-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: product_db
     ports:
       - "3308:3306"
@@ -108,6 +110,7 @@ services:
     container_name: contract-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: contract_db
     ports:
       - "3309:3306"
@@ -126,6 +129,7 @@ services:
     container_name: escrow-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: escrow_db
     ports:
       - "3310:3306"
@@ -144,6 +148,7 @@ services:
     container_name: notification-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: notification_db
     ports:
       - "3311:3306"
@@ -204,10 +209,13 @@ services:
       - "8082:8082"
     environment:
       DB_HOST: product-db
+      DB_PORT: 3306
       DB_NAME: product_db
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
     depends_on:
       product-db:
         condition: service_healthy
