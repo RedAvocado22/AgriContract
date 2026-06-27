@@ -8,6 +8,25 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWK_URI:http://localhost:8180/realms/agricontract/protocol/openid-connect/certs}
   cloud:
     gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        corsConfigurations:
+          "[/**]":
+            allowedOriginPatterns:
+              - "http://localhost:*"
+              - "http://127.0.0.1:*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            exposedHeaders:
+              - "*"
+            allowCredentials: true
       routes:
         - id: user-service
           uri: ${USER_SERVICE_URL:http://localhost:8081}

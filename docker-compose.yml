@@ -192,6 +192,7 @@ services:
     container_name: user-service
     environment:
       DB_HOST: user-db
+      DB_PORT: 3306
       DB_NAME: user_db
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}

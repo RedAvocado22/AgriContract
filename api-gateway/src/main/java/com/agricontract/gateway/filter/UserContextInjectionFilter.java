@@ -26,13 +26,16 @@ public class UserContextInjectionFilter implements GlobalFilter {
 
     List<String> PUBLIC_PATHS = List.of(
             "/api/v1/listings",
-            "/api/v1/products"
-    );
+            "/api/v1/products");
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
         HttpMethod method = exchange.getRequest().getMethod();
+
+        if (HttpMethod.OPTIONS.equals(method)) {
+            return chain.filter(exchange);
+        }
 
         boolean isPublic = HttpMethod.GET.equals(method) && PUBLIC_PATHS.stream().anyMatch(path::startsWith);
 
@@ -60,7 +63,6 @@ public class UserContextInjectionFilter implements GlobalFilter {
                         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token: Missing subject");
                     }
 
-
                     Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
                     if (realmAccess == null || !realmAccess.containsKey("roles")) {
                         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid token: Missing roles claim");
@@ -80,16 +82,19 @@ public class UserContextInjectionFilter implements GlobalFilter {
     }
 
     /**
-     * Original request's HttpHeaders is read-only by contract (AbstractServerHttpRequest
-     * wraps it via HttpHeaders.readOnlyHttpHeaders). Building a brand-new HttpHeaders here
-     * (instead of relying on ServerHttpRequest.Builder#header(...)) sidesteps that entirely.
+     * Original request's HttpHeaders is read-only by contract
+     * (AbstractServerHttpRequest
+     * wraps it via HttpHeaders.readOnlyHttpHeaders). Building a brand-new
+     * HttpHeaders here
+     * (instead of relying on ServerHttpRequest.Builder#header(...)) sidesteps that
+     * entirely.
      */
     private static class UserContextRequestDecorator extends ServerHttpRequestDecorator {
 
         private final HttpHeaders headers;
 
         UserContextRequestDecorator(ServerHttpRequest delegate, String userId, String email,
-                                     String roles, String gatewaySecret) {
+                String roles, String gatewaySecret) {
             super(delegate);
             HttpHeaders copy = new HttpHeaders();
             copy.addAll(delegate.getHeaders());
