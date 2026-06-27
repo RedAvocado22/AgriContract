@@ -17,6 +17,9 @@ memory/
 CLAUDE.md
 GEMINI.md
 scripts/
+!scripts/dev-seed.sh
+!scripts/seed/
+!scripts/seed/**
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
