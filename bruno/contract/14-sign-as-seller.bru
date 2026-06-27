@@ -1,0 +1,25 @@
+meta {
+  name: 14. Sign Contract (seller — contract becomes SIGNED, listing closed)
+  type: http
+  seq: 14
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/sign
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+}

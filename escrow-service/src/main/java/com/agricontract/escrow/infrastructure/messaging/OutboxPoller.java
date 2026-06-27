@@ -2,6 +2,8 @@ package com.agricontract.escrow.infrastructure.messaging;
 
 import com.agricontract.escrow.infrastructure.persistence.entity.EscrowDomainEventJpaEntity;
 import com.agricontract.escrow.infrastructure.persistence.repository.EscrowDomainEventJpaRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
@@ -10,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import static com.agricontract.escrow.infrastructure.persistence.entity.EscrowDomainEventJpaEntity.Status.PENDING;
 import static com.agricontract.escrow.infrastructure.persistence.entity.EscrowDomainEventJpaEntity.Status.PUBLISHED;
@@ -22,17 +25,19 @@ public class OutboxPoller {
 
     private final EscrowDomainEventJpaRepository repository;
     private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
 
     @Scheduled(fixedDelay = 1000)
     public void publishPendingEvents() {
         for (EscrowDomainEventJpaEntity row : repository.findByStatusOrderByCreatedAtAsc(PENDING)) {
             try {
-                rabbitTemplate.convertAndSend(EXCHANGE, row.getEventType(), row.getPayload());
+                Map<String, Object> payload = objectMapper.readValue(row.getPayload(), new TypeReference<>() {});
+                rabbitTemplate.convertAndSend(EXCHANGE, row.getEventType(), payload);
                 row.setStatus(PUBLISHED);
                 row.setPublishedAt(LocalDateTime.now());
                 repository.save(row);
                 log.debug("Published event {} ({}) to {}", row.getId(), row.getEventType(), EXCHANGE);
-            } catch (AmqpException e) {
+            } catch (Exception e) {
                 log.error("Event {} with type: {} is {}", row.getId(), row.getEventType(), e.getMessage());
             }
         }

@@ -11,9 +11,11 @@ import java.io.IOException;
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private final String gatewaySecret;
+    private final String serviceInternalSecret;
 
-    public HeaderAuthenticationFilter(String gatewaySecret) {
+    public HeaderAuthenticationFilter(String gatewaySecret, String serviceInternalSecret) {
         this.gatewaySecret = gatewaySecret;
+        this.serviceInternalSecret = serviceInternalSecret;
     }
 
     @Override
@@ -26,6 +28,12 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+
+        String internalSecret = request.getHeader("X-Internal-Secret");
+        if (serviceInternalSecret.equals(internalSecret)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String headerSecret = request.getHeader("X-Gateway-Secret");
 

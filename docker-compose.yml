@@ -36,6 +36,8 @@ services:
           "CMD-SHELL",
           "(echo > /dev/tcp/localhost/8080) 2>/dev/null && exit 0 || exit 1",
         ]
+=======
+      test: [ "CMD-SHELL", "(echo > /dev/tcp/localhost/8080) 2>/dev/null && exit 0 || exit 1" ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -55,7 +57,7 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -76,6 +78,7 @@ services:
     container_name: user-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: user_db
     ports:
       - "3307:3306"
@@ -84,7 +87,7 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -94,6 +97,7 @@ services:
     container_name: product-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: product_db
     ports:
       - "3308:3306"
@@ -102,7 +106,7 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -112,6 +116,7 @@ services:
     container_name: contract-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: contract_db
     ports:
       - "3309:3306"
@@ -120,7 +125,7 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -130,6 +135,7 @@ services:
     container_name: escrow-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: escrow_db
     ports:
       - "3310:3306"
@@ -138,7 +144,7 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -148,6 +154,7 @@ services:
     container_name: notification-db
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
       MYSQL_DATABASE: notification_db
     ports:
       - "3311:3306"
@@ -156,7 +163,7 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -164,7 +171,9 @@ services:
   # ── Services ──────────────────────────────────────────────────
 
   api-gateway:
-    build: ./api-gateway
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
     ports:
       - "8080:8888"
@@ -183,7 +192,9 @@ services:
       - agricontract-net
 
   user-service:
-    build: ./user-service
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
     container_name: user-service
     ports:
       - "8081:8081"
@@ -194,6 +205,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
     depends_on:
       user-db:
         condition: service_healthy
@@ -203,7 +216,9 @@ services:
       - agricontract-net
 
   product-service:
-    build: ./product-service
+    build:
+      context: .
+      dockerfile: product-service/Dockerfile
     container_name: product-service
     ports:
       - "8082:8082"
@@ -214,6 +229,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
     depends_on:
       product-db:
         condition: service_healthy
@@ -223,7 +240,9 @@ services:
       - agricontract-net
 
   contract-service:
-    build: ./contract-service
+    build:
+      context: .
+      dockerfile: contract-service/Dockerfile
     container_name: contract-service
     ports:
       - "8083:8083"
@@ -234,7 +253,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
       RABBITMQ_HOST: rabbitmq
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
       PRODUCT_SERVICE_URL: http://product-service:8082
+      USER_SERVICE_URL: http://user-service:8081
     depends_on:
       contract-db:
         condition: service_healthy
@@ -246,7 +268,9 @@ services:
       - agricontract-net
 
   escrow-service:
-    build: ./escrow-service
+    build:
+      context: .
+      dockerfile: escrow-service/Dockerfile
     container_name: escrow-service
     ports:
       - "8084:8084"
@@ -267,10 +291,12 @@ services:
       - agricontract-net
 
   notification-service:
-    build: ./notification-service
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
     container_name: notification-service
     ports:
-      - "8085:8085"
+      - "8085:8085"11
     environment:
       DB_HOST: notification-db
       DB_NAME: notification_db

@@ -2,7 +2,7 @@ spring:
   application:
     name: contract-service
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3309}/${DB_NAME:contract_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:contract_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:password}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -23,6 +23,12 @@ spring:
     port: 5672
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+gateway:
+  internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
+
+service:
+  internal-secret: ${SERVICE_INTERNAL_SECRET:changeme-internal}
+
 
 feign:
   client:
@@ -37,9 +43,18 @@ server:
 product-service:
   url: ${PRODUCT_SERVICE_URL:http://localhost:8082}
 
+user-service:
+  url: ${USER_SERVICE_URL:http://localhost:8081}
+
 outbox:
   poller:
     fixed-delay-ms: 1000
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
 
 management:
   endpoints:

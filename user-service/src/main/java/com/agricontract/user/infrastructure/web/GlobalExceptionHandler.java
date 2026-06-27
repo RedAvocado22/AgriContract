@@ -27,17 +27,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(400).body(ApiResponse.error(ex.getMessage()));
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
-        return ResponseEntity.status(500).body(ApiResponse.error("Internal server error"));
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .map(e -> e.getField() + ": " + e.getDefaultMessage())
                 .collect(java.util.stream.Collectors.joining(", "));
         return ResponseEntity.status(400).body(ApiResponse.error(message));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
+        return ResponseEntity.status(500).body(ApiResponse.error("Internal server error"));
     }
 
 }

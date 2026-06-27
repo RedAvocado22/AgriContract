@@ -1,0 +1,45 @@
+meta {
+  name: 06. Create Contract (buyer offers) — state: OFFERED
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/api/v1/contracts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "listingId": "{{listing_id}}",
+    "terms": {
+      "quantity": { "value": 100, "unit": "kg" },
+      "agreedPrice": { "amount": 5000000, "currency": "VND" },
+      "deliveryDeadline": "2026-08-01",
+      "buyerPenaltyRate": 0.1,
+      "sellerDepositRate": 0.1,
+      "qualitySpec": "Grade A, moisture < 14%"
+    }
+  }
+}
+
+tests {
+  test("should return 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("status should be OFFERED", function() {
+    expect(res.getBody().data.status).to.equal("OFFERED");
+  });
+  test("buyerId should match buyer1", function() {
+    expect(res.getBody().data.buyerId).to.equal(bru.getEnvVar("buyer1_sub"));
+  });
+}
+
+script:post-response {
+  bru.setEnvVar("contract_id", res.getBody().data.contractId);
+}

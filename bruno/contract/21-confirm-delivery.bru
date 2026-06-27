@@ -1,0 +1,28 @@
+meta {
+  name: 21. Confirm Delivery (buyer) — state: DELIVERED
+  type: http
+  seq: 21
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/confirm-delivery
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("status should be DELIVERED", function() {
+    expect(res.getBody().data.status).to.equal("DELIVERED");
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+}

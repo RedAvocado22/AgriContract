@@ -5,7 +5,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${KEYCLOAK_JWK_URI:http://localhost:8080/realms/agricontract/protocol/openid-connect/certs}
+          jwk-set-uri: ${KEYCLOAK_JWK_URI:http://localhost:8180/realms/agricontract/protocol/openid-connect/certs}
   cloud:
     gateway:
       globalcors:

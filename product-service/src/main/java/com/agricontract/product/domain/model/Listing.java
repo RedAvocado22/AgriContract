@@ -13,7 +13,7 @@ public class Listing {
     private ListingId listingId;
     private String sellerId;
     private ProductId productId;
-    private String productName;     // snapshot at listing creation time
+    private String productName;
     private Quantity quantity;
     private Money priceFloor;
     private LocalDate deliveryDeadline;
@@ -61,7 +61,7 @@ public class Listing {
      */
     public void close() {
         if (this.status != ListingStatus.ACTIVE) {
-            throw new IllegalArgumentException("Listing status must be ACTIVE");
+            throw new IllegalStateException("Listing status must be ACTIVE");
         }
         this.status = ListingStatus.CLOSED;
     }
@@ -71,7 +71,7 @@ public class Listing {
      */
     public void expire() {
         if (this.status != ListingStatus.ACTIVE) {
-            throw new IllegalArgumentException("Listing status must be ACTIVE");
+            throw new IllegalStateException("Listing status must be ACTIVE");
         }
         this.status = ListingStatus.EXPIRED;
     }

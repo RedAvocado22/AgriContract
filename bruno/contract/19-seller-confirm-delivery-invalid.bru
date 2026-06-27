@@ -1,0 +1,21 @@
+meta {
+  name: 19. [Security] Seller tries confirm delivery (expect 403)
+  type: http
+  seq: 19
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/confirm-delivery
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+tests {
+  test("seller confirm delivery should return 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

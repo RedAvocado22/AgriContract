@@ -1,0 +1,21 @@
+meta {
+  name: 08. [Security] Get Contract as stranger (expect 403)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{stranger_token}}
+}
+
+tests {
+  test("stranger should get 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

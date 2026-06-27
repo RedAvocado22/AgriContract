@@ -1,0 +1,28 @@
+meta {
+  name: 29. List Contracts (as seller, role=SELLER)
+  type: http
+  seq: 29
+}
+
+get {
+  url: {{base_url}}/api/v1/contracts?role=SELLER
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("should return array", function() {
+    expect(res.getBody().data).to.be.an("array");
+  });
+  test("should contain our contract", function() {
+    const found = res.getBody().data.some(c => c.contractId === bru.getEnvVar("contract_id"));
+    expect(found).to.equal(true);
+  });
+}

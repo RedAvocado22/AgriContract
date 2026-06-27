@@ -1,0 +1,27 @@
+meta {
+  name: 20. [Error] Dispute from ACTIVE — must be DELIVERED (expect 400)
+  type: http
+  seq: 20
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{contract_id}}/dispute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "reason": "trying to dispute before delivery"
+  }
+}
+
+tests {
+  test("dispute from ACTIVE should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

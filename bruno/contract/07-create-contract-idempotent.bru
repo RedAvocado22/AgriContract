@@ -1,0 +1,39 @@
+meta {
+  name: 07. [Edge] Create Contract idempotent — same contractId, same buyer (expect 201, no duplicate)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{base_url}}/api/v1/contracts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "contractId": "{{contract_id}}",
+    "listingId": "{{listing_id}}",
+    "terms": {
+      "quantity": { "value": 100, "unit": "kg" },
+      "agreedPrice": { "amount": 5000000, "currency": "VND" },
+      "deliveryDeadline": "2026-08-01",
+      "buyerPenaltyRate": 0.1,
+      "sellerDepositRate": 0.1,
+      "qualitySpec": "Grade A, moisture < 14%"
+    }
+  }
+}
+
+tests {
+  test("idempotent create should return 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("contractId should be same", function() {
+    expect(res.getBody().data.contractId).to.equal(bru.getEnvVar("contract_id"));
+  });
+}

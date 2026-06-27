@@ -33,7 +33,7 @@ public class DlqMonitor {
             if (props == null) continue;
             Integer count = (Integer) props.get(RabbitAdmin.QUEUE_MESSAGE_COUNT);
             if (count != null && count > 0) {
-                log.warn("DLQ {} has {} message(s) — cần người xử lý tay", dlq, count);
+                log.warn("DLQ {} has {} message(s) — need manual fix", dlq, count);
             }
         }
     }
