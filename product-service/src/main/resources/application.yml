@@ -3,8 +3,8 @@ spring:
     name: product-service
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3308}/${DB_NAME:product_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:password}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
