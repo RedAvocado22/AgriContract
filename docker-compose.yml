@@ -31,7 +31,11 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: ["CMD-SHELL", "(echo > /dev/tcp/localhost/8080) 2>/dev/null && exit 0 || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "(echo > /dev/tcp/localhost/8080) 2>/dev/null && exit 0 || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -185,6 +189,7 @@ services:
       - "8081:8081"
     environment:
       DB_HOST: user-db
+      DB_PORT: 3306
       DB_NAME: user_db
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
@@ -204,6 +209,7 @@ services:
       - "8082:8082"
     environment:
       DB_HOST: product-db
+      DB_PORT: 3306
       DB_NAME: product_db
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}

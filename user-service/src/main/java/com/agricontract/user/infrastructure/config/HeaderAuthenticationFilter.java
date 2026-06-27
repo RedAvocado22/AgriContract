@@ -24,8 +24,8 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
 
         String headerSecret = request.getHeader("X-Gateway-Secret");
 
@@ -33,8 +33,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
             response.getWriter().write(
-                    "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}"
-            );
+                    "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}");
             return;
         }
 
