@@ -14,7 +14,7 @@ import java.util.Map;
 @Slf4j
 public class NotificationEventConsumer {
 
-    @RabbitListener(queues = "notification.contract.signed")
+    @RabbitListener(queues = "notification-svc.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
         // TODO: send email to buyer + seller
     }
