@@ -10,17 +10,22 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "notification_logs")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Table(name = "notification_logs", uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "user_id"}))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class NotificationLogJpaEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "notification_id", nullable = false, unique = true)
     private String notificationId;
 
-    @Column(name = "event_id", nullable = false, unique = true)
+    @Column(name = "event_id", nullable = false)
     private String eventId; // dedup key
 
     @Column(name = "user_id", nullable = false)
@@ -43,9 +48,11 @@ public class NotificationLogJpaEntity {
     @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
-    @CreationTimestamp @Column(name = "created_at", updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp @Column(name = "updated_at")
+    @UpdateTimestamp
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }

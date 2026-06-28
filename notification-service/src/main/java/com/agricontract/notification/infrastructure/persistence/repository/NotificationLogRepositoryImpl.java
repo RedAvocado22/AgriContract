@@ -23,12 +23,12 @@ public class NotificationLogRepositoryImpl implements NotificationLogRepository 
     }
 
     @Override
-    public boolean existsByEventId(String eventId) {
-        return jpaRepository.existsByEventId(eventId);
+    public boolean existsByEventIdAndUserId(String eventId, String userId) {
+        return jpaRepository.existsByEventIdAndUserId(eventId, userId);
     }
 
     @Override
-    public Optional<NotificationLog> findByEventId(String eventId) {
-        return jpaRepository.findByEventId(eventId).map(mapper::toDomain);
+    public Optional<NotificationLog> findByEventIdAndUserId(String eventId, String userId) {
+        return jpaRepository.findByEventIdAndUserId(eventId, userId).map(mapper::toDomain);
     }
 }
