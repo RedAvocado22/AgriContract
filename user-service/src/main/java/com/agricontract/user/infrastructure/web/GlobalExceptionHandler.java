@@ -1,7 +1,7 @@
 package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.common.ApiResponse;
-import org.springframework.dao.DataIntegrityViolationException;
+import com.agricontract.user.common.exception.UserAlreadyExistsException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,9 +17,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(404).body(ApiResponse.error(ex.getMessage()));
     }
 
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConflict(DataIntegrityViolationException ex) {
-        return ResponseEntity.status(409).body(ApiResponse.error("Resource already exists"));
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

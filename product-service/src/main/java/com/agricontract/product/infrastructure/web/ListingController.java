@@ -3,13 +3,14 @@ package com.agricontract.product.infrastructure.web;
 import com.agricontract.product.application.dto.CreateListingRequest;
 import com.agricontract.product.application.dto.ListingQueryRequest;
 import com.agricontract.product.application.dto.ListingResponse;
+import com.agricontract.product.application.dto.PagedResult;
 import com.agricontract.product.application.usecase.*;
 import com.agricontract.product.common.ApiResponse;
 import com.agricontract.product.common.PaginatedResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -31,8 +32,9 @@ public class ListingController {
     @GetMapping
     public ResponseEntity<ApiResponse<PaginatedResponse<ListingResponse>>> getActiveListings(
             @ModelAttribute @Valid ListingQueryRequest request) {
-        Page<ListingResponse> result = listActiveListingsUseCase.execute(request.toPageable());
-        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result)));
+        Pageable pageable = request.toPageable();
+        PagedResult<ListingResponse> result = listActiveListingsUseCase.execute(pageable);
+        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result, pageable)));
     }
 
     @GetMapping("/{listingId}")
@@ -46,8 +48,9 @@ public class ListingController {
     public ResponseEntity<ApiResponse<PaginatedResponse<ListingResponse>>> getSellerListings(
             @ModelAttribute @Valid ListingQueryRequest request,
             @RequestHeader("X-User-Id") String sellerId) {
-        Page<ListingResponse> result = getSellerListingsUseCase.execute(sellerId, request.toPageable());
-        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result)));
+        Pageable pageable = request.toPageable();
+        PagedResult<ListingResponse> result = getSellerListingsUseCase.execute(sellerId, pageable);
+        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result, pageable)));
     }
 
     @PreAuthorize("hasRole('SELLER')")
