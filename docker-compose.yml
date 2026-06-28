@@ -289,7 +289,7 @@ services:
       dockerfile: notification-service/Dockerfile
     container_name: notification-service
     ports:
-      - "8085:8085"11
+      - "8085:8085"
     environment:
       DB_HOST: notification-db
       DB_NAME: notification_db
