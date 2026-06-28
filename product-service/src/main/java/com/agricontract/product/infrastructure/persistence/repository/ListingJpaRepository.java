@@ -14,8 +14,10 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, Lo
     Optional<ListingJpaEntity> findByListingId(String listingId);
 
     Page<ListingJpaEntity> findBySellerId(String sellerId, Pageable pageable);
+    long countBySellerId(String sellerId);
 
     Page<ListingJpaEntity> findByStatus(ListingStatus status, Pageable pageable);
+    long countByStatus(ListingStatus status);
 
     List<ListingJpaEntity> findByStatusAndDeliveryDeadlineBefore(ListingStatus status, LocalDate date);
 

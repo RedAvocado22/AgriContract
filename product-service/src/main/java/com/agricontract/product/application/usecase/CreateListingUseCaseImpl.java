@@ -13,7 +13,6 @@ import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -25,7 +24,6 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
     private final ProductRepository productRepository;
 
     @Override
-    @Transactional
     public ListingResponse execute(String sellerId, CreateListingRequest request) {
         Product product = productRepository.findById(new ProductId(request.productId()))
                 .orElseThrow(() -> new ProductNotFoundException(request.productId()));

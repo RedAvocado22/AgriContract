@@ -1,6 +1,7 @@
 package com.agricontract.product.common;
 
-import org.springframework.data.domain.Page;
+import com.agricontract.product.application.dto.PagedResult;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -14,16 +15,18 @@ public record PaginatedResponse<T>(
         boolean last,
         boolean empty
 ) {
-    public static <T> PaginatedResponse<T> from(Page<T> page) {
+    public static <T> PaginatedResponse<T> from(PagedResult<T> result, Pageable pageable) {
+        int pageNum = pageable.getPageNumber();
+        boolean isLast = result.totalPages() == 0 || pageNum >= result.totalPages() - 1;
         return new PaginatedResponse<>(
-                page.getContent(),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages(),
-                page.isFirst(),
-                page.isLast(),
-                page.isEmpty()
+                result.content(),
+                pageNum,
+                pageable.getPageSize(),
+                result.totalElements(),
+                result.totalPages(),
+                pageNum == 0,
+                isLast,
+                result.content().isEmpty()
         );
     }
 }
