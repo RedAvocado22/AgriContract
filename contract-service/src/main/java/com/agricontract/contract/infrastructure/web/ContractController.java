@@ -111,4 +111,5 @@ public class ContractController {
                 : listContractsUseCase.executeByBuyer(userId);
         return ResponseEntity.ok(ApiResponse.ok(contracts));
     }
+
 }
