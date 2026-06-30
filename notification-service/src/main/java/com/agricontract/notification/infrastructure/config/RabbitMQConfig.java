@@ -26,17 +26,21 @@ public class RabbitMQConfig {
 
     @Bean
     public Declarables notificationEventDeclarables() {
-        TopicExchange exchange = new TopicExchange("agricontract.events", true, false);
+        TopicExchange contractsExchange = new TopicExchange("agricontract.contracts", true, false);
+        TopicExchange escrowExchange = new TopicExchange("agricontract.escrow", true, false);
 
-        List<Declarable> declarables = new ArrayList<>();
-        declarables.add(exchange);
+        List<Declarable> declarables = new ArrayList<>(List.of(contractsExchange, escrowExchange));
 
-        for (String routingKey : List.of(
-                "contract.signed", "contract.delivered", "contract.cancelled", "contract.disputed",
-                "escrow.locked", "escrow.released", "escrow.penalized")) {
+        for (String routingKey : List.of("contract.signed", "contract.delivered", "contract.cancelled", "contract.disputed")) {
             Queue queue = QueueBuilder.durable("notification-svc." + routingKey).build();
             declarables.add(queue);
-            declarables.add(BindingBuilder.bind(queue).to(exchange).with(routingKey));
+            declarables.add(BindingBuilder.bind(queue).to(contractsExchange).with(routingKey));
+        }
+
+        for (String routingKey : List.of("escrow.locked", "escrow.released", "escrow.penalized")) {
+            Queue queue = QueueBuilder.durable("notification-svc." + routingKey).build();
+            declarables.add(queue);
+            declarables.add(BindingBuilder.bind(queue).to(escrowExchange).with(routingKey));
         }
 
         return new Declarables(declarables);
