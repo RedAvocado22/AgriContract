@@ -1,11 +1,11 @@
 meta {
-  name: 28. List Contracts (as buyer)
+  name: 31. List Contracts (filter by status=ACTIVE)
   type: http
-  seq: 28
+  seq: 31
 }
 
 get {
-  url: {{base_url}}/api/v1/contracts?page=0&size=20
+  url: {{base_url}}/api/v1/contracts?status=ACTIVE&page=0&size=10
   body: none
   auth: bearer
 }
@@ -22,10 +22,11 @@ tests {
     const data = res.getBody().data;
     expect(data).to.have.property("content");
     expect(data).to.have.property("totalElements");
-    expect(data.content).to.be.an("array");
   });
-  test("should contain our contract", function() {
-    const found = res.getBody().data.content.some(c => c.contractId === bru.getEnvVar("contract_id"));
-    expect(found).to.equal(true);
+  test("all returned contracts should have status ACTIVE", function() {
+    const contracts = res.getBody().data.content;
+    contracts.forEach(c => {
+      expect(c.status).to.equal("ACTIVE");
+    });
   });
 }
