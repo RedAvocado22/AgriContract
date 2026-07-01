@@ -1,0 +1,52 @@
+meta {
+  name: 14. Publish escrow.penalized (only penalized party notified — buyer here)
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{rabbitmq_management_url}}/api/exchanges/%2f/agricontract.escrow/publish
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{rabbitmq_username}}
+  password: {{rabbitmq_password}}
+}
+
+body:json {
+  {
+    "properties": {"content_type": "application/json", "delivery_mode": 2},
+    "routing_key": "escrow.penalized",
+    "payload": {{event_payload_string}},
+    "payload_encoding": "string"
+  }
+}
+
+script:pre-request {
+  const escrowId = "notif-escrow-penalized-" + Date.now();
+  const payload = {
+    eventId: "evt-escrow-penalized-" + Date.now(),
+    eventType: "escrow.penalized",
+    occurredAt: new Date().toISOString(),
+    buyerEmail: bru.getEnvVar("buyer1_email"),
+    sellerEmail: bru.getEnvVar("seller1_email"),
+    escrowId: escrowId,
+    contractId: "notif-escrow-penalized-contract-" + Date.now(),
+    penalizedParty: "BUYER",
+    penaltyAmount: { amount: 500000, currency: "VND" }
+  };
+  bru.setEnvVar("notif_escrow_penalized_id", escrowId);
+  bru.setVar("event_payload_string", JSON.stringify(JSON.stringify(payload)));
+}
+
+tests {
+  test("should be routed to notification-svc.escrow.penalized", function() {
+    expect(res.getBody().routed).to.equal(true);
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 4500));
+}
