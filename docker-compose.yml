@@ -289,9 +289,10 @@ services:
       dockerfile: notification-service/Dockerfile
     container_name: notification-service
     ports:
-      - "8085:8085"11
+      - "8085:8085"
     environment:
       DB_HOST: notification-db
+      DB_PORT: 3306
       DB_NAME: notification_db
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
