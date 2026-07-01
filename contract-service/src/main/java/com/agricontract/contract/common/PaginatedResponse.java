@@ -1,5 +1,6 @@
 package com.agricontract.contract.common;
 
+import com.agricontract.contract.application.dto.PagedResult;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
@@ -24,6 +25,19 @@ public record PaginatedResponse<T>(
                 page.isFirst(),
                 page.isLast(),
                 page.isEmpty()
+        );
+    }
+
+    public static <T> PaginatedResponse<T> from(PagedResult<T> result) {
+        return new PaginatedResponse<>(
+                result.content(),
+                result.page(),
+                result.size(),
+                result.totalElements(),
+                result.totalPages(),
+                result.first(),
+                result.last(),
+                result.empty()
         );
     }
 }
