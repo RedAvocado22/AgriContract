@@ -6,6 +6,8 @@ import java.util.Optional;
 
 public interface NotificationLogRepository {
     NotificationLog save(NotificationLog log);
-    boolean existsByEventId(String eventId);
-    Optional<NotificationLog> findByEventId(String eventId);
+
+    boolean existsByEventIdAndUserId(String eventId, String userId);
+
+    Optional<NotificationLog> findByEventIdAndUserId(String eventId, String userId);
 }

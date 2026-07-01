@@ -10,8 +10,8 @@
 
 | Sprint | Thời gian | Mục tiêu |
 |---|---|---|
-| Sprint 1 | 09/06 – 22/06 | user-service domain + persistence + API. product-service domain + persistence. |
-| Sprint 2 | 23/06 – 06/07 | product-service API đủ cho NMC test. notification-service consumer gửi email được. |
+| Sprint 1 | 09/06 – 22/06 | user-service domain + persistence + API. product-service domain + persistence. ✅ DONE |
+| Sprint 2 | 23/06 – 06/07 | product-service API đủ cho NMC test. notification-service consumer gửi email được. ✅ DONE (01/07/2026) |
 | Sprint 3 | 07/07 – 20/07 | Assist integration test + buffer + bug fix |
 | Buffer | 21/07 – 24/07 | Bug fix + demo prep |
 
@@ -90,62 +90,54 @@ File: `product-service/.../domain/model/Listing.java` *(hiện tại: 4 TODO)*
 
 ---
 
-## Sprint 2 (23/06 – 06/07) — product API + notification-service
+## Sprint 2 (23/06 – 06/07) — product API + notification-service ✅ DONE (01/07/2026)
 
-### 🔌 6. Product API + Internal /close ⚡ ƯU TIÊN SỐ 1
-*(hiện tại: `ListingController` có sẵn skeleton 4 endpoint, đều rỗng)*
+### 🔌 6. Product API + Internal /close ⚡ ƯU TIÊN SỐ 1 — ✅ DONE
+- [x] `CreateListingUseCaseImpl` — load Product → snapshot `product.getName()` vào Listing
+- [x] Endpoints:
 
-- [ ] `CreateListingUseCaseImpl` — load Product → snapshot `product.getName()` vào Listing
-- [ ] Endpoints theo độ ưu tiên:
-
-  | Method | Path | Role | Priority |
+  | Method | Path | Role | Status |
   |---|---|---|---|
-  | GET | `/api/v1/listings/{listingId}` | Public | 🔥 **NMC blocked nếu chưa có — xong trước 23/06** |
-  | PUT | `/api/v1/listings/{listingId}/close` | Internal | 🔥 NMC blocked nếu chưa có |
-  | GET | `/api/v1/listings` | Public | Normal |
-  | POST | `/api/v1/listings` | SELLER | Normal |
-  | POST | `/api/v1/products` | SELLER | Normal |
-  | GET | `/api/v1/listings/seller` | SELLER | Normal (cần thêm endpoint — chưa có trong controller) |
+  | GET | `/api/v1/listings/{listingId}` | Public | ✅ |
+  | PUT | `/api/v1/listings/{listingId}/close` | Internal | ✅ |
+  | GET | `/api/v1/listings` | Public | ✅ |
+  | POST | `/api/v1/listings` | SELLER | ✅ |
+  | POST | `/api/v1/products` | SELLER | ✅ |
+  | GET | `/api/v1/listings/seller` | SELLER | ✅ |
 
-- [ ] `/close` bảo vệ bằng header `X-Internal-Call: true` — thiếu header → `403`
-- [ ] ✅ **DoD:** GET /listings/{id} trả đúng JSON đủ fields · PUT /close có header → CLOSED · không header → 403 · unit tests pass
+- [x] `/close` bảo vệ bằng header `X-Internal-Secret` verify với `SERVICE_INTERNAL_SECRET` (đổi từ plan gốc `X-Internal-Call: true` — literal đó forgeable, xem `decisions.md`) — thiếu/sai secret → `403`
+- [x] **DoD:** GET /listings/{id} trả đúng JSON đủ fields · PUT /close có secret đúng → CLOSED · sai/thiếu → 403 · unit tests pass
+- [x] Bruno collection `bruno/product-service/` (00–06) — 27/27 test pass (20/06/2026)
 
-### 💾 7. Notification Persistence + RabbitMQ Config
-*(hiện tại: **chưa có** JpaRepository / RepositoryImpl / RabbitMQConfig)*
+### 💾 7. Notification Persistence + RabbitMQ Config — ✅ DONE
+- [x] `NotificationLogJpaRepository`: `existsByEventIdAndUserId`, `findByEventIdAndUserId`
+- [x] `NotificationLogRepositoryImpl` + `NotificationLogMapper`
+- [x] `RabbitMQConfig`: 2 TopicExchange (`agricontract.contracts`, `agricontract.escrow`), **7 queue** đặt tên `notification-svc.{routing-key}` (đổi từ plan gốc 2 queue gộp + binding `#` — verify trực tiếp code NMC 30/06/2026 ra spec khác ban đầu, xem `shared_contracts.md`), `Jackson2JsonMessageConverter`
+- [x] Flyway migration `V1__create_notification_logs.sql`
 
-- [ ] `NotificationLogJpaRepository`: `existsByEventId` (idempotency guard), `findByEventId`, `findByStatus`
-- [ ] `NotificationLogRepositoryImpl` + `NotificationLogMapper`
-- [ ] `RabbitMQConfig`: 2 TopicExchange (`agricontract.contracts`, `agricontract.escrow`), 2 durable queue (`notif-svc.contracts`, `notif-svc.escrow`), binding wildcard `#`, `Jackson2JsonMessageConverter`
-  - ⚠️ Tên queue phải khớp SHARED_CONTRACTS của NMC — check lại plan NMC trước khi code
-- [ ] Flyway migration cho `notification_db`
-
-### 📧 8. Event Consumer + Email Sending
-*(hiện tại: `NotificationEventConsumer` còn 5 TODO)*
-
-- [ ] Listener `notif-svc.contracts` + `notif-svc.escrow`, xử lý **đúng thứ tự bắt buộc**:
-  1. Idempotency — `existsByEventId` → skip duplicate (RabbitMQ at-least-once)
+### 📧 8. Event Consumer + Email Sending — ✅ DONE
+- [x] 7 listener (`@RabbitListener` riêng từng queue), xử lý **đúng thứ tự bắt buộc**:
+  1. Idempotency — `existsByEventIdAndUserId` (đổi từ `existsByEventId` — 1 event có thể sinh nhiều notification cho nhiều recipient, key phải gồm cả userId/email) → skip duplicate
   2. Persist log PENDING **trước khi** gửi
-  3. Dispatch theo `eventType` (switch)
-- [ ] Retry email 3 lần, backoff 1s/2s/4s; fail cả 3 → `log.status = FAILED`
-- [ ] Email templates:
+  3. Dispatch theo `eventType`
+- [x] Retry 3 lần, backoff 1s/2s/4s (`RetryInterceptorBuilder` trên `SimpleRabbitListenerContainerFactory`)
+- [x] Email templates (subject cuối cùng dùng tiếng Anh, không phải bản tiếng Việt trong plan gốc):
 
-  | Event | Recipient | Subject |
+  | Event (routing key) | Recipient | Subject (đã implement) |
   |---|---|---|
-  | ContractSignedEvent | Seller + Buyer | [AgriContract] Hợp đồng đã được ký |
-  | EscrowLockedEvent | Seller | [AgriContract] Escrow đã lock — tiến hành giao hàng |
-  | GoodsDeliveredEvent | Seller | [AgriContract] Buyer xác nhận đã nhận hàng |
-  | EscrowReleasedEvent | Seller + Buyer | [AgriContract] Thanh toán đã giải phóng |
-  | ContractCancelledEvent | Seller + Buyer | [AgriContract] Hợp đồng đã bị hủy |
-  | EscrowPenalizedEvent | Bên bị phạt | [AgriContract] Thông báo phạt hợp đồng |
-  | ContractDisputedEvent | Admin + cả hai | [AgriContract][ADMIN] Tranh chấp mới cần xử lý |
+  | `contract.signed` | Seller + Buyer | [AgriContract] Contract has been signed |
+  | `escrow.locked` | Seller | [AgriContract] Escrow locked — proceed with delivery |
+  | `contract.delivered` | Seller | [AgriContract] Buyer confirmed receipt of goods |
+  | `escrow.released` | Seller + Buyer | [AgriContract] Payment has been released |
+  | `contract.cancelled` | Seller + Buyer | [AgriContract] Contract has been cancelled |
+  | `escrow.penalized` | Bên bị phạt (theo `penalizedParty`) | [AgriContract] Contract penalty notification |
+  | `contract.disputed` | Admin + Seller + Buyer | [AgriContract] [ADMIN] New dispute requires resolution |
 
-- [ ] ✅ **DoD:** chạy happy path → MailHog (`localhost:8025`) có ≥ 3 emails · gửi lại event 2 lần → email chỉ xuất hiện 1 lần
+- [x] **DoD:** Bruno suite (`bruno/notification-service/`, 16 request / 30 test) verify MailHog nhận đúng email cho cả 7 event · gửi lại `eventId` trùng → không có email thứ 2 (idempotency test) · `notification_logs` chuyển đúng `SENT`
 
-### 🔗 9. UserService Feign Client
-- [ ] `UserServiceClient` — `@FeignClient(name = "user-service", url = "${user-service.url:http://user-service:8081}")`, `GET /api/v1/users/{userId}`
-- [ ] Record `UserInfo(userId, organizationName, email, role)` — khớp format `UserProfileResponse`
-- [ ] `getEmail()` lỗi → log warn + return null, **không throw** (skip, tiếp tục xử lý)
-- [ ] Thêm `@EnableFeignClients` vào `NotificationServiceApplication` + OpenFeign dependency vào `pom.xml`
+### 🔗 9. UserService Feign Client — ⚠️ built nhưng KHÔNG dùng
+- [x] `UserServiceClient` + `UserPortAdapter` + `UserPort` + `UserInfo` đã code xong, `@EnableFeignClients` + OpenFeign dependency đã thêm
+- ⚠️ **Phát hiện 01/07/2026: Feign client này không được gọi ở đâu cả** (`grep` 0 kết quả cho `UserPort` ngoài chính 2 file định nghĩa nó). Lý do: `buyerEmail`/`sellerEmail` đã được contract-service/escrow-service publish trực tiếp trong event payload, nên `sendNotification()` dùng thẳng field đó, không cần Feign resolve qua user-service nữa (xem `shared_contracts.md`). Giữ nguyên code (không phải dead code nguy hiểm, chỉ là chưa dùng) — cân nhắc xoá nếu chắc chắn không cần trong Sprint 3.
 
 ---
 
@@ -171,3 +163,16 @@ File: `product-service/.../domain/model/Listing.java` *(hiện tại: 4 TODO)*
 - `notification-service`: **thiếu** JpaRepository/RepositoryImpl/Mapper, RabbitMQConfig, Feign client — phải tạo mới.
 - Chưa service nào có Flyway migration / thư mục `db/migration`.
 - Gateway + auth public-path đã được NMC làm xong (PR #1 đã merge) — public endpoints của product-service đã được permit.
+
+## 📌 Cập nhật trạng thái sau Sprint 2 (01/07/2026)
+
+- **Cả 3 service (user-service, product-service, notification-service) đã DONE**, đúng scope Sprint 1 + 2.
+- `user-service`: PR merged vào `main` (26/06/2026).
+- `product-service`: PR merged, kèm fix `X-Internal-Secret` auth (26/06/2026). Bruno 27/27 pass.
+- `notification-service`: PR #35 (`feature/notification-service` → `main`), gồm toàn bộ implementation + Bruno suite 30/30 pass + 5 bug fix phát hiện lúc viết test:
+  1. `docker-compose.yml` — lỗi cú pháp port khiến container không build được
+  2. `pom.xml` — dependency Maven thừa vào module `user-service` (0 chỗ dùng) khiến Docker build fail; thiếu `jackson-datatype-jsr310`
+  3. `application.yml` — `admin-email` thụt lề sai khiến app crash lúc start; `DB_PORT` hardcode 3306 không khớp port host-expose (3311) gây lỗi khi chạy local/IDE
+  4. `NotificationLogRepositoryImpl.save()` — luôn INSERT (mapper ignore `id` thật) → duplicate key ở lần save thứ 2 (PENDING → SENT). Đã fix bằng cách tìm entity cũ theo `(eventId, userId)` trước khi save.
+- Data test dùng user thật từ Keycloak (`buyer1`/`seller1`, verify live qua token + `/userinfo`), không phải UUID giả.
+- Việc chưa xong / để dành Sprint 3: email template đẹp hơn (hiện plain text đủ demo), cân nhắc xoá Feign `UserPort` không dùng (mục 9), assist NMC saga wiring + integration test.

@@ -1,0 +1,25 @@
+meta {
+  name: 15. Verify only the penalized buyer1 received the penalty email
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_escrow_penalized_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("exactly 1 email sent (penalized party only)", function() {
+    expect(res.getBody().count).to.equal(1);
+  });
+
+  test("recipient is buyer1 (penalizedParty=BUYER), not seller1", function() {
+    expect(res.getBody().items[0].Content.Headers.To[0]).to.equal(bru.getEnvVar("buyer1_email"));
+  });
+
+  test("subject matches penalty template", function() {
+    expect(res.getBody().items[0].Content.Headers.Subject[0]).to.include("Contract penalty notification");
+  });
+}
