@@ -19,6 +19,8 @@ public class NotificationLogRepositoryImpl implements NotificationLogRepository 
     @Override
     public NotificationLog save(NotificationLog log) {
         NotificationLogJpaEntity entity = mapper.toJpaEntity(log);
+        jpaRepository.findByEventIdAndUserId(log.getEventId(), log.getUserId())
+                .ifPresent(existing -> entity.setId(existing.getId()));
         return mapper.toDomain(jpaRepository.saveAndFlush(entity));
     }
 
