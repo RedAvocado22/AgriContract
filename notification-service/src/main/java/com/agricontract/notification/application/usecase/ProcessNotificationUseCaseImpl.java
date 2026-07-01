@@ -1,10 +1,11 @@
 package com.agricontract.notification.application.usecase;
 
+import com.agricontract.notification.application.dto.*;
 import com.agricontract.notification.application.port.EmailPort;
 import com.agricontract.notification.domain.model.NotificationLog;
 import com.agricontract.notification.domain.model.vo.NotificationChannel;
+import com.agricontract.notification.domain.model.vo.NotificationStatus;
 import com.agricontract.notification.domain.repository.NotificationLogRepository;
-import com.agricontract.notification.infrastructure.messaging.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,11 +21,13 @@ public class ProcessNotificationUseCaseImpl implements ProcessNotificationUseCas
     private final EmailPort emailPort;
 
     private void sendNotification(String eventId, String recipientEmail, String subject, String body) {
-        if (notificationLogRepository.existsByEventIdAndUserId(eventId, recipientEmail)) {
+        NotificationLog log = notificationLogRepository.findByEventIdAndUserId(eventId, recipientEmail)
+                .orElseGet(() -> NotificationLog.create(eventId, recipientEmail, NotificationChannel.EMAIL, subject, body));
+
+        if (log.getStatus() == NotificationStatus.SENT) {
             return;
         }
 
-        NotificationLog log = NotificationLog.create(eventId, recipientEmail, NotificationChannel.EMAIL, subject, body);
         notificationLogRepository.save(log);
 
         try {
@@ -33,79 +36,69 @@ public class ProcessNotificationUseCaseImpl implements ProcessNotificationUseCas
         } catch (Exception exception) {
             log.markFailed();
             throw new RuntimeException(exception);
+        } finally {
+            notificationLogRepository.save(log);
         }
-
-        notificationLogRepository.save(log);
     }
 
     @Override
-    public void handleContractSigned(ContractSignedEvent event) {
+    public void handleContractSigned(ContractSignedCommand command) {
         String subject = "[AgriContract] Contract has been signed";
-        String body = "Contract " + event.getContractId() + " has been successfully signed.";
+        String body = "Contract " + command.contractId() + " has been successfully signed.";
 
-        sendNotification(event.getEventId().toString(), event.getBuyerEmail(), subject, body);
-        sendNotification(event.getEventId().toString(), event.getSellerEmail(), subject, body);
+        sendNotification(command.eventId(), command.buyerEmail(), subject, body);
+        sendNotification(command.eventId(), command.sellerEmail(), subject, body);
     }
 
-
     @Override
-    public void handleContractCancelled(ContractCancelledEvent event) {
+    public void handleContractCancelled(ContractCancelledCommand command) {
         String subject = "[AgriContract] Contract has been cancelled";
-        String body = "Contract " + event.getContractId() + " has been successfully cancelled.";
+        String body = "Contract " + command.contractId() + " has been cancelled. Reason: " + command.reason();
 
-        sendNotification(event.getEventId().toString(), event.getBuyerEmail(), subject, body);
-        sendNotification(event.getEventId().toString(), event.getSellerEmail(), subject, body);
-
+        sendNotification(command.eventId(), command.buyerEmail(), subject, body);
+        sendNotification(command.eventId(), command.sellerEmail(), subject, body);
     }
 
     @Override
-    public void handleContractDelivered(ContractDeliveredEvent event) {
+    public void handleContractDelivered(ContractDeliveredCommand command) {
         String subject = "[AgriContract] Buyer confirmed receipt of goods";
-        String body = "Contract " + event.getContractId() + " has been successfully delivered.";
+        String body = "Contract " + command.contractId() + " has been successfully delivered.";
 
-        sendNotification(event.getEventId().toString(), event.getSellerEmail(), subject, body);
-
+        sendNotification(command.eventId(), command.sellerEmail(), subject, body);
     }
 
     @Override
-    public void handleContractDisputed(ContractDisputedEvent event) {
+    public void handleContractDisputed(ContractDisputedCommand command) {
         String subject = "[AgriContract] [ADMIN] New dispute requires resolution";
-        String body = "Contract " + event.getContractId() + " has been successfully disputed.";
+        String body = "Contract " + command.contractId() + " has been disputed. Reason: " + command.reason();
 
-        sendNotification(event.getEventId().toString(), adminEmail, subject, body);
-        sendNotification(event.getEventId().toString(), event.getSellerEmail(), subject, body);
-        sendNotification(event.getEventId().toString(), event.getBuyerEmail(), subject, body);
-
+        sendNotification(command.eventId(), adminEmail, subject, body);
+        sendNotification(command.eventId(), command.sellerEmail(), subject, body);
+        sendNotification(command.eventId(), command.buyerEmail(), subject, body);
     }
 
     @Override
-    public void handleEscrowLocked(EscrowLockedEvent event) {
+    public void handleEscrowLocked(EscrowLockedCommand command) {
         String subject = "[AgriContract] Escrow locked — proceed with delivery";
-        String body = "Escrow " + event.getEscrowId() + " has been successfully locked.";
+        String body = "Escrow " + command.escrowId() + " has been successfully locked.";
 
-        sendNotification(event.getEventId().toString(), event.getSellerEmail(), subject, body);
-
+        sendNotification(command.eventId(), command.sellerEmail(), subject, body);
     }
 
     @Override
-    public void handleEscrowReleased(EscrowReleasedEvent event) {
+    public void handleEscrowReleased(EscrowReleasedCommand command) {
         String subject = "[AgriContract] Payment has been released";
-        String body = "Escrow " + event.getEscrowId() + " has been successfully released.";
+        String body = "Escrow " + command.escrowId() + " has been successfully released.";
 
-        sendNotification(event.getEventId().toString(), event.getSellerEmail(), subject, body);
-        sendNotification(event.getEventId().toString(), event.getBuyerEmail(), subject, body);
-
+        sendNotification(command.eventId(), command.sellerEmail(), subject, body);
+        sendNotification(command.eventId(), command.buyerEmail(), subject, body);
     }
 
     @Override
-    public void handleEscrowPenalized(EscrowPenalizedEvent event) {
-        String subject = "[AgriContract]  Contract penalty notification";
-        String body = "Escrow " + event.getEscrowId() + " has been successfully penalized.";
+    public void handleEscrowPenalized(EscrowPenalizedCommand command) {
+        String subject = "[AgriContract] Contract penalty notification";
+        String body = "Escrow " + command.escrowId() + " has been successfully penalized.";
 
-        String recipient = event.getPenalizedParty() == PenalizedParty.BUYER
-                ? event.getBuyerEmail()
-                : event.getSellerEmail();
-        sendNotification(event.getEventId().toString(), recipient, subject, body);
-
+        sendNotification(command.eventId(), command.penalizedPartyEmail(), subject, body);
     }
 }

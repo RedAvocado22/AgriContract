@@ -31,20 +31,11 @@ spring:
           starttls:
             enable: false
 
-user-service:
-  url: ${USER_SERVICE_URL:http://localhost:8081}
-
 notification:
-  retry:
-    max-attempts: 3
-    backoff-ms: 1000
   admin-email: ${ADMIN_EMAIL:admin@agricontract.com}
 
 server:
   port: ${SERVER_PORT:8085}
-
-service:
-  internal-secret: ${SERVICE_INTERNAL_SECRET:changeme-internal}
 
 management:
   endpoints:

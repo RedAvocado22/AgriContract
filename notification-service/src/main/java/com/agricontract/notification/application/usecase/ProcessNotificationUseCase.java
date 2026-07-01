@@ -1,19 +1,19 @@
 package com.agricontract.notification.application.usecase;
 
-import com.agricontract.notification.infrastructure.messaging.dto.*;
+import com.agricontract.notification.application.dto.*;
 
 public interface ProcessNotificationUseCase {
-    void handleContractSigned(ContractSignedEvent event);
+    void handleContractSigned(ContractSignedCommand command);
 
-    void handleContractCancelled(ContractCancelledEvent event);
+    void handleContractCancelled(ContractCancelledCommand command);
 
-    void handleContractDelivered(ContractDeliveredEvent event);
+    void handleContractDelivered(ContractDeliveredCommand command);
 
-    void handleContractDisputed(ContractDisputedEvent event);
+    void handleContractDisputed(ContractDisputedCommand command);
 
-    void handleEscrowLocked(EscrowLockedEvent event);
+    void handleEscrowLocked(EscrowLockedCommand command);
 
-    void handleEscrowReleased(EscrowReleasedEvent event);
+    void handleEscrowReleased(EscrowReleasedCommand command);
 
-    void handleEscrowPenalized(EscrowPenalizedEvent event);
+    void handleEscrowPenalized(EscrowPenalizedCommand command);
 }
