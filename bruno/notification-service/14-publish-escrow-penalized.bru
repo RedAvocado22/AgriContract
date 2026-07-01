@@ -48,5 +48,17 @@ tests {
 }
 
 script:post-response {
-  await new Promise((resolve) => setTimeout(resolve, 4500));
+  const axios = require("axios");
+  const mailhogUrl = bru.getEnvVar("mailhog_url");
+  const escrowId = bru.getEnvVar("notif_escrow_penalized_id");
+  const maxAttempts = 20;
+  const intervalMs = 300;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const mailCheck = await axios.get(`${mailhogUrl}/api/v2/search?kind=containing&query=${escrowId}`);
+    if (mailCheck.data.count > 0) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
 }

@@ -1,5 +1,6 @@
 package com.agricontract.notification.infrastructure.config;
 
+import com.agricontract.notification.application.exception.InvalidEventPayloadException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -19,6 +20,7 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Configuration
 @EnableRabbit
@@ -28,19 +30,34 @@ public class RabbitMQConfig {
     public Declarables notificationEventDeclarables() {
         TopicExchange contractsExchange = new TopicExchange("agricontract.contracts", true, false);
         TopicExchange escrowExchange = new TopicExchange("agricontract.escrow", true, false);
+        DirectExchange contractsDlx = new DirectExchange("agricontract.contracts.dlx", true, false);
+        DirectExchange escrowDlx = new DirectExchange("agricontract.escrow.dlx", true, false);
 
-        List<Declarable> declarables = new ArrayList<>(List.of(contractsExchange, escrowExchange));
+        List<Declarable> declarables = new ArrayList<>(
+                List.of(contractsExchange, escrowExchange, contractsDlx, escrowDlx));
 
         for (String routingKey : List.of("contract.signed", "contract.delivered", "contract.cancelled", "contract.disputed")) {
-            Queue queue = QueueBuilder.durable("notification-svc." + routingKey).build();
+            Queue queue = QueueBuilder.durable("notification-svc." + routingKey)
+                    .withArgument("x-dead-letter-exchange", contractsDlx.getName())
+                    .build();
+            Queue dlq = QueueBuilder.durable("notification-svc." + routingKey + ".dlq").build();
+
             declarables.add(queue);
+            declarables.add(dlq);
             declarables.add(BindingBuilder.bind(queue).to(contractsExchange).with(routingKey));
+            declarables.add(BindingBuilder.bind(dlq).to(contractsDlx).with(routingKey));
         }
 
         for (String routingKey : List.of("escrow.locked", "escrow.released", "escrow.penalized")) {
-            Queue queue = QueueBuilder.durable("notification-svc." + routingKey).build();
+            Queue queue = QueueBuilder.durable("notification-svc." + routingKey)
+                    .withArgument("x-dead-letter-exchange", escrowDlx.getName())
+                    .build();
+            Queue dlq = QueueBuilder.durable("notification-svc." + routingKey + ".dlq").build();
+
             declarables.add(queue);
+            declarables.add(dlq);
             declarables.add(BindingBuilder.bind(queue).to(escrowExchange).with(routingKey));
+            declarables.add(BindingBuilder.bind(dlq).to(escrowDlx).with(routingKey));
         }
 
         return new Declarables(declarables);
@@ -73,8 +90,10 @@ public class RabbitMQConfig {
 
     @Bean
     public RetryOperationsInterceptor retryInterceptor() {
-
-        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(3);
+        Map<Class<? extends Throwable>, Boolean> retryableExceptions = Map.of(
+                InvalidEventPayloadException.class, false
+        );
+        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(3, retryableExceptions, true, true);
 
         return RetryInterceptorBuilder.stateless()
                 .retryPolicy(retryPolicy)
