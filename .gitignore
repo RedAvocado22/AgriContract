@@ -18,6 +18,7 @@ CLAUDE.md
 GEMINI.md
 scripts/
 !scripts/dev-seed.sh
+!scripts/run-e2e.sh
 !scripts/seed/
 !scripts/seed/**
 

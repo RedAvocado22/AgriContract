@@ -5,8 +5,11 @@ import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.UserProfileRepository;
 import com.agricontract.user.infrastructure.persistence.entity.UserProfileJpaEntity;
 import com.agricontract.user.infrastructure.persistence.mapper.UserProfileMapper;
+import com.agricontract.user.common.exception.UserAlreadyExistsException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -18,10 +21,15 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     private final UserProfileMapper mapper;
 
     @Override
+    @Transactional
     public UserProfile save(UserProfile userProfile) {
-        UserProfileJpaEntity entity = mapper.toJpaEntity(userProfile);
-        UserProfileJpaEntity savedEntity = jpaRepository.saveAndFlush(entity);
-        return mapper.toDomain(savedEntity);
+        try {
+            UserProfileJpaEntity entity = mapper.toJpaEntity(userProfile);
+            UserProfileJpaEntity savedEntity = jpaRepository.saveAndFlush(entity);
+            return mapper.toDomain(savedEntity);
+        } catch (DataIntegrityViolationException e) {
+            throw new UserAlreadyExistsException(userProfile.getUserId().value());
+        }
     }
 
     @Override

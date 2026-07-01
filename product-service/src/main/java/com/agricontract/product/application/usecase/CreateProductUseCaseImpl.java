@@ -7,7 +7,6 @@ import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -18,7 +17,6 @@ public class CreateProductUseCaseImpl implements CreateProductUseCase {
     private final ProductRepository productRepository;
 
     @Override
-    @Transactional
     public ProductResponse execute(CreateProductRequest request) {
         Product product = Product.create(
                 new ProductId(UUID.randomUUID().toString()),
