@@ -1,0 +1,51 @@
+meta {
+  name: 8. Publish contract.disputed (admin + buyer + seller notified)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{rabbitmq_management_url}}/api/exchanges/%2f/agricontract.contracts/publish
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{rabbitmq_username}}
+  password: {{rabbitmq_password}}
+}
+
+body:json {
+  {
+    "properties": {"content_type": "application/json", "delivery_mode": 2},
+    "routing_key": "contract.disputed",
+    "payload": {{event_payload_string}},
+    "payload_encoding": "string"
+  }
+}
+
+script:pre-request {
+  const contractId = "notif-disputed-" + Date.now();
+  const payload = {
+    eventId: "evt-disputed-" + Date.now(),
+    eventType: "contract.disputed",
+    occurredAt: new Date().toISOString(),
+    buyerEmail: bru.getEnvVar("buyer1_email"),
+    sellerEmail: bru.getEnvVar("seller1_email"),
+    contractId: contractId,
+    reason: "Goods quality does not match spec",
+    disputedBy: "BUYER"
+  };
+  bru.setEnvVar("notif_disputed_contract_id", contractId);
+  bru.setVar("event_payload_string", JSON.stringify(JSON.stringify(payload)));
+}
+
+tests {
+  test("should be routed to notification-svc.contract.disputed", function() {
+    expect(res.getBody().routed).to.equal(true);
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 4500));
+}

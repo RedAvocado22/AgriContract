@@ -1,0 +1,50 @@
+meta {
+  name: 12. Publish escrow.released (buyer + seller both notified)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{rabbitmq_management_url}}/api/exchanges/%2f/agricontract.escrow/publish
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{rabbitmq_username}}
+  password: {{rabbitmq_password}}
+}
+
+body:json {
+  {
+    "properties": {"content_type": "application/json", "delivery_mode": 2},
+    "routing_key": "escrow.released",
+    "payload": {{event_payload_string}},
+    "payload_encoding": "string"
+  }
+}
+
+script:pre-request {
+  const escrowId = "notif-escrow-released-" + Date.now();
+  const payload = {
+    eventId: "evt-escrow-released-" + Date.now(),
+    eventType: "escrow.released",
+    occurredAt: new Date().toISOString(),
+    buyerEmail: bru.getEnvVar("buyer1_email"),
+    sellerEmail: bru.getEnvVar("seller1_email"),
+    escrowId: escrowId,
+    contractId: "notif-escrow-released-contract-" + Date.now()
+  };
+  bru.setEnvVar("notif_escrow_released_id", escrowId);
+  bru.setVar("event_payload_string", JSON.stringify(JSON.stringify(payload)));
+}
+
+tests {
+  test("should be routed to notification-svc.escrow.released", function() {
+    expect(res.getBody().routed).to.equal(true);
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 4500));
+}

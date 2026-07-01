@@ -1,0 +1,17 @@
+meta {
+  name: 3. Verify duplicate event did NOT create a 3rd email (idempotency)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_signed_contract_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("still exactly 2 emails after duplicate delivery", function() {
+    expect(res.getBody().count).to.equal(2);
+  });
+}

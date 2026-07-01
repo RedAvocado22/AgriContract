@@ -1,0 +1,29 @@
+meta {
+  name: 11. Verify only seller1 received the escrow-locked email
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_escrow_locked_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("exactly 1 email sent (seller only)", function() {
+    expect(res.getBody().count).to.equal(1);
+  });
+
+  test("recipient is seller1", function() {
+    expect(res.getBody().items[0].Content.Headers.To[0]).to.equal(bru.getEnvVar("seller1_email"));
+  });
+
+  test("subject matches escrow locked template", function() {
+    // MailHog leaves non-ASCII subjects (em dash) as raw RFC 2047 encoded-words, so match the ASCII prefix/suffix instead of the literal string
+    const subject = res.getBody().items[0].Content.Headers.Subject[0];
+    expect(subject).to.include("AgriContract");
+    expect(subject).to.include("Escrow_locke");
+    expect(subject).to.include("proceed_with_delivery");
+  });
+}

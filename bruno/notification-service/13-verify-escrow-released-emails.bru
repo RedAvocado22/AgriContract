@@ -1,0 +1,29 @@
+meta {
+  name: 13. Verify buyer + seller received escrow-released emails
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_escrow_released_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("exactly 2 emails sent (buyer + seller)", function() {
+    expect(res.getBody().count).to.equal(2);
+  });
+
+  test("recipients are buyer1 and seller1", function() {
+    const recipients = res.getBody().items.map(i => i.Content.Headers.To[0]);
+    expect(recipients).to.include(bru.getEnvVar("buyer1_email"));
+    expect(recipients).to.include(bru.getEnvVar("seller1_email"));
+  });
+
+  test("subject matches escrow released template", function() {
+    res.getBody().items.forEach(i => {
+      expect(i.Content.Headers.Subject[0]).to.equal("[AgriContract] Payment has been released");
+    });
+  });
+}
