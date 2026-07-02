@@ -16,6 +16,7 @@ target/
 memory/
 CLAUDE.md
 GEMINI.md
+.claude/
 scripts/
 !scripts/dev-seed.sh
 !scripts/run-e2e.sh
