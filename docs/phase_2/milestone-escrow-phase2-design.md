@@ -1,7 +1,7 @@
 ---
 name: milestone-escrow-phase2-design
 description: "Milestone Escrow — full domain design cho Phase 2, thay thế two-phase lock escrow đang chạy ở Phase 1. Nguồn: design session 02/07/2026."
-status: DESIGNED — chưa code. Cần Cường (Lead) review trước khi đưa vào Architecture/SDS/TechnicalSpec chính thức.
+status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
@@ -80,7 +80,7 @@ OFFERED → NEGOTIATING → SIGNED → ACTIVE
                                  SETTLED
 ```
 
-`ACTIVE` giờ không chuyển thẳng `DELIVERED` như Phase 1 — nó ở `ACTIVE` xuyên suốt cho tới khi milestone cuối cùng settle. `cancel()`/`dispute()` ở cấp Contract cần xem xét lại: có thể vẫn giữ (huỷ toàn bộ phần milestone chưa giao), nhưng đây là **open item**, chưa thảo luận trong session này.
+`ACTIVE` giờ không chuyển thẳng `DELIVERED` như Phase 1 — nó ở `ACTIVE` xuyên suốt cho tới khi milestone cuối cùng settle. `cancel()`/`dispute()` ở cấp Contract cần xem xét lại dưới model nhiều milestone — chốt đầy đủ ở §6: `dispute()` bỏ hẳn (thay bằng milestone-level dispute §3.2/§5), `cancel()` giữ lại nhưng đổi nghĩa thành pro-rata trên phần milestone chưa `SETTLED`, không phải huỷ toàn bộ hợp đồng.
 
 **Diễn giải bằng lời:** khác với Phase 1 (nơi cả hợp đồng chỉ có một điểm giao hàng duy nhất, `confirmDelivery()` một lần là xong), ở Milestone Escrow, `ACTIVE` là một trạng thái kéo dài — bên trong nó có N milestone chạy, mỗi milestone tự đi qua vòng đời riêng (chi tiết ở §3.2). Contract chỉ chuyển sang `SETTLED` khi milestone cuối cùng trong `milestoneSchedule` đã `SETTLED`. Nói cách khác, `SIGNED` vẫn giữ nguyên nghĩa (cả hai bên đã ký, điều khoản bất biến), nhưng "giao hàng xong" không còn là một sự kiện tức thời — nó là kết quả cộng dồn của nhiều sự kiện nhỏ.
 
