@@ -30,8 +30,8 @@ public class RabbitMQConfig {
     public Declarables notificationEventDeclarables() {
         TopicExchange contractsExchange = new TopicExchange("agricontract.contracts", true, false);
         TopicExchange escrowExchange = new TopicExchange("agricontract.escrow", true, false);
-        DirectExchange contractsDlx = new DirectExchange("agricontract.contracts.dlx", true, false);
-        DirectExchange escrowDlx = new DirectExchange("agricontract.escrow.dlx", true, false);
+        DirectExchange contractsDlx = new DirectExchange("notification-svc.contracts.dlx", true, false);
+        DirectExchange escrowDlx = new DirectExchange("notification-svc.escrow.dlx", true, false);
 
         List<Declarable> declarables = new ArrayList<>(
                 List.of(contractsExchange, escrowExchange, contractsDlx, escrowDlx));
