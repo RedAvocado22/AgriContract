@@ -1,7 +1,7 @@
 ---
 name: product-phase2-design
 description: "Product-service — bổ sung Farm Plot Geolocation cho EUDR compliance (Phase 2). Nguồn: design session 02/07/2026."
-status: DESIGNED — chưa code. Cần Cường (Lead) review trước khi đưa vào Architecture/SDS/TechnicalSpec chính thức.
+status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2

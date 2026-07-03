@@ -13,7 +13,7 @@ metadata:
 
 **Chốt (03/07/2026):** bank-service Phase 2 chỉ giữ **đúng 1 chức năng** — legal custody hợp pháp cho tiền, giải quyết "Rủi ro 1 — nghiêm trọng nhất" trong `AgriContract_02_GiaiPhap_MoHinh_v5.docx` (Nghị định 52/2024, Điều 8, Khoản 7 — cấm cung ứng trung gian thanh toán không phép). Platform (escrow-service) không tự giữ tiền, chỉ ra lệnh; bank-service là nơi tiền (mock) thực sự nằm.
 
-**Không phải arbitrator.** Vai trò "ngân hàng đóng arbitrator độc lập" trong docx gốc (§3.3) bị **superseded** bởi INSPECTOR 3-tier + symmetric escalation đã build (`milestone-escrow-phase2-design.md` §5). Lý do: arbitrator đòi hỏi 3 điều kiện — độc lập, trách nhiệm pháp lý, không skin-in-the-game — chỉ đúng nếu ngân hàng đó **thật**, được NHNN giám sát thật. Bank-service Phase 2 vẫn mock (không ngân hàng nào ký API cho 1 đồ án), nên không thoả được 3 điều kiện đó — dùng mock bank làm arbitrator tạo cảm giác độc lập giả, tệ hơn không có. **Cần ghi vào `decisions.md` (chưa viết, xem §7).**
+**Không phải arbitrator.** Vai trò "ngân hàng đóng arbitrator độc lập" trong docx gốc (§3.3) bị **superseded** bởi INSPECTOR 3-tier + symmetric escalation đã build (`milestone-escrow-phase2-design.md` §5). Lý do: arbitrator đòi hỏi 3 điều kiện — độc lập, trách nhiệm pháp lý, không skin-in-the-game — chỉ đúng nếu ngân hàng đó **thật**, được NHNN giám sát thật. Bank-service Phase 2 vẫn mock (không ngân hàng nào ký API cho 1 đồ án), nên không thoả được 3 điều kiện đó — dùng mock bank làm arbitrator tạo cảm giác độc lập giả, tệ hơn không có. Đã ghi vào `decisions.md` — `[2026-07-03] Ngân hàng-arbitrator (docx v5 §3.3) — superseded bởi INSPECTOR 3-tier`.
 
 **Không tích hợp thật trong Phase 2.** `AgriContract_02` §4.2 (roadmap) ghi "Bank Integration — Tích hợp escrow thật" như 1 mục tiêu — không đạt được trong giới hạn đồ án. Bank-service thiết kế để **nếu sau này có ai tích hợp thật**, escrow-service không cần sửa business logic — đúng claim docx tự đưa ra ở FAQ ("logic không đổi khi swap mock bằng Agribank API thật"), nhưng claim đó chỉ đúng nếu ranh giới interface sạch ngay từ Phase 2 (xem §3).
 
@@ -103,8 +103,8 @@ CREATE INDEX idx_ledger_entry_user ON ledger_entry(user_id);
 ## 7. Known Limitations / Out of Scope (có chủ đích)
 
 - **Không tích hợp API ngân hàng thật** — không ngân hàng nào ký hợp đồng API cho 1 đồ án tốt nghiệp. Mock xuyên suốt Phase 2, interface (event contract §3) thiết kế sạch để nếu sau này có ai tích hợp thật, chỉ cần thay implementation bên trong bank-service, escrow-service không đổi 1 dòng.
-- **Vai trò arbitrator (docx §3.3) bị superseded** — cần 1 dòng trong `decisions.md` (chưa viết): *"Ngân hàng-arbitrator (docx v5 §3.3) superseded bởi INSPECTOR 3-tier + symmetric escalation (milestone-escrow §5) — lý do: mock bank không đủ điều kiện độc lập/trách nhiệm pháp lý cần có cho vai arbitrator, INSPECTOR licensed org thoả điều kiện đó trong giới hạn Phase 2."*
-- **Roadmap docx §4.2 "Bank Integration — tích hợp escrow thật"** — cần định vị lại trong `decisions.md`, không xoá: mục tiêu Phase 2 là thiết kế sẵn sàng tích hợp, không phải tích hợp thật.
+- **Vai trò arbitrator (docx §3.3) bị superseded** — ghi vào `decisions.md` `[2026-07-03]`, không xoá docx gốc: mock bank không đủ điều kiện độc lập/trách nhiệm pháp lý cần có cho vai arbitrator, INSPECTOR licensed org thoả điều kiện đó trong giới hạn Phase 2.
+- **Roadmap docx §4.2 "Bank Integration — tích hợp escrow thật"** — định vị lại trong `decisions.md` cùng entry `[2026-07-03]`, không xoá: mục tiêu Phase 2 là thiết kế sẵn sàng tích hợp, không phải tích hợp thật.
 - **Multi-bank (Agribank vs BIDV)** — không cần model, mock giả định 1 pooled account duy nhất.
 
 ---

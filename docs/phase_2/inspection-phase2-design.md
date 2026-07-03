@@ -88,7 +88,7 @@ Role `ADMIN`, không phải role `INSPECTOR`:
 ```
 SubmitExternalInspectionReport(contractId, reportFile, receivedVia):
   1. org = Contract.contractTerms.level2InspectorOrg
-     Nếu NULL → REJECT, hoặc route qua nhánh xác nhận tổ chức tại thời điểm dispute (§3.2 — chưa detail)
+     Nếu NULL → REJECT. Theo §3.2 (NOT NULL có điều kiện, validate lúc `sign()`), NULL ở đây chỉ có thể nghĩa là hợp đồng bị cap cứng Level 1.5 — report Level 2 không đáng lẽ tồn tại cho hợp đồng này, không phải case cần thêm nhánh xác nhận tổ chức
 
   2. Upload reportFile qua file-service, lấy fileHash (tầng riêng, đã có — services.md mục 6)
 
