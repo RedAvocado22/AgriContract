@@ -1,11 +1,12 @@
 ---
 name: product-phase2-design
-description: "Product-service — bổ sung Farm Plot Geolocation cho EUDR compliance (Phase 2). Nguồn: design session 02/07/2026."
+description: "Product-service — Farm Plot Geolocation cho EUDR compliance (Phase 2). Nguồn: design session 02/07/2026, cập nhật 04/07/2026 (Plot Registry + GEOMETRY/JTS validation)."
 status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
   extends: "architecture.md § Product Aggregate (Phase 1, đã code + E2E verified)"
+  supersedes: "bản 02/07/2026 của chính file này (geo_json TEXT → GEOMETRY; thêm Plot Registry tái sử dụng qua KML import, thay vì khai lại mỗi lần tạo listing)"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -16,53 +17,162 @@ EUDR (EU Deforestation Regulation) áp dụng từ **30/12/2026** cho large/medi
 
 Điều này va trực tiếp với bản chất HTX: một listing của HTX thường là hàng **gom từ nhiều hộ thành viên**, mỗi hộ có plot đất riêng — không phải 1 nông trại lớn duy nhất. Nên geolocation không thể là 1 cặp lat/long gắn vào `Product`, mà phải là **mảng plot**, mỗi phần tử ứng với 1 hộ đóng góp.
 
-**Vị trí trong kiến trúc:** đây là dữ liệu **tĩnh, gắn với nguồn gốc hàng**, không đổi qua vòng đời `OFFERED → ... → SETTLED` của `Contract`/`Milestone`. Không có "bước" nào trong Contract-service hay Milestone Escrow cần chụp GPS — nó phải tồn tại **trước khi** listing được tạo, thuộc về `product-service` (Phase 1, đã code + E2E verify). Đây là additive change — thêm bảng con, không đụng business logic đã test của `Product` aggregate.
+**Cập nhật (04/07/2026) — vấn đề thứ 2, ngang tầm quan trọng với vấn đề trên:** khai `geoJson` **mỗi lần tạo listing mới** là phi thực tế với HTX gom hàng từ hàng chục tới hàng trăm hộ — mỗi mùa vụ/hợp đồng mới lại bắt gõ lại toạ độ 6 số thập phân cho từng hộ là chắc chắn sinh sai số do con người, không phải rủi ro mà là hệ quả tất yếu. §2.4/§4 giải quyết việc này bằng cách tách khai báo đất (1 lần) khỏi tạo listing (nhiều lần).
+
+**Vị trí trong kiến trúc:** đây là dữ liệu **tĩnh, gắn với nguồn gốc hàng**, không đổi qua vòng đời `OFFERED → ... → SETTLED` của `Contract`/`Milestone`. Không có "bước" nào trong Contract-service hay Milestone Escrow cần chụp GPS — nó phải tồn tại **trước khi** listing được tạo, thuộc về `product-service` (Phase 1, đã code + E2E verify). Additive change — thêm bảng con, không đụng business logic đã test của `Product` aggregate.
 
 ---
 
 ## 2. Domain Model Changes
 
-### 2.1 `ProductPlot` (nested Value Object list — không phải aggregate riêng)
+### 2.1 `PlotRegistryEntry` (mới, 04/07/2026) — nguồn dữ liệu tái sử dụng, thuộc về Seller
 
-**Chốt (02/07/2026):** khác với `Milestone` (tách aggregate riêng vì có state machine + lifecycle độc lập, xem `milestone-escrow-phase2-design.md` §2.2), `ProductPlot` **không cần** tách aggregate riêng — nó không có state machine, không có nghiệp vụ độc lập, chỉ là dữ liệu khai báo tĩnh gắn chặt với `Product`. Sống/chết cùng `Product` (không có ProductPlot nào tồn tại độc lập khi Product bị xoá), không có lý do gì cần transaction boundary riêng. Đúng nguyên tắc Vernon: entity con chỉ tách aggregate khi có invariant/lifecycle cần bảo vệ độc lập — ở đây không có, nên giữ làm value object list bên trong `Product` aggregate.
+**Chốt (04/07/2026):** tách khai báo đất ra khỏi vòng đời `Product`. `PlotRegistryEntry` thuộc về **Seller** (`sellerId`, plain UUID — không `REFERENCES user_db`, cross-service, cùng nguyên tắc đã áp cho `signerUserId`/`signature.report_id`), không thuộc về 1 `Product` cụ thể nào — 1 hộ đăng ký đất 1 lần, dùng lại cho mọi listing sau này của mùa vụ khác.
+
+Không cần aggregate riêng (không state machine, không lifecycle độc lập, giống lý do `ProductPlot` không tách aggregate ở bản gốc) — nhưng **cũng không phải VO con của `Product`** như `ProductPlot`, vì nó sống độc lập với bất kỳ `Product` nào, có thể tồn tại trước khi listing đầu tiên được tạo. Coi như 1 aggregate root nhỏ, đơn giản, riêng của mình, thuộc `product-service` (cùng bounded context geolocation/EUDR).
 
 | Field | Loại | Ghi chú |
 |---|---|---|
-| `plotId` | UUID | Định danh nội bộ, không phải aggregate root |
-| `householdLabel` | String | Tên/mã hộ thành viên đóng góp plot này. **Không** cần map tới `User` account — HTX có thể có hộ chưa từng đăng ký tài khoản trên platform, đây chỉ là nhãn khai báo phục vụ truy xuất nguồn gốc. |
-| `geometryType` | Enum (`POINT`, `POLYGON`) | Quyết định bởi `areaHectares` — xem quy tắc §2.2 |
-| `geoJson` | Text (GeoJSON string) | Format bắt buộc theo EUDR — `POINT` (1 toạ độ, 6 số thập phân) nếu ≤4ha, `POLYGON` (nhiều toạ độ khép kín, 6 số thập phân) nếu >4ha |
-| `areaHectares` | BigDecimal | Diện tích plot — dùng để quyết `geometryType`, không phải field hiển thị đơn thuần |
-| `declaredAt` | Timestamp | Thời điểm HTX khai báo — dùng làm mốc đối chiếu nếu sau này có tranh chấp về tính xác thực |
+| `registryEntryId` | UUID | |
+| `sellerId` | UUID | Chủ sở hữu — HTX/seller account. Không FK cross-service. |
+| `householdLabel` | String | Tên/mã hộ thành viên — giữ nguyên nghĩa như bản gốc, không cần map `User` account. `UNIQUE(sellerId, householdLabel)` (04/07/2026) — key dùng để match re-import/update, xem §4. |
+| `geometryType` | Enum (`POINT`, `POLYGON`) | Quy tắc §2.3, không đổi |
+| `geoJson` | **GEOMETRY, SRID 4326** (đổi từ `TEXT`, xem §2.5) | |
+| `areaHectares` | BigDecimal | Cách lấy khác nhau theo `geometryType`/`source` — xem §4 |
+| `source` | Enum (`KML_IMPORT`, `MANUAL_PIN`) | Xem §2.2 — quyết định method nào tạo ra entry này, ảnh hưởng tới `geometryType` được phép (§2.2) |
+| `accuracyMeters` | Decimal, nullable | **Mới (04/07/2026).** Chỉ có giá trị khi `source = MANUAL_PIN` (từ `coords.accuracy` của Geolocation API) — `NULL` cho `KML_IMPORT` (KML không mang theo metric này). Dùng để cảnh báo UI, không phải điều kiện chặn — xem §4. |
+| `verificationLevel` | Enum (`SELF_DECLARED`, `CADASTRAL_BACKED`) | **Mới (04/07/2026).** Mặc định `SELF_DECLARED`. `CADASTRAL_BACKED` khi seller upload kèm "trích lục bản đồ địa chính" xin từ UBND xã/Văn phòng đăng ký đất đai — xem §2.2.1. |
+| `cadastralExtractFileId` | UUID, nullable | Reference `file-service` — bản scan/PDF trích lục seller upload. `NULL` nếu `verificationLevel = SELF_DECLARED`. |
+| `originalKmlFileId` | UUID, nullable | **Mới (05/07/2026).** Reference `file-service` — file KML gốc mà entry này (hoặc lần re-import gần nhất của nó) được parse ra. `NULL` nếu `source = MANUAL_PIN`. Field phẳng, lặp giá trị cho mọi entry cùng ra từ 1 lần import (không tách bảng `PlotImportBatch` riêng — không có consumer nào cần query ở tầng batch, xem thảo luận session 05/07/2026). Mục đích là provenance ("entry này từng đến từ file nào"), **không** phải cơ chế re-verify toạ độ — file gốc chỉ chứa số WGS84 đã convert xong, không giữ số VN2000 gốc để đối chiếu ngược (xem giới hạn ở §5). |
+| `declaredProvince` | Enum (63 tỉnh, theo địa giới trước Nghị quyết 202/2025/QH15) | **Mới (05/07/2026).** Seller tự chọn dropdown lúc `ImportPlotsFromKML`/`AddPlotManually` — nguồn độc lập với toạ độ, dùng để cross-check ở §4. Không suy ra tự động từ toạ độ (nếu suy ra từ chính toạ độ thì không còn là nguồn độc lập, mất tác dụng đối chiếu). |
+| `provinceMismatchFlag` | Boolean, default `FALSE` | **Mới (05/07/2026).** `TRUE` nếu tỉnh suy ra từ toạ độ (point-in-polygon, §4) không khớp `declaredProvince`. Non-blocking — không chặn insert, chỉ cảnh báo UI. Persistent trong DB (không biến mất sau khi seller tắt màn hình) — phục vụ audit trail "hệ thống đã cảnh báo từ lúc import". |
+| `importedAt` | Timestamp | Đổi ý nghĩa khi entry được UPDATE qua re-import (§4) — luôn phản ánh lần cập nhật gần nhất, không phải lần tạo đầu tiên |
 
-### 2.2 Quy tắc `geometryType` (theo ngưỡng EUDR)
+### 2.2.1 `verificationLevel` — tầng bằng chứng bổ sung, tuỳ chọn (mới, 04/07/2026)
+
+**Quan trọng — không được hiểu nhầm thành "đã xác minh sở hữu":** "trích lục bản đồ địa chính" (xin tại UBND xã hoặc Văn phòng đăng ký đất đai cấp huyện/tỉnh, quy định tại Luật Đất đai 2024/Thông tư 34/2014/TT-BTNMT) là dữ liệu chính thức từ nhà nước (số thửa, tờ bản đồ, ranh giới, diện tích) — **nhưng theo đúng quy định, bản thân nó không phải văn bản pháp lý chứng minh quyền sử dụng đất** (đó là vai trò của Giấy chứng nhận quyền sử dụng đất/sổ đỏ, văn bản khác hẳn). `CADASTRAL_BACKED` vì vậy **không** đóng được giới hạn "khai đất giả nhưng hợp lệ hình học" đã nêu ở §5 — chỉ giảm nhẹ nó: người xin trích lục phải chứng minh liên quan tới đúng thửa đất đó khi nộp đơn tại xã, nên có bằng chứng nhà nước tham chiếu được nếu sau này tranh chấp, mạnh hơn hẳn 1 file KML tự đo không ai xác nhận.
+
+**Không đổi pipeline nhập liệu** — toạ độ vẫn qua `ImportPlotsFromKML`/`AddPlotManually` như cũ (§2.2), y hệt validate GEOMETRY/JTS (§2.5). `cadastralExtractFileId` chỉ là 1 field bằng chứng đính kèm thêm, hoàn toàn tuỳ chọn — seller không có vẫn tạo/dùng entry bình thường (`SELF_DECLARED`), không bị chặn gì.
+
+### 2.2.2 Province cross-check — mitigation cho lỗi convert VN2000 → WGS84 (mới, 05/07/2026)
+
+**Bối cảnh:** toạ độ trong KML bắt buộc theo chuẩn là WGS84, nhưng cán bộ địa chính đo gốc bằng VN2000 (hệ chiếu phẳng theo mét, chia múi theo kinh tuyến trục riêng từng tỉnh) rồi convert trước khi xuất file — bước convert này xảy ra hoàn toàn bên ngoài, trước khi file .kml chạm tới `ImportPlotsFromKML`. Nếu phần mềm đo dùng sai tham số kinh tuyến trục (ví dụ đo ở Đắk Lắk nhưng quên đổi config từ tỉnh trước đó), kết quả convert vẫn ra đúng **dạng** toạ độ độ WGS84, vẫn nằm trong bounding box Việt Nam, vẫn pass `JTS .isValid()` — sai lệch tính được tới **81.37km** (verify bằng pyproj, điểm mẫu Đắk Lắk) nhưng không tầng validate cú pháp/hình học nào ở §2.5 bắt được, vì đây là lỗi **nội dung** (giá trị không đúng vị trí thật), không phải lỗi **cú pháp** (giá trị không đúng định dạng) — 2 loại validate khác nhau, và platform chỉ làm được loại đầu.
+
+**Chốt (05/07/2026) — cross-check bằng nguồn độc lập, không cố validate nội dung trực tiếp:** vì platform không có ground-truth để biết ranh giới đất thật, giải pháp là đối chiếu 2 nguồn độc lập thay vì xác minh tuyệt đối 1 nguồn:
+- Nguồn 1: `declaredProvince` — seller tự chọn dropdown, không đi qua máy đo/phần mềm convert.
+- Nguồn 2: tỉnh suy ra từ toạ độ đã parse, qua point-in-polygon (JTS, đã có sẵn trong stack) với polygon ranh giới tỉnh (§2.2.3).
+
+2 nguồn khớp nhau → không làm gì. Lệch → `provinceMismatchFlag = TRUE`, cảnh báo UI, không chặn insert (seller có thể ở gần ranh giới tỉnh, hoặc tự khai nhầm tỉnh — không nhất thiết là lỗi toạ độ).
+
+**Giới hạn của cross-check này (không đóng hẳn vấn đề):** nếu lỗi convert là **hệ thống** (cùng 1 lần đo, cùng 1 tham số sai áp cho toàn bộ batch), mọi entry trong batch dịch cùng hướng, cùng khoảng cách — vẫn nhất quán *nội bộ* với nhau. Check này chỉ bắt được khi toạ độ suy ra lệch khỏi tỉnh seller khai, không bắt được trường hợp cả batch cùng lệch theo cùng 1 kiểu. Không đóng permanent limitation "khai giả nhưng hợp lệ hình học" (§5) — chỉ giảm nhẹ rủi ro lỗi *vô ý* do config sai, không bắt được fraud có chủ đích.
+
+### 2.2.3 Nguồn polygon ranh giới tỉnh — dùng GADM 63 tỉnh, Known Limitation (mới, 05/07/2026)
+
+**Đã verify (05/07/2026):** Việt Nam sáp nhập còn 34 đơn vị hành chính cấp tỉnh từ 12/6/2025 (Nghị quyết 202/2025/QH15). Nhưng **không có shapefile/GeoJSON polygon 34 tỉnh nào phát hành mở, miễn phí** — Cục Đo đạc, Bản đồ và Thông tin địa lý Việt Nam chỉ công bố bản đồ 34 tỉnh dạng **PDF/ảnh** (tỷ lệ 1:1.000.000, phục vụ tra cứu trực quan), không phải structured data đọc được bằng code. Muốn có shapefile/GDB chính thức 34 tỉnh phải xin cấp phép trực tiếp từ Cục — ngoài khả năng đồ án 5 tháng/3 người. Digitize tay từ PDF (vẽ lại polygon trong QGIS) cũng không hợp lý về công sức cho scope này.
+
+**Chốt (05/07/2026):** dùng **GADM (ranh giới 63 tỉnh cũ, trước sáp nhập)** cho point-in-polygon ở §2.2.2 — nguồn mở, sẵn có, đủ dùng cho mục đích cross-check (không cần chính xác pháp lý, chỉ cần đối chiếu tương đối). `declaredProvince` (§2.1) cũng dùng theo danh sách 63 tỉnh cũ để đồng bộ taxonomy với GADM, tránh lệch tên gọi giữa 2 phía.
+
+**Known Limitation:** ranh giới 63 tỉnh cũ không phản ánh đúng địa giới hiện tại sau sáp nhập — có thể sinh **false-positive mismatch** ở khu vực vừa nhập vào tỉnh khác (ví dụ đất thuộc Phú Yên cũ, nay thuộc Đắk Lắk mới, nhưng polygon GADM "Đắk Lắk" theo ranh giới cũ không bao gồm phần đất đó → hệ thống báo lệch dù seller khai đúng theo tên tỉnh mới). Vì cơ chế này **non-blocking** (§2.2.2), false-positive chỉ gây cảnh báo UI thừa, không chặn seller — chấp nhận được trong scope đồ án. Cần thay bằng polygon 34 tỉnh chính thức nếu sau này có nguồn mở phát hành.
+
+**Giá trị hiển thị cho buyer (tuỳ thuộc §4 quyết định cuối):** nếu search/map hiển thị listing theo vị trí địa lý, `verificationLevel` là field đủ để tô màu marker khác nhau (`CADASTRAL_BACKED` nổi bật hơn `SELF_DECLARED`) — vừa cho buyer tín hiệu tin cậy thêm, vừa tạo động lực thật cho seller chủ động đi xin trích lục (tăng uy tín, không phải thủ tục bắt buộc). Field này copy nguyên vào `ProductPlot` (§2.4) và nên nằm trong payload `listing.created` nếu/khi search-service được thiết kế — để tô màu được ngay từ dữ liệu đã có, không cần gọi ngược lại `product-service` mỗi lần render map.
+
+### 2.2 Nguồn nhập liệu — KML import là đường chính, pin thủ công là fallback hẹp
+
+**Chốt (04/07/2026), phát hiện qua đối chiếu thực tế ngành (nguồn: cross-check độc lập giữa web search và NotebookLM podcast — 2 nguồn khác nhau ra cùng kết luận):** cán bộ địa chính, công ty xuất khẩu, hoặc NGO ở Việt Nam đã và đang đo GPS chuyên dụng cho đúng mục đích chuẩn bị EUDR, ra file KML/Excel toạ độ sẵn có. Bắt HTX tự đo lại từ đầu là làm lại việc đã có người làm.
+
+- **`KML_IMPORT` (đường chính, cho cả `POINT` lẫn `POLYGON`):** use case `ImportPlotsFromKML` (§4) parse file KML, mỗi placemark → 1 `PlotRegistryEntry`. `householdLabel` lấy từ tên placemark trong file (`<name>` tag) — quy ước, không bắt HTX gõ tay lại.
+- **`MANUAL_PIN` (fallback hẹp, chỉ cho `POINT`):** dùng `navigator.geolocation.getCurrentPosition()` (API trình duyệt có sẵn, không thêm dependency) khi không có file KML sẵn. **Chỉ cho phép `geometryType = POINT`** — cấm dùng cho `POLYGON`. Lý do cấm: vẽ polygon bằng cách thả ghim tay trên bản đồ mang sai số cấp mét, đủ để lệch sang ranh giới hộ hàng xóm hoặc rừng phòng hộ — rủi ro không đáng đánh đổi với chi phí xây UI vẽ polygon trong scope 5 tháng. Nếu plot cần `POLYGON` (>4ha) mà không có file KML → yêu cầu seller đi xin file KML thật, không có đường tắt nào khác.
+
+### 2.3 Quy tắc `geometryType` (theo ngưỡng EUDR) — không đổi
 
 | Diện tích plot | `geometryType` | Format |
 |---|---|---|
 | ≤ 4 hecta | `POINT` | 1 toạ độ lat/long, 6 số thập phân |
 | > 4 hecta | `POLYGON` | GeoJSON polygon, các điểm khép kín viền plot, 6 số thập phân mỗi điểm |
 
-Áp dụng theo từng plot riêng lẻ, không phải theo tổng diện tích cả listing — 1 listing có thể vừa có plot dùng `POINT` vừa có plot dùng `POLYGON`.
+Áp dụng theo từng plot riêng lẻ, không phải theo tổng diện tích cả listing.
 
-### 2.3 `Product` aggregate (cập nhật)
+### 2.4 `ProductPlot` (cập nhật, 04/07/2026) — snapshot copy từ `PlotRegistryEntry`, không phải nhập trực tiếp
 
-Thêm quan hệ 1-N với `ProductPlot`. Không đổi field nào hiện có, không đổi state machine hiện tại của `Product`.
+**Chốt (04/07/2026):** `ProductPlot` **giữ nguyên** vai trò VO list bên trong `Product` aggregate (không tách aggregate — lý do gốc không đổi, xem §2.6). Điểm đổi: dữ liệu của nó giờ **copy từ `PlotRegistryEntry`** tại thời điểm `CreateListing`, không phải nhập tay/API nhận trực tiếp `geoJson` nữa.
+
+Snapshot, không phải tham chiếu sống — cùng nguyên tắc đã dùng xuyên suốt hệ thống (`agreedPrice`, `milestoneSchedule` snapshot lúc `sign()`; `level2InspectorOrg` snapshot lúc `sign()`): nếu seller sau này sửa lại `PlotRegistryEntry` gốc (đo lại chính xác hơn, hộ đổi ranh giới), listing cũ **không** tự đổi theo — đúng bản chất "khai báo tại đúng thời điểm tạo listing", không phải link động.
+
+| Field | Loại | Ghi chú |
+|---|---|---|
+| `plotId` | UUID | Định danh nội bộ trong `Product` |
+| `sourceRegistryEntryId` | UUID, nullable | Tham chiếu tới `PlotRegistryEntry` đã copy từ đó — cùng DB (`product-service`), REFERENCES hợp lệ (không cross-service). `NULL` chỉ cho trường hợp hiếm cần nhập tay ngoài registry (không khuyến khích, không phải luồng chính). |
+| `householdLabel` | String | Copy tại thời điểm tạo listing |
+| `geometryType` | Enum | Copy |
+| `geoJson` | **GEOMETRY, SRID 4326** | Copy |
+| `areaHectares` | BigDecimal | Copy |
+| `verificationLevel` | Enum | Copy — snapshot đúng trạng thái lúc tạo listing, không đổi theo nếu registry gốc sau này upload thêm trích lục |
+| `cadastralExtractFileId` | UUID, nullable | Copy |
+| `declaredAt` | Timestamp | Thời điểm tạo listing (không phải thời điểm đo GPS gốc — đó là `PlotRegistryEntry.importedAt`) |
+
+### 2.5 GeoJSON storage — `GEOMETRY` (SRID 4326), không phải `TEXT` (chốt 04/07/2026, session riêng)
+
+**Vấn đề:** lưu `TEXT` không chặn được gì — sai cú pháp, ring hở, polygon tự cắt đều insert được vô tư, tới lúc dùng mới lộ lỗi.
+
+**Đã verify (không suy đoán):** MySQL 8 tách 2 khái niệm — *syntactically well-formed* (tự động check lúc INSERT: ring phải khép kín, đủ điểm tối thiểu) và *geometrically valid* (polygon không tự cắt chính nó — **KHÔNG** tự động check, phải gọi `ST_IsValid()` tay, theo đúng doc MySQL: *"Due to the computational expense, MySQL does not check explicitly for geometric validity"*). Thêm 1 giới hạn quan trọng: `ST_IsValid()`/`ST_Validate()` chỉ chạy được trên SRID=0 (Cartesian phẳng), **lỗi thẳng** (`ER_WRONG_ARGUMENTS`) trên SRID=4326 (toạ độ GPS thật) — xác nhận còn đúng tới bản 8.4.5.
+
+**Chốt kiến trúc — chia trách nhiệm 2 tầng, không đổ hết cho DB:**
+- **DB (`GEOMETRY`, SRID 4326):** free, tự động — chặn sai cú pháp, ring không khép kín, thiếu điểm. Không cần code thêm.
+- **Application layer (JTS, thư viện lõi Hibernate Spatial vốn đã có sẵn trong dependency tree, không thêm lib mới):** gọi `Geometry.isValid()` **trong RAM, trước khi persist**, ở use case `ImportPlotsFromKML`/`AddPlotManually` — bypass hoàn toàn giới hạn SRID=0 của MySQL vì JTS không quan tâm SRID của DB. Đây là nơi duy nhất bắt được self-intersection.
+- **`ST_GeomFromGeoJSON()`** (MySQL 8 built-in) parse thẳng chuỗi GeoJSON từ API/KML-parse ra geometry, không cần tự convert qua WKT tay.
+
+**Giới hạn không đổi, permanent, không công nghệ nào đóng được (giữ nguyên từ bản gốc):** dù DB + JTS bắt hết lỗi cú pháp/hình học, **không có cách nào chặn seller khai 1 plot hợp lệ 100% về hình học nhưng không có thật/không phải đất của họ** — đây là giới hạn của mô hình self-declared, trusted-operator, không phải thiếu sót của lần cập nhật này.
+
+### 2.6 `Product` aggregate — không đổi cho geolocation, có 1 field mới không liên quan (xem §8)
+
+Vẫn giữ quan hệ 1-N với `ProductPlot`, không đổi field nào hiện có, không đổi state machine hiện tại của `Product` — **cho phần geolocation/EUDR của tài liệu này.** Có 1 field mới (`varietyName`) phát sinh từ nhu cầu khác hẳn (match giá tham khảo bên pricing-service), không liên quan gì tới plot/toạ độ — xem §8, tách riêng để không làm loãng scope geolocation của tài liệu này. `ProductPlot` không tách aggregate riêng — không state machine, không lifecycle độc lập, đúng nguyên tắc Vernon đã áp từ bản gốc.
 
 ---
 
 ## 3. Database Migration
 
-Additive — 1 Flyway script, không sửa bảng `product` gốc:
+Additive — không sửa bảng `product` gốc:
 
 ```sql
+CREATE TABLE plot_registry_entry (
+    registry_entry_id  UUID PRIMARY KEY,
+    seller_id           UUID NOT NULL,          -- plain UUID, KHÔNG REFERENCES user_db (cross-service)
+    household_label     VARCHAR(255) NOT NULL,
+    geometry_type       VARCHAR(20) NOT NULL,   -- POINT | POLYGON
+    geo_json            GEOMETRY NOT NULL SRID 4326,
+    area_hectares       DECIMAL(10,4) NOT NULL,
+    source              VARCHAR(20) NOT NULL,   -- KML_IMPORT | MANUAL_PIN
+    accuracy_meters     DECIMAL(6,2) NULL,      -- chỉ MANUAL_PIN, từ coords.accuracy — cảnh báo UI, không phải constraint
+    verification_level  VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',  -- SELF_DECLARED | CADASTRAL_BACKED
+    cadastral_extract_file_id UUID NULL,        -- reference file-service, NULL nếu SELF_DECLARED
+    original_kml_file_id UUID NULL,             -- reference file-service, NULL nếu MANUAL_PIN. Field phẳng, lặp giá trị theo batch (§2.1)
+    declared_province    VARCHAR(50) NOT NULL,  -- seller tự chọn dropdown, 63 tỉnh cũ — nguồn độc lập cho cross-check (§2.2.2)
+    province_mismatch_flag BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE nếu point-in-polygon suy ra tỉnh khác declared_province — non-blocking
+    imported_at         TIMESTAMP NOT NULL,     -- cập nhật lại mỗi lần re-import/update, không chỉ lần đầu
+    UNIQUE (seller_id, household_label),
+    SPATIAL INDEX (geo_json)
+);
+CREATE INDEX idx_plot_registry_seller ON plot_registry_entry(seller_id);
+-- province_mismatch_flag KHÔNG chặn INSERT/UPDATE — set song song, cảnh báo UI, xem §2.2.2.
+-- Invariant "source = MANUAL_PIN → geometry_type phải = POINT" check ở use-case layer,
+-- không phải DB constraint — cùng pattern active-flag đã dùng ở product-service.
+-- UNIQUE(seller_id, household_label) chính là cơ chế match re-import/update ở §4 —
+-- INSERT ... ON DUPLICATE KEY UPDATE, không cần query tìm rồi update tay.
+
 CREATE TABLE product_plot (
-    plot_id         UUID PRIMARY KEY,
-    product_id      UUID NOT NULL REFERENCES product(product_id),
-    household_label VARCHAR(255) NOT NULL,
-    geometry_type   VARCHAR(20) NOT NULL, -- POINT | POLYGON
-    geo_json        TEXT NOT NULL,
-    area_hectares   DECIMAL(10,4) NOT NULL,
-    declared_at     TIMESTAMP NOT NULL
+    plot_id                    UUID PRIMARY KEY,
+    product_id                 UUID NOT NULL REFERENCES product(product_id),
+    source_registry_entry_id   UUID NULL REFERENCES plot_registry_entry(registry_entry_id),
+                                                  -- cùng DB product-service, REFERENCES hợp lệ.
+                                                  -- NULL = hiếm, nhập tay ngoài registry, không phải luồng chính.
+    household_label            VARCHAR(255) NOT NULL,
+    geometry_type               VARCHAR(20) NOT NULL,
+    geo_json                    GEOMETRY NOT NULL SRID 4326,   -- đổi từ TEXT
+    area_hectares                DECIMAL(10,4) NOT NULL,
+    verification_level           VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',  -- copy từ registry lúc snapshot
+    cadastral_extract_file_id    UUID NULL,                                     -- copy từ registry lúc snapshot
+    declared_at                  TIMESTAMP NOT NULL,
+    SPATIAL INDEX (geo_json)
 );
 CREATE INDEX idx_product_plot_product_id ON product_plot(product_id);
 ```
@@ -73,9 +183,19 @@ Không có `UPDATE`/migration nào chạy trên data cũ — bảng mới, rỗn
 
 ## 4. Use Case Changes
 
-- `CreateListing`: nhận thêm `List<ProductPlotRequest>` (bắt buộc ≥1 plot). Validate: mỗi plot phải có `geoJson` hợp lệ theo `geometryType` tương ứng với `areaHectares` khai.
-- `UpdateListing`: cho phép thêm/sửa/xoá plot trước khi listing chuyển khỏi trạng thái cho phép sửa (theo state machine `Product` hiện có, không đổi).
-- `GetListing`/`SearchListing`: không đổi logic, chỉ thêm field trả về nếu client cần hiển thị.
+- **`ImportPlotsFromKML(sellerId, kmlFile, declaredProvince)`** (mới, cập nhật 05/07/2026 — thêm `declaredProvince`) — parse KML, mỗi placemark → 1 `PlotRegistryEntry`.
+  - **Matching cho re-import (04/07/2026):** match theo cặp `(sellerId, householdLabel)` — placemark trùng `householdLabel` với entry đã có của đúng seller đó → **UPDATE** entry hiện có (coi như đo lại chính xác hơn/hộ đổi ranh giới), không tạo bản trùng. Không trùng → tạo mới (`source = KML_IMPORT`). `ProductPlot` đã snapshot cho listing cũ không đổi theo (§2.4) — 2 việc tách biệt đúng như đã chốt.
+  - **`areaHectares` khi placemark là `Point` (04/07/2026):** hình học điểm không có diện tích để tính (0 chiều) — khác `Polygon` (tự tính trực tiếp từ hình học bằng `JTS Polygon.getArea()`, cùng lib đã dùng để validate, không cần thêm gì). Ưu tiên đọc từ `<ExtendedData>` của placemark nếu KML có field diện tích theo quy ước đặt tên (tài liệu hướng dẫn seller ghi rõ tên field cần có, ví dụ `dien_tich`/`area_ha`). Không có field đó trong KML → bắt buộc seller nhập tay 1 số lúc import (không mặc định `NULL`/`0` — `0` gây hiểu nhầm "diện tích bằng 0" thay vì "chưa có dữ liệu").
+  - Với mỗi placemark: xác định `geometryType` theo `areaHectares` (§2.3), convert toạ độ sang GeoJSON, chạy JTS `.isValid()` trước khi `INSERT`/`UPDATE` (§2.5) — placemark nào fail validation báo lỗi rõ tên đó, không chặn cả file, cho seller sửa/bỏ qua từng cái.
+  - **`declaredProvince` + province cross-check (mới, 05/07/2026):** seller chọn 1 tỉnh (dropdown, danh sách 63 tỉnh, §2.2.3) cho cả file — áp dụng chung cho mọi placemark trong lần import đó, lưu vào `declaredProvince` của từng `PlotRegistryEntry` tạo/update ra. Sau khi parse toạ độ mỗi placemark, chạy point-in-polygon (JTS) với polygon GADM (§2.2.3) suy ra tỉnh thực tế — lệch với `declaredProvince` thì set `provinceMismatchFlag = TRUE` cho đúng entry đó, không chặn insert (§2.2.2).
+  - **`originalKmlFileId` (mới, 05/07/2026):** file KML upload lưu qua `file-service` trước, `fileId` trả về gán vào `originalKmlFileId` của mọi `PlotRegistryEntry` tạo/update trong lần import này — cùng giá trị lặp lại cho cả batch (§2.1).
+- **`AddPlotManually(sellerId, householdLabel, lat, long, accuracyMeters, declaredProvince)`** (mới, cập nhật 05/07/2026 — thêm `declaredProvince`) — fallback, tạo/update `PlotRegistryEntry` (cùng matching rule theo `householdLabel` như KML) với `geometryType = POINT`, `source = MANUAL_PIN`. Không nhận polygon qua đường này (§2.2). `originalKmlFileId` luôn `NULL` (không qua KML). Cùng cơ chế province cross-check như trên (§2.2.2) — áp dụng cho từng entry đơn lẻ thay vì cả batch.
+  - **Kiểm tra độ chính xác (04/07/2026):** `accuracyMeters` lấy trực tiếp từ `coords.accuracy` của Geolocation API trình duyệt (bán kính sai số 1-độ-lệch-chuẩn tính bằng mét, trả kèm toạ độ, không cần tính thêm) — lưu lại, không bỏ qua. Nếu `accuracyMeters > accuracyWarningThresholdMeters` (đề xuất 20m — 1 cạnh plot 4ha điển hình ~200m, sai số 20m vẫn dùng được nhưng đáng cảnh báo), UI hiển thị cảnh báo trước khi seller xác nhận lưu ("độ chính xác thấp, thử lại ở nơi thoáng hoặc dùng file KML"). Không chặn cứng — thiết bị rẻ/trong nhà kính có thể không bao giờ đạt ngưỡng tốt hơn, chặn cứng loại bỏ hẳn 1 nhóm user thay vì chỉ cảnh báo.
+- **`CreateListing`:** đổi input — nhận `List<registryEntryId>` (chọn từ danh sách plot đã có sẵn trong registry của seller, UI dạng checkbox) thay vì `List<ProductPlotRequest>` với `geoJson` đầy đủ. Use case tự copy dữ liệu từ `PlotRegistryEntry` đã chọn sang `ProductPlot` mới (snapshot, §2.4). Validate: `registryEntryId` phải thuộc đúng `sellerId` đang tạo listing, ít nhất 1 plot được chọn (giữ nguyên yêu cầu ≥1 plot từ bản gốc).
+- **`UploadCadastralExtract(sellerId, registryEntryId, extractFile)`** (mới, 04/07/2026) — seller upload file scan/PDF trích lục bản đồ địa chính cho 1 entry đã có sẵn (không tạo entry mới). Nhận `JPG`/`PNG`/`PDF`, cùng giới hạn dung lượng đã áp cho evidence file khác trong hệ thống (`sellerEvidenceFileId`...) — không thêm constraint riêng. Lưu qua `file-service` → `cadastralExtractFileId`, set `verificationLevel = CADASTRAL_BACKED`.
+  - **Giới hạn thật, không phải chi tiết vặt (04/07/2026):** platform **không đối chiếu** nội dung file (số thửa, tờ bản đồ ghi trong trích lục) với `geoJson` đã khai cho đúng entry đó — không có OCR, không tra hệ thống địa chính thật để xác nhận khớp. Seller về lý thuyết có thể upload trích lục của 1 thửa đất bất kỳ, không liên quan gì tới toạ độ đã nhập, vẫn được gắn `CADASTRAL_BACKED`. Đây là giới hạn cùng nhóm với "self-declared" đã nêu ở §2.2.1 — file chỉ là bằng chứng đính kèm, không phải cơ chế xác minh khớp tự động.
+- **`UpdateListing`:** cho phép đổi tập `registryEntryId` được chọn trước khi listing chuyển khỏi trạng thái cho phép sửa (theo state machine `Product` hiện có, không đổi) — thêm/bớt plot bằng cách tick/untick, không sửa trực tiếp `geoJson` của `ProductPlot` đã snapshot.
+- **`GetListing`/`SearchListing`:** không đổi logic.
 
 Không đụng tới `contract-service`, `escrow-service`, hay bất kỳ use case nào của Milestone Escrow.
 
@@ -83,24 +203,57 @@ Không đụng tới `contract-service`, `escrow-service`, hay bất kỳ use ca
 
 ## 5. EUDR Compliance Notes
 
-- **Không mass balance:** listing phải khai đủ toàn bộ plot đóng góp, không được chọn 1 plot đại diện. Validate ở tầng use case: `List<ProductPlotRequest>` không được rỗng.
-- **Không cần tỷ lệ đóng góp:** EUDR không đòi biết chính xác bao nhiêu kg đến từ hộ nào — chỉ cần khai đủ danh sách plot, miễn không plot nào bị phá rừng sau 31/12/2020. Nên `ProductPlot` **không có** field khối lượng/tỷ lệ đóng góp — tránh over-engineer thứ EUDR không yêu cầu.
-- **Dữ liệu self-declared:** platform không có khả năng verify vệ tinh/thực địa (ngoài scope 5 tháng/3 người). `declaredAt` + hash chain (xem `services.md` mục 5, sẽ hook vào session hash chain đang làm) là cơ chế chống sửa sau khi khai, không phải cơ chế xác minh tính đúng đắn ban đầu. Giữ nhất quán với lập luận "trusted operator, không phải trustless" đã dùng cho hash chain/chữ ký điện tử.
+- **Không mass balance:** listing phải khai đủ toàn bộ plot đóng góp, không được chọn 1 plot đại diện. Validate ở tầng use case: `List<registryEntryId>` không được rỗng.
+- **Không cần tỷ lệ đóng góp:** EUDR không đòi biết chính xác bao nhiêu kg đến từ hộ nào — chỉ cần khai đủ danh sách plot, miễn không plot nào bị phá rừng sau 31/12/2020. Nên `ProductPlot`/`PlotRegistryEntry` **không có** field khối lượng/tỷ lệ đóng góp.
+- **Dữ liệu self-declared:** platform không có khả năng verify vệ tinh/thực địa (ngoài scope 5 tháng/3 người). `declaredAt`/`importedAt` + hash chain (`services.md` mục 5) là cơ chế chống sửa sau khi khai, **không phải** cơ chế xác minh tính đúng đắn ban đầu — và GEOMETRY/JTS validation (§2.5) cũng vậy: chặn sai cú pháp/hình học, không chặn "khai đất giả nhưng hợp lệ". Giữ nhất quán với lập luận "trusted operator, không phải trustless".
+- **Verify thêm (04/07/2026):** validation hiện tại (JTS `.isValid()` + bounding box Việt Nam) không phát hiện được toạ độ bị convert sai kinh tuyến trục VN2000 sang WGS84 (ví dụ nhầm 108°30' của Đắk Lắk thành 107°45' của Lâm Đồng — 2 tỉnh liền kề, lỗi nhập nhầm tham số thực tế xảy ra khi thiết bị đo/phần mềm export cấu hình sai tỉnh) — kiểm chứng bằng tính toán thật (pyproj, điểm mẫu Đắk Lắk): sai lệch **81.37km**, kết quả vẫn là toạ độ hợp lệ 100% về hình học và vẫn nằm gọn trong bounding box Việt Nam, nên không có tầng validation nào ở §2.5 bắt được — cùng nhóm giới hạn permanent với "khai đất giả nhưng hợp lệ hình học" đã nêu ở trên, không giải bằng code thêm.
+- **Mitigation cho lỗi VN2000/WGS84 — province cross-check (mới, 05/07/2026, xem §2.2.2/§2.2.3):** không đóng được permanent limitation ở trên, nhưng giảm nhẹ trường hợp lỗi *vô ý* (config sai tỉnh) bằng cách đối chiếu `declaredProvince` (seller tự khai, nguồn độc lập) với tỉnh suy ra từ toạ độ qua point-in-polygon. Không bắt được nếu lỗi convert là hệ thống (cả batch cùng lệch theo cùng 1 hướng, nhất quán nội bộ) và không bắt được fraud có chủ đích — chỉ bắt được khi toạ độ đơn lẻ lệch khỏi tỉnh seller khai. Dùng GADM ranh giới 63 tỉnh cũ (chưa có polygon 34 tỉnh mở, xem §2.2.3) — có thể sinh false-positive ở khu vực vừa sáp nhập, chấp nhận được vì cơ chế non-blocking.
 
 ---
 
 ## 6. Out of Scope (có chủ đích, không phải thiếu sót)
 
-**Luồng export sang `audit-service` để tạo báo cáo EUDR** — để dành cho session hash chain đang chạy, vì `audit-service` cần đọc `ProductPlot` qua cross-service reference (Feign hoặc read model), kết hợp với `signedContentHash`/audit trail đã thiết kế. Session này chỉ chốt phần data model gốc ở `product-service` — nơi dữ liệu geolocation thực sự sống.
+- **Luồng export sang `audit-service` để tạo báo cáo EUDR** — để dành cho session hash chain (đã chốt: Feign, không phải read model riêng — xem `hash-chain-phase2-design.md` §2.3).
+- **Vẽ polygon tay trong app** — cấm hẳn (§2.2), không phải "chưa làm tới". Rủi ro sai số không đáng đánh đổi trong scope đồ án.
+- **Xác minh KML có đúng là do "cán bộ địa chính/NGO thật" đo hay không** — platform tin nội dung file KML seller upload, không xác minh nguồn gốc file. Cùng giới hạn "self-declared, trusted operator" đã nêu ở §5.
+- **Đòn bẩy kinh tế thay thế cho reputation lockout ở năm đầu vận hành** — đã verify (04/07/2026, kết quả và lý do đầy đủ ở `reputation-service-phase2-design.md` §9): điều lệ VICOFA hiện không hỗ trợ cơ chế này. Không lặp lại chi tiết ở đây — đây là câu hỏi thuộc phạm vi enforcement/reputation, không phải geolocation.
 
 ---
 
 ## 7. Status — Product Phase 2 (Farm Plot Geolocation)
 
-**Chốt (02/07/2026):** `ProductPlot` là nested VO list trong `Product` aggregate, không tách aggregate riêng (khác `Milestone`). Mảng theo hộ thành viên, không theo tỷ lệ đóng góp. `geometryType` quyết theo ngưỡng 4ha/plot. Migration additive, không đụng data/logic Phase 1 đã test. Export sang `audit-service` để ngoài phạm vi session này.
+**Chốt (02/07/2026):** `ProductPlot` là nested VO list trong `Product` aggregate, không tách aggregate riêng. `geometryType` quyết theo ngưỡng 4ha/plot. Migration additive, không đụng data/logic Phase 1 đã test.
+
+**Chốt bổ sung (04/07/2026):**
+- **`geo_json`: `TEXT` → `GEOMETRY` (SRID 4326)** ở cả `product_plot` và `plot_registry_entry` — DB tự chặn sai cú pháp/ring hở; self-intersection chặn ở application layer qua JTS `.isValid()` (bypass giới hạn `ST_IsValid()` chỉ chạy SRID=0 của MySQL). Giới hạn "khai đất giả nhưng hợp lệ hình học" vẫn permanent, không đổi.
+- **`PlotRegistryEntry` (mới)** — tách khai báo đất (1 lần, thuộc seller) khỏi tạo listing (nhiều lần) — giải quyết friction "gõ lại toạ độ mỗi mùa vụ cho hàng trăm hộ", phát hiện qua đối chiếu độc lập giữa web search và NotebookLM podcast review.
+- **Re-import/update qua `UNIQUE(sellerId, householdLabel)`** — KML import lại hoặc `AddPlotManually` cho cùng hộ tự update entry hiện có (INSERT ON DUPLICATE KEY UPDATE), không tạo bản trùng, không mồ côi entry cũ. `ProductPlot` đã snapshot cho listing cũ không đổi theo — 2 việc tách biệt.
+- **`accuracyMeters` cho `MANUAL_PIN`** — lấy từ `coords.accuracy` của Geolocation API, cảnh báo UI nếu vượt ngưỡng (đề xuất 20m), không chặn cứng.
+- **`areaHectares` cho `Point` placemark trong KML** — ưu tiên đọc từ `ExtendedData` nếu KML có, không có thì bắt buộc seller nhập tay lúc import (không mặc định NULL/0).
+- **`verificationLevel` (mới, 04/07/2026)** — `SELF_DECLARED` mặc định / `CADASTRAL_BACKED` nếu seller upload "trích lục bản đồ địa chính" (xin từ UBND xã/Văn phòng đăng ký đất đai, quy trình nhà nước có sẵn, không cần AgriContract làm gì để nó tồn tại). **Không** phải bằng chứng sở hữu đầy đủ (đó là vai trò của sổ đỏ, khác văn bản) — chỉ giảm nhẹ giới hạn "khai đất giả nhưng hợp lệ hình học", không đóng hẳn. Copy xuyên suốt `PlotRegistryEntry` → `ProductPlot` → (kỳ vọng) payload event cho search-service, để map hiển thị marker khác màu cho buyer mà không cần gọi ngược `product-service`.
+- **KML import là đường nhập liệu chính** (`ImportPlotsFromKML`), khớp thực tế cán bộ địa chính/công ty xuất khẩu/NGO đã đo GPS sẵn cho EUDR. Pin thủ công (`AddPlotManually`) chỉ là fallback, giới hạn cứng ở `POINT`, cấm dùng cho `POLYGON`.
+- **`CreateListing`/`UpdateListing` đổi input** — chọn từ registry (checkbox) thay vì nhập/gửi `geoJson` trực tiếp mỗi lần. `ProductPlot` giờ là snapshot copy từ `PlotRegistryEntry`, cùng nguyên tắc snapshot đã dùng cho `agreedPrice`/`milestoneSchedule`/`level2InspectorOrg`.
+
+**Chốt bổ sung (05/07/2026) — dependency file-service + mitigation VN2000/WGS84:**
+- **`originalKmlFileId` (mới)** — giữ lại file KML gốc qua `file-service`, field phẳng trên `PlotRegistryEntry`, lặp giá trị theo batch import. Không tách `PlotImportBatch` riêng — không có consumer nào cần query ở tầng batch (log lỗi fail lúc import không ai đọc lại; traceability đã đủ qua cơ chế UPDATE-tại-chỗ khi re-import). Mục đích là provenance, không phải re-verify toạ độ — đã xác nhận file gốc không giúp phát hiện lỗi VN2000/WGS84 vì chỉ chứa số đã convert xong.
+- **`declaredProvince` + `provinceMismatchFlag` (mới)** — cross-check độc lập cho lỗi convert VN2000→WGS84 (permanent limitation đã nêu ở §5, không đóng được bằng validate cú pháp/hình học). Seller khai tỉnh (dropdown, độc lập với toạ độ) đối chiếu với tỉnh suy ra từ point-in-polygon. Non-blocking, chỉ cảnh báo. Không bắt được lỗi hệ thống (cả batch cùng lệch nhất quán) hay fraud có chủ đích — chỉ giảm nhẹ lỗi vô ý do config sai.
+- **Nguồn polygon ranh giới — GADM 63 tỉnh cũ**, không phải 34 tỉnh hiện hành (sáp nhập từ 12/6/2025, Nghị quyết 202/2025/QH15) — vì chính phủ chỉ phát hành bản đồ 34 tỉnh dạng PDF/ảnh, chưa có shapefile/GeoJSON mở nào cập nhật theo cấu trúc mới. Known Limitation, có thể sinh false-positive mismatch ở khu vực vừa sáp nhập — chấp nhận được vì cơ chế non-blocking.
 
 Product Phase 2 (Farm Plot Geolocation) — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
 
 ---
 
-*Design session: 02/07/2026 · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+## 8. Cross-service Note — `Product.varietyName` (không thuộc phạm vi Geolocation, ghi lại để đồng bộ với pricing-service)
+
+**Chốt (05/07/2026), phát sinh từ session thiết kế `pricing-service`, không liên quan gì tới EUDR/geolocation:** pricing-service cần phân biệt giống lúa cụ thể để hiện đúng giá tham khảo (VNSAT trả nhiều giống — OM 18, ST25, IR 50404... — cùng tỉnh/cùng ngày với giá khác hẳn nhau, không phải 1 giá/tỉnh/ngày như cà phê). `Product` hiện chỉ có `category` (ENUM tầng rộng, VD "Gạo"), không có field nào ở tầng chi tiết giống.
+
+**Thêm `Product.varietyName`** (`VARCHAR(100)`, nullable — chỉ có ý nghĩa với category "Gạo", `NULL` cho cà phê/cao su/điều):
+- Additive migration, không đụng `Product` aggregate logic đã test.
+- Free text, **không** lock cứng theo danh sách `itemName` mà pricing-service quan sát được từ VNSAT — tránh tạo dependency đồng bộ giữa 2 service chỉ cho 1 field phụ trợ tham khảo. FE có thể gợi ý autocomplete qua `GET /api/prices/rice/{province}/items` (pricing-service) nhưng không bắt buộc khớp.
+- Match giá tham khảo là best-effort: pricing-service tự normalize `varietyName` theo cùng thuật toán `itemSlug` nó dùng nội bộ — khớp thì hiện giá tham khảo, không khớp thì im lặng không hiện, không phải lỗi, không block tạo listing.
+
+**Timing:** gộp chung migration này với PR `Category`/`ProductImage`/`Listing.coverImageUrl` mà NMC đang làm (cùng đụng bảng `products`), tránh 2 lần touch schema gần nhau. Chi tiết đầy đủ nằm ở `pricing-service-phase2-design.md` §5 (Known Limitations) — tài liệu này chỉ ghi nhận phần việc phía `product-service` cần làm, không lặp lại toàn bộ lý do.
+
+---
+
+*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (GEOMETRY/JTS validation, Plot Registry + KML import) · 05/07/2026 (file-service dependency, province cross-check mitigation) · 05/07/2026 (thêm `varietyName`, cross-reference `pricing-service`) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
