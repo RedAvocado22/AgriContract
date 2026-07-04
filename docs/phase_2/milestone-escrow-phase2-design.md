@@ -1,11 +1,11 @@
 ---
 name: milestone-escrow-phase2-design
-description: "Milestone Escrow — full domain design cho Phase 2, thay thế two-phase lock escrow đang chạy ở Phase 1. Nguồn: design session 02/07/2026."
+description: "Milestone Escrow — full domain design cho Phase 2, thay thế two-phase lock escrow đang chạy ở Phase 1. Nguồn: design session 02/07/2026, cập nhật 04/07/2026."
 status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
-  supersedes: "architecture.md § Escrow State Machine (two-phase lock BUYER_LOCKED → FULLY_LOCKED)"
+  supersedes: "architecture.md § Escrow State Machine (two-phase lock BUYER_LOCKED → FULLY_LOCKED); bản 02/07/2026 của chính file này (Spring ApplicationEvent → Local Outbox, thêm buyer timeout ở BUYER_RECEIVED, thêm buyerDepositRate release paths + event contract.settled/contract.cancelled)"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -29,7 +29,7 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 | `shortfallPenaltyThreshold` | BigDecimal | Ngưỡng % thiếu hàng (Delta 1) mà dưới đó chỉ pro-rata, từ đó trở lên tính penalty. **Chốt: 5%.** (Giá trị mặc định — vẫn negotiate được per-contract giống các field khác trong `ContractTerms`.) |
 | `buyerPenaltyRate` / `sellerPenaltyRate` | BigDecimal | Giữ nguyên từ Phase 1, tái dùng cho nhánh Delta 1 penalty. |
 | `forceMajeureReportWindowDays` | Integer | Số ngày seller phải báo bất khả kháng kể từ lúc **biết sự kiện** (không neo theo ngày giao). **Chốt: 3 ngày.** |
-| `buyerDepositRate` | BigDecimal | Cọc nhỏ của buyer — **Chốt: 5%** `totalAmount`. Lock **một lần duy nhất lúc `SIGNED`**, giữ xuyên suốt tới `SETTLED` cuối cùng. Vai trò "skin in the game", **không phải** T/T-style cọc cover rủi ro tài chính (đã bác bỏ ở `decisions.md` [2026-06-16]) — đó là việc của `batchAmount` lock riêng từng milestone (§6). |
+| `buyerDepositRate` | BigDecimal | Cọc nhỏ của buyer — **Chốt: 5%** `totalAmount`. Lock **một lần duy nhất lúc `SIGNED`**, giữ xuyên suốt tới `SETTLED` cuối cùng. Vai trò "skin in the game", **không phải** T/T-style cọc cover rủi ro tài chính (đã bác bỏ ở `decisions.md` [2026-06-16]) — đó là việc của `batchAmount` lock riêng từng milestone (§6). 3 đường release/seize của field này — §6.3. |
 | ~~`sellerDepositRate`~~ | — | **Bỏ hẳn.** Không còn seller deposit trong Milestone Escrow. |
 
 `MilestoneTerm` (nested VO, phần tử của `milestoneSchedule`):
@@ -44,7 +44,32 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 
 **Chốt (02/07/2026):** `Milestone` là aggregate root riêng — có `milestoneId` là identity, `MilestoneRepository` riêng, transaction riêng khi load/save. **Không** phải entity con của `Contract`. Lý do: milestone 3 confirm không cần atomic cùng lúc với milestone 1, 2, 4-8 — chúng độc lập nhau về nghiệp vụ, nhét chung 1 aggregate là nhầm foreign key (cùng thuộc 1 `contractId`) với ranh giới transaction thật cần thiết (nguyên tắc *Effective Aggregate Design* — Vernon).
 
-Vẫn nằm chung `contract-service`, chung `contract_db` — không tách service, không thêm RabbitMQ exchange mới. Đồng bộ `Contract` với N `Milestone` con của nó qua **Spring `ApplicationEvent` nội bộ** (không phải RabbitMQ, vì cùng process): sau khi `Milestone.settle()` commit xong transaction riêng, publish local event → use case check `countByContractIdAndStatusNot(SETTLED) == 0` → nếu true, gọi `Contract.completeAllMilestones()` trong transaction riêng của `Contract`. Hai transaction tách biệt nhưng cùng service, không qua network hop, không có rủi ro lệch state kiểu cross-service event chưa consume (loại bug `architecture.md` đang track ở `escrow.buyer_locked`).
+Vẫn nằm chung `contract-service`, chung `contract_db` — không tách service, không thêm RabbitMQ exchange mới.
+
+**Cập nhật (04/07/2026) — Local Outbox Pattern thay Spring `ApplicationEvent`:** bản gốc đồng bộ `Contract` với N `Milestone` con qua Spring `ApplicationEvent` nội bộ. Có 1 bug thật chưa lộ ra tới khi rà kỹ: nếu app crash *ngay sau khi* `Milestone.settle()` commit nhưng *trước khi* listener kịp chạy check `countByContractIdAndStatusNot(SETTLED)`, event bay mất — không có cơ chế retry nào cho `ApplicationEvent` mặc định của Spring. `Contract` kẹt vĩnh viễn ở `ACTIVE` dù thực tế milestone cuối đã xong, và không có exception nào bắn ra để biết mà sửa — bug âm thầm, chỉ lộ ra khi có người thắc mắc sao hợp đồng không đóng.
+
+Thay bằng Local Outbox — cùng nguyên tắc đã dùng cho Outbox Poller RabbitMQ ở Phase 1, chỉ khác là **local, không qua RabbitMQ, không qua network hop**:
+
+```sql
+CREATE TABLE milestone_sync_outbox (
+    outbox_id       UUID PRIMARY KEY,
+    milestone_id    UUID NOT NULL,
+    contract_id     UUID NOT NULL,
+    processed       BOOLEAN NOT NULL DEFAULT false,
+    retry_count     INT NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMP NULL,
+    created_at      TIMESTAMP NOT NULL,
+    processed_at    TIMESTAMP NULL
+);
+```
+
+Cơ chế:
+
+1. `Milestone.settle()` insert 1 row vào `milestone_sync_outbox` **trong cùng transaction** với chính nó — atomic, không thể commit milestone mà thiếu outbox row.
+2. `@Scheduled` poller (tần suất giống Outbox Poller RabbitMQ đang chạy ở Phase 1) đọc các row `processed = false`, chạy `countByContractIdAndStatusNot(SETTLED) == 0` cho đúng `contractId` của row đó.
+3. Nếu `true` → gọi `Contract.completeAllMilestones()` trong transaction riêng của `Contract` (method thay thế `settle()` cũ — guard fix ở §3.1).
+4. Đánh dấu `processed = true` **dù kết quả check ở bước 2 là gì** — bản thân việc "đã kiểm tra cho đúng milestone này" là xong nhiệm vụ của row đó. Milestone thật sự cuối cùng sẽ có row riêng của nó tự bắt được điều kiện `== 0`.
+5. Fail giữa chừng (exception, crash) → `retry_count += 1`, `last_attempt_at = now()`, row vẫn `processed = false`, poller lần chạy sau xử lý lại — at-least-once, không mất, không cần alert/dead-letter riêng cho scope đồ án.
 
 `Milestone` là instance runtime của `MilestoneTerm`, track trạng thái thực tế của từng đợt giao hàng.
 
@@ -63,6 +88,8 @@ Vẫn nằm chung `contract-service`, chung `contract_db` — không tách servi
 ### 2.3 `EscrowAccount` (cập nhật)
 
 Bỏ `sellerDeposit`, `mockSellerBalance`. Thêm `EscrowMilestone` (con) — mirror `Milestone` bên contract-service, track riêng phần lock/release tiền của từng batch (giữ nguyên nguyên tắc contract-service quản lý delivery state, escrow-service quản lý tiền — không lẫn 2 domain).
+
+**Lưu ý (04/07/2026, xem `bank-service-phase2-design.md` §5):** `EscrowAccount`/`EscrowMilestone` chỉ giữ **state** (`LOCKED`/`RELEASED`/`PENALIZED`...), không tự lưu lại 1 con số tiền riêng phải đồng bộ tay với bank-service — số tiền thật là single source of truth ở `ledger_entry` bên bank-service. Giữ thêm số tiền ở đây là dual-write, đúng lỗi đã học ở Phase 1.
 
 ---
 
@@ -84,6 +111,8 @@ OFFERED → NEGOTIATING → SIGNED → ACTIVE
 
 **Diễn giải bằng lời:** khác với Phase 1 (nơi cả hợp đồng chỉ có một điểm giao hàng duy nhất, `confirmDelivery()` một lần là xong), ở Milestone Escrow, `ACTIVE` là một trạng thái kéo dài — bên trong nó có N milestone chạy, mỗi milestone tự đi qua vòng đời riêng (chi tiết ở §3.2). Contract chỉ chuyển sang `SETTLED` khi milestone cuối cùng trong `milestoneSchedule` đã `SETTLED`. Nói cách khác, `SIGNED` vẫn giữ nguyên nghĩa (cả hai bên đã ký, điều khoản bất biến), nhưng "giao hàng xong" không còn là một sự kiện tức thời — nó là kết quả cộng dồn của nhiều sự kiện nhỏ.
 
+**Cập nhật (04/07/2026) — dọn dead path, phát hiện qua đối chiếu chéo với `reputation-service-phase2-design.md` KI-1:** `Contract.settle()` hiện tại (code Phase 1) chỉ chạy được từ status `DELIVERED` — di sản two-phase lock. `completeAllMilestones()` (§2.2) phải gọi được `settle()` khi Contract đang `ACTIVE` (không bao giờ đạt `DELIVERED` nữa dưới Milestone Escrow) → **guard cần sửa**, đổi điều kiện cho phép transition từ `ACTIVE` thay vì `DELIVERED`. Kéo theo dead path cần dọn khi code: `confirmDelivery()`, `ContractDeliveredEvent`/`"contract.delivered"`, consumer tương ứng ở `escrow-service.ContractEventConsumer` và `notification-service.NotificationEventConsumer` — các thành phần này thuộc mô hình single-delivery-point Phase 1, không còn đường nào gọi tới dưới Milestone Escrow, cần xoá khi implement chứ không chỉ để đó thành code chết. `"contract.settled"` (`ContractSettledEvent`) **vẫn dùng nguyên được** một khi guard sửa xong — đây chính là event escrow-service sẽ consume ở §6.3/§7.2 để release `buyerDepositRate`.
+
 ### 3.2 Milestone-level (mới)
 
 ```
@@ -102,14 +131,15 @@ BUYER_RECEIVED                                                             │  
    │                                                                        │                  → tiếp BUYER_RECEIVED         │
    ├─ CONFIRM_CLEAN ──────────────────────────────────────────▶ SETTLED    │                  với số đã giao         ┌──────┴──────┐
    │                                                                        │                          │             │             │
-   └─ FLAG_ISSUE ──▶ AWAITING_SELLER_RESPONSE (2 ngày làm việc)            │                  Buyer bất mãn?      Không        Escalate
-        │                                                                  │                          │          escalate      Level 1.5
-        ├─ timeout (seller im lặng) ──▶ SETTLED (theo số buyer báo)        │                          ▼             │       (final, cap)
-        │                                                                  │                    Escalate Level 1.5   ▼             │
-        └─ CONTESTED ──▶ DisputeRoutingService (3-tier) ──▶ SETTLED        │                    (cap, không Level 2)Coi như       ▼
-                                                                             └───────────────────────────────────────shortfall  final
-                                                                                                                      thường →
-                                                                                                                   Delta 1 penalty
+   ├─ timeout (buyerConfirmWindowDays, mặc định 2 ngày làm việc,           │                  Buyer bất mãn?      Không        Escalate
+   │           buyer im lặng) ──────────────────────────────────▶ SETTLED  │                          │          escalate      Level 1.5
+   │           (xử lý như CONFIRM_CLEAN)                                   │                          ▼             │       (final, cap)
+   │                                                                        │                    Escalate Level 1.5   ▼             │
+   └─ FLAG_ISSUE ──▶ AWAITING_SELLER_RESPONSE (sellerResponseWindowDays,   │                    (cap, không Level 2)Coi như       ▼
+        │            mặc định 2 ngày làm việc)                            │                          │          shortfall  final
+        ├─ timeout (seller im lặng) ──▶ SETTLED (theo số buyer báo)       │                          │          thường →
+        │                                                                  │                          │       Delta 1 penalty
+        └─ CONTESTED ──▶ DisputeRoutingService (3-tier) ──▶ SETTLED        └──────────────────────────┘
 ```
 
 **Diễn giải bằng lời — đọc kỹ nếu sơ đồ mũi tên phía trên gây hiểu lầm:**
@@ -118,7 +148,9 @@ Mỗi milestone bắt đầu ở `CREATED` khi contract chuyển `ACTIVE`, rồi
 
 *Hướng bình thường (không có sự cố):* seller cân hàng trước khi lên xe, upload ảnh làm bằng chứng → milestone chuyển `SELLER_WEIGHED`, ghi nhận `sellerDeclaredWeight`. Hàng vận chuyển tới buyer. Buyer cân lại khi hạ hàng, upload ảnh bằng chứng riêng → milestone chuyển `BUYER_RECEIVED`, ghi nhận `buyerReceivedWeight`.
 
-Tại `BUYER_RECEIVED`, buyer có đúng hai lựa chọn. Nếu số lượng và chất lượng đúng như mong đợi, buyer bấm **CONFIRM_CLEAN** — hệ thống tự tính pro-rata theo Delta 2 (so `sellerDeclaredWeight` với `buyerReceivedWeight`) và release tiền ngay, milestone chuyển thẳng `SETTLED`, không ai can thiệp, không tốn phí gì. Nếu buyer thấy có vấn đề (thiếu cân hoặc sai chất lượng), buyer bấm **FLAG_ISSUE** — milestone chuyển `AWAITING_SELLER_RESPONSE`, seller có đúng 2 ngày làm việc để phản hồi. Seller im lặng hết 2 ngày = hệ thống coi như đồng ý với con số buyer báo, tự động `SETTLED` theo số đó. Seller không đồng ý, bấm **CONTESTED** — tranh chấp được đẩy qua `DisputeRoutingService`, dùng đúng cơ chế 3-tier đã có sẵn cho Tiered Dispute Resolution (Admin nội bộ / Vinacontrol-Quatest / SGS-Bureau Veritas tuỳ giá trị và độ phức tạp hàng hoá) — có kết quả rồi milestone mới `SETTLED` theo phán quyết đó.
+Tại `BUYER_RECEIVED`, buyer có đúng hai lựa chọn chủ động, cộng thêm 1 nhánh timeout. Nếu số lượng và chất lượng đúng như mong đợi, buyer bấm **CONFIRM_CLEAN** — hệ thống tự tính pro-rata theo Delta 2 (so `sellerDeclaredWeight` với `buyerReceivedWeight`) và release tiền ngay, milestone chuyển thẳng `SETTLED`, không ai can thiệp, không tốn phí gì. Nếu buyer thấy có vấn đề (thiếu cân hoặc sai chất lượng), buyer bấm **FLAG_ISSUE** — milestone chuyển `AWAITING_SELLER_RESPONSE`, seller có đúng `sellerResponseWindowDays` (mặc định 2 ngày làm việc) để phản hồi. Seller im lặng hết thời gian này = hệ thống coi như đồng ý với con số buyer báo, tự động `SETTLED` theo số đó. Seller không đồng ý, bấm **CONTESTED** — tranh chấp được đẩy qua `DisputeRoutingService`, dùng đúng cơ chế 3-tier đã có sẵn cho Tiered Dispute Resolution (Admin nội bộ / Vinacontrol-Quatest / SGS-Bureau Veritas tuỳ giá trị và độ phức tạp hàng hoá) — có kết quả rồi milestone mới `SETTLED` theo phán quyết đó.
+
+**Cập nhật (04/07/2026) — timeout đối xứng cho nhánh buyer im lặng:** nếu buyer không bấm gì cả (không `CONFIRM_CLEAN`, không `FLAG_ISSUE`) trong vòng `buyerConfirmWindowDays` (mặc định 2 ngày làm việc, cùng độ dài với cửa sổ phản hồi của seller) kể từ lúc milestone vào `BUYER_RECEIVED`, hệ thống tự động xử lý như `CONFIRM_CLEAN` — release theo đúng `sellerDeclaredWeight`/`buyerReceivedWeight` đã ghi nhận, milestone `SETTLED`. Lý do default về `CONFIRM_CLEAN` chứ không phải treo vô thời hạn: seller đã hoàn thành nghĩa vụ giao hàng tới đúng lúc `BUYER_RECEIVED` (hàng đã tới tay buyer) — buyer im lặng không được phép biến thành công cụ giữ tiền seller vô thời hạn, đúng nguyên tắc "nghiêng về seller khi seller yếu thế hơn" đã dùng xuyên suốt (§6.2).
 
 *Hướng bất khả kháng (có sự cố):* ở **bất kỳ thời điểm nào** từ `IN_PROGRESS` cho tới trước khi milestone `SETTLED` — kể cả trước khi seller kịp cân hàng, hoặc ngay sau khi seller cân xong và phát hiện thiếu — seller có quyền claim bất khả kháng, miễn là claim được nộp trong vòng `forceMajeureReportWindowDays` **kể từ lúc seller biết về sự kiện** (không phải kể từ ngày giao hàng — xem lý do ở §5). Milestone chuyển sang `FORCE_MAJEURE_PENDING_REVIEW`, kèm bằng chứng nộp qua `file-service` (xác nhận thiên tai của chính quyền địa phương, ảnh, tin tức).
 
@@ -180,6 +212,8 @@ Lý do cần đối xứng, không chỉ cho buyer: `decisions.md` [2026-06-17] 
 
 **Vấn đề cốt lõi — không còn seller deposit để seize:** Phase 1 cũ, penalty tự động vì tiền đã khoá sẵn trong escrow. Milestone Escrow bỏ deposit (viability constraint cho HTX) — nên khi seller cancel phần còn lại, không có gì để escrow tự động trừ. Đây là cái giá thật của quyết định bỏ deposit, không phải lỗi thiết kế cancel.
 
+**Cập nhật (04/07/2026) — `buyerDepositRate` tách hoàn toàn khỏi penalty debt của seller:** buyer không phải bên phá kèo trong case này — `buyerDepositRate` (khoá từ lúc `SIGNED`, §2.1) được refund về buyer ngay khi `cancel()` do seller khởi xướng được xác nhận, độc lập hoàn toàn với cơ chế penalty debt/lockout ở dưới (đó là hình phạt nhắm vào hành vi của seller, không liên quan gì tới tiền của buyer). Trigger + event cụ thể — §6.3.
+
 **Cơ chế thay thế — không qua escrow, dựa vào Reputation (Doc2 mục 4.5) làm đòn bẩy enforce thật:**
 
 1. **Penalty debt được ghi nhận** — `sellerPenaltyRate × giá trị milestone còn lại`, lưu vào audit trail bất biến, có giá trị làm bằng chứng bồi thường thiệt hại theo Luật TM 2005 Điều 302 nếu buyer muốn truy đòi qua VIAC/toà án. Platform không tự thu hộ được — đây chỉ là bằng chứng.
@@ -193,7 +227,6 @@ Lý do cần đối xứng, không chỉ cho buyer: `decisions.md` [2026-06-17] 
    - `trackRecordMultiplier` — **gated theo ngưỡng mẫu tối thiểu**, không dùng % thô ngay từ đầu. Lý do: % với mẫu số nhỏ cực kỳ không ổn định — seller mới (0-1 hợp đồng) vi phạm 1 lần sẽ ra 0% clean, trong khi seller có 20 hợp đồng sạch vi phạm hợp đồng thứ 21 vẫn ra 95% clean, dù hành vi vi phạm giống hệt nhau (1 lần). Dưới ngưỡng mẫu tối thiểu → seller "chưa đủ dữ liệu", dùng multiplier trung tính, không bị đẩy xuống đáy chỉ vì mới tham gia. Từ ngưỡng trở lên → dùng % sạch thật để giảm nhẹ hoặc tăng nặng.
    - **Baseline cụ thể, chốt luôn:** `baseDays = 30`. Ngưỡng mẫu tối thiểu = 5 hợp đồng hoàn thành. `repeatOffenseMultiplier`: 1x (lần 1) / 2x (lần 2) / 3x (lần 3+). `trackRecordMultiplier` (chỉ áp dụng từ hợp đồng thứ 6 trở đi): 0.7x nếu ≥90% sạch, 1.0x nếu 70–90%, 1.3x nếu dưới 70%; dưới ngưỡng 5 hợp đồng → mặc định 1.0x.
    - Toàn bộ nằm trong `application.yml`, chỉnh được sau khi có dữ liệu thật — không cần đúng tuyệt đối ngay từ đầu.
-
 4. **Mở khoá qua 1 trong 3 đường, đường nào tới trước:**
    - Buyer tự báo đã giải quyết xong (ngoài platform) → tự đóng.
    - Seller upload bằng chứng kết quả ràng buộc (bản án, phán quyết VIAC, thoả thuận hoà giải hai bên ký) qua `file-service` → Admin verify → đóng theo kết quả (seller thắng có thể phục hồi reputation, không chỉ mở khoá).
@@ -206,7 +239,7 @@ Lý do cần đối xứng, không chỉ cho buyer: `decisions.md` [2026-06-17] 
 
 Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
-1. **Mất toàn bộ `buyerDepositRate` (5% `totalAmount`)** — chuyển cho seller, escrow tự động seize ngay, không cần chờ Admin.
+1. **Mất toàn bộ `buyerDepositRate` (5% `totalAmount`)** — chuyển cho seller, escrow tự động seize ngay, không cần chờ Admin. (Event cụ thể — §6.3.)
 2. **Nếu đang có `batchAmount` của milestone hiện tại đang lock** — seize luôn theo `buyerPenaltyRate`, chuyển cho seller như bồi thường, y hệt logic `PENALIZED_BUYER` của Phase 1 nhưng chỉ scope đúng 1 batch.
 3. **Khoá account + xấu track record** — áp đúng công thức `lockDurationDays` ở §6.1, dùng chung cho cả buyer và seller (đổi `sellerPenaltyRate` thành `buyerPenaltyRate` trong input tính penalty debt).
 
@@ -214,16 +247,33 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
 **Ownership giữa các service:** `contract-service` tính penalty + publish event khi milestone bị cancel-có-penalty (cả 2 chiều buyer/seller). `reputation-service` (service #8, Phase 2 — services.md) consume event này cùng lịch sử hợp đồng hoàn thành, tính `lockDurationDays` theo công thức trên, và là nguồn quyết định khoá/mở khoá. `user-service` enforce khoá thật (chặn tạo listing/contract) dựa trên quyết định từ `reputation-service`. Chi tiết state machine đầy đủ của `reputation-service` (aggregate từ nhiều nguồn, eventually consistent theo services.md) để dành cho design session riêng — ở đây chỉ chốt input/trigger nó cần nhận.
 
+### 6.3 `buyerDepositRate` — 3 đường release/seize, event cấp Contract (mới, 04/07/2026)
+
+**Vấn đề phát hiện khi rà lại luồng tiền:** `buyerDepositRate` là khoá **cấp Contract** (`milestoneId = NULL` ở `ledger_entry`, `bank-service-phase2-design.md` §2), không thuộc về milestone nào — nên không thể dùng `milestone.cancelled_with_penalty` (event cấp milestone, §7.1) làm trigger cho nó. Event Catalog bản 02/07/2026 chưa có event nào ở cấp Contract để xử lý riêng field này — lỗ hổng thật, không phải chi tiết vụn.
+
+**Chốt (04/07/2026) — 3 đường, 2 event cấp Contract:**
+
+| Trigger | Event | Kết quả cho `buyerDepositRate` |
+|---|---|---|
+| Hợp đồng hoàn tất bình thường — tất cả milestone `SETTLED` | `contract.settled` — đã tồn tại trong code Phase 1 (`ContractSettledEvent`), **không phải event mới**, chỉ thêm consumer mới. Cần guard fix ở §3.1 trước khi dùng lại được. | `REFUND_TO_BUYER` |
+| Seller khởi xướng `cancel()` (§6.1) | `contract.cancelled` (initiatedBy=SELLER) — **event mới** | `REFUND_TO_BUYER` — độc lập với penalty debt |
+| Buyer khởi xướng `cancel()` (§6.2) | `contract.cancelled` (initiatedBy=BUYER) — **event mới** | `SEIZE_PENALTY` (chuyển cho seller) |
+
+`contract.cancelled` — publisher `contract-service`, bắn đúng 1 lần mỗi khi `Contract.cancel()` được gọi, bất kể cancel kéo theo bao nhiêu milestone bị `milestone.cancelled_with_penalty` riêng lẻ (đó là event khác cấp, không gộp — mỗi milestone còn lại vẫn tự bắn `milestone.cancelled_with_penalty` của nó cho phần `batchAmount`, còn `contract.cancelled` chỉ lo phần `buyerDepositRate`). Payload tối thiểu: `{contractId, initiatedBy: BUYER|SELLER}`. Consumer: `escrow-service` (xử lý `buyerDepositRate` theo bảng trên), `notification-service`. Chi tiết event catalog — §7.2.
+
+**Điểm cần Cường review kỹ trước khi đưa vào SDS:** đây là phát hiện mới lúc viết lại tài liệu (04/07/2026), chưa qua vòng thảo luận riêng như các mục khác trong file này — logic khớp với những gì đã chốt ở §6.1/§6.2 (seller cancel → refund buyer, buyer cancel → seize), chỉ là lần đầu đặt tên/thiết kế event cụ thể cho nó.
+
 ---
 
-## 7. Event Catalog — Milestone
+## 7. Event Catalog
 
-**Chốt (02/07/2026):** theo đúng convention `{aggregate}.{actor}_{past_tense_verb}` đã có tiền lệ ở `escrow.buyer_locked`. `Milestone` là aggregate riêng (§2.2) nên `milestone` đóng vai trò prefix, y hệt `escrow` đang đóng cho `EscrowAccount`.
+**Chốt (02/07/2026):** theo đúng convention `{aggregate}.{actor}_{past_tense_verb}` đã có tiền lệ ở `escrow.buyer_locked`.
+
+### 7.1 Milestone-level
 
 | Loại | Tên | Publisher | Consumer(s) |
 |---|---|---|---|
-| Local `ApplicationEvent` (nội bộ, không RabbitMQ) | `MilestoneSettledEvent` | `Milestone` aggregate | Use case đồng bộ `Contract` (§2.2) |
-| Local `ApplicationEvent` | `AllMilestonesSettledEvent` | Use case check `countByContractIdAndStatusNot(SETTLED) == 0` | `Contract.completeAllMilestones()` |
+| Local Outbox (nội bộ, không RabbitMQ — cơ chế ở §2.2) | `milestone_sync_outbox` row | `Milestone.settle()` | `@Scheduled` poller → `Contract.completeAllMilestones()` |
 | RabbitMQ | `milestone.seller_weighed` | contract-service | file-service (evidence), notification-service |
 | RabbitMQ | `milestone.buyer_confirmed` | contract-service | escrow-service (trigger release), notification-service |
 | RabbitMQ | `milestone.flagged` | contract-service | notification-service |
@@ -231,6 +281,15 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 | RabbitMQ | `milestone.force_majeure_resolved` | contract-service | escrow-service, notification-service |
 | RabbitMQ | `milestone.settled` | contract-service | escrow-service, notification-service, reputation-service |
 | RabbitMQ | `milestone.cancelled_with_penalty` | contract-service | escrow-service (seize nếu có `batchAmount` lock), notification-service, reputation-service (tính `lockDurationDays`) |
+
+**Cập nhật (04/07/2026) — payload `milestone.settled` mở rộng:** thêm `lockedAmount` (= `batchAmount` gốc đã khoá) và `actualAmount` (= số tiền thật sau pro-rata Delta 1/2, §4). `escrow-service` tự tính `diff = lockedAmount - actualAmount`, bắn 2 `LedgerEntry` cùng `milestoneId` nếu `diff > 0`: `RELEASE_TO_SELLER(actualAmount)` + `REFUND_TO_BUYER(diff)`. Không cần event/entryType mới ở bank-service — chỉ là payload trước đây chưa đủ chi tiết để escrow-service tự tính được.
+
+### 7.2 Contract-level (mới, 04/07/2026)
+
+| Loại | Tên | Publisher | Consumer(s) |
+|---|---|---|---|
+| RabbitMQ | `contract.settled` | contract-service (`ContractSettledEvent`, đã có sẵn trong code Phase 1 — chỉ thêm consumer mới, cần guard fix §3.1) | escrow-service (`REFUND_TO_BUYER` cho `buyerDepositRate`, §6.3), reputation-service (input positive — đã dùng ở `reputation-service-phase2-design.md` §3) |
+| RabbitMQ | `contract.cancelled` | contract-service — **mới**, xem §6.3 | escrow-service (seize/refund `buyerDepositRate` theo `initiatedBy`), notification-service |
 
 ---
 
@@ -242,17 +301,26 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 | `forceMajeureReportWindowDays` | `ContractTerms` (per-contract) | Độ nhạy cảm thời gian khác nhau theo mặt hàng (cà phê khô lâu hơn rau quả tươi) |
 | `shortfallPenaltyThreshold`, `toleranceRate`, `sellerPenaltyRate` | `ContractTerms` (per-contract) | Negotiate theo từng hợp đồng, giống pattern `penaltyRate` Phase 1 |
 | Ngưỡng giá trị/loại hàng kích hoạt Level 1.5 vs Level 2 cho dispute thường (quantity/quality) | `application.yml` | Đã quyết từ Doc2 mục 4.3 — per-deployment config |
+| `sellerResponseWindowDays` (mặc định 2 ngày làm việc) | `application.yml` | **Chính thức hoá (04/07/2026):** trước đây chỉ ghi "2 ngày làm việc" trong prose ở §3.2, chưa đặt tên config. Invariant kỹ thuật — không có lý do hợp đồng khác nhau cần cửa sổ phản hồi khác nhau. |
+| `buyerConfirmWindowDays` (mặc định 2 ngày làm việc) | `application.yml` | **Mới (04/07/2026):** đối xứng với `sellerResponseWindowDays` — buyer im lặng ở `BUYER_RECEIVED` quá thời gian này → auto `CONFIRM_CLEAN` (§3.2). |
 
 ---
 
 ## 9. Status — Milestone Escrow Design
 
-**Chốt toàn bộ (02/07/2026):** `shortfallPenaltyThreshold` = 5%. `forceMajeureReportWindowDays` = 3 ngày. Seller có quyền contest REJECT, đối xứng với buyer, cùng cap Level 1.5. `Milestone` = aggregate riêng, đồng bộ qua Spring `ApplicationEvent` nội bộ. `dispute()` cấp Contract bị bỏ. `cancel()` cấp Contract = pro-rata + penalty debt + lockout, áp cho cả seller lẫn buyer (§6). `buyerDepositRate` = 5% `totalAmount`, lock lúc `SIGNED` (§2.1, §6.2). Event catalog chốt theo convention `escrow.buyer_locked` đã có (§7). `lockDurationDays = baseDays(30) × repeatOffenseMultiplier(1x/2x/3x) × trackRecordMultiplier(0.7x/1.0x/1.3x, gated ngưỡng 5 hợp đồng)` — không tính giá trị hợp đồng (đã phản ánh riêng ở penalty debt). `batchAmount` lock sớm — ngay khi milestone trước `SETTLED`.
+**Chốt (02/07/2026):** `shortfallPenaltyThreshold` = 5%. `forceMajeureReportWindowDays` = 3 ngày. Seller có quyền contest REJECT, đối xứng với buyer, cùng cap Level 1.5. `Milestone` = aggregate riêng. `dispute()` cấp Contract bị bỏ. `cancel()` cấp Contract = pro-rata + penalty debt + lockout, áp cho cả seller lẫn buyer (§6). `buyerDepositRate` = 5% `totalAmount`, lock lúc `SIGNED`. Event catalog theo convention `escrow.buyer_locked` đã có. `lockDurationDays = baseDays(30) × repeatOffenseMultiplier(1x/2x/3x) × trackRecordMultiplier(0.7x/1.0x/1.3x, gated ngưỡng 5 hợp đồng)`. `batchAmount` lock sớm — ngay khi milestone trước `SETTLED`.
 
-**Chỉ còn 1 điểm để ngoài phạm vi có chủ đích, không phải thiếu sót:** state machine đầy đủ của `reputation-service` — service này phục vụ nhiều mục đích ngoài Milestone Escrow (search-service ranking, credit infrastructure dài hạn theo Doc2 mục 6), thiết kế nó chỉ dựa trên góc nhìn lockout sẽ méo, giống lỗi Delta 1/Delta 2 gộp nhầm ở đầu session. Input nó cần nhận từ Milestone Escrow đã chốt đủ (event `milestone.cancelled_with_penalty`, §7) — không block việc code contract-service.
+**Chốt bổ sung (04/07/2026):**
+- **Local Outbox Pattern thay Spring `ApplicationEvent`** cho đồng bộ `Milestone` → `Contract` (§2.2) — sửa đúng bug crash-window đã phát hiện, giữ nguyên tinh thần local/không RabbitMQ.
+- **Guard `Contract.settle()` cần fix** để chạy được từ `ACTIVE` thay vì chỉ `DELIVERED` (§3.1) — kèm dọn dead path `confirmDelivery()`/`ContractDeliveredEvent` khi implement. Phát hiện qua đối chiếu chéo với `reputation-service-phase2-design.md` KI-1.
+- **Buyer timeout ở `BUYER_RECEIVED`** — `buyerConfirmWindowDays` = 2 ngày làm việc, mặc định `CONFIRM_CLEAN` nếu buyer im lặng (§3.2, §8).
+- **`buyerDepositRate` — 3 đường release/seize chính thức hoá** qua 2 event cấp Contract mới thêm vào catalog: `contract.settled` (event có sẵn, thêm consumer escrow-service) và `contract.cancelled` (event hoàn toàn mới) (§6.3, §7.2).
+- **Payload `milestone.settled` mở rộng** thêm `lockedAmount`/`actualAmount` để escrow-service tự tách `RELEASE_TO_SELLER` + `REFUND_TO_BUYER` khi Delta 1/2 pro-rata làm số tiền thực nhận thấp hơn số đã khoá (§7.1).
 
-Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
+**Chỉ còn 1 điểm để ngoài phạm vi có chủ đích, không phải thiếu sót:** state machine đầy đủ của `reputation-service` ngoài phần input/trigger đã chốt — thiết kế chi tiết nằm ở `reputation-service-phase2-design.md` (session riêng, 04/07/2026).
+
+Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** §6.3 (event `contract.cancelled`) cần Cường xác nhận riêng trước khi coi là chốt cứng — xem ghi chú trong mục đó.
 
 ---
 
-*Design session: 02/07/2026 · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (Local Outbox, buyer timeout, buyerDepositRate release paths) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*

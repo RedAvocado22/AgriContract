@@ -1,12 +1,12 @@
 ---
 name: bank-service-phase2-design
-description: "Bank-service — mock legal custody cho tiền, mô hình FBO/ledger thay vì account-per-contract. Nguồn: design session 03/07/2026."
+description: "Bank-service — mock legal custody cho tiền, mô hình FBO/ledger thay vì account-per-contract. Nguồn: design session 03/07/2026, cập nhật 04/07/2026."
 status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
   extends: "services.md § bank-service (8086)"
-  related: "milestone-escrow-phase2-design.md §2.1, §2.3, §6 (nguồn amount cần lock/release/seize); AgriContract_02_GiaiPhap_MoHinh_v5.docx Tầng 5 (Escrow Holder — Ngân hàng), §3.3 (superseded, xem Known Limitations)"
+  related: "milestone-escrow-phase2-design.md §2.1, §2.3, §6, §6.3, §7 (nguồn amount cần lock/release/seize + 2 event cấp Contract mới); AgriContract_02_GiaiPhap_MoHinh_v5.docx Tầng 5 (Escrow Holder — Ngân hàng), §3.3 (superseded, xem Known Limitations)"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -32,7 +32,7 @@ Số dư (buyer còn bao nhiêu, đang khoá bao nhiêu cho hợp đồng nào) 
 | `entryId` | UUID | |
 | `sourceEventId` | UUID | ID của event gốc kích hoạt entry này (từ Outbox message escrow-service gửi sang) — dùng làm idempotency key, xem §4 |
 | `contractId` | UUID | Bắt buộc — tách hợp đồng này với hợp đồng khác |
-| `milestoneId` | UUID, nullable | **NULL nếu là `buyerDepositRate` (khoá 1 lần lúc SIGNED, không thuộc milestone nào)**, có giá trị nếu là `batchAmount` của 1 milestone cụ thể — 2 loại khoá này đá vào 2 field khác nhau của `ContractTerms` (`milestone-escrow-phase2-design.md` §2.1), không được gộp chung nếu không sẽ không tách được milestone 3 đã settle với milestone 4 vẫn đang khoá |
+| `milestoneId` | UUID, nullable | **NULL nếu là `buyerDepositRate`** (khoá 1 lần lúc SIGNED, không thuộc milestone nào — release/seize qua `contract.settled`/`contract.cancelled`, §3.2), có giá trị nếu là `batchAmount` của 1 milestone cụ thể (`milestone.settled`/`milestone.cancelled_with_penalty`, §3.1) — 2 loại khoá này đá vào 2 field khác nhau của `ContractTerms` (`milestone-escrow-phase2-design.md` §2.1), không được gộp chung nếu không sẽ không tách được milestone 3 đã settle với milestone 4 vẫn đang khoá |
 | `userId` | UUID | Buyer hoặc seller, tuỳ `entryType` |
 | `entryType` | Enum | `LOCK_DEPOSIT` \| `LOCK_MILESTONE` \| `RELEASE_TO_SELLER` \| `SEIZE_PENALTY` \| `REFUND_TO_BUYER` |
 | `amount` | Money | |
@@ -54,9 +54,37 @@ bank-service   → escrow-service: bank.lock_completed        (thành công → 
                                   bank.lock_failed           (thất bại → escrow-service giữ nguyên state, xử lý theo nhánh fail)
 ```
 
-Cùng pattern cho `release` (khi milestone `SETTLED`), `seize` (khi `milestone.cancelled_with_penalty`), `refund` (khi force majeure approved, pro-rata theo số thực giao) — 4 cặp request/confirmation, không cặp nào set state trước khi có confirmation.
+Cùng pattern cho `release`, `seize`, `refund` — 4 loại request/confirmation, không cặp nào set state trước khi có confirmation.
 
 **Tại sao không được set trước:** nếu escrow-service publish `bank.lock_requested` rồi tự set `LOCKED` ngay, trong khi bank-service (mock) fail vì lý do gì đó — 2 bên lệch state, không ai biết cho tới khi có người kiểm tra thủ công. Đúng dạng dual-write problem đã học ở Phase 1 (`ApplicationEvent` non-durable), chỉ khác hướng: lần trước là sync-call-fail-without-rollback, lần này là async-fire-and-forget-không-đợi-confirm.
+
+### 3.1 Ledger entries từ Delta 1/2 pro-rata — `milestone.settled` (mới, 04/07/2026)
+
+**Bối cảnh:** `batchAmount` khoá full theo `committedQuantity × agreedPrice` từ sớm (`milestone-escrow-phase2-design.md` §6.2). Nhưng Delta 1/Delta 2 pro-rata (§4 cùng file) có thể khiến số tiền thật seller đáng nhận **thấp hơn** `batchAmount` đã khoá — phần chênh lệch phải trả lại buyer, không được im lặng giữ trong pooled account.
+
+**Chốt (04/07/2026):** payload `milestone.settled` mang `lockedAmount` (= `batchAmount` gốc) và `actualAmount` (= số tiền thật sau Delta 1/2). escrow-service nhận event, tự tính `diff = lockedAmount - actualAmount`:
+
+```
+Nếu diff > 0:
+    bank.release_requested   (contractId, milestoneId, userId=sellerId, amount=actualAmount, entryType=RELEASE_TO_SELLER, sourceEventId)
+    bank.refund_requested    (contractId, milestoneId, userId=buyerId,  amount=diff,          entryType=REFUND_TO_BUYER,  sourceEventId khác)
+Nếu diff == 0 (giao đủ, không shortfall):
+    bank.release_requested   (contractId, milestoneId, userId=sellerId, amount=actualAmount, entryType=RELEASE_TO_SELLER, sourceEventId)
+```
+
+Mỗi request có `sourceEventId` riêng (idempotency key, §4) dù cùng phát sinh từ 1 `milestone.settled` — 2 `LedgerEntry` là 2 hành động tiền độc lập, không phải 1 hành động ghi 2 dòng.
+
+### 3.2 Ledger entries từ `buyerDepositRate` — `contract.settled` / `contract.cancelled` (mới, 04/07/2026)
+
+**Bối cảnh:** `buyerDepositRate` là khoá cấp Contract, không gắn milestone nào — cần 2 event cấp Contract riêng để trigger, đã thêm vào Event Catalog (`milestone-escrow-phase2-design.md` §6.3, §7.2):
+
+| Event nhận | `entryType` ghi vào ledger | `userId` | `milestoneId` |
+|---|---|---|---|
+| `contract.settled` (hợp đồng hoàn tất bình thường) | `REFUND_TO_BUYER` | buyerId | `NULL` |
+| `contract.cancelled` (initiatedBy=SELLER) | `REFUND_TO_BUYER` | buyerId | `NULL` |
+| `contract.cancelled` (initiatedBy=BUYER) | `SEIZE_PENALTY` | buyerId | `NULL` |
+
+Không cần `entryType` mới — enum hiện tại (`LOCK_DEPOSIT` lúc `SIGNED`, rồi `RELEASE_TO_SELLER`/`SEIZE_PENALTY`/`REFUND_TO_BUYER` tuỳ kết quả) đã đủ diễn tả trọn vòng đời của `buyerDepositRate`.
 
 ---
 
@@ -113,10 +141,14 @@ CREATE INDEX idx_ledger_entry_user ON ledger_entry(user_id);
 
 **Chốt (03/07/2026):** bank-service = mock legal custody duy nhất, không phải arbitrator. Mô hình FBO/Omnibus + `LedgerEntry` append-only thay cho account-per-contract — số dư luôn derive, không lưu sẵn. escrow-service là actor duy nhất gọi bank-service, đợi confirmation event mới đổi state, không fire-and-forget. Idempotency key = `sourceEventId` (Outbox message ID), không phải compound business key. `EscrowAccount`/`EscrowMilestone` không lưu số tiền riêng — tránh dual-write, số tiền thật là single source of truth ở `ledger_entry`.
 
+**Chốt bổ sung (04/07/2026):** ledger mechanics cho 2 luồng trước đây chưa map rõ:
+- **Delta 1/2 pro-rata** (§3.1) — payload `milestone.settled` mang `lockedAmount`/`actualAmount`, escrow-service tự tính diff, bắn cặp `RELEASE_TO_SELLER` + `REFUND_TO_BUYER` (chỉ khi `diff > 0`) cùng `milestoneId`.
+- **`buyerDepositRate`** (§3.2) — 2 event cấp Contract mới (`contract.settled`, `contract.cancelled`, xem `milestone-escrow-phase2-design.md` §6.3) map thẳng vào `REFUND_TO_BUYER`/`SEIZE_PENALTY` với `milestoneId = NULL`, không cần `entryType` mới.
+
 **Việc còn treo, không block thiết kế này:** viết 2 entry vào `decisions.md` (arbitrator superseded, roadmap reframe) — chưa làm.
 
 Bank-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
 
 ---
 
-*Design session: 03/07/2026 · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 03/07/2026 · Cập nhật: 04/07/2026 (ledger mechanics cho Delta 1/2 + buyerDepositRate) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*

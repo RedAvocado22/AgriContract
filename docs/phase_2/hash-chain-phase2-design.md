@@ -1,12 +1,12 @@
 ---
 name: hash-chain-phase2-design
 description: "Audit Trail Hash Chain — chi tiết hoá services.md mục 5, 7, 8. Nguồn: design session 02/07/2026."
-status: DESIGNED — chưa code. Cần Cường (Lead) review trước khi đưa vào Architecture/SDS/TechnicalSpec chính thức.
+status: DESIGNED — chưa code.
 metadata:
-  type: design
-  phase: 2
-  extends: "services.md § Security gaps (mục 4-9)"
-  related: "milestone-escrow-phase2-design.md § 7 (Event Catalog nguồn dữ liệu)"
+    type: design
+    phase: 2
+    extends: "services.md § Security gaps (mục 4-9)"
+    related: "milestone-escrow-phase2-design.md § 7 (Event Catalog nguồn dữ liệu)"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -23,48 +23,25 @@ metadata:
 
 ### 2.1 Từ Milestone Escrow (`milestone-escrow-phase2-design.md` §7) — 6/8
 
-| Event | Vào chain? | Lý do |
-|---|---|---|
-| `milestone.seller_weighed` | ✅ | Mang `sellerDeclaredWeight` — input gốc để tính Delta 1/Delta 2, cần chứng minh không bị sửa sau khi cân |
-| `milestone.buyer_confirmed` | ✅ | Mang `buyerReceivedWeight` — input gốc tính Delta 2, cùng lý do trên |
-| `milestone.flagged` | ❌ | Chỉ là tín hiệu "buyer bấm nút", không mang số liệu riêng — số liệu thật đã nằm ở `buyer_confirmed` |
-| `milestone.force_majeure_claimed` | ✅ | Bằng chứng bất khả kháng seller nộp — cơ sở miễn/không miễn penalty, giá trị pháp lý cao (Điều 156/351 BLDS 2015) |
-| `milestone.force_majeure_resolved` | ✅ | Quyết định APPROVE/REJECT của Admin/Level 1.5 — kết quả tranh chấp, bắt buộc immutable |
-| `milestone.settled` | ✅ | Kết quả cuối, số tiền release — bắt buộc |
-| `milestone.cancelled_with_penalty` | ✅ | Căn cứ tính `lockDurationDays`, penalty debt — có giá trị làm bằng chứng theo Luật TM 2005 Điều 302 |
-| `milestone.settled.local-check` (Local Outbox) | ❌ | Không phải domain event — chỉ là cơ chế sync nội bộ `Milestone`→`Contract`, không có ý nghĩa pháp lý |
+| Event                                          | Vào chain? | Lý do                                                                                                             |
+| ---------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `milestone.seller_weighed`                     | ✅         | Mang `sellerDeclaredWeight` — input gốc để tính Delta 1/Delta 2, cần chứng minh không bị sửa sau khi cân          |
+| `milestone.buyer_confirmed`                    | ✅         | Mang `buyerReceivedWeight` — input gốc tính Delta 2, cùng lý do trên                                              |
+| `milestone.flagged`                            | ❌         | Chỉ là tín hiệu "buyer bấm nút", không mang số liệu riêng — số liệu thật đã nằm ở `buyer_confirmed`               |
+| `milestone.force_majeure_claimed`              | ✅         | Bằng chứng bất khả kháng seller nộp — cơ sở miễn/không miễn penalty, giá trị pháp lý cao (Điều 156/351 BLDS 2015) |
+| `milestone.force_majeure_resolved`             | ✅         | Quyết định APPROVE/REJECT của Admin/Level 1.5 — kết quả tranh chấp, bắt buộc immutable                            |
+| `milestone.settled`                            | ✅         | Kết quả cuối, số tiền release — bắt buộc                                                                          |
+| `milestone.cancelled_with_penalty`             | ✅         | Căn cứ tính `lockDurationDays`, penalty debt — có giá trị làm bằng chứng theo Luật TM 2005 Điều 302               |
+| `milestone.settled.local-check` (Local Outbox) | ❌         | Không phải domain event — chỉ là cơ chế sync nội bộ `Milestone`→`Contract`, không có ý nghĩa pháp lý              |
 
 ### 2.2 Nguồn khác (đã có sẵn ở mục 4, 6 — chỉ liệt kê, không thiết kế lại)
 
-| Nguồn | Trigger | Publisher |
-|---|---|---|
-| `Contract.signedContentHash` | `sign()` được gọi | `contract-service` (mục 4) |
-| `reportHash` | INSPECTOR submit report | `inspection-service` (mục 6) |
+| Nguồn                        | Trigger                 | Publisher                    |
+| ---------------------------- | ----------------------- | ---------------------------- |
+| `Contract.signedContentHash` | `sign()` được gọi       | `contract-service` (mục 4)   |
+| `reportHash`                 | INSPECTOR submit report | `inspection-service` (mục 6) |
 
 Cả 2 dùng chung schema `AuditRecord` ở §3 — không cần thiết kế pipeline riêng.
-
-### 2.3 EUDR Export Flow (bổ sung 03/07/2026)
-
-`product-phase2-design.md` §6 để ngỏ: audit-service đọc `ProductPlot` qua "Feign hoặc read model" lúc export báo cáo EUDR. Chốt: **Feign, không phải read model riêng.**
-
-Lý do: read model (kiểu search-service — CQRS, consume event, lưu bản sao denormalized) đúng khi cần đọc liên tục, tần suất cao, latency thấp. Export EUDR ngược lại hoàn toàn — on-demand, hiếm (theo chính docx thị trường/giải pháp), không cần latency thấp. Build thêm 1 read model (event consumer + storage riêng + xử lý eventual consistency) cho 1 tính năng chạy vài lần/tháng là tốn công đúng chỗ không cần.
-
-```
-GenerateEUDRReport(contractId):
-  1. Query audit_record WHERE contract_id = X, ORDER BY created_at
-     → toàn bộ chain của hợp đồng này, đã verify integrity qua record_hash (§3)
-  2. Lấy productId — cần xác nhận lúc code: content JSONB của event CONTRACT_SIGNED
-     đã chứa productId sẵn chưa. Nếu chưa, thêm cột product_id vào audit_record
-     (chỉ set cho source_type = CONTRACT_SIGNED), tránh phải Feign 2 lần (1 lấy
-     contract, 1 lấy product) chỉ để tìm productId
-  3. productId → Feign call sang product-service (client mới trong audit-service,
-     cùng pattern ProductServiceClient contract-service đang dùng) → lấy ProductPlot list
-  4. Assemble: GeoJSON plots (từ ProductPlot) + audit trail excerpt (verify status,
-     record_hash liên quan) + reportHash nếu hợp đồng có inspection report
-  5. Output PDF/CSV qua file-service
-```
-
-Open item nhỏ, không block kiến trúc: xác nhận `content` JSONB của `CONTRACT_SIGNED` có sẵn `productId` hay cần thêm cột — quyết định lúc code, không ảnh hưởng thiết kế tổng thể.
 
 ---
 
@@ -102,12 +79,12 @@ record_hash        = SHA256(content + prev_hash_global)
 
 **Ví dụ minh hoạ (đã thống nhất trong session):**
 
-| Seq | contractId | Event | recordHash | prevHashGlobal | prevHashContract |
-|---|---|---|---|---|---|
-| 1 | A | `milestone.settled` | h1 | null | null |
-| 2 | B | `milestone.settled` | h2 | h1 | null |
-| 3 | A | `milestone.cancelled_with_penalty` | h3 | h2 | h1 |
-| 4 | B | `milestone.settled` | h4 | h3 | h2 |
+| Seq | contractId | Event                              | recordHash | prevHashGlobal | prevHashContract |
+| --- | ---------- | ---------------------------------- | ---------- | -------------- | ---------------- |
+| 1   | A          | `milestone.settled`                | h1         | null           | null             |
+| 2   | B          | `milestone.settled`                | h2         | h1             | null             |
+| 3   | A          | `milestone.cancelled_with_penalty` | h3         | h2             | h1               |
+| 4   | B          | `milestone.settled`                | h4         | h3             | h2               |
 
 - **Verify per-contract** (`WHERE contract_id = A`, theo `prevHashContract`): dùng để export bằng chứng gọn cho riêng 1 vụ (VIAC/toà), tự-đủ-bằng-chứng, không cần giải thích gì về contract khác.
 - **Verify global** (theo `prevHashGlobal`, đọc toàn bảng theo `created_at`): dùng để phát hiện **xoá nguyên cụm record của 1 contract** — per-contract chain đứng một mình không phát hiện được kiểu tấn công này, vì chain đó tự nó biến mất sạch không để lại dấu vết.
@@ -120,11 +97,11 @@ record_hash        = SHA256(content + prev_hash_global)
 
 ### 4.1 Ba nơi lưu, phải khớp nhau
 
-| # | Nơi lưu | Ai kiểm soát | Giá trị bảo vệ |
-|---|---|---|---|
-| 1 | `contract-service` DB (`Contract.signedContentHash`) | Platform | Nguồn gốc — nơi hash được tính ra đầu tiên |
-| 2 | `audit-service` DB (`AuditRecord.record_hash`, `source_type = 'CONTRACT_SIGNED'`) | Platform | Nối vào chain, chống sửa-sau bằng toán học (§3) |
-| 3 | Email gửi buyer + seller lúc `sign()` | **Ngoài platform** — hộp thư cá nhân buyer/seller | Ngoài tầm với của bất kỳ ai trong platform, kể cả Admin có full quyền root |
+| #   | Nơi lưu                                                                           | Ai kiểm soát                                      | Giá trị bảo vệ                                                             |
+| --- | --------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
+| 1   | `contract-service` DB (`Contract.signedContentHash`)                              | Platform                                          | Nguồn gốc — nơi hash được tính ra đầu tiên                                 |
+| 2   | `audit-service` DB (`AuditRecord.record_hash`, `source_type = 'CONTRACT_SIGNED'`) | Platform                                          | Nối vào chain, chống sửa-sau bằng toán học (§3)                            |
+| 3   | Email gửi buyer + seller lúc `sign()`                                             | **Ngoài platform** — hộp thư cá nhân buyer/seller | Ngoài tầm với của bất kỳ ai trong platform, kể cả Admin có full quyền root |
 
 **Nội dung email (mục 7 — "có bản sao ở ngoài"):** snapshot đầy đủ `ContractTerms` (PDF/JSON) + dòng `signedContentHash`, gửi qua `notification-service` ngay khi `sign()` thành công.
 
@@ -142,9 +119,9 @@ record_hash        = SHA256(content + prev_hash_global)
 
 **Trigger — 2 tầng, không chỉ theo sự kiện (sửa lại 03/07/2026, phát hiện gap so với bản đầu):** event-triggered (mỗi event ✅ trong Event Catalog) không đủ tự nó — quy mô B2B forward contract tần suất thấp (§3), hoàn toàn có thể có 1 tuần không phát sinh event ✅ nào cả, lúc đó không có OTS nào được tạo suốt tuần, cửa sổ tấn công mở toang dù cơ chế event-triggered vẫn tồn tại trên giấy. Nên `VerifyChainJob` (§5.1) **luôn** tự tạo thêm 1 OTS độc lập cho head hiện tại mỗi Chủ Nhật, không phụ thuộc tuần đó có event ✅ hay không — đảm bảo trần cứng: cửa sổ tấn công không bao giờ vượt quá 7 ngày, bất kể platform có giao dịch hay ế.
 
-*Tầng 1 (event-triggered):* mỗi khi 1 event thuộc danh sách ✅ ở Event Catalog (§2.1) được ghi vào `audit_record`, gọi OTS API ngay lập tức lấy `.ots` cho `record_hash` vừa tạo — vì `record_hash` đã cuốn theo toàn bộ lịch sử qua `prev_hash_global`, nó tự nhiên là commitment cho **toàn bộ chain**, không chỉ riêng record đó. Lưu `.ots` vào cột `ots_proof` (schema §3) của đúng record vừa ghi.
+_Tầng 1 (event-triggered):_ mỗi khi 1 event thuộc danh sách ✅ ở Event Catalog (§2.1) được ghi vào `audit_record`, gọi OTS API ngay lập tức lấy `.ots` cho `record_hash` vừa tạo — vì `record_hash` đã cuốn theo toàn bộ lịch sử qua `prev_hash_global`, nó tự nhiên là commitment cho **toàn bộ chain**, không chỉ riêng record đó. Lưu `.ots` vào cột `ots_proof` (schema §3) của đúng record vừa ghi.
 
-*Tầng 2 (weekly, luôn chạy):* `VerifyChainJob` mỗi Chủ Nhật tự tạo 1 OTS mới cho `record_hash` của head hiện tại, kể cả khi tuần đó không có event ✅ nào — dùng làm điểm neo cho lần verify tuần sau (§5.1).
+_Tầng 2 (weekly, luôn chạy):_ `VerifyChainJob` mỗi Chủ Nhật tự tạo 1 OTS mới cho `record_hash` của head hiện tại, kể cả khi tuần đó không có event ✅ nào — dùng làm điểm neo cho lần verify tuần sau (§5.1).
 
 **Gửi cho buyer/seller — chỉ tại `milestone.settled`:** đính kèm `.ots` vào đúng email đã có sẵn ở §4.1 khi milestone đạt trạng thái cuối, không phải mọi event ✅. Buyer/seller có động lực giữ lại email tại mốc này (gắn với kết quả tiền bạc của họ) — gửi ở mọi bước trung gian (`seller_weighed`, `buyer_confirmed`) chỉ tạo noise, dễ bị bỏ qua hoặc đánh dấu spam, ảnh hưởng ngược lại tới email anchor quan trọng hơn ở §4.1.
 
@@ -195,18 +172,19 @@ Cả 2 hướng gửi **cùng lúc, tự động qua `notification-service`**, k
 
 ## 6. Known Limitation (ghi nhận có chủ đích, không phải điểm mù)
 
-Toàn bộ thiết kế 3 lớp (hash chain + multi-location + email anchor) đứng trên giả định **trusted operator** đã chốt từ đầu (`services.md`, dòng cuối): *"Platform có trusted operator — bài toán trustless consensus không tồn tại."*
+Toàn bộ thiết kế 3 lớp (hash chain + multi-location + email anchor) đứng trên giả định **trusted operator** đã chốt từ đầu (`services.md`, dòng cuối): _"Platform có trusted operator — bài toán trustless consensus không tồn tại."_
 
 **Kịch bản không giải quyết được trong scope này:** nếu Admin **và** toàn bộ (hoặc đa số) người nhận cảnh báo phía Software Buyer cùng thông đồng — không có cơ chế software nào trong kiến trúc hiện tại chặn được, vì đây chính xác là bài toán trustless consensus mà blockchain giải quyết bằng cách phân tán ra nhiều node độc lập không ai kiểm soát hết, và nhóm đã quyết định không theo hướng đó (5 tháng, 3 người, không thực tế).
 
 **2 lớp vẫn đứng vững kể cả trong kịch bản xấu nhất này:**
+
 - Email anchor lúc `sign()` gửi cho **buyer/seller thật trong từng hợp đồng cụ thể** — người này khác hoàn toàn, thời điểm khác hoàn toàn so với người nhận weekly digest. Không bị ảnh hưởng bởi collusion ở phía hiệp hội.
 - Bằng chứng toán học (hash mismatch) tồn tại độc lập với việc có ai chủ động báo hay không — bất kỳ bên thứ 3 nào sau này (luật sư, chuyên gia toà chỉ định) tự chạy lại được đúng phép verify này trên dữ liệu thô, không cần platform "thông báo" mới phát hiện ra.
 - OTS anchor (§4.3, bổ sung 03/07/2026) cho global commitment hash — verify được ngay cả khi platform sập hoàn toàn, không domain, không server, vì bằng chứng nằm trên Bitcoin, không nằm trong hệ thống của platform.
 
-**Cập nhật (03/07/2026) — OTS thu hẹp limitation này, không đóng hoàn toàn, cần nói rõ ranh giới khi trình bày:** OTS chỉ giải quyết vế *"bằng chứng toán học có tồn tại độc lập ngoài platform hay không"* — nếu Admin và toàn bộ (hoặc đa số) người nhận digest cùng thông đồng **và không ai chủ động đối chiếu** OTS proof với chain hiện tại, thì có anchor hay không cũng không tạo ra khác biệt thực tế, vì `VerifyChainJob` (§5.1 bước 3) là nơi duy nhất trong kiến trúc chủ động chạy phép đối chiếu đó — nếu chính job này bị vô hiệu hoá hoặc kết quả bị bỏ qua, OTS proof vẫn tồn tại trên Bitcoin nhưng không ai tra cứu nó. OTS không tạo ra động lực phát hiện — nó chỉ đảm bảo rằng **khi** có người chịu nhìn (luật sư, chuyên gia toà chỉ định, kiểm toán độc lập), họ nhìn được sự thật mà không cần platform "thông báo" hay "cho phép". Vế "phải có người chủ động nhìn" vẫn là giới hạn cố hữu của mô hình trusted-operator, OTS không đổi được vế này.
+**Cập nhật (03/07/2026) — OTS thu hẹp limitation này, không đóng hoàn toàn, cần nói rõ ranh giới khi trình bày:** OTS chỉ giải quyết vế _"bằng chứng toán học có tồn tại độc lập ngoài platform hay không"_ — nếu Admin và toàn bộ (hoặc đa số) người nhận digest cùng thông đồng **và không ai chủ động đối chiếu** OTS proof với chain hiện tại, thì có anchor hay không cũng không tạo ra khác biệt thực tế, vì `VerifyChainJob` (§5.1 bước 3) là nơi duy nhất trong kiến trúc chủ động chạy phép đối chiếu đó — nếu chính job này bị vô hiệu hoá hoặc kết quả bị bỏ qua, OTS proof vẫn tồn tại trên Bitcoin nhưng không ai tra cứu nó. OTS không tạo ra động lực phát hiện — nó chỉ đảm bảo rằng **khi** có người chịu nhìn (luật sư, chuyên gia toà chỉ định, kiểm toán độc lập), họ nhìn được sự thật mà không cần platform "thông báo" hay "cho phép". Vế "phải có người chủ động nhìn" vẫn là giới hạn cố hữu của mô hình trusted-operator, OTS không đổi được vế này.
 
-**Khi hội đồng hỏi:** *"Đây là giới hạn cố hữu của mô hình trusted-operator mà nhóm chọn có chủ đích thay vì blockchain, phù hợp ràng buộc thời gian/nhân lực thật của dự án — không phải điểm mù bị bỏ sót."*
+**Khi hội đồng hỏi:** _"Đây là giới hạn cố hữu của mô hình trusted-operator mà nhóm chọn có chủ đích thay vì blockchain, phù hợp ràng buộc thời gian/nhân lực thật của dự án — không phải điểm mù bị bỏ sót."_
 
 ---
 
@@ -220,4 +198,4 @@ Hash Chain — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technic
 
 ---
 
-*Design session: 02/07/2026 · Bổ sung OpenTimestamps Anchor: 03/07/2026 · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+_Design session: 02/07/2026 · Bổ sung OpenTimestamps Anchor: 03/07/2026 · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức._
