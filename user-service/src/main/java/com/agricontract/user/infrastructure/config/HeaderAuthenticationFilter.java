@@ -7,6 +7,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
@@ -30,14 +32,16 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         String internalSecret = request.getHeader("X-Internal-Secret");
-        if (serviceInternalSecret.equals(internalSecret)) {
+        if (internalSecret != null && MessageDigest.isEqual(
+                serviceInternalSecret.getBytes(StandardCharsets.UTF_8), internalSecret.getBytes(StandardCharsets.UTF_8))) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String headerSecret = request.getHeader("X-Gateway-Secret");
 
-        if (headerSecret == null || !headerSecret.equals(gatewaySecret)) {
+        if (headerSecret == null || !MessageDigest.isEqual(
+                headerSecret.getBytes(StandardCharsets.UTF_8), gatewaySecret.getBytes(StandardCharsets.UTF_8))) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
             response.getWriter().write(
