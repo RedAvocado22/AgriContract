@@ -92,6 +92,11 @@ push(P("verificationLevel: SELF_DECLARED (mặc định) / CADASTRAL_BACKED (sel
 push(P([runs("Cross-check tỉnh (giảm nhẹ lỗi convert VN2000→WGS84): ", { bold: true }), runs("cán bộ đo gốc bằng VN2000 rồi convert sang WGS84 trước khi xuất KML; nếu sai tham số kinh tuyến trục, toạ độ vẫn đúng DẠNG WGS84, vẫn trong bounding box Việt Nam, vẫn pass JTS (lệch tới ~81km nhưng là lỗi NỘI DUNG, không phải cú pháp). Đối chiếu hai nguồn độc lập: declaredProvince (seller chọn dropdown) vs tỉnh suy ra từ point-in-polygon (JTS + polygon GADM 63 tỉnh cũ). Lệch → provinceMismatchFlag=TRUE, cảnh báo UI, KHÔNG chặn insert.", {})]));
 push(callout("Giới hạn cross-check tỉnh:", "chỉ bắt lỗi VÔ Ý đơn lẻ (một plot lệch khỏi tỉnh khai). Không bắt lỗi hệ thống (cả batch cùng lệch cùng hướng, nhất quán nội bộ) và không bắt fraud có chủ đích. Dùng GADM 63 tỉnh cũ (chưa có polygon 34 tỉnh mở sau sáp nhập 12/6/2025) → có thể false-positive ở khu vực vừa sáp nhập; chấp nhận được vì non-blocking.", "note"));
 
+push(H2("2.4.1 Geo-risk verification qua vệ tinh — Sentinel-2 NDVI (mới, 06/07/2026, chưa đóng)"));
+push(P([runs("Cơ chế: ", { bold: true }), runs("ngay sau khi PlotRegistryEntry được tạo/update, hệ thống tự động (async, không chặn seller) gọi Sentinel Hub Statistical API (Copernicus Data Space Ecosystem — dữ liệu Sentinel-2 miễn phí, không giới hạn thương mại) hỏi giá trị NDVI tại toạ độ/polygon đó, dùng ảnh gần nhất mốc 31/12/2020 (đã có sẵn trong archive từ 2015, không phải chờ vệ tinh bay qua chụp mới). NDVI dưới ngưỡng rừng (chưa chốt, cần thực nghiệm) → geoRiskLevel = HIGH_RISK; trên ngưỡng → LOW_RISK. Không chặn giao dịch — chỉ dán nhãn cảnh báo cho buyer tự quyết định, đúng nguyên tắc neutral-party.", {})]));
+push(P([runs("2 field mới, tách biệt rõ tiến trình vs kết quả: ", { bold: true }), runs("geoVerificationStatus (PENDING/CHECKED/UNVERIFIED) là trạng thái check đã chạy xong chưa; geoRiskLevel (LOW_RISK/HIGH_RISK, nullable) là kết quả thật, chỉ có giá trị khi CHECKED. geoVerificationTimeoutHours (đề xuất 4-6 giờ) — tính bằng GIỜ chứ không phải ngày, vì dữ liệu đã tồn tại sẵn, timeout chỉ hứng lỗi tạm thời (mây che, rate limit). Hết timeout mà chưa có kết quả → UNVERIFIED (khác HIGH_RISK — đây là \"chưa biết\", không phải \"có bằng chứng rủi ro\"). CreateListing reject nếu registryEntryId đang PENDING (tránh race condition listing lên sàn trước khi biết risk).", {})]));
+push(callout("Giới hạn, chưa đóng (06/07/2026):", "NDVI 10m resolution + ngưỡng nhị phân là proxy thô, KHÔNG phải xác minh EUDR pháp lý đầy đủ — không được trình bày với VICOFA/buyer như \"đã verify EUDR\". Ngưỡng NDVI cụ thể chưa chốt, cần thực nghiệm. EXIF photo cross-check (chụp ảnh tại chỗ, đối chiếu GPS) đã thống nhất nguyên tắc nhưng field/flow chưa spec, để session riêng.", "note"));
+
 push(H2("2.5 Use case chính"));
 uc("UC-P1", "ImportPlotsFromKML", [
   ["Actor", "SELLER"],
@@ -108,6 +113,7 @@ uc("UC-P3", "CreateListing / UpdateListing", [
   ["Actor", "SELLER"],
   ["Input", "List<registryEntryId> (checkbox chọn từ registry của seller) — KHÔNG nhập geoJson trực tiếp mỗi lần"],
   ["Luồng chính", "Validate registryEntryId thuộc đúng sellerId; ít nhất 1 plot (cấm mass balance); copy dữ liệu từ PlotRegistryEntry sang ProductPlot (snapshot). UpdateListing cho tick/untick plot trước khi listing khoá sửa"],
+  ["Validate mới (06/07/2026)", "Reject nếu bất kỳ registryEntryId nào đang geoVerificationStatus = PENDING (§2.4.1) — tránh race condition listing lên sàn trước khi có kết quả satellite check"],
 ]);
 uc("UC-P4", "UploadCadastralExtract", [
   ["Actor", "SELLER"],
@@ -144,6 +150,8 @@ push(codeblock([
   "  declared_province       VARCHAR(50) NOT NULL,   -- seller khai, 63 tỉnh cũ",
   "  province_mismatch_flag  BOOLEAN NOT NULL DEFAULT FALSE,  -- non-blocking",
   "  imported_at             TIMESTAMP NOT NULL,     -- cập nhật lại mỗi lần re-import",
+  "  geo_verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',  -- PENDING | CHECKED | UNVERIFIED (§2.4.1, mới 06/07/2026)",
+  "  geo_risk_level          VARCHAR(20) NULL,       -- LOW_RISK | HIGH_RISK, chỉ có giá trị khi CHECKED (§2.4.1, mới 06/07/2026)",
   "  UNIQUE (seller_id, household_label),  SPATIAL INDEX (geo_json)",
   ");",
   "-- Invariant 'MANUAL_PIN → POINT' check ở use-case layer, không phải DB constraint.",
@@ -163,7 +171,7 @@ push(codeblock([
   "",
   "ALTER TABLE product ADD COLUMN variety_name VARCHAR(100) NULL;  -- chỉ ý nghĩa với gạo",
 ]));
-push(legal("EU Regulation 2023/1115 (EUDR), Điều 9 & yêu cầu geolocation", "Không mass balance: List<registryEntryId> không được rỗng (validate use case). Không cần tỷ lệ đóng góp: chỉ cần khai đủ danh sách plot, nên ProductPlot không có field khối lượng/tỷ lệ. Dữ liệu self-declared: nền tảng không verify vệ tinh/thực địa — declaredAt/importedAt + hash chain là cơ chế chống sửa-sau, không phải xác minh đúng-đắn-ban-đầu."));
+push(legal("EU Regulation 2023/1115 (EUDR), Điều 9 & yêu cầu geolocation", "Không mass balance: List<registryEntryId> không được rỗng (validate use case). Không cần tỷ lệ đóng góp: chỉ cần khai đủ danh sách plot, nên ProductPlot không có field khối lượng/tỷ lệ. Dữ liệu self-declared, không có xác minh thực địa: declaredAt/importedAt + hash chain là cơ chế chống sửa-sau, không phải xác minh đúng-đắn-ban-đầu. Bổ sung 06/07/2026 (§2.4.1): có thêm lớp geo-risk verification qua vệ tinh (Sentinel-2 NDVI) — chỉ là tín hiệu cảnh báo tham khảo, KHÔNG phải xác minh EUDR pháp lý đầy đủ, không thay đổi bản chất self-declared ở trên."));
 
 // ============================================================
 // 3. FILE-SERVICE
@@ -292,6 +300,7 @@ push(bullet([runs("Polygon 34 tỉnh mở chưa tồn tại. ", { bold: true }),
 push(bullet([runs("Orphan cleanup phụ thuộc ConfirmAttached. ", { bold: true }), runs("Nếu dịch vụ consumer có bug quên gọi ConfirmAttached dù đã lưu fileId, file hợp lệ có thể bị xoá nhầm sau 1 tuần — cần lưu ý khi code consumer.", {})]));
 push(bullet([runs("file-service không phải lớp phòng thủ thứ 2. ", { bold: true }), runs("Access control dựa vào dịch vụ sở hữu tự validate đúng; nếu dịch vụ đó có lỗ hổng auth, file-service không double-check.", {})]));
 push(bullet([runs("Nguồn VNSAT dễ vỡ khi đổi layout. ", { bold: true }), runs("HTML/ASP.NET postback không có cơ chế tự phát hiện; chỉ dựa exception → price_ingestion_failure. rubber/cashew phụ thuộc hoàn toàn Admin nhập tay (không validation chéo).", {})]));
+push(bullet([runs("NDVI vệ tinh là proxy thô, không phải xác minh EUDR pháp lý (mới, 06/07/2026). ", { bold: true }), runs("Sentinel-2 10m resolution + ngưỡng nhị phân chỉ đủ làm tín hiệu cảnh báo tham khảo, không thay thế được dịch vụ verification EUDR chuyên dụng. Không được trình bày với VICOFA/buyer như đã \"verify EUDR\".", {})]));
 
 // ============================================================
 // 7. OPEN ITEMS
@@ -300,6 +309,7 @@ push(H1("7. Điểm còn treo"));
 push(bullet([runs("Cơ chế nhận mail intake@ ", { bold: true }), runs("— file-service (chủ sở hữu) chốt IMAP polling; phần inspection (Phần 3) từng nhắc webhook. Thống nhất theo file-service (IMAP polling) khi hợp nhất tài liệu.", {})]));
 push(bullet([runs("migration varietyName ", { bold: true }), runs("gộp chung với PR Category/ProductImage/coverImageUrl đang làm (cùng đụng bảng products), tránh 2 lần touch schema.", {})]));
 push(bullet([runs("Khả năng dùng IMAP với mailbox thật của tổ chức giám định ", { bold: true }), runs("— giả định đơn giản hoá, chưa khảo sát thực tế.", {})]));
+push(bullet([runs("Geo-risk verification qua vệ tinh (mới, 06/07/2026, chưa đóng). ", { bold: true }), runs("Ngưỡng NDVI phân biệt rừng/không rừng chưa chốt (cần thực nghiệm); geoVerificationTimeoutHours (4-6h) là placeholder chưa vận hành thật; EXIF photo cross-check mới thống nhất nguyên tắc, chưa spec field/flow — cần session riêng. Chi tiết đầy đủ ở product-phase2-design.md §2.2.4.", {})]));
 
 module.exports = { body };
 
