@@ -2,7 +2,7 @@ package com.agricontract.contract.application.usecase;
 
 import com.agricontract.contract.application.dto.SignContractCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
-import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
+import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.application.port.ListingPort;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.*;
@@ -64,7 +64,7 @@ class SignContractUseCaseTest {
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
         assertThatThrownBy(() -> useCase.execute(new SignContractCommand("contract-1", "stranger-99")))
-                .isInstanceOf(UnauthorizedContractActionException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
 
         verify(contractRepository, never()).save(any());
     }

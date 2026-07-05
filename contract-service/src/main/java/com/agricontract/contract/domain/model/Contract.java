@@ -1,6 +1,7 @@
 package com.agricontract.contract.domain.model;
 
 import com.agricontract.contract.domain.event.*;
+import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.vo.CancelledBy;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
@@ -98,7 +99,7 @@ public class Contract {
     public void counterOffer(String userId, ContractTerms newTerms) {
         //Guard
         if (!userId.equals(this.sellerId) && !userId.equals(this.buyerId)) {
-            throw new IllegalArgumentException("This user doesn't have right to access.");
+            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
         }
 
         if (this.status != ContractStatus.OFFERED && this.status != ContractStatus.NEGOTIATING) {
@@ -116,7 +117,7 @@ public class Contract {
     public void sign(String userId) {
         //Guard
         if (!userId.equals(sellerId) && !userId.equals(buyerId)) {
-            throw new IllegalArgumentException("This user doesn't have right to access.");
+            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
         }
 
         if (this.status != ContractStatus.NEGOTIATING && this.status != ContractStatus.OFFERED) {
@@ -161,7 +162,7 @@ public class Contract {
     public void confirmDelivery(String buyerId) {
         //Guard
         if (!buyerId.equals(this.buyerId)) {
-            throw new IllegalArgumentException("This user doesn't have right to access.");
+            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
         }
         if (this.status != ContractStatus.ACTIVE) {
             throw new IllegalArgumentException("This contract can't be confirmed.");
@@ -192,7 +193,7 @@ public class Contract {
     public void cancel(String userId, String reason) {
         //Guard
         if (!userId.equals(this.sellerId) && !userId.equals(this.buyerId)) {
-            throw new IllegalArgumentException("This user doesn't have right to access.");
+            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
         }
 
         if (this.status != ContractStatus.ACTIVE) {
@@ -216,7 +217,7 @@ public class Contract {
     public void dispute(String buyerId, String reason) {
         //Guard
         if (!buyerId.equals(this.buyerId)) {
-            throw new IllegalArgumentException("This user doesn't have right to access.");
+            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
         }
 
         if (this.status != ContractStatus.DELIVERED) {
