@@ -1,6 +1,6 @@
 ---
 name: milestone-escrow-phase2-design
-description: "Milestone Escrow — full domain design cho Phase 2, thay thế two-phase lock escrow đang chạy ở Phase 1. Nguồn: design session 02/07/2026, cập nhật 04/07/2026."
+description: "Milestone Escrow — full domain design cho Phase 2, thay thế two-phase lock escrow đang chạy ở Phase 1. Nguồn: design session 02/07/2026, cập nhật 04/07/2026, 06/07/2026 (event contract.signed; provisional settlement Level 2 — chưa đóng)."
 status: DESIGNED — chưa code.
 metadata:
   type: design
@@ -152,6 +152,18 @@ Tại `BUYER_RECEIVED`, buyer có đúng hai lựa chọn chủ động, cộng 
 
 **Cập nhật (04/07/2026) — timeout đối xứng cho nhánh buyer im lặng:** nếu buyer không bấm gì cả (không `CONFIRM_CLEAN`, không `FLAG_ISSUE`) trong vòng `buyerConfirmWindowDays` (mặc định 2 ngày làm việc, cùng độ dài với cửa sổ phản hồi của seller) kể từ lúc milestone vào `BUYER_RECEIVED`, hệ thống tự động xử lý như `CONFIRM_CLEAN` — release theo đúng `sellerDeclaredWeight`/`buyerReceivedWeight` đã ghi nhận, milestone `SETTLED`. Lý do default về `CONFIRM_CLEAN` chứ không phải treo vô thời hạn: seller đã hoàn thành nghĩa vụ giao hàng tới đúng lúc `BUYER_RECEIVED` (hàng đã tới tay buyer) — buyer im lặng không được phép biến thành công cụ giữ tiền seller vô thời hạn, đúng nguyên tắc "nghiêng về seller khi seller yếu thế hơn" đã dùng xuyên suốt (§6.2).
 
+**Cập nhật (06/07/2026) — provisional settlement khi `CONTESTED` escalate Level 2:** khi `DisputeRoutingService` route milestone `CONTESTED` sang `LEVEL_2` (ngưỡng giá trị/độ phức tạp hàng hoá, §8), platform commission tổ chức Level 2 qua `InitiateLevel2Inspection` (`inspection-phase2-design.md` §3.4) và chờ report thật trong tối đa `level2BufferWindowDays`.
+
+`level2BufferWindowDays` — **đặt tạm 7-14 ngày làm việc.** Chưa validate được với đơn vị Level 2 thật (đã liên hệ qua NHL nhưng chưa có phản hồi) — placeholder dựa trên benchmark turnaround PSI ngành chung (3-7 ngày cho hàng công nghiệp) cộng buffer cho lab test nông sản (độ ẩm, tỷ lệ hạt lỗi, cupping — dòng dịch vụ khác PSI thường, không có số riêng xác nhận). Cấu hình `application.yml`, chỉnh được khi có dữ liệu vận hành thật, không phải hằng số cứng vĩnh viễn — cùng nguyên tắc đã áp cho `inspectionAuthMaxAgeSeconds` (`inspection-phase2-design.md` §2).
+
+Nếu hết `level2BufferWindowDays` mà report Level 2 chưa `CONFIRMED` (`inspection-phase2-design.md` §3.6): platform commission thêm 1 giám định Level 1.5 (Vinacontrol/Quatest) làm phán quyết tạm thời, dùng số đó settle **ngay** phần lớn milestone — release `(1 − level2SafetyBufferRate)` của `batchAmount` cho seller theo đúng số 1.5 chấm — nhưng giữ lại `level2SafetyBufferRate` (đặt tạm 10-15%) khoá nguyên trong escrow, không release, không ghi thành debt.
+
+**Lý do dùng buffer khoá sẵn thay vì ghi nợ:** seller (HTX) không có tài sản đối ứng để đòi nếu số Level 2 thật (về sau) thấp hơn số 1.5 đã dùng settle tạm — không có `sellerDepositRate` để seize (đã bỏ hẳn từ Phase 2, §2.1). Giữ tiền sẵn trong escrow xử lý đúng rủi ro tại nguồn, không phụ thuộc khả năng seller trả nợ sau này — khác hẳn việc ghi một khoản "nợ" trừu tượng rồi hy vọng thu hồi được ở hợp đồng sau.
+
+Khi report Level 2 thật về sau đó (dù đã qua `level2BufferWindowDays`): nếu có chênh lệch so với số 1.5 đã dùng settle tạm, chênh lệch trừ/bù thẳng từ buffer đang khoá; phần buffer còn dư (nếu có) release nốt cho seller.
+
+**Điểm còn treo, chưa chốt (06/07/2026):** nếu report Level 2 không bao giờ về (org từ chối nhận job, mất liên lạc, phá sản...), cơ chế hiện chưa quyết định buffer nằm khoá vô thời hạn hay có 1 cutoff tuyệt đối để tự release theo số 1.5 — cần 1 session riêng, không suy đoán ở đây. Chưa xác định `level2SafetyBufferRate` chính xác (10-15% là khoảng đề xuất, chưa có dữ liệu variance thật giữa đánh giá Level 1.5 và Level 2 để tính số tối ưu).
+
 *Hướng bất khả kháng (có sự cố):* ở **bất kỳ thời điểm nào** từ `IN_PROGRESS` cho tới trước khi milestone `SETTLED` — kể cả trước khi seller kịp cân hàng, hoặc ngay sau khi seller cân xong và phát hiện thiếu — seller có quyền claim bất khả kháng, miễn là claim được nộp trong vòng `forceMajeureReportWindowDays` **kể từ lúc seller biết về sự kiện** (không phải kể từ ngày giao hàng — xem lý do ở §5). Milestone chuyển sang `FORCE_MAJEURE_PENDING_REVIEW`, kèm bằng chứng nộp qua `file-service` (xác nhận thiên tai của chính quyền địa phương, ảnh, tin tức).
 
 Admin xem xét bằng chứng trước tiên, vì đây là bước rẻ nhất trong hệ thống. Hai kết quả có thể xảy ra:
@@ -284,6 +296,13 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
 **Cập nhật (04/07/2026) — payload `milestone.settled` mở rộng:** thêm `lockedAmount` (= `batchAmount` gốc đã khoá) và `actualAmount` (= số tiền thật sau pro-rata Delta 1/2, §4). `escrow-service` tự tính `diff = lockedAmount - actualAmount`, bắn 2 `LedgerEntry` cùng `milestoneId` nếu `diff > 0`: `RELEASE_TO_SELLER(actualAmount)` + `REFUND_TO_BUYER(diff)`. Không cần event/entryType mới ở bank-service — chỉ là payload trước đây chưa đủ chi tiết để escrow-service tự tính được.
 
+**Cập nhật (06/07/2026) — 2 event mới cho provisional settlement Level 2 (§3.2):**
+
+| Loại | Tên | Publisher | Consumer(s) |
+|---|---|---|---|
+| RabbitMQ | `milestone.level2_provisional_settled` | contract-service — bắn khi hết `level2BufferWindowDays` mà report Level 2 chưa `CONFIRMED`, đã commission Level 1.5 fallback và settle tạm. Payload: `{milestoneId, provisionalAmount, bufferAmount, level1_5ReportId}` | escrow-service (release `provisionalAmount` cho seller, giữ khoá `bufferAmount`), notification-service |
+| RabbitMQ | `milestone.level2_buffer_reconciled` | contract-service — bắn khi report Level 2 thật về sau đó (`CONFIRMED`), so sánh với số 1.5 đã dùng settle tạm. Payload: `{milestoneId, bufferAmount, finalAdjustment}` | escrow-service (release phần buffer còn lại theo `finalAdjustment`), notification-service |
+
 ### 7.2 Contract-level (mới, 04/07/2026; bổ sung `contract.signed` + consumer analytics-service, 06/07/2026)
 
 | Loại | Tên | Publisher | Consumer(s) |
@@ -304,6 +323,8 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 | Ngưỡng giá trị/loại hàng kích hoạt Level 1.5 vs Level 2 cho dispute thường (quantity/quality) | `application.yml` | Đã quyết từ Doc2 mục 4.3 — per-deployment config |
 | `sellerResponseWindowDays` (mặc định 2 ngày làm việc) | `application.yml` | **Chính thức hoá (04/07/2026):** trước đây chỉ ghi "2 ngày làm việc" trong prose ở §3.2, chưa đặt tên config. Invariant kỹ thuật — không có lý do hợp đồng khác nhau cần cửa sổ phản hồi khác nhau. |
 | `buyerConfirmWindowDays` (mặc định 2 ngày làm việc) | `application.yml` | **Mới (04/07/2026):** đối xứng với `sellerResponseWindowDays` — buyer im lặng ở `BUYER_RECEIVED` quá thời gian này → auto `CONFIRM_CLEAN` (§3.2). |
+| `level2BufferWindowDays` (đặt tạm 7-14 ngày làm việc) | `application.yml` | **Mới (06/07/2026):** chưa validate với đơn vị Level 2 thật (đã liên hệ NHL, chưa có phản hồi) — placeholder theo benchmark PSI ngành, không phải số đo thực tế cho cà phê/gạo. Hết window mà chưa có report `CONFIRMED` → commission Level 1.5 fallback, settle tạm (§3.2). |
+| `level2SafetyBufferRate` (đặt tạm 10-15%) | `application.yml` | **Mới (06/07/2026):** % `batchAmount` giữ khoá khi settle tạm theo Level 1.5, chờ report Level 2 thật đối chiếu (§3.2). Chưa có dữ liệu variance thật giữa Level 1.5 và Level 2 để tính số tối ưu — placeholder. |
 
 ---
 
@@ -320,8 +341,10 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
 **Chỉ còn 1 điểm để ngoài phạm vi có chủ đích, không phải thiếu sót:** state machine đầy đủ của `reputation-service` ngoài phần input/trigger đã chốt — thiết kế chi tiết nằm ở `reputation-service-phase2-design.md` (session riêng, 04/07/2026).
 
-Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** §6.3 (event `contract.cancelled`) cần Cường xác nhận riêng trước khi coi là chốt cứng — xem ghi chú trong mục đó. §7.2 (event `contract.signed`, mới 06/07/2026) cũng cần Cường xác nhận bảng mapping `Product.category` → `commodity` trước khi chốt cứng — xem ghi chú trong dòng đó.
+**Chốt bổ sung (06/07/2026) — provisional settlement khi `CONTESTED` escalate Level 2 (§3.2, §7.1, §8):** thêm cơ chế buffer để giải quyết bottleneck report Level 2 chậm (email/admin-confirm, `inspection-phase2-design.md` §3) mà không kẹt tiền seller vô thời hạn. Hết `level2BufferWindowDays` (placeholder 7-14 ngày, chưa validate) chưa có report → commission Level 1.5 fallback, settle tạm `(1 − level2SafetyBufferRate)` của `batchAmount`, giữ khoá phần còn lại chờ đối chiếu với report thật. Dùng buffer khoá sẵn trong escrow thay vì ghi debt, vì seller không có tài sản đối ứng để đòi. **Chưa đóng** — 2 điểm còn treo: (1) số `level2BufferWindowDays`/`level2SafetyBufferRate` là placeholder, chưa validate với đơn vị Level 2 thật; (2) chưa quyết định buffer xử lý ra sao nếu report Level 2 không bao giờ về (khoá vô thời hạn hay có cutoff tuyệt đối) — xem chi tiết trong §3.2.
+
+Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức**, ngoại trừ bổ sung 06/07/2026 (provisional settlement Level 2, xem ngay trên) — phần này **chưa đóng**, còn 2 điểm treo cần giải quyết trước khi coi là chốt cứng. §6.3 (event `contract.cancelled`) cần Cường xác nhận riêng trước khi coi là chốt cứng — xem ghi chú trong mục đó. §7.2 (event `contract.signed`, mới 06/07/2026) cũng cần Cường xác nhận bảng mapping `Product.category` → `commodity` trước khi chốt cứng — xem ghi chú trong dòng đó.
 
 ---
 
-*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (Local Outbox, buyer timeout, buyerDepositRate release paths) · Cập nhật: 06/07/2026 (thêm event `contract.signed` cấp Contract + đăng ký analytics-service làm consumer của `contract.settled`/`contract.cancelled`, phát sinh từ rà soát chéo `analytics-service-phase2-design.md`) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (Local Outbox, buyer timeout, buyerDepositRate release paths) · Cập nhật: 06/07/2026 (thêm event `contract.signed` cấp Contract + đăng ký analytics-service làm consumer của `contract.settled`/`contract.cancelled`, phát sinh từ rà soát chéo `analytics-service-phase2-design.md`; thêm provisional settlement + buffer cho Level 2 chậm report, §3.2/§7.1/§8 — chưa đóng, còn 2 điểm treo) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*

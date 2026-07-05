@@ -100,6 +100,9 @@ push(table(
 ));
 push(P([runs("Quyền claim bất khả kháng ", { bold: true }), runs("không gắn cứng một bước — có thể chen ngang bất kỳ lúc nào trước khi milestone SETTLED, miễn còn trong forceMajeureReportWindowDays kể từ lúc seller biết sự kiện (không neo theo ngày giao).", {})]));
 
+push(P([runs("Provisional settlement khi CONTESTED escalate Level 2 (mới, 06/07/2026). ", { bold: true }), runs("Khi DisputeRoutingService route milestone CONTESTED sang LEVEL_2, platform commission tổ chức Level 2 (InitiateLevel2Inspection) và chờ report thật trong tối đa level2BufferWindowDays. Hết window mà report chưa CONFIRMED: platform commission thêm 1 giám định Level 1.5 làm phán quyết tạm thời, settle ngay (1 − level2SafetyBufferRate) của batchAmount cho seller theo số 1.5, giữ khoá phần còn lại trong escrow (không ghi debt — seller không có tài sản đối ứng để đòi). Khi report Level 2 thật về sau đó, chênh lệch (nếu có) trừ/bù thẳng từ buffer đang khoá.", {})]));
+push(bullet([runs("Chưa đóng — 2 điểm còn treo (06/07/2026): ", { bold: true }), runs("(1) level2BufferWindowDays (placeholder 7-14 ngày làm việc) và level2SafetyBufferRate (placeholder 10-15%) chưa validate với đơn vị Level 2 thật; (2) chưa quyết định buffer xử lý ra sao nếu report Level 2 không bao giờ về. Chi tiết đầy đủ ở milestone-escrow-phase2-design.md §3.2.", {})]));
+
 push(H2("2.4 Quy tắc nghiệp vụ — Delta 1 và Delta 2"));
 push(table(
   [1500, 3400, 2400, 2338],
@@ -450,6 +453,8 @@ push(table(
     ["buyerPenaltyRate / sellerPenaltyRate", "ContractTerms", "Đàm phán theo hợp đồng"],
     ["buyerDepositRate", "ContractTerms", "Mặc định 5% totalAmount"],
     ["forceMajeureReportWindowDays", "ContractTerms", "Mặc định 3 ngày; khác theo mặt hàng"],
+    ["level2BufferWindowDays (mới, 06/07/2026)", "application.yml", "Placeholder 7-14 ngày làm việc — chưa validate với đơn vị Level 2 thật"],
+    ["level2SafetyBufferRate (mới, 06/07/2026)", "application.yml", "Placeholder 10-15% batchAmount — chưa có dữ liệu variance thật"],
   ],
   { size: 17, colAlign: [null, AlignmentType.CENTER, null] }
 ));
@@ -463,6 +468,7 @@ push(bullet([runs("Event contract.cancelled ", { bold: true }), runs("là phát 
 push(bullet([runs("Checklist KYC theo loại hình doanh nghiệp buyer ", { bold: true }), runs("(TNHH, cổ phần, hộ kinh doanh…) — Signature design mới chốt nguyên tắc đối xứng buyer/seller (BLDS 142), chưa chốt danh mục giấy tờ cụ thể.", {})]));
 push(bullet([runs("Payload event mang commodity — đã giải quyết (06/07/2026). ", { bold: true }), runs("Thêm event contract.signed cấp Contract (publisher contract-service, bắn lúc Contract.transitionTo(SIGNED)), payload {contractId, commodity, buyerId, sellerId, totalAmount, signedAt} — analytics-service dùng để populate dim_contract mà không cần Feign ngược (chi tiết Phần 5 §4). Còn treo cấp thấp hơn: bảng mapping Product.category (enum tiếng Việt) → commodity enum dùng chung (COFFEE/RICE/RUBBER/CASHEW) cần xác nhận nghiệp vụ trước khi contract-service code phần publish.", {})]));
 push(callout("Ghi chú.", "WebAuthn/chữ ký số CA là hướng nâng cấp sole-control mạnh hơn nhưng KHÔNG đổi tier pháp lý (cần chứng thư từ CA được cấp phép); ghi nhận out-of-scope, không thiết kế trong phần này.", "note"));
+push(bullet([runs("Provisional settlement Level 2 (mới, 06/07/2026, chưa đóng). ", { bold: true }), runs("level2BufferWindowDays (7-14 ngày) và level2SafetyBufferRate (10-15%) là placeholder, chưa validate với đơn vị Level 2 thật (đã liên hệ NHL, chưa có phản hồi). Chưa quyết định buffer xử lý ra sao nếu report Level 2 không bao giờ về — cần session riêng trước khi coi là chốt cứng.", {})]));
 
 module.exports = { body };
 
