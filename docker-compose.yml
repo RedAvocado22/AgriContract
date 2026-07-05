@@ -237,8 +237,6 @@ services:
       context: .
       dockerfile: contract-service/Dockerfile
     container_name: contract-service
-    ports:
-      - "8083:8083"
     environment:
       DB_HOST: contract-db
       DB_NAME: contract_db
@@ -265,8 +263,6 @@ services:
       context: .
       dockerfile: escrow-service/Dockerfile
     container_name: escrow-service
-    ports:
-      - "8084:8084"
     environment:
       DB_HOST: escrow-db
       DB_NAME: escrow_db
