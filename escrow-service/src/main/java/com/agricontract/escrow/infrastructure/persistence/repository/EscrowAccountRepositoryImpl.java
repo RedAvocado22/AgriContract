@@ -36,6 +36,7 @@ public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
 
         jpaRepo.findByContractId(account.getContractId()).ifPresent(existing -> {
             entity.setId(existing.getId());
+            entity.setVersion(existing.getVersion());
 
             Map<String, Long> existingTransactionIds = existing.getTransactions().stream()
                     .collect(Collectors.toMap(
