@@ -23,9 +23,13 @@ public class EscrowEventConsumer {
     @RabbitListener(queues = "contract-svc.escrow.locked")
     public void onEscrowLocked(Map<String, Object> event) {
         log.debug("Received escrow.locked event: {}", event);
+        activateContractUseCase.execute(parseActivateEvent(event));
+    }
+
+    private ActivateContractCommand parseActivateEvent(Map<String, Object> event) {
         try {
             String contractId = (String) event.get("contractId");
-            activateContractUseCase.execute(new ActivateContractCommand(contractId));
+            return new ActivateContractCommand(contractId);
         } catch (RuntimeException e) {
             throw new InvalidEventPayloadException("Failed to parse escrow.locked event: " + event, e);
         }
@@ -34,9 +38,13 @@ public class EscrowEventConsumer {
     @RabbitListener(queues = "contract-svc.escrow.released")
     public void onEscrowReleased(Map<String, Object> event) {
         log.debug("Received escrow.released event: {}", event);
+        settleContractUseCase.execute(parseSettleEvent(event));
+    }
+
+    private SettleContractCommand parseSettleEvent(Map<String, Object> event) {
         try {
             String contractId = (String) event.get("contractId");
-            settleContractUseCase.execute(new SettleContractCommand(contractId));
+            return new SettleContractCommand(contractId);
         } catch (RuntimeException e) {
             throw new InvalidEventPayloadException("Failed to parse escrow.released event: " + event, e);
         }
