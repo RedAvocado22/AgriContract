@@ -284,12 +284,13 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
 **Cập nhật (04/07/2026) — payload `milestone.settled` mở rộng:** thêm `lockedAmount` (= `batchAmount` gốc đã khoá) và `actualAmount` (= số tiền thật sau pro-rata Delta 1/2, §4). `escrow-service` tự tính `diff = lockedAmount - actualAmount`, bắn 2 `LedgerEntry` cùng `milestoneId` nếu `diff > 0`: `RELEASE_TO_SELLER(actualAmount)` + `REFUND_TO_BUYER(diff)`. Không cần event/entryType mới ở bank-service — chỉ là payload trước đây chưa đủ chi tiết để escrow-service tự tính được.
 
-### 7.2 Contract-level (mới, 04/07/2026)
+### 7.2 Contract-level (mới, 04/07/2026; bổ sung `contract.signed` + consumer analytics-service, 06/07/2026)
 
 | Loại | Tên | Publisher | Consumer(s) |
 |---|---|---|---|
-| RabbitMQ | `contract.settled` | contract-service (`ContractSettledEvent`, đã có sẵn trong code Phase 1 — chỉ thêm consumer mới, cần guard fix §3.1) | escrow-service (`REFUND_TO_BUYER` cho `buyerDepositRate`, §6.3), reputation-service (input positive — đã dùng ở `reputation-service-phase2-design.md` §3) |
-| RabbitMQ | `contract.cancelled` | contract-service — **mới**, xem §6.3 | escrow-service (seize/refund `buyerDepositRate` theo `initiatedBy`), notification-service |
+| RabbitMQ | `contract.signed` | contract-service — **mới (06/07/2026, phát sinh từ session `analytics-service`)**. Bắn đúng 1 lần khi `Contract.transitionTo(SIGNED)` xảy ra — trigger cụ thể là bước 4 của `VerifyOtpAndSign` (`signature-phase2-design.md` §6, bước 5 nối tiếp cũng publish event này, tách biệt với việc push `signedContentHash` riêng cho audit-service). Payload: `{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}`. `commodity` dùng chung enum `COFFEE / RICE / RUBBER / CASHEW` đã có tiền lệ ở `pricing-service-phase2-design.md` §2 — contract-service tự **map** từ `Product.category` (enum tầng rộng, tiếng Việt, VD "Gạo") của sản phẩm gắn với hợp đồng sang enum chung này ngay lúc publish, không đổi field gốc bên `product-service`. **[CẦN XÁC NHẬN: bảng mapping đầy đủ `Product.category` (tiếng Việt) → `commodity` enum (tiếng Anh) — ví dụ "Cà phê"→COFFEE, "Gạo"→RICE — cần Cường/team liệt kê đủ giá trị `category` hiện có trước khi code, tránh map thiếu case rơi vào `NULL`/exception lúc publish.]** | analytics-service (populate `dim_contract`, `analytics-service-phase2-design.md` §2.1/§3.1) |
+| RabbitMQ | `contract.settled` | contract-service (`ContractSettledEvent`, đã có sẵn trong code Phase 1 — chỉ thêm consumer mới, cần guard fix §3.1) | escrow-service (`REFUND_TO_BUYER` cho `buyerDepositRate`, §6.3), reputation-service (input positive — đã dùng ở `reputation-service-phase2-design.md` §3), **analytics-service (mới, 06/07/2026 — `fact_contract_settlement`, `analytics-service-phase2-design.md` §3.3)** |
+| RabbitMQ | `contract.cancelled` | contract-service — **mới**, xem §6.3 | escrow-service (seize/refund `buyerDepositRate` theo `initiatedBy`), notification-service, **analytics-service (mới, 06/07/2026 — `fact_contract_cancellation`, `analytics-service-phase2-design.md` §3.3)** |
 
 ---
 
@@ -319,8 +320,8 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
 **Chỉ còn 1 điểm để ngoài phạm vi có chủ đích, không phải thiếu sót:** state machine đầy đủ của `reputation-service` ngoài phần input/trigger đã chốt — thiết kế chi tiết nằm ở `reputation-service-phase2-design.md` (session riêng, 04/07/2026).
 
-Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** §6.3 (event `contract.cancelled`) cần Cường xác nhận riêng trước khi coi là chốt cứng — xem ghi chú trong mục đó.
+Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** §6.3 (event `contract.cancelled`) cần Cường xác nhận riêng trước khi coi là chốt cứng — xem ghi chú trong mục đó. §7.2 (event `contract.signed`, mới 06/07/2026) cũng cần Cường xác nhận bảng mapping `Product.category` → `commodity` trước khi chốt cứng — xem ghi chú trong dòng đó.
 
 ---
 
-*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (Local Outbox, buyer timeout, buyerDepositRate release paths) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (Local Outbox, buyer timeout, buyerDepositRate release paths) · Cập nhật: 06/07/2026 (thêm event `contract.signed` cấp Contract + đăng ký analytics-service làm consumer của `contract.settled`/`contract.cancelled`, phát sinh từ rà soát chéo `analytics-service-phase2-design.md`) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*

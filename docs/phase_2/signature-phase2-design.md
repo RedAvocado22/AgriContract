@@ -141,6 +141,11 @@ VerifyOtpAndSign(contractId, signerRole, otpCode):
 
   5. Publish Contract.signedContentHash vào audit-service (hash-chain-phase2-design.md §2.2)
      + gửi email anchor cho buyer/seller (hash-chain-phase2-design.md §4.1)
+
+  6. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026) — tách biệt
+     với việc push hash ở bước 5 (đó là ghi vào audit chain, không phải domain event
+     cho consumer khác nghe). Payload + consumer (analytics-service) — chi tiết catalog
+     ở milestone-escrow-phase2-design.md §7.2.
 ```
 
 ---
