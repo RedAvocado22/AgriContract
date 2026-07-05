@@ -4,6 +4,7 @@ import com.agricontract.contract.application.exception.ContractNotFoundException
 import com.agricontract.contract.application.exception.InvalidEventPayloadException;
 import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
 import com.agricontract.contract.common.ApiResponse;
+import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UnauthorizedContractActionException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedContractActionException ex) {
+        log.warn("403 {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(UnauthorizedContractAccessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorizedAccess(UnauthorizedContractAccessException ex) {
         log.warn("403 {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(ex.getMessage()));
     }

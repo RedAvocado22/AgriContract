@@ -2,7 +2,6 @@ package com.agricontract.contract.application.usecase;
 
 import com.agricontract.contract.application.dto.SignContractCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
-import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
 import com.agricontract.contract.application.port.ListingPort;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractId;
@@ -26,10 +25,6 @@ public class SignContractUseCase {
 
         if (contract.getStatus() != ContractStatus.OFFERED && contract.getStatus() != ContractStatus.NEGOTIATING) {
             throw new IllegalArgumentException("Invalid contract status");
-        }
-
-        if (!command.userId().equals(contract.getBuyerId()) && !command.userId().equals(contract.getSellerId())) {
-            throw new UnauthorizedContractActionException("This user can't access this contract.");
         }
 
         if (contract.getSignatories().contains(command.userId())) {

@@ -3,6 +3,7 @@ package com.agricontract.contract.application.usecase;
 import com.agricontract.contract.application.dto.ContractResponse;
 import com.agricontract.contract.application.dto.NegotiateContractCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
+import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.*;
 import com.agricontract.contract.domain.repository.ContractRepository;
@@ -93,14 +94,14 @@ class NegotiateContractUseCaseTest {
     }
 
     @Test
-    void execute_unauthorizedUser_propagatesIllegalArgumentAndDoesNotSave() {
+    void execute_unauthorizedUser_propagatesUnauthorizedAndDoesNotSave() {
         useCase = new NegotiateContractUseCase(contractRepository);
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
         assertThatThrownBy(() -> useCase.execute(
                 new NegotiateContractCommand("contract-1", "stranger-99", NEW_TERMS)))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
 
         verify(contractRepository, never()).save(any());
     }

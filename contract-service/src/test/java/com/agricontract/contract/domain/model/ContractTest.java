@@ -1,6 +1,7 @@
 package com.agricontract.contract.domain.model;
 
 import com.agricontract.contract.domain.event.*;
+import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.vo.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -102,7 +103,7 @@ class ContractTest {
         Contract contract = offered();
 
         assertThatThrownBy(() -> contract.counterOffer("stranger-id", newTerms()))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
     }
 
     // ─── sign ─────────────────────────────────────────────────────────────────
@@ -169,7 +170,7 @@ class ContractTest {
         Contract contract = offered();
 
         assertThatThrownBy(() -> contract.sign("stranger-id"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
     }
 
     // ─── activate ────────────────────────────────────────────────────────────
@@ -223,7 +224,7 @@ class ContractTest {
         Contract contract = activeContract();
 
         assertThatThrownBy(() -> contract.confirmDelivery(SELLER_ID))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
     }
 
     // ─── settle ───────────────────────────────────────────────────────────────
@@ -291,7 +292,7 @@ class ContractTest {
         Contract contract = activeContract();
 
         assertThatThrownBy(() -> contract.cancel("stranger-id", "reason"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
     }
 
     // ─── dispute ──────────────────────────────────────────────────────────────
@@ -322,7 +323,7 @@ class ContractTest {
         Contract contract = deliveredContract();
 
         assertThatThrownBy(() -> contract.dispute(SELLER_ID, "reason"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
     }
 
     // ─── pullDomainEvents ─────────────────────────────────────────────────────

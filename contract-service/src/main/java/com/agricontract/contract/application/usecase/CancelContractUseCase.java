@@ -3,7 +3,6 @@ package com.agricontract.contract.application.usecase;
 import com.agricontract.contract.application.dto.CancelContractCommand;
 import com.agricontract.contract.application.dto.ContractResponse;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
-import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
@@ -22,10 +21,6 @@ public class CancelContractUseCase {
     public ContractResponse execute(CancelContractCommand command) {
         Contract contract = contractRepository.findById(new ContractId(command.contractId()))
                 .orElseThrow(() -> new ContractNotFoundException(command.contractId()));
-
-        if (!command.userId().equals(contract.getBuyerId()) && !command.userId().equals(contract.getSellerId())) {
-            throw new UnauthorizedContractActionException("User is not a party of this contract");
-        }
 
         if (contract.getStatus() != ContractStatus.ACTIVE) {
             throw new IllegalArgumentException("Contract can only be cancelled from ACTIVE status");
