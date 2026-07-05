@@ -37,8 +37,10 @@ public class OutboxPoller {
                 row.setPublishedAt(LocalDateTime.now());
                 repository.save(row);
                 log.debug("Published event {} ({}) to {}", row.getId(), row.getEventType(), EXCHANGE);
+            } catch (AmqpException e) {
+                log.warn("Failed to publish event {} ({}) to broker, will retry next poll: {}", row.getId(), row.getEventType(), e.getMessage());
             } catch (Exception e) {
-                log.error("Event {} with type: {} is {}", row.getId(), row.getEventType(), e.getMessage());
+                log.error("Unexpected error processing event {} ({}): {}", row.getId(), row.getEventType(), e.getMessage(), e);
             }
         }
     }
