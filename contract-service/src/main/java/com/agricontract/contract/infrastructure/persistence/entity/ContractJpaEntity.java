@@ -23,6 +23,9 @@ public class ContractJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    private Long version;
+
     @Column(name = "contract_id", nullable = false, unique = true, length = 255)
     private String contractId;
 

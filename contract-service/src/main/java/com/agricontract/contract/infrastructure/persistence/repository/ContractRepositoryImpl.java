@@ -33,7 +33,10 @@ public class ContractRepositoryImpl implements ContractRepository {
     public Contract save(Contract contract) {
         var entity = mapper.toJpaEntity(contract);
         jpaRepo.findByContractId(contract.getContractId().value())
-               .ifPresent(existing -> entity.setId(existing.getId()));
+               .ifPresent(existing -> {
+                   entity.setId(existing.getId());
+                   entity.setVersion(existing.getVersion());
+               });
         jpaRepo.save(entity);
 
         List<DomainEvent> events = contract.pullDomainEvents();
