@@ -6,6 +6,7 @@ target/
 *.log
 .env
 .env.person2
+docker-compose.override.yml
 .DS_Store
 .idea/
 *.iml
