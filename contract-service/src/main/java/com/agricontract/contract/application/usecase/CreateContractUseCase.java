@@ -25,6 +25,21 @@ public class CreateContractUseCase {
     private final UserPort userPort;
 
     public ContractResponse execute(CreateContractCommand command) {
+        ContractId contractId = (command.contractId() != null)
+                ? new ContractId(command.contractId())
+                : new ContractId(UUID.randomUUID().toString());
+
+        //idempotency
+        Contract existing = contractRepository.findById(contractId).orElse(null);
+        if (existing != null) {
+            if (existing.getBuyerId().equals(command.buyerId()) &&
+                    existing.getListingId().equals(command.listingId()) &&
+                    existing.getTerms().equals(command.terms())) {
+                return ContractResponse.from(existing);
+            } else {
+                throw new IllegalStateException(("Contract " + contractId.value() + " already exists with different buyer/listing/terms"));
+            }
+        }
         //feign
         ListingResponse listing = listingPort.getListing(command.listingId());
 
@@ -34,11 +49,6 @@ public class CreateContractUseCase {
 
         UserInfo buyerInfo = userPort.getUser(command.buyerId());
         UserInfo sellerInfo = userPort.getUser(listing.sellerId());
-
-        //idempotency
-        ContractId contractId = (command.contractId() != null)
-                ? new ContractId(command.contractId())
-                : new ContractId(UUID.randomUUID().toString());
 
         Contract contract = Contract.offer(
                 contractId,
