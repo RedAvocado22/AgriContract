@@ -1,12 +1,12 @@
 ---
 name: analytics-service-phase2-design
-description: "Analytics-service — CQRS read model thuần tuý, time-series aggregation phục vụ báo cáo quản trị B2B (VICOFA/VRA). Nguồn: design session 06/07/2026."
+description: "Analytics-service — CQRS read model thuần tuý, time-series aggregation phục vụ báo cáo quản trị B2B (VICOFA/VRA). Nguồn: design session 06/07/2026, rà soát + fix 4 bug 06/07/2026."
 status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
   extends: "services.md § analytics-service (8093 — CQRS analytics, time-series aggregation, pre-computed vs real-time tradeoff)"
-  related: "milestone-escrow-phase2-design.md §7 (Event Catalog làm nguồn data ingest); reputation-service-phase2-design.md (cùng pattern eventual consistency)"
+  related: "milestone-escrow-phase2-design.md §7 (Event Catalog làm nguồn data ingest, gồm event mới `contract.signed` thêm lúc rà soát file này); signature-phase2-design.md §6 (nơi `contract.signed` được publish); reputation-service-phase2-design.md (cùng pattern eventual consistency)"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -36,10 +36,12 @@ CREATE TABLE dim_contract (
     commodity      VARCHAR(50) NOT NULL,
     buyer_id       UUID NOT NULL,
     seller_id      UUID NOT NULL,
+    total_amount   DECIMAL(15,2) NOT NULL,
     signed_at      TIMESTAMP NOT NULL
 );
 ```
-*[CẦN XÁC NHẬN: Các event hiện tại trong Event Catalog (milestone-escrow §7) chưa định nghĩa rõ payload có chứa `commodity` hay không. Để populate được `dim_contract` thuần qua event, đề xuất contract-service phải publish `contract.signed` kèm đủ metadata (commodity, buyerId, sellerId) ngay khi ký xong, hoặc nhúng sẵn `commodity` vào payload của mọi event. Chờ Cường/team xác nhận payload detail.]*
+
+**Đã giải quyết (06/07/2026, rà soát lại):** điểm treo trước đây về nguồn `commodity` được chốt bằng cách thêm event mới `contract.signed` vào Event Catalog cấp Contract (`milestone-escrow-phase2-design.md` §7.2), publish đúng 1 lần lúc `Contract.transitionTo(SIGNED)`, payload `{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}`. `dim_contract` được `INSERT` (upsert theo `contract_id`) ngay khi nhận event này — chi tiết ingest ở §3.1 bên dưới. **Còn treo 1 cấp thấp hơn:** `commodity` trong payload là kết quả contract-service tự map từ `Product.category` (enum tiếng Việt, VD "Gạo") sang enum chung `COFFEE/RICE/RUBBER/CASHEW` — bảng mapping đầy đủ cần Cường xác nhận trước khi code (xem ghi chú tại chính dòng event đó).
 
 ### 2.2 Sự đánh đổi: Real-time vs Pre-computed
 
@@ -72,6 +74,20 @@ CREATE TABLE dim_contract (
        initiated_by            VARCHAR(10) NOT NULL, -- BUYER / SELLER
        cancelled_at            TIMESTAMP NOT NULL
    );
+
+   -- Bảng Fact cho Contract Settlement (mới, 06/07/2026 — bug fix)
+   -- Lý do bắt buộc phải có bảng riêng: fact_milestone_performance là granularity
+   -- MILESTONE, không phải CONTRACT. Một hợp đồng có N milestone, đếm distinct
+   -- contract_id từ bảng đó ra "hợp đồng đã hoàn tất" sẽ sai bất cứ khi nào có hợp
+   -- đồng đang dở dang (milestone 1,2 đã SETTLED nhưng 3,4,5 còn ACTIVE). Cần nguồn
+   -- sự thật riêng ở đúng cấp Contract, lấy thẳng từ event `contract.settled`
+   -- (chỉ bắn đúng 1 lần khi TOÀN BỘ milestone đã SETTLED — milestone-escrow §2.2/§7.2).
+   CREATE TABLE fact_contract_settlement (
+       fact_id                 UUID PRIMARY KEY,
+       contract_id             UUID NOT NULL,
+       settled_at              TIMESTAMP NOT NULL
+   );
+   CREATE INDEX idx_fact_contract_settlement_time ON fact_contract_settlement(settled_at);
    ```
 
 2. **Pre-computed Aggregate Tables (Tính toán sẵn - Đọc cực nhanh):**
@@ -102,34 +118,59 @@ CREATE TABLE analytics_idempotency_log (
 );
 ```
 
+### 2.4 Bảng staging cho `has_force_majeure` (mới, 06/07/2026 — bug fix race condition)
+
+**Vấn đề:** `milestone.force_majeure_resolved` (dispute) luôn xảy ra **trước** khi milestone đạt trạng thái cuối (`SETTLED`/`CANCELLED_WITH_PENALTY`) — nhưng `fact_milestone_performance` chỉ được `INSERT` khi nhận đúng 2 event cuối đó (§3.2). Nếu ingest pipeline chỉ biết `UPDATE ... SET has_force_majeure = TRUE WHERE milestone_id = X`, row đó chưa tồn tại lúc `resolved` tới → `UPDATE` chạy vào khoảng không, 0 row bị ảnh hưởng, cờ vĩnh viễn `FALSE`.
+
+**Giải pháp — staging table, merge lúc INSERT:**
+
+```sql
+CREATE TABLE pending_force_majeure_flag (
+    milestone_id    UUID PRIMARY KEY,
+    flagged_at      TIMESTAMP NOT NULL
+);
+```
+
+Cơ chế 2 chiều (an toàn bất kể thứ tự event tới, dù thứ tự thực tế luôn là resolved-trước):
+1. Nhận `force_majeure_resolved` (APPROVED) → thử `UPDATE fact_milestone_performance SET has_force_majeure = TRUE WHERE milestone_id = X`. Nếu `rows affected = 0` (row chưa tồn tại — trường hợp thường gặp) → `INSERT` vào `pending_force_majeure_flag`.
+2. Lúc `INSERT` vào `fact_milestone_performance` (từ `settled`/`cancelled_with_penalty`, §3.2) → `SELECT` trước từ `pending_force_majeure_flag` theo `milestone_id`; nếu có → set `has_force_majeure = TRUE` ngay trong câu `INSERT`, rồi `DELETE` row staging đó.
+
 ---
 
 ## 3. Ingest Pipeline
 
 Mỗi khi nhận event từ RabbitMQ, pipeline xử lý phải đi qua bước check `analytics_idempotency_log`. Nếu đã xử lý → skip ngay lập tức.
 
-### 3.1 Nhóm Event "Milestone Escrow"
+### 3.1 Nhóm Event "Contract Signed" — populate Dimension (mới, 06/07/2026)
+*(Nguồn: milestone-escrow-phase2-design.md §7.2 — event mới, thêm cùng lúc review này)*
+
+* **Nhận `contract.signed` (mang `commodity`, `buyerId`, `sellerId`, `totalAmount`, `signedAt`):**
+    * *Hành động:* `UPSERT` vào `dim_contract` theo `contract_id`. Phải xử lý event này **trước** các event milestone/settlement của cùng `contractId` về mặt logic (không bắt buộc về thứ tự nhận trên RabbitMQ, nhưng batch job §3.4 JOIN `dim_contract` nên nếu dimension chưa kịp có, dòng đó tạm thời thiếu `commodity` ở lần chạy batch gần nhất — tự vá lại ở lần chạy kế tiếp, không mất dữ liệu, chỉ trễ 1 chu kỳ).
+
+### 3.2 Nhóm Event "Milestone Escrow"
 *(Nguồn: milestone-escrow-phase2-design.md §7.1)*
 
 * **Nhận `milestone.settled` (mang `lockedAmount`, `actualAmount`):**
-    * *Hành động:* `INSERT` vào `fact_milestone_performance`. Tính `delta_shortfall_amount = lockedAmount - actualAmount`.
+    * *Hành động:* Trước khi `INSERT`, `SELECT` từ `pending_force_majeure_flag` (§2.4) theo `milestone_id`. `INSERT` vào `fact_milestone_performance`, tính `delta_shortfall_amount = lockedAmount - actualAmount`, set `has_force_majeure = TRUE` nếu tìm thấy row staging tương ứng, rồi `DELETE` row staging đó.
     * *Chiến lược:* Ghi incremental, không group ngay. Nhanh và triệt tiêu table lock contention.
 * **Nhận `milestone.force_majeure_resolved` (chỉ ghi nhận khi APPROVED):**
-    * *Hành động:* Thực ra, ta cần cờ này map chung vào milestone đó. Sẽ update `has_force_majeure = TRUE` vào một record trong bảng fact nếu có.
+    * *Hành động (sửa 06/07/2026 — bug race condition):* Event này luôn tới **trước** khi milestone đạt trạng thái cuối, nên `fact_milestone_performance` gần như chắc chắn **chưa có row** để `UPDATE`. Thử `UPDATE fact_milestone_performance SET has_force_majeure = TRUE WHERE milestone_id = X` trước; nếu `rows affected = 0` → `INSERT` vào `pending_force_majeure_flag` (§2.4) để chờ merge lúc `INSERT` fact row thật (2 bước trên/dưới mục này).
 * **Nhận `milestone.cancelled_with_penalty`:**
-    * *Hành động:* `INSERT` vào `fact_milestone_performance` với `status = CANCELLED`, `actual_amount = 0`.
+    * *Hành động:* Cùng logic merge staging như `milestone.settled` ở trên. `INSERT` vào `fact_milestone_performance` với `status = CANCELLED`, `actual_amount = 0`, kiểm tra + merge `pending_force_majeure_flag` trước khi insert.
 
-### 3.2 Nhóm Event "Contract Level"
+### 3.3 Nhóm Event "Contract Level — Settlement/Cancellation"
 *(Nguồn: milestone-escrow-phase2-design.md §7.2)*
 
+* **Nhận `contract.settled` (mới, 06/07/2026 — bug fix, trước đây không consume event này):**
+    * *Hành động:* `INSERT` vào `fact_contract_settlement`. Đây là nguồn **duy nhất** đúng để đếm "hợp đồng đã hoàn tất" ở granularity Contract — không được suy ra từ `fact_milestone_performance` (đó là granularity Milestone, xem lý do tại §2.2).
 * **Nhận `contract.cancelled` (mang `initiatedBy`):**
     * *Hành động:* `INSERT` vào `fact_contract_cancellation`.
 
-### 3.3 Batch Job `@Scheduled` (Pre-compute)
+### 3.4 Batch Job `@Scheduled` (Pre-compute)
 
 **Chốt (06/07/2026):** Job `MonthlyAggregationJob` chạy lúc **1:00 AM mỗi ngày** (off-peak, trước giờ `VerifyChainJob` của audit-service 2:00 AM để tránh dẫm chân tài nguyên DB nội bộ nếu triển khai chung node).
-* *Cách chạy:* Quét dữ liệu ngày hôm qua từ `fact_milestone_performance` (JOIN với `dim_contract` để lấy `commodity`), cộng dồn (upsert) vào dòng `agg_monthly_commodity_stats` của tháng hiện tại.
-* *Tính Rate:* `cancellation_rate = total_contracts_cancelled / (settled + cancelled)`. Tính và ghi đè thẳng vào cột, API sau này chỉ việc `SELECT` và trả về O(1).
+* *Cách chạy:* Quét dữ liệu ngày hôm qua từ **`fact_contract_settlement` + `fact_contract_cancellation`** (JOIN với `dim_contract` để lấy `commodity` — granularity Contract, cho `total_contracts_settled`/`total_contracts_cancelled`) **và** từ `fact_milestone_performance` (JOIN `dim_contract`, granularity Milestone, cho `total_value_settled`/`escrow_efficiency_rate`/`force_majeure_incidents`) — 2 nguồn khác granularity, cộng dồn (upsert) vào đúng cột tương ứng của dòng `agg_monthly_commodity_stats` tháng hiện tại. *(Sửa 06/07/2026: bản gốc chỉ quét `fact_milestone_performance`, khiến `total_contracts_settled` bị tính sai — xem §2.2/§3.3.)*
+* *Tính Rate:* `cancellation_rate = total_contracts_cancelled / (total_contracts_settled + total_contracts_cancelled)`, cả 2 số hạng lấy từ `fact_contract_settlement`/`fact_contract_cancellation`, không lẫn với số liệu milestone. Tính và ghi đè thẳng vào cột, API sau này chỉ việc `SELECT` và trả về O(1).
 
 ---
 
@@ -213,10 +254,16 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 
 **Chốt (06/07/2026):** `analytics-service` là pure consumer, cqrs read-model, không phụ thuộc đồng bộ vào service nào. Áp dụng mô hình Star Schema thu nhỏ: `fact` tables (lưu event thô incremental, giải quyết nghẽn ghi) + `agg` tables (pre-computed định kỳ 1:00 AM bằng `@Scheduled`, giải quyết nghẽn đọc/tính toán %). Bắt buộc có bảng Log Idempotency theo `message_id` để tránh at-least-once làm lặp số. Metric tập trung hoàn toàn vào B2B value (cancellation, force majeure, escrow effectiveness). Chấp nhận độ trễ (data lag) và trống data quá khứ lúc mới deploy làm tradeoff.
 
-**1 điểm treo cần Cường xác nhận:** Cần đảm bảo các event cấp Contract/Milestone ở upstream (như `contract.signed` hoặc `milestone.settled`) có bơm đủ metadata (đặc biệt là `commodity`) vào payload để analytics-service không bị "mù" do không được gọi Feign ngược.
+**Sửa (06/07/2026, rà soát lại sau khi đóng session lần đầu) — 4 vấn đề phát hiện, cả 4 đã fix trong bản này:**
+1. `total_contracts_settled` không thể tính đúng từ `fact_milestone_performance` (sai granularity: Milestone ≠ Contract) → thêm `fact_contract_settlement`, populate từ event `contract.settled` (§2.2, §3.3).
+2. `analytics-service` chưa được đăng ký làm consumer của `contract.settled`/`contract.cancelled` trong Event Catalog gốc (`milestone-escrow-phase2-design.md` §7.2) dù tự ý consume — đã thêm vào bảng consumer ở file đó.
+3. `dim_contract` chưa từng được wire vào ingest pipeline nào — thêm event mới `contract.signed` (`milestone-escrow-phase2-design.md` §7.2) + bước ingest §3.1.
+4. `has_force_majeure` gần như luôn `FALSE` do race condition (event `resolved` luôn tới trước khi fact row tồn tại) → thêm bảng staging `pending_force_majeure_flag` (§2.4), merge 2 chiều lúc `INSERT`.
 
-Analytics-service — **đóng session, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
+**Còn 1 điểm treo cấp thấp hơn, cần Cường xác nhận:** bảng mapping đầy đủ `Product.category` (enum tiếng Việt hiện có bên `product-service`) → `commodity` enum dùng chung (`COFFEE/RICE/RUBBER/CASHEW`) — cần liệt kê đủ giá trị trước khi contract-service code phần publish `contract.signed`, tránh case rơi vào `NULL`/exception (ghi chú tại đúng dòng event đó, `milestone-escrow-phase2-design.md` §7.2).
+
+Analytics-service — **đóng session, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức** (sau khi điểm treo mapping ở trên được xác nhận).
 
 ---
 
-*Design session: 06/07/2026 · Chưa code · Đã đóng kiến trúc Phase 2 tổng thể.*
+*Design session: 06/07/2026 · Rà soát + fix 4 bug: 06/07/2026 · Chưa code · Đã đóng kiến trúc Phase 2 tổng thể.*
