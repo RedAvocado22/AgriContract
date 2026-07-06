@@ -33,13 +33,18 @@ public class SignContractUseCase {
 
         contract.sign(command.userId());
 
+        contractRepository.save(contract);
+
         if (contract.getStatus() == ContractStatus.SIGNED) {
             log.info("Contract {} fully SIGNED, closing listing {}", command.contractId(), contract.getListingId());
-            listingPort.closeListing(contract.getListingId());
+            try {
+                listingPort.closeListing(contract.getListingId());
+            } catch (Exception e) {
+                log.error("Contract {} SIGNED but failed to close listing {}: {} — needs manual fix",
+                        command.contractId(), contract.getListingId(), e.getMessage(), e);
+            }
         } else {
             log.info("Contract {} partially signed by {}", command.contractId(), command.userId());
         }
-
-        contractRepository.save(contract);
     }
 }
