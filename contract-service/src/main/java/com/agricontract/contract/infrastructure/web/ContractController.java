@@ -30,7 +30,7 @@ public class ContractController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<ContractResponse>> offerContract(
-            @RequestBody CreateContractRequest request,
+            @Valid @RequestBody CreateContractRequest request,
             Authentication auth) {
         String buyerId = auth.getName();
         ContractResponse response = createContractUseCase.execute(new CreateContractCommand(
@@ -42,7 +42,7 @@ public class ContractController {
     @PutMapping("/{contractId}/negotiate")
     public ResponseEntity<ApiResponse<ContractResponse>> negotiate(
             @PathVariable String contractId,
-            @RequestBody NegotiateContractRequest request,
+            @Valid @RequestBody NegotiateContractRequest request,
             Authentication auth) {
         String userId = auth.getName();
         ContractResponse response = negotiateContractUseCase.execute(
