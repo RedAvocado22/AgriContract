@@ -5,7 +5,6 @@ import com.agricontract.contract.application.dto.ContractResponse;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractId;
-import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,10 +20,6 @@ public class ConfirmDeliveryUseCase {
     public ContractResponse execute(ConfirmDeliveryCommand command) {
         Contract contract = contractRepository.findById(new ContractId(command.contractId()))
                 .orElseThrow(() -> new ContractNotFoundException(command.contractId()));
-
-        if (contract.getStatus() != ContractStatus.ACTIVE) {
-            throw new IllegalArgumentException("Contract must be ACTIVE to confirm delivery");
-        }
 
         contract.confirmDelivery(command.buyerId());
         contractRepository.save(contract);

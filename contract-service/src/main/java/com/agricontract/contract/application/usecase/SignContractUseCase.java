@@ -22,15 +22,6 @@ public class SignContractUseCase {
         Contract contract = contractRepository.findById(new ContractId(command.contractId()))
                 .orElseThrow(() -> new ContractNotFoundException(command.contractId()));
 
-
-        if (contract.getStatus() != ContractStatus.OFFERED && contract.getStatus() != ContractStatus.NEGOTIATING) {
-            throw new IllegalArgumentException("Invalid contract status");
-        }
-
-        if (contract.getSignatories().contains(command.userId())) {
-            throw new IllegalArgumentException("This user already has a signatory for this contract");
-        }
-
         contract.sign(command.userId());
 
         contractRepository.save(contract);
