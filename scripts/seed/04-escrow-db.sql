@@ -52,7 +52,13 @@ VALUES
   -- total 18,750,000 (150kg × 125000), deposit 1,875,000
   ('seed-esc-disputed',  'seed-ctr-disputed',
    @buyer1_id, @buyer1_email, @seller1_id, @seller1_email,
-   18750000.00, 1875000.00, 0.1000, 'VND', 'FULLY_LOCKED', NOW(), NOW());
+   18750000.00, 1875000.00, 0.1000, 'VND', 'FULLY_LOCKED', NOW(), NOW()),
+
+  -- ACTIVE contract thứ 2 (seller-cancel test): FULLY_LOCKED
+  -- total 22,500,000 (250kg × 90000), deposit 2,250,000
+  ('seed-esc-active-2',  'seed-ctr-active-2',
+   @buyer1_id, @buyer1_email, @seller1_id, @seller1_email,
+   22500000.00, 2250000.00, 0.1000, 'VND', 'FULLY_LOCKED', NOW(), NOW());
 
 -- ── Escrow Transactions ───────────────────────────────────────
 -- Dùng subquery lấy escrow_account_id từ escrow_id (không hardcode AUTO_INCREMENT id)
@@ -128,3 +134,12 @@ FROM escrow_accounts WHERE escrow_id = 'seed-esc-disputed';
 INSERT IGNORE INTO escrow_transactions (transaction_id, escrow_account_id, escrow_id, transaction_type, amount, currency, note, created_at)
 SELECT '18565f65-3931-4176-9d58-8161b3309eda', id, 'seed-esc-disputed', 'LOCK', 1875000.00, 'VND', 'Lock seller deposit.', NOW()
 FROM escrow_accounts WHERE escrow_id = 'seed-esc-disputed';
+
+-- FULLY_LOCKED (active-2): 2 tx — chờ seller-cancel test
+INSERT IGNORE INTO escrow_transactions (transaction_id, escrow_account_id, escrow_id, transaction_type, amount, currency, note, created_at)
+SELECT '2a6e0e0a-8e0a-4a7a-9a0a-1a2b3c4d5e6f', id, 'seed-esc-active-2', 'LOCK', 22500000.00, 'VND', 'Lock buyer payment.', NOW()
+FROM escrow_accounts WHERE escrow_id = 'seed-esc-active-2';
+
+INSERT IGNORE INTO escrow_transactions (transaction_id, escrow_account_id, escrow_id, transaction_type, amount, currency, note, created_at)
+SELECT '3b7f1f1b-9f1b-4b8b-8b1b-2b3c4d5e6f70', id, 'seed-esc-active-2', 'LOCK', 2250000.00, 'VND', 'Lock seller deposit.', NOW()
+FROM escrow_accounts WHERE escrow_id = 'seed-esc-active-2';

@@ -1,0 +1,40 @@
+meta {
+  name: 35. Negotiate as seller — state: OFFERED → NEGOTIATING (seed-ctr-offered)
+  type: http
+  seq: 35
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{negotiate_contract_id}}/negotiate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+body:json {
+  {
+    "newTerms": {
+      "quantity": { "value": 800, "unit": "kg" },
+      "agreedPrice": { "amount": 8300000, "currency": "VND" },
+      "deliveryDeadline": "2026-10-01",
+      "buyerPenaltyRate": 0.2,
+      "sellerDepositRate": 0.1,
+      "qualitySpec": "Độ ẩm ≤ 14%, tạp chất ≤ 0.5%"
+    }
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("status should be NEGOTIATING", function() {
+    expect(res.getBody().data.status).to.equal("NEGOTIATING");
+  });
+  test("terms should reflect the counter-offer", function() {
+    expect(res.getBody().data.terms.agreedPrice.amount).to.equal(8300000);
+  });
+}

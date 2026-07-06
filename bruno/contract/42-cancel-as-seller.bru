@@ -1,0 +1,37 @@
+meta {
+  name: 42. Cancel as seller — state: ACTIVE → CANCELLED (seed-ctr-active-2), cancelledBy=SELLER
+  type: http
+  seq: 42
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{cancel_seller_contract_id}}/cancel
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+body:json {
+  {
+    "reason": "Seller không thể giao hàng đúng hạn"
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("status should be CANCELLED", function() {
+    expect(res.getBody().data.status).to.equal("CANCELLED");
+  });
+  test("cancelledBy should be SELLER", function() {
+    expect(res.getBody().data.cancelledBy).to.equal("SELLER");
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+}

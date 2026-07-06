@@ -1,0 +1,24 @@
+meta {
+  name: 46. Verify escrow ARBITRATED (seed-esc-disputed)
+  type: http
+  seq: 46
+}
+
+get {
+  url: {{base_url}}/api/v1/escrows/contract/{{arbitrate_contract_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{admin_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("escrow status should be ARBITRATED", function() {
+    expect(res.getBody().data.status).to.equal("ARBITRATED");
+  });
+}

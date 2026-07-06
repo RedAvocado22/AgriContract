@@ -1,0 +1,30 @@
+meta {
+  name: 37. Dispute as buyer — state: DELIVERED → DISPUTED (seed-ctr-delivered)
+  type: http
+  seq: 37
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{dispute_contract_id}}/dispute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "reason": "Cà phê ẩm vượt ngưỡng thoả thuận"
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("status should be DISPUTED", function() {
+    expect(res.getBody().data.status).to.equal("DISPUTED");
+  });
+}

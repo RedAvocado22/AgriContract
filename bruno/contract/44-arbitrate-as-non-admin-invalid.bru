@@ -1,0 +1,29 @@
+meta {
+  name: 44. [Security] Arbitrate as non-admin (expect 403) — seed-esc-disputed
+  type: http
+  seq: 44
+}
+
+put {
+  url: {{base_url}}/api/v1/escrows/{{arbitrate_contract_id}}/arbitrate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "buyerAmount": 10000000,
+    "sellerAmount": 10625000,
+    "justification": "buyer trying to self-arbitrate"
+  }
+}
+
+tests {
+  test("non-admin arbitrate should return 403", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

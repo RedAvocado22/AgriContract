@@ -85,4 +85,13 @@ VALUES
    150.000, 'kg', 125000.00, 'VND', '2026-09-30',
    0.2000, 0.1000, 'Hàm lượng piperin ≥ 5%, độ ẩm ≤ 13%',
    'DISPUTED', NULL, NULL, CONCAT('["', @buyer1_id, '","', @seller1_id, '"]'),
+   NOW(), NOW()),
+
+  -- 9. ACTIVE (thứ 2) — dùng cho seller-cancel test, escrow FULLY_LOCKED
+  --   total = 250 * 90000 = 22,500,000 VND
+  ('seed-ctr-active-2', 'lst-seed-active-2', @seller1_id, @buyer1_id,
+   'Sầu riêng Musang King', @buyer1_org, @seller1_org, @buyer1_email, @seller1_email,
+   250.000, 'kg', 90000.00, 'VND', '2026-09-20',
+   0.2000, 0.1000, 'Trái ≥ 3kg, múi vàng nhạt, không sâu',
+   'ACTIVE', NULL, NULL, CONCAT('["', @buyer1_id, '","', @seller1_id, '"]'),
    NOW(), NOW());
