@@ -63,7 +63,7 @@ push(table(
   ],
   { size: 18 }
 ));
-push(P([runs("ContractTerms — các field then chốt: ", { bold: true }), runs("milestoneSchedule (List<MilestoneTerm>), toleranceRate (ngưỡng lệch cân Delta 2, mặc định chia 50/50), shortfallPenaltyThreshold (mặc định 5%), buyerPenaltyRate / sellerPenaltyRate, forceMajeureReportWindowDays (mặc định 3 ngày), buyerDepositRate (mặc định 5% totalAmount). Không còn sellerDepositRate — đã bỏ hẳn.", {})]));
+push(P([runs("ContractTerms — các field then chốt: ", { bold: true }), runs("milestoneSchedule (List<MilestoneTerm>), toleranceRate (ngưỡng lệch cân Delta 2, mặc định chia 50/50), shortfallPenaltyThreshold (mặc định 5%), buyerPenaltyRate / sellerPenaltyRate, forceMajeureReportWindowDays (mặc định 3 ngày), buyerDepositRate (mặc định 5% totalAmount). sellerDepositRate (mới, 06/07/2026) — optional, mặc định 0, đàm phán per-contract giữa buyer/seller lúc NEGOTIATING, thay quyết định \"bỏ hẳn\" trước đây.", {})]));
 
 push(H2("2.2 State machine cấp hợp đồng"));
 push(table(
@@ -100,8 +100,8 @@ push(table(
 ));
 push(P([runs("Quyền claim bất khả kháng ", { bold: true }), runs("không gắn cứng một bước — có thể chen ngang bất kỳ lúc nào trước khi milestone SETTLED, miễn còn trong forceMajeureReportWindowDays kể từ lúc seller biết sự kiện (không neo theo ngày giao).", {})]));
 
-push(P([runs("Provisional settlement khi CONTESTED escalate Level 2 (mới, 06/07/2026). ", { bold: true }), runs("Khi DisputeRoutingService route milestone CONTESTED sang LEVEL_2, platform commission tổ chức Level 2 (InitiateLevel2Inspection) và chờ report thật trong tối đa level2BufferWindowDays. Hết window mà report chưa CONFIRMED: platform commission thêm 1 giám định Level 1.5 làm phán quyết tạm thời, settle ngay (1 − level2SafetyBufferRate) của batchAmount cho seller theo số 1.5, giữ khoá phần còn lại trong escrow (không ghi debt — seller không có tài sản đối ứng để đòi). Khi report Level 2 thật về sau đó, chênh lệch (nếu có) trừ/bù thẳng từ buffer đang khoá.", {})]));
-push(bullet([runs("Chưa đóng — 2 điểm còn treo (06/07/2026): ", { bold: true }), runs("(1) level2BufferWindowDays (placeholder 7-14 ngày làm việc) và level2SafetyBufferRate (placeholder 10-15%) chưa validate với đơn vị Level 2 thật; (2) chưa quyết định buffer xử lý ra sao nếu report Level 2 không bao giờ về. Chi tiết đầy đủ ở milestone-escrow-phase2-design.md §3.2.", {})]));
+push(P([runs("Provisional settlement khi CONTESTED escalate Level 2 (mới, 06/07/2026). ", { bold: true }), runs("Khi DisputeRoutingService route milestone CONTESTED sang LEVEL_2, platform commission tổ chức Level 2 (InitiateLevel2Inspection) và chờ report thật trong tối đa level2BufferWindowDays. Hết window mà report chưa CONFIRMED: platform commission thêm 1 giám định Level 1.5 làm phán quyết tạm thời, settle ngay (1 − level2SafetyBufferRate) của batchAmount cho seller theo số 1.5, giữ khoá phần còn lại trong escrow (không ghi debt — seller không có tài sản đối ứng để đòi). Khi report Level 2 thật về sau đó, chênh lệch (nếu có) trừ/bù thẳng từ buffer đang khoá. Hết thêm level2BufferTerminalDays (placeholder 30 ngày, tính từ lúc level2BufferWindowDays hết) mà vẫn chưa có report CONFIRMED: phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer cho seller, đóng milestone.", {})]));
+push(bullet([runs("Chưa đóng — còn treo (06/07/2026): ", { bold: true }), runs("cả 3 số (level2BufferWindowDays 7-14 ngày, level2SafetyBufferRate 10-15%, level2BufferTerminalDays 30 ngày) là placeholder, chưa validate với đơn vị Level 2 thật. Chi tiết đầy đủ ở milestone-escrow-phase2-design.md §3.2.", {})]));
 
 push(H2("2.4 Quy tắc nghiệp vụ — Delta 1 và Delta 2"));
 push(table(
@@ -156,7 +156,7 @@ uc("UC-C4", "Claim và xét bất khả kháng", [
 uc("UC-C5", "Huỷ hợp đồng (pro-rata)", [
   ["Actor", "BUYER hoặc SELLER"],
   ["Tiền điều kiện", "Contract ở SIGNED/ACTIVE; áp cho milestone chưa SETTLED"],
-  ["Luồng chính", "cancel() → Contract CANCELLED → publish contract.cancelled(initiatedBy). Mỗi milestone còn lại publish milestone.cancelled_with_penalty riêng. Seller huỷ: ghi penalty debt (sellerPenaltyRate × giá trị còn lại) vào audit, refund buyerDepositRate về buyer, khoá tài khoản seller. Buyer huỷ: seize buyerDepositRate (→ seller) + seize batchAmount đang khoá theo buyerPenaltyRate, khoá tài khoản buyer"],
+  ["Luồng chính", "cancel() → Contract CANCELLED → publish contract.cancelled(initiatedBy). Mỗi milestone còn lại publish milestone.cancelled_with_penalty riêng. Seller huỷ: nếu có sellerDepositRate đã khoá → seize ngay, offset vào penalty debt (sellerPenaltyRate × giá trị còn lại − deposit đã seize); refund buyerDepositRate về buyer, khoá tài khoản seller. Buyer huỷ: seize buyerDepositRate (→ seller) + seize batchAmount đang khoá theo buyerPenaltyRate, refund sellerDepositRate về seller nếu có (seller không phải bên phá kèo), khoá tài khoản buyer"],
   ["Hậu điều kiện", "Milestone đã SETTLED giữ nguyên; penalty debt bất biến trong audit"],
 ]);
 
@@ -298,7 +298,7 @@ push(table(
   [2400, 2200, 5038],
   ["Aggregate", "Loại", "Trạng thái quản lý"],
   [
-    ["EscrowAccount", "Aggregate root (per contract)", "Trạng thái cọc cấp hợp đồng (buyerDepositRate): DEPOSIT_LOCKED / DEPOSIT_RELEASED / DEPOSIT_SEIZED"],
+    ["EscrowAccount", "Aggregate root (per contract)", "Trạng thái cọc cấp hợp đồng — 2 field độc lập: buyerDepositState (DEPOSIT_LOCKED/RELEASED/SEIZED) và sellerDepositState (mới, 06/07/2026, cùng 3 giá trị — chỉ có ý nghĩa khi sellerDepositRate > 0)"],
     ["EscrowMilestone", "Entity (per milestone)", "Trạng thái batch: LOCKED / RELEASED / REFUNDED_PARTIAL / PENALIZED"],
   ],
   { size: 18 }
@@ -307,7 +307,7 @@ push(table(
 push(H2("3.2 Use case (event-driven)"));
 uc("UC-E1", "Khoá cọc cấp hợp đồng khi SIGNED", [
   ["Trigger", "Nhận contract.signed"],
-  ["Luồng", "Gửi bank.lock_requested(entryType=LOCK_DEPOSIT, milestoneId=NULL, amount=buyerDepositRate×totalAmount, sourceEventId) → đợi bank.lock_completed → set DEPOSIT_LOCKED → báo contract-service để chuyển ACTIVE"],
+  ["Luồng", "Gửi bank.lock_requested(entryType=LOCK_DEPOSIT, milestoneId=NULL, amount=buyerDepositRate×totalAmount, sourceEventId) → đợi bank.lock_completed → set buyerDepositState=DEPOSIT_LOCKED. Nếu sellerDepositRate>0 (mới, 06/07/2026): gửi thêm 1 bank.lock_requested riêng (userId=sellerId, sourceEventId khác) → set sellerDepositState=DEPOSIT_LOCKED. Cả hai xong → báo contract-service để chuyển ACTIVE"],
 ]);
 uc("UC-E2", "Khoá batchAmount đợt (lock sớm)", [
   ["Trigger", "Contract ACTIVE (milestone đầu) hoặc milestone trước SETTLED", ],
@@ -319,7 +319,7 @@ uc("UC-E3", "Quyết toán đợt (pro-rata Delta 1/2)", [
 ]);
 uc("UC-E4", "Xử lý cọc lúc kết thúc/huỷ", [
   ["Trigger", "contract.settled hoặc contract.cancelled(initiatedBy)"],
-  ["Luồng", "contract.settled → refund cọc về buyer (REFUND_TO_BUYER, milestoneId=NULL). contract.cancelled SELLER → refund cọc về buyer. contract.cancelled BUYER → seize cọc chuyển seller (SEIZE_PENALTY). milestone.cancelled_with_penalty → seize batchAmount đang khoá nếu có"],
+  ["Luồng", "contract.settled → refund buyerDepositRate về buyer (REFUND_TO_BUYER, milestoneId=NULL); nếu có sellerDepositRate đã khoá → release về seller (RELEASE_TO_SELLER). contract.cancelled SELLER → refund buyerDepositRate về buyer; nếu có sellerDepositRate đã khoá → seize (SEIZE_PENALTY), offset vào penalty debt (mới, 06/07/2026). contract.cancelled BUYER → seize buyerDepositRate chuyển seller (SEIZE_PENALTY); nếu có sellerDepositRate đã khoá → release về seller (seller không phải bên phá kèo, mới 06/07/2026). milestone.cancelled_with_penalty → seize batchAmount đang khoá nếu có"],
 ]);
 push(P("Toàn bộ đợi confirmation event mới đổi state (không fire-and-forget). bank.*_failed → giữ nguyên state, xử lý nhánh fail."));
 
@@ -329,7 +329,8 @@ push(codeblock([
   "CREATE TABLE escrow_account (",
   "  escrow_account_id UUID PRIMARY KEY,",
   "  contract_id       UUID NOT NULL UNIQUE,",
-  "  deposit_status    VARCHAR(20) NOT NULL,  -- DEPOSIT_LOCKED/RELEASED/SEIZED",
+  "  deposit_status    VARCHAR(20) NOT NULL,  -- buyerDepositRate: DEPOSIT_LOCKED/RELEASED/SEIZED",
+  "  seller_deposit_status VARCHAR(20) NULL,  -- sellerDepositRate (mới, 06/07/2026), NULL nếu rate=0 — cùng 3 giá trị",
   "  version           BIGINT NOT NULL DEFAULT 0,",
   "  created_at        TIMESTAMP NOT NULL",
   ");",
@@ -452,9 +453,11 @@ push(table(
     ["shortfallPenaltyThreshold / toleranceRate", "ContractTerms", "Mặc định 5% / 50-50; negotiate được"],
     ["buyerPenaltyRate / sellerPenaltyRate", "ContractTerms", "Đàm phán theo hợp đồng"],
     ["buyerDepositRate", "ContractTerms", "Mặc định 5% totalAmount"],
+    ["sellerDepositRate (mới, 06/07/2026)", "ContractTerms", "Optional, mặc định 0 — đàm phán per-contract, thay quyết định \"bỏ hẳn\" trước đây"],
     ["forceMajeureReportWindowDays", "ContractTerms", "Mặc định 3 ngày; khác theo mặt hàng"],
     ["level2BufferWindowDays (mới, 06/07/2026)", "application.yml", "Placeholder 7-14 ngày làm việc — chưa validate với đơn vị Level 2 thật"],
     ["level2SafetyBufferRate (mới, 06/07/2026)", "application.yml", "Placeholder 10-15% batchAmount — chưa có dữ liệu variance thật"],
+    ["level2BufferTerminalDays (mới, 06/07/2026)", "application.yml", "Placeholder 30 ngày — hết hạn thì phán quyết Level 1.5 tự động thành chung thẩm"],
   ],
   { size: 17, colAlign: [null, AlignmentType.CENTER, null] }
 ));
@@ -468,7 +471,8 @@ push(bullet([runs("Event contract.cancelled ", { bold: true }), runs("là phát 
 push(bullet([runs("Checklist KYC theo loại hình doanh nghiệp buyer ", { bold: true }), runs("(TNHH, cổ phần, hộ kinh doanh…) — Signature design mới chốt nguyên tắc đối xứng buyer/seller (BLDS 142), chưa chốt danh mục giấy tờ cụ thể.", {})]));
 push(bullet([runs("Payload event mang commodity — đã giải quyết (06/07/2026). ", { bold: true }), runs("Thêm event contract.signed cấp Contract (publisher contract-service, bắn lúc Contract.transitionTo(SIGNED)), payload {contractId, commodity, buyerId, sellerId, totalAmount, signedAt} — analytics-service dùng để populate dim_contract mà không cần Feign ngược (chi tiết Phần 5 §4). Còn treo cấp thấp hơn: bảng mapping Product.category (enum tiếng Việt) → commodity enum dùng chung (COFFEE/RICE/RUBBER/CASHEW) cần xác nhận nghiệp vụ trước khi contract-service code phần publish.", {})]));
 push(callout("Ghi chú.", "WebAuthn/chữ ký số CA là hướng nâng cấp sole-control mạnh hơn nhưng KHÔNG đổi tier pháp lý (cần chứng thư từ CA được cấp phép); ghi nhận out-of-scope, không thiết kế trong phần này.", "note"));
-push(bullet([runs("Provisional settlement Level 2 (mới, 06/07/2026, chưa đóng). ", { bold: true }), runs("level2BufferWindowDays (7-14 ngày) và level2SafetyBufferRate (10-15%) là placeholder, chưa validate với đơn vị Level 2 thật (đã liên hệ NHL, chưa có phản hồi). Chưa quyết định buffer xử lý ra sao nếu report Level 2 không bao giờ về — cần session riêng trước khi coi là chốt cứng.", {})]));
+push(bullet([runs("Provisional settlement Level 2 (mới, 06/07/2026, chưa đóng). ", { bold: true }), runs("level2BufferWindowDays (7-14 ngày), level2SafetyBufferRate (10-15%), level2BufferTerminalDays (30 ngày) đều là placeholder, chưa validate với đơn vị Level 2 thật (đã liên hệ NHL, chưa có phản hồi). Cơ chế terminal cutoff đã đóng câu hỏi \"buffer xử lý sao nếu report không bao giờ về\".", {})]));
+push(bullet([runs("sellerDepositRate optional (mới, 06/07/2026, chưa đóng hoàn toàn). ", { bold: true }), runs("Thay quyết định \"bỏ hẳn\" trước đây — đàm phán per-contract. Còn treo: lockDurationDays nặng hơn riêng cho case cancel-ở-0-milestone khi sellerDepositRate=0 — Cường chưa xác nhận áp dụng hay không.", {})]));
 
 module.exports = { body };
 

@@ -92,10 +92,12 @@ push(P("verificationLevel: SELF_DECLARED (mặc định) / CADASTRAL_BACKED (sel
 push(P([runs("Cross-check tỉnh (giảm nhẹ lỗi convert VN2000→WGS84): ", { bold: true }), runs("cán bộ đo gốc bằng VN2000 rồi convert sang WGS84 trước khi xuất KML; nếu sai tham số kinh tuyến trục, toạ độ vẫn đúng DẠNG WGS84, vẫn trong bounding box Việt Nam, vẫn pass JTS (lệch tới ~81km nhưng là lỗi NỘI DUNG, không phải cú pháp). Đối chiếu hai nguồn độc lập: declaredProvince (seller chọn dropdown) vs tỉnh suy ra từ point-in-polygon (JTS + polygon GADM 63 tỉnh cũ). Lệch → provinceMismatchFlag=TRUE, cảnh báo UI, KHÔNG chặn insert.", {})]));
 push(callout("Giới hạn cross-check tỉnh:", "chỉ bắt lỗi VÔ Ý đơn lẻ (một plot lệch khỏi tỉnh khai). Không bắt lỗi hệ thống (cả batch cùng lệch cùng hướng, nhất quán nội bộ) và không bắt fraud có chủ đích. Dùng GADM 63 tỉnh cũ (chưa có polygon 34 tỉnh mở sau sáp nhập 12/6/2025) → có thể false-positive ở khu vực vừa sáp nhập; chấp nhận được vì non-blocking.", "note"));
 
-push(H2("2.4.1 Geo-risk verification qua vệ tinh — Sentinel-2 NDVI (mới, 06/07/2026, chưa đóng)"));
+push(H2("2.4.1 Geo-risk verification qua vệ tinh — Sentinel-2 NDVI (mới, 06/07/2026)"));
 push(P([runs("Cơ chế: ", { bold: true }), runs("ngay sau khi PlotRegistryEntry được tạo/update, hệ thống tự động (async, không chặn seller) gọi Sentinel Hub Statistical API (Copernicus Data Space Ecosystem — dữ liệu Sentinel-2 miễn phí, không giới hạn thương mại) hỏi giá trị NDVI tại toạ độ/polygon đó, dùng ảnh gần nhất mốc 31/12/2020 (đã có sẵn trong archive từ 2015, không phải chờ vệ tinh bay qua chụp mới). NDVI dưới ngưỡng rừng (chưa chốt, cần thực nghiệm) → geoRiskLevel = HIGH_RISK; trên ngưỡng → LOW_RISK. Không chặn giao dịch — chỉ dán nhãn cảnh báo cho buyer tự quyết định, đúng nguyên tắc neutral-party.", {})]));
-push(P([runs("2 field mới, tách biệt rõ tiến trình vs kết quả: ", { bold: true }), runs("geoVerificationStatus (PENDING/CHECKED/UNVERIFIED) là trạng thái check đã chạy xong chưa; geoRiskLevel (LOW_RISK/HIGH_RISK, nullable) là kết quả thật, chỉ có giá trị khi CHECKED. geoVerificationTimeoutHours (đề xuất 4-6 giờ) — tính bằng GIỜ chứ không phải ngày, vì dữ liệu đã tồn tại sẵn, timeout chỉ hứng lỗi tạm thời (mây che, rate limit). Hết timeout mà chưa có kết quả → UNVERIFIED (khác HIGH_RISK — đây là \"chưa biết\", không phải \"có bằng chứng rủi ro\"). CreateListing reject nếu registryEntryId đang PENDING (tránh race condition listing lên sàn trước khi biết risk).", {})]));
-push(callout("Giới hạn, chưa đóng (06/07/2026):", "NDVI 10m resolution + ngưỡng nhị phân là proxy thô, KHÔNG phải xác minh EUDR pháp lý đầy đủ — không được trình bày với VICOFA/buyer như \"đã verify EUDR\". Ngưỡng NDVI cụ thể chưa chốt, cần thực nghiệm. EXIF photo cross-check (chụp ảnh tại chỗ, đối chiếu GPS) đã thống nhất nguyên tắc nhưng field/flow chưa spec, để session riêng.", "note"));
+push(P([runs("INCONCLUSIVE — outcome thứ 3 (mới, 06/07/2026): ", { bold: true }), runs("mây che dày mùa mưa (Tây Nguyên/Đông Nam Bộ) và xen canh nhiều tầng (cà phê dưới tán sầu riêng, cao su tái canh) khiến NDVI đọc nhiễu, dễ kết luận sai thành phá rừng dù đất canh tác hợp pháp. Khi API trả lời nhưng tín hiệu không đủ tin cậy để phân loại nhị phân → geoRiskLevel = INCONCLUSIVE — khác HIGH_RISK (có bằng chứng rủi ro) và khác UNVERIFIED (chưa có câu trả lời gì, lỗi kỹ thuật).", {})]));
+push(P([runs("2 field mới, tách biệt rõ tiến trình vs kết quả: ", { bold: true }), runs("geoVerificationStatus (PENDING/CHECKED/UNVERIFIED) là trạng thái check đã chạy xong chưa; geoRiskLevel (LOW_RISK/HIGH_RISK/INCONCLUSIVE, nullable) là kết quả thật, chỉ có giá trị khi CHECKED. geoVerificationTimeoutHours (đề xuất 4-6 giờ) — tính bằng GIỜ chứ không phải ngày, vì dữ liệu đã tồn tại sẵn, timeout chỉ hứng lỗi tạm thời (mây che, rate limit). Hết timeout mà chưa có kết quả → UNVERIFIED. CreateListing reject nếu registryEntryId đang PENDING (tránh race condition listing lên sàn trước khi biết risk).", {})]));
+push(P([runs("Luồng \"yêu cầu đánh giá lại\" bằng EXIF — đã spec đầy đủ (mới, 06/07/2026): ", { bold: true }), runs("không bắt buộc chụp ảnh lúc đăng ký plot. Chỉ kích hoạt khi geoRiskLevel = HIGH_RISK/INCONCLUSIVE và seller muốn khiếu nại (UC-P5 dưới). Seller chụp ảnh trực tiếp qua camera app (chặn chọn ảnh có sẵn) → file-service bóc EXIF (GPS + timestamp) → point-in-polygon đối chiếu với geoJson đã đăng ký. Trong ranh giới → ghi audit \"đã xác minh bằng ảnh thực địa\", không xoá nhãn gốc. Ngoài ranh giới → reject, ghi audit (chống nộp ảnh vườn khác).", {})]));
+push(callout("Giới hạn, chưa đóng (06/07/2026):", "NDVI 10m resolution + ngưỡng nhị phân là proxy thô, KHÔNG phải xác minh EUDR pháp lý đầy đủ — không được trình bày với VICOFA/buyer như \"đã verify EUDR\". Ngưỡng NDVI cụ thể chưa chốt, cần thực nghiệm. EXIF chỉ là lớp phòng thủ bổ sung — không giải quyết được GPS spoofing.", "note"));
 
 push(H2("2.5 Use case chính"));
 uc("UC-P1", "ImportPlotsFromKML", [
@@ -119,6 +121,11 @@ uc("UC-P4", "UploadCadastralExtract", [
   ["Actor", "SELLER"],
   ["Luồng chính", "Upload scan/PDF trích lục cho một entry đã có → file-service → cadastralExtractFileId → verificationLevel=CADASTRAL_BACKED. KHÔNG đối chiếu nội dung file với geoJson (giới hạn self-declared)"],
 ]);
+uc("UC-P5", "RequestGeoReevaluation (mới, 06/07/2026)", [
+  ["Actor", "SELLER"],
+  ["Tiền điều kiện", "geoRiskLevel = HIGH_RISK hoặc INCONCLUSIVE trên registryEntryId đó"],
+  ["Luồng chính", "Chụp ảnh trực tiếp qua camera app (chặn chọn ảnh có sẵn) → file-service bóc EXIF (GPS+timestamp) → point-in-polygon đối chiếu geoJson. Trong ranh giới → ghi audit \"đã xác minh ảnh thực địa\", giữ nguyên geoRiskLevel gốc. Ngoài ranh giới → reject, ghi audit"],
+]);
 
 push(H2("2.6 API & lược đồ dữ liệu"));
 push(table(
@@ -128,6 +135,7 @@ push(table(
     ["POST /api/v1/plots/import-kml", "SELLER", "Import KML (UC-P1)"],
     ["POST /api/v1/plots/manual", "SELLER", "Pin thủ công (UC-P2)"],
     ["POST /api/v1/plots/{id}/cadastral-extract", "SELLER", "Upload trích lục (UC-P4)"],
+    ["POST /api/v1/plots/{id}/geo-reevaluation", "SELLER", "Yêu cầu đánh giá lại bằng ảnh EXIF (UC-P5)"],
     ["GET /api/v1/plots", "SELLER", "Danh sách registry của seller (chọn lúc tạo listing)"],
     ["POST /api/v1/listings", "SELLER", "Tạo listing từ registryEntryId (UC-P3)"],
   ],
@@ -151,7 +159,7 @@ push(codeblock([
   "  province_mismatch_flag  BOOLEAN NOT NULL DEFAULT FALSE,  -- non-blocking",
   "  imported_at             TIMESTAMP NOT NULL,     -- cập nhật lại mỗi lần re-import",
   "  geo_verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',  -- PENDING | CHECKED | UNVERIFIED (§2.4.1, mới 06/07/2026)",
-  "  geo_risk_level          VARCHAR(20) NULL,       -- LOW_RISK | HIGH_RISK, chỉ có giá trị khi CHECKED (§2.4.1, mới 06/07/2026)",
+  "  geo_risk_level          VARCHAR(20) NULL,       -- LOW_RISK | HIGH_RISK | INCONCLUSIVE, chỉ có giá trị khi CHECKED (§2.4.1, mới 06/07/2026)",
   "  UNIQUE (seller_id, household_label),  SPATIAL INDEX (geo_json)",
   ");",
   "-- Invariant 'MANUAL_PIN → POINT' check ở use-case layer, không phải DB constraint.",
@@ -309,7 +317,7 @@ push(H1("7. Điểm còn treo"));
 push(bullet([runs("Cơ chế nhận mail intake@ ", { bold: true }), runs("— file-service (chủ sở hữu) chốt IMAP polling; phần inspection (Phần 3) từng nhắc webhook. Thống nhất theo file-service (IMAP polling) khi hợp nhất tài liệu.", {})]));
 push(bullet([runs("migration varietyName ", { bold: true }), runs("gộp chung với PR Category/ProductImage/coverImageUrl đang làm (cùng đụng bảng products), tránh 2 lần touch schema.", {})]));
 push(bullet([runs("Khả năng dùng IMAP với mailbox thật của tổ chức giám định ", { bold: true }), runs("— giả định đơn giản hoá, chưa khảo sát thực tế.", {})]));
-push(bullet([runs("Geo-risk verification qua vệ tinh (mới, 06/07/2026, chưa đóng). ", { bold: true }), runs("Ngưỡng NDVI phân biệt rừng/không rừng chưa chốt (cần thực nghiệm); geoVerificationTimeoutHours (4-6h) là placeholder chưa vận hành thật; EXIF photo cross-check mới thống nhất nguyên tắc, chưa spec field/flow — cần session riêng. Chi tiết đầy đủ ở product-phase2-design.md §2.2.4.", {})]));
+push(bullet([runs("Geo-risk verification qua vệ tinh (mới, 06/07/2026). ", { bold: true }), runs("Còn treo: ngưỡng NDVI phân biệt rừng/không rừng chưa chốt (cần thực nghiệm); geoVerificationTimeoutHours (4-6h) là placeholder chưa vận hành thật. Đã đóng: luồng EXIF re-evaluation (UC-P5) — spec đầy đủ, không còn deferred. Chi tiết đầy đủ ở product-phase2-design.md §2.2.4.", {})]));
 
 module.exports = { body };
 
