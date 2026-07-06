@@ -64,8 +64,8 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public MessageConverter jsonMessageConverter(ObjectMapper objectMapper) {
-        ObjectMapper amqpObjectMapper = objectMapper.copy();
+    public MessageConverter jsonMessageConverter() {
+        ObjectMapper amqpObjectMapper = new ObjectMapper();
         amqpObjectMapper.registerModule(new JavaTimeModule());
         amqpObjectMapper.configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true);
         return new Jackson2JsonMessageConverter(amqpObjectMapper);
