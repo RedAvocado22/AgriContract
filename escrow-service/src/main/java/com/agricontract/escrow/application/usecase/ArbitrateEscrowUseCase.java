@@ -3,6 +3,7 @@ package com.agricontract.escrow.application.usecase;
 import com.agricontract.escrow.application.dto.ArbitrateEscrowCommand;
 import com.agricontract.escrow.application.exception.EscrowAccountNotFoundException;
 import com.agricontract.escrow.domain.model.EscrowAccount;
+import com.agricontract.escrow.domain.model.vo.EscrowStatus;
 import com.agricontract.escrow.domain.model.vo.Money;
 import com.agricontract.escrow.domain.repository.EscrowAccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,11 @@ public class ArbitrateEscrowUseCase {
     public void execute(ArbitrateEscrowCommand command) {
         EscrowAccount account = escrowAccountRepository.findByContractId(command.contractId())
                 .orElseThrow(() -> new EscrowAccountNotFoundException(command.contractId()));
+
+        if (account.getStatus() == EscrowStatus.ARBITRATED) {
+            log.info("{} already arbitrated, skipping", command.contractId());
+            return;
+        }
 
         String currency = account.getTotalAmount().currency();
         Money buyerAmount = new Money(command.buyerAmount(), currency);

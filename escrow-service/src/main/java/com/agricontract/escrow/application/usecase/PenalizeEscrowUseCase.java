@@ -23,7 +23,13 @@ public class PenalizeEscrowUseCase {
                 .orElseThrow(() -> new EscrowAccountNotFoundException(contractId));
 
         if (account.getStatus() == EscrowStatus.PENALIZED_BUYER || account.getStatus() == EscrowStatus.PENALIZED_SELLER) {
-            log.info("{} already penalized, status={}", contractId, account.getStatus());
+            Party previouslyPenalized = account.getStatus() == EscrowStatus.PENALIZED_BUYER ? Party.BUYER : Party.SELLER;
+            if (previouslyPenalized != command.cancelledBy()) {
+                log.warn("{} already penalized as {}, but this event says cancelledBy={} — mismatch, check upstream",
+                        contractId, previouslyPenalized, command.cancelledBy());
+            } else {
+                log.info("{} already penalized, status={}", contractId, account.getStatus());
+            }
             return;
         }
 
