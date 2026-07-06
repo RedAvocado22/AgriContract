@@ -1,0 +1,27 @@
+meta {
+  name: 38. [Error] Dispute again — already DISPUTED, not DELIVERED (expect 400)
+  type: http
+  seq: 38
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{dispute_contract_id}}/dispute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "reason": "trying to dispute twice"
+  }
+}
+
+tests {
+  test("double dispute should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

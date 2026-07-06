@@ -1,0 +1,37 @@
+meta {
+  name: 40. Cancel as buyer — state: ACTIVE → CANCELLED (seed-ctr-active), cancelledBy=BUYER
+  type: http
+  seq: 40
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{cancel_buyer_contract_id}}/cancel
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "reason": "Buyer không thu xếp được vốn đúng hạn"
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("status should be CANCELLED", function() {
+    expect(res.getBody().data.status).to.equal("CANCELLED");
+  });
+  test("cancelledBy should be BUYER", function() {
+    expect(res.getBody().data.cancelledBy).to.equal("BUYER");
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+}
