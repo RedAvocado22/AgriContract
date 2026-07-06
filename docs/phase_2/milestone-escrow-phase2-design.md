@@ -30,7 +30,7 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 | `buyerPenaltyRate` / `sellerPenaltyRate` | BigDecimal | Giữ nguyên từ Phase 1, tái dùng cho nhánh Delta 1 penalty. |
 | `forceMajeureReportWindowDays` | Integer | Số ngày seller phải báo bất khả kháng kể từ lúc **biết sự kiện** (không neo theo ngày giao). **Chốt: 3 ngày.** |
 | `buyerDepositRate` | BigDecimal | Cọc nhỏ của buyer — **Chốt: 5%** `totalAmount`. Lock **một lần duy nhất lúc `SIGNED`**, giữ xuyên suốt tới `SETTLED` cuối cùng. Vai trò "skin in the game", **không phải** T/T-style cọc cover rủi ro tài chính (đã bác bỏ ở `decisions.md` [2026-06-16]) — đó là việc của `batchAmount` lock riêng từng milestone (§6). 3 đường release/seize của field này — §6.3. |
-| ~~`sellerDepositRate`~~ | — | **Bỏ hẳn.** Không còn seller deposit trong Milestone Escrow. |
+| `sellerDepositRate` | BigDecimal, nullable/default `0` | **Mới (06/07/2026), thay thế quyết định "bỏ hẳn" trước đây.** Cọc của seller — **optional, đàm phán per-contract** giữa buyer/seller lúc `NEGOTIATING`, không phải invariant kỹ thuật ép buộc. Platform không quyết định seller có cần cọc hay không — để buyer tự đánh giá mức tin tưởng với seller cụ thể (seller mới/không track record → buyer có động lực đòi cọc; seller uy tín cao → 2 bên có thể thoả thuận `0`, quay về đúng hiện trạng trước đây). Cùng triết lý neutral-party đã dùng cho `verificationLevel`/`geoRiskLevel` (`product-phase2-design.md`) — platform cấp công cụ, không áp luật chung. Lock cùng thời điểm với `buyerDepositRate` (lúc `SIGNED`). Vá đúng lỗ "seller cancel ở 0 milestone hoàn thành, không có gì để seize" — xem §6.1. |
 
 `MilestoneTerm` (nested VO, phần tử của `milestoneSchedule`):
 
@@ -85,9 +85,11 @@ Cơ chế:
 | `buyerEvidenceFileId` | UUID, nullable | Reference `file-service` |
 | `forceMajeureClaimId` | UUID, nullable | Reference nếu có claim bất khả kháng cho batch này |
 
-### 2.3 `EscrowAccount` (cập nhật)
+### 2.3 `EscrowAccount` (cập nhật, 06/07/2026)
 
-Bỏ `sellerDeposit`, `mockSellerBalance`. Thêm `EscrowMilestone` (con) — mirror `Milestone` bên contract-service, track riêng phần lock/release tiền của từng batch (giữ nguyên nguyên tắc contract-service quản lý delivery state, escrow-service quản lý tiền — không lẫn 2 domain).
+Bỏ `mockSellerBalance` (dual-write, không cần — xem note dưới). **`sellerDeposit` không còn "bỏ hẳn" như quyết định trước** — nay là state tuỳ chọn, đối xứng với `buyerDepositRate`, chỉ tồn tại khi `ContractTerms.sellerDepositRate > 0` (§2.1). Thêm `EscrowMilestone` (con) — mirror `Milestone` bên contract-service, track riêng phần lock/release tiền của từng batch (giữ nguyên nguyên tắc contract-service quản lý delivery state, escrow-service quản lý tiền — không lẫn 2 domain).
+
+**State cấp Contract (song song 2 field, độc lập nhau — chỉ có giá trị khi rate tương ứng > 0):** `buyerDepositState` (`DEPOSIT_LOCKED`/`DEPOSIT_RELEASED`/`DEPOSIT_SEIZED`) và `sellerDepositState` (cùng 3 giá trị, mới 06/07/2026) — 2 field tách biệt vì 2 khoản cọc release/seize độc lập nhau theo bảng ở §6.1/§6.2, không phải cùng 1 lifecycle.
 
 **Lưu ý (04/07/2026, xem `bank-service-phase2-design.md` §5):** `EscrowAccount`/`EscrowMilestone` chỉ giữ **state** (`LOCKED`/`RELEASED`/`PENALIZED`...), không tự lưu lại 1 con số tiền riêng phải đồng bộ tay với bank-service — số tiền thật là single source of truth ở `ledger_entry` bên bank-service. Giữ thêm số tiền ở đây là dual-write, đúng lỗi đã học ở Phase 1.
 
@@ -162,7 +164,9 @@ Nếu hết `level2BufferWindowDays` mà report Level 2 chưa `CONFIRMED` (`insp
 
 Khi report Level 2 thật về sau đó (dù đã qua `level2BufferWindowDays`): nếu có chênh lệch so với số 1.5 đã dùng settle tạm, chênh lệch trừ/bù thẳng từ buffer đang khoá; phần buffer còn dư (nếu có) release nốt cho seller.
 
-**Điểm còn treo, chưa chốt (06/07/2026):** nếu report Level 2 không bao giờ về (org từ chối nhận job, mất liên lạc, phá sản...), cơ chế hiện chưa quyết định buffer nằm khoá vô thời hạn hay có 1 cutoff tuyệt đối để tự release theo số 1.5 — cần 1 session riêng, không suy đoán ở đây. Chưa xác định `level2SafetyBufferRate` chính xác (10-15% là khoảng đề xuất, chưa có dữ liệu variance thật giữa đánh giá Level 1.5 và Level 2 để tính số tối ưu).
+**Cập nhật (06/07/2026) — chốt hạn cứng, đóng điểm treo về buffer vô thời hạn:** thêm `level2BufferTerminalDays` (đặt tạm 30 ngày, tính từ lúc `level2BufferWindowDays` hết hạn — tổng thời gian chờ tối đa ~37-44 ngày trước khi có điểm dừng cứng). Hết `level2BufferTerminalDays` mà report Level 2 vẫn chưa `CONFIRMED`: hệ thống tự động coi phán quyết Level 1.5 (đã dùng settle tạm) là **chung thẩm**, release nốt `bufferAmount` còn khoá cho seller, đóng milestone `SETTLED`. Rủi ro số 1.5 sai lệch so với số Level 2 thật (nếu report từng về) dồn hết sang buyer — chấp nhận được, đúng nguyên tắc "nghiêng về seller yếu thế hơn" đã dùng xuyên suốt (§6.2), không phải bất công ngẫu nhiên.
+
+**Điểm còn treo, chưa chốt (06/07/2026):** `level2BufferTerminalDays` cũng là placeholder chưa validate, xử lý cùng cách 2 số kia (`level2BufferWindowDays`, `level2SafetyBufferRate`) — không đối xử khác biệt chỉ vì thêm sau.
 
 *Hướng bất khả kháng (có sự cố):* ở **bất kỳ thời điểm nào** từ `IN_PROGRESS` cho tới trước khi milestone `SETTLED` — kể cả trước khi seller kịp cân hàng, hoặc ngay sau khi seller cân xong và phát hiện thiếu — seller có quyền claim bất khả kháng, miễn là claim được nộp trong vòng `forceMajeureReportWindowDays` **kể từ lúc seller biết về sự kiện** (không phải kể từ ngày giao hàng — xem lý do ở §5). Milestone chuyển sang `FORCE_MAJEURE_PENDING_REVIEW`, kèm bằng chứng nộp qua `file-service` (xác nhận thiên tai của chính quyền địa phương, ảnh, tin tức).
 
@@ -222,11 +226,15 @@ Lý do cần đối xứng, không chỉ cho buyer: `decisions.md` [2026-06-17] 
 
 ### 6.1 Seller-initiated Cancel
 
-**Vấn đề cốt lõi — không còn seller deposit để seize:** Phase 1 cũ, penalty tự động vì tiền đã khoá sẵn trong escrow. Milestone Escrow bỏ deposit (viability constraint cho HTX) — nên khi seller cancel phần còn lại, không có gì để escrow tự động trừ. Đây là cái giá thật của quyết định bỏ deposit, không phải lỗi thiết kế cancel.
+**Cập nhật (06/07/2026) — không còn tuyệt đối "không có gì để seize":** trước đây seller cancel không có gì để escrow tự động trừ, vì Milestone Escrow bỏ hẳn seller deposit (viability constraint cho HTX). Quyết định đó **đổi thành optional** — `sellerDepositRate` (§2.1) giờ tồn tại nếu buyer/seller tự đàm phán có, mặc định vẫn `0` (giữ nguyên hiện trạng cho ai không cần). Cơ chế dưới đây tách theo 2 case:
 
-**Cập nhật (04/07/2026) — `buyerDepositRate` tách hoàn toàn khỏi penalty debt của seller:** buyer không phải bên phá kèo trong case này — `buyerDepositRate` (khoá từ lúc `SIGNED`, §2.1) được refund về buyer ngay khi `cancel()` do seller khởi xướng được xác nhận, độc lập hoàn toàn với cơ chế penalty debt/lockout ở dưới (đó là hình phạt nhắm vào hành vi của seller, không liên quan gì tới tiền của buyer). Trigger + event cụ thể — §6.3.
+**Case A — có `sellerDepositRate > 0` đã khoá:** seize ngay lập tức, tự động, không cần chờ Admin — giống cơ chế `buyerDepositRate` seize ở §6.2. Số tiền seize offset trực tiếp vào `penalty debt` ở mục 1 dưới: `phần còn nợ = (sellerPenaltyRate × giá trị milestone còn lại) − sellerDepositRate đã seize`. Nếu deposit ≥ penalty tính ra, phần dư (nếu buyer/seller có thoả thuận riêng) hoặc phần penalty debt = 0 — không âm.
 
-**Cơ chế thay thế — không qua escrow, dựa vào Reputation (Doc2 mục 4.5) làm đòn bẩy enforce thật:**
+**Case B — `sellerDepositRate = 0` (mặc định, hoặc buyer chọn không đòi):** giữ nguyên cơ chế cũ dưới đây — không qua escrow, dựa hoàn toàn vào Reputation làm đòn bẩy enforce thật. Đây là **lựa chọn buyer đã biết trước và chấp nhận** (đàm phán lúc `NEGOTIATING`), không phải lỗ hổng platform bỏ sót.
+
+**`buyerDepositRate` tách hoàn toàn khỏi penalty debt của seller (04/07/2026, áp dụng cho cả 2 case A/B trên):** buyer không phải bên phá kèo trong case này — `buyerDepositRate` (khoá từ lúc `SIGNED`, §2.1) được refund về buyer ngay khi `cancel()` do seller khởi xướng được xác nhận, độc lập hoàn toàn với cơ chế penalty debt/lockout/`sellerDepositRate` seize ở trên (đó là hình phạt nhắm vào hành vi của seller, không liên quan gì tới tiền của buyer). Trigger + event cụ thể — §6.3.
+
+**Cơ chế Case B — không qua escrow, dựa vào Reputation (Doc2 mục 4.5) làm đòn bẩy enforce thật:**
 
 1. **Penalty debt được ghi nhận** — `sellerPenaltyRate × giá trị milestone còn lại`, lưu vào audit trail bất biến, có giá trị làm bằng chứng bồi thường thiệt hại theo Luật TM 2005 Điều 302 nếu buyer muốn truy đòi qua VIAC/toà án. Platform không tự thu hộ được — đây chỉ là bằng chứng.
 2. **Khoá account seller ngay lập tức** — chặn tạo listing/hợp đồng mới, không đợi kết quả toà (Doc1 mục 2.2: tố tụng 1–3 năm, chờ toà là tự mâu thuẫn với lý do sản phẩm tồn tại).
@@ -245,9 +253,11 @@ Lý do cần đối xứng, không chỉ cho buyer: `decisions.md` [2026-06-17] 
    - Timeout cố định (platform tự đặt, không phụ thuộc tốc độ toà) → tự mở khoá dù chưa có phán quyết nào.
 5. **Penalty debt + lịch sử vi phạm không bao giờ bị xoá khỏi reputation**, dù account có mở khoá hay không — mở khoá chỉ là "cho giao dịch tiếp", không phải "xoá tiền án".
 
+**Điểm còn treo, chưa chốt (06/07/2026):** đề xuất `lockDurationDays` nặng hơn riêng cho case cancel khi **0 milestone nào từng `SETTLED`** (ký xong bỏ ngay — tín hiệu xấu nhất có thể có, khác hẳn cancel giữa chừng do mâu thuẫn phát sinh) — Cường chưa xác nhận có áp dụng hay không, để nguyên công thức chung ở trên cho tới khi quyết định.
+
 ### 6.2 Buyer-initiated Cancel
 
-**Bất đối xứng có chủ đích:** buyer (doanh nghiệp thu mua, thường có vốn) có deposit thật để mất — seller (HTX) thì không, vì lý do viability đã chốt ở §1. Buyer bị enforce bằng cả tiền thật lẫn reputation; seller chỉ enforce được bằng reputation vì không có tiền để giữ.
+**Bất đối xứng có chủ đích (mặc định, không tuyệt đối từ 06/07/2026):** buyer (doanh nghiệp thu mua, thường có vốn) có deposit thật để mất — seller (HTX) mặc định thì không, vì lý do viability đã chốt ở §1, nhưng giờ **có thể có** nếu `sellerDepositRate > 0` được đàm phán riêng (§6.1). Buyer luôn bị enforce bằng cả tiền thật lẫn reputation; seller enforce bằng reputation là mặc định, cộng thêm tiền thật nếu buyer chủ động đòi cọc lúc đàm phán.
 
 Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
@@ -259,19 +269,19 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
 **Ownership giữa các service:** `contract-service` tính penalty + publish event khi milestone bị cancel-có-penalty (cả 2 chiều buyer/seller). `reputation-service` (service #8, Phase 2 — services.md) consume event này cùng lịch sử hợp đồng hoàn thành, tính `lockDurationDays` theo công thức trên, và là nguồn quyết định khoá/mở khoá. `user-service` enforce khoá thật (chặn tạo listing/contract) dựa trên quyết định từ `reputation-service`. Chi tiết state machine đầy đủ của `reputation-service` (aggregate từ nhiều nguồn, eventually consistent theo services.md) để dành cho design session riêng — ở đây chỉ chốt input/trigger nó cần nhận.
 
-### 6.3 `buyerDepositRate` — 3 đường release/seize, event cấp Contract (mới, 04/07/2026)
+### 6.3 `buyerDepositRate`/`sellerDepositRate` — 3 đường release/seize, event cấp Contract (mới, 04/07/2026; mở rộng cho `sellerDepositRate`, 06/07/2026)
 
 **Vấn đề phát hiện khi rà lại luồng tiền:** `buyerDepositRate` là khoá **cấp Contract** (`milestoneId = NULL` ở `ledger_entry`, `bank-service-phase2-design.md` §2), không thuộc về milestone nào — nên không thể dùng `milestone.cancelled_with_penalty` (event cấp milestone, §7.1) làm trigger cho nó. Event Catalog bản 02/07/2026 chưa có event nào ở cấp Contract để xử lý riêng field này — lỗ hổng thật, không phải chi tiết vụn.
 
 **Chốt (04/07/2026) — 3 đường, 2 event cấp Contract:**
 
-| Trigger | Event | Kết quả cho `buyerDepositRate` |
-|---|---|---|
-| Hợp đồng hoàn tất bình thường — tất cả milestone `SETTLED` | `contract.settled` — đã tồn tại trong code Phase 1 (`ContractSettledEvent`), **không phải event mới**, chỉ thêm consumer mới. Cần guard fix ở §3.1 trước khi dùng lại được. | `REFUND_TO_BUYER` |
-| Seller khởi xướng `cancel()` (§6.1) | `contract.cancelled` (initiatedBy=SELLER) — **event mới** | `REFUND_TO_BUYER` — độc lập với penalty debt |
-| Buyer khởi xướng `cancel()` (§6.2) | `contract.cancelled` (initiatedBy=BUYER) — **event mới** | `SEIZE_PENALTY` (chuyển cho seller) |
+| Trigger | Event | Kết quả cho `buyerDepositRate` | Kết quả cho `sellerDepositRate` (mới, 06/07/2026) |
+|---|---|---|---|
+| Hợp đồng hoàn tất bình thường — tất cả milestone `SETTLED` | `contract.settled` — đã tồn tại trong code Phase 1 (`ContractSettledEvent`), **không phải event mới**, chỉ thêm consumer mới. Cần guard fix ở §3.1 trước khi dùng lại được. | `REFUND_TO_BUYER` | `RELEASE_TO_SELLER` (nếu có khoá — dùng lại đúng `entryType` đã có, không phải field mới) |
+| Seller khởi xướng `cancel()` (§6.1) | `contract.cancelled` (initiatedBy=SELLER) — **event mới** | `REFUND_TO_BUYER` — độc lập với penalty debt | `SEIZE_PENALTY` (nếu có khoá — offset vào penalty debt, §6.1 Case A) |
+| Buyer khởi xướng `cancel()` (§6.2) | `contract.cancelled` (initiatedBy=BUYER) — **event mới** | `SEIZE_PENALTY` (chuyển cho seller) | `RELEASE_TO_SELLER` (nếu có khoá — seller không phải bên phá kèo, độc lập penalty của buyer) |
 
-`contract.cancelled` — publisher `contract-service`, bắn đúng 1 lần mỗi khi `Contract.cancel()` được gọi, bất kể cancel kéo theo bao nhiêu milestone bị `milestone.cancelled_with_penalty` riêng lẻ (đó là event khác cấp, không gộp — mỗi milestone còn lại vẫn tự bắn `milestone.cancelled_with_penalty` của nó cho phần `batchAmount`, còn `contract.cancelled` chỉ lo phần `buyerDepositRate`). Payload tối thiểu: `{contractId, initiatedBy: BUYER|SELLER}`. Consumer: `escrow-service` (xử lý `buyerDepositRate` theo bảng trên), `notification-service`. Chi tiết event catalog — §7.2.
+Không cần event mới riêng cho `sellerDepositRate` — tận dụng đúng 2 event `contract.settled`/`contract.cancelled` đã có, chỉ thêm nhánh xử lý (escrow-service tự kiểm tra `sellerDepositRate > 0` trước khi bắn thêm `LedgerEntry` tương ứng, `entryType` dùng lại enum sẵn có `bank-service-phase2-design.md` §2, không cần thêm giá trị mới). `contract.cancelled` — publisher `contract-service`, bắn đúng 1 lần mỗi khi `Contract.cancel()` được gọi, bất kể cancel kéo theo bao nhiêu milestone bị `milestone.cancelled_with_penalty` riêng lẻ (đó là event khác cấp, không gộp — mỗi milestone còn lại vẫn tự bắn `milestone.cancelled_with_penalty` của nó cho phần `batchAmount`, còn `contract.cancelled` chỉ lo phần cọc cấp Contract). Payload tối thiểu: `{contractId, initiatedBy: BUYER|SELLER}`. Consumer: `escrow-service` (xử lý cả 2 loại cọc theo bảng trên), `notification-service`. Chi tiết event catalog — §7.2.
 
 **Điểm cần Cường review kỹ trước khi đưa vào SDS:** đây là phát hiện mới lúc viết lại tài liệu (04/07/2026), chưa qua vòng thảo luận riêng như các mục khác trong file này — logic khớp với những gì đã chốt ở §6.1/§6.2 (seller cancel → refund buyer, buyer cancel → seize), chỉ là lần đầu đặt tên/thiết kế event cụ thể cho nó.
 
@@ -302,6 +312,7 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 |---|---|---|---|
 | RabbitMQ | `milestone.level2_provisional_settled` | contract-service — bắn khi hết `level2BufferWindowDays` mà report Level 2 chưa `CONFIRMED`, đã commission Level 1.5 fallback và settle tạm. Payload: `{milestoneId, provisionalAmount, bufferAmount, level1_5ReportId}` | escrow-service (release `provisionalAmount` cho seller, giữ khoá `bufferAmount`), notification-service |
 | RabbitMQ | `milestone.level2_buffer_reconciled` | contract-service — bắn khi report Level 2 thật về sau đó (`CONFIRMED`), so sánh với số 1.5 đã dùng settle tạm. Payload: `{milestoneId, bufferAmount, finalAdjustment}` | escrow-service (release phần buffer còn lại theo `finalAdjustment`), notification-service |
+| RabbitMQ | `milestone.level2_terminal_settled` (mới, 06/07/2026) | contract-service — bắn khi hết `level2BufferTerminalDays` mà report Level 2 vẫn chưa `CONFIRMED`, phán quyết Level 1.5 tự động thành chung thẩm. Payload: `{milestoneId, bufferAmount}` | escrow-service (release nốt `bufferAmount` còn khoá cho seller), notification-service |
 
 ### 7.2 Contract-level (mới, 04/07/2026; bổ sung `contract.signed` + consumer analytics-service, 06/07/2026)
 
@@ -325,6 +336,8 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 | `buyerConfirmWindowDays` (mặc định 2 ngày làm việc) | `application.yml` | **Mới (04/07/2026):** đối xứng với `sellerResponseWindowDays` — buyer im lặng ở `BUYER_RECEIVED` quá thời gian này → auto `CONFIRM_CLEAN` (§3.2). |
 | `level2BufferWindowDays` (đặt tạm 7-14 ngày làm việc) | `application.yml` | **Mới (06/07/2026):** chưa validate với đơn vị Level 2 thật (đã liên hệ NHL, chưa có phản hồi) — placeholder theo benchmark PSI ngành, không phải số đo thực tế cho cà phê/gạo. Hết window mà chưa có report `CONFIRMED` → commission Level 1.5 fallback, settle tạm (§3.2). |
 | `level2SafetyBufferRate` (đặt tạm 10-15%) | `application.yml` | **Mới (06/07/2026):** % `batchAmount` giữ khoá khi settle tạm theo Level 1.5, chờ report Level 2 thật đối chiếu (§3.2). Chưa có dữ liệu variance thật giữa Level 1.5 và Level 2 để tính số tối ưu — placeholder. |
+| `level2BufferTerminalDays` (đặt tạm 30 ngày) | `application.yml` | **Mới (06/07/2026):** hết hạn tính từ lúc `level2BufferWindowDays` hết mà vẫn chưa có report `CONFIRMED` → phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer (§3.2). Placeholder, chưa validate. |
+| `sellerDepositRate` (mặc định `0`, optional) | `ContractTerms` (per-contract) | **Mới (06/07/2026):** thay quyết định "bỏ hẳn" trước đây — đàm phán per-contract giữa buyer/seller lúc `NEGOTIATING`, không phải invariant kỹ thuật (§2.1, §6.1). |
 
 ---
 
@@ -341,10 +354,12 @@ Buyer huỷ bất kỳ lúc nào sau `SIGNED`:
 
 **Chỉ còn 1 điểm để ngoài phạm vi có chủ đích, không phải thiếu sót:** state machine đầy đủ của `reputation-service` ngoài phần input/trigger đã chốt — thiết kế chi tiết nằm ở `reputation-service-phase2-design.md` (session riêng, 04/07/2026).
 
-**Chốt bổ sung (06/07/2026) — provisional settlement khi `CONTESTED` escalate Level 2 (§3.2, §7.1, §8):** thêm cơ chế buffer để giải quyết bottleneck report Level 2 chậm (email/admin-confirm, `inspection-phase2-design.md` §3) mà không kẹt tiền seller vô thời hạn. Hết `level2BufferWindowDays` (placeholder 7-14 ngày, chưa validate) chưa có report → commission Level 1.5 fallback, settle tạm `(1 − level2SafetyBufferRate)` của `batchAmount`, giữ khoá phần còn lại chờ đối chiếu với report thật. Dùng buffer khoá sẵn trong escrow thay vì ghi debt, vì seller không có tài sản đối ứng để đòi. **Chưa đóng** — 2 điểm còn treo: (1) số `level2BufferWindowDays`/`level2SafetyBufferRate` là placeholder, chưa validate với đơn vị Level 2 thật; (2) chưa quyết định buffer xử lý ra sao nếu report Level 2 không bao giờ về (khoá vô thời hạn hay có cutoff tuyệt đối) — xem chi tiết trong §3.2.
+**Chốt bổ sung (06/07/2026) — provisional settlement khi `CONTESTED` escalate Level 2 (§3.2, §7.1, §8):** thêm cơ chế buffer để giải quyết bottleneck report Level 2 chậm (email/admin-confirm, `inspection-phase2-design.md` §3) mà không kẹt tiền seller vô thời hạn. Hết `level2BufferWindowDays` (placeholder 7-14 ngày, chưa validate) chưa có report → commission Level 1.5 fallback, settle tạm `(1 − level2SafetyBufferRate)` của `batchAmount`, giữ khoá phần còn lại chờ đối chiếu với report thật. Dùng buffer khoá sẵn trong escrow thay vì ghi debt, vì seller không có tài sản đối ứng để đòi. **Đã đóng thêm 1 điểm treo:** `level2BufferTerminalDays` (placeholder 30 ngày) đóng câu hỏi buffer xử lý sao nếu report Level 2 không bao giờ về — hết hạn thì phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer. **Còn treo:** cả 3 số (`level2BufferWindowDays`, `level2SafetyBufferRate`, `level2BufferTerminalDays`) vẫn là placeholder chưa validate với đơn vị Level 2 thật.
 
-Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức**, ngoại trừ bổ sung 06/07/2026 (provisional settlement Level 2, xem ngay trên) — phần này **chưa đóng**, còn 2 điểm treo cần giải quyết trước khi coi là chốt cứng. §6.3 (event `contract.cancelled`) cần Cường xác nhận riêng trước khi coi là chốt cứng — xem ghi chú trong mục đó. §7.2 (event `contract.signed`, mới 06/07/2026) cũng cần Cường xác nhận bảng mapping `Product.category` → `commodity` trước khi chốt cứng — xem ghi chú trong dòng đó.
+**Chốt bổ sung (06/07/2026) — `sellerDepositRate` optional, thay quyết định "bỏ hẳn" (§2.1, §2.3, §6.1, §6.2, §6.3):** seller cancel ở 0 milestone hoàn thành trước đây không có gì để seize (đúng cái giá của quyết định bỏ seller deposit vì viability HTX). Giải pháp: không bắt buộc, để buyer/seller tự đàm phán `sellerDepositRate > 0` nếu buyer muốn — cùng triết lý neutral-party đã dùng cho `verificationLevel`/`geoRiskLevel` (platform cấp công cụ, không áp luật chung). Mặc định vẫn `0`, giữ nguyên hiện trạng cho ai không cần. Tái dùng nguyên schema/event/entryType đã có cho `buyerDepositRate` (không cần entry mới ở `bank-service`). **Còn treo:** `lockDurationDays` nặng hơn riêng cho case cancel-ở-0-milestone khi `sellerDepositRate = 0` — Cường chưa xác nhận, để nguyên công thức chung tới khi quyết định (§6.1).
+
+Milestone Escrow — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức**, ngoại trừ 2 bổ sung 06/07/2026 (provisional settlement Level 2 + `sellerDepositRate` optional, xem ngay trên) — 2 phần này **chưa đóng**, còn các điểm treo liệt kê ở trên cần giải quyết trước khi coi là chốt cứng. §6.3 (event `contract.cancelled`, cả 2 nhánh `buyerDepositRate`/`sellerDepositRate`) cần Cường xác nhận riêng trước khi coi là chốt cứng — xem ghi chú trong mục đó. §7.2 (event `contract.signed`, mới 06/07/2026) cũng cần Cường xác nhận bảng mapping `Product.category` → `commodity` trước khi chốt cứng — xem ghi chú trong dòng đó.
 
 ---
 
-*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (Local Outbox, buyer timeout, buyerDepositRate release paths) · Cập nhật: 06/07/2026 (thêm event `contract.signed` cấp Contract + đăng ký analytics-service làm consumer của `contract.settled`/`contract.cancelled`, phát sinh từ rà soát chéo `analytics-service-phase2-design.md`; thêm provisional settlement + buffer cho Level 2 chậm report, §3.2/§7.1/§8 — chưa đóng, còn 2 điểm treo) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 02/07/2026 · Cập nhật: 04/07/2026 (Local Outbox, buyer timeout, buyerDepositRate release paths) · Cập nhật: 06/07/2026 (thêm event `contract.signed` cấp Contract + đăng ký analytics-service làm consumer của `contract.settled`/`contract.cancelled`, phát sinh từ rà soát chéo `analytics-service-phase2-design.md`; thêm provisional settlement + buffer cho Level 2 chậm report, §3.2/§7.1/§8; thêm chốt hạn cứng `level2BufferTerminalDays`; thêm `sellerDepositRate` optional thay quyết định "bỏ hẳn", §2.1/§2.3/§6.1/§6.2/§6.3 — chưa đóng, còn các điểm treo) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
