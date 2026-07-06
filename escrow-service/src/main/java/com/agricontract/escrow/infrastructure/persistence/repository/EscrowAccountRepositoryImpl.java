@@ -48,7 +48,7 @@ public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
                             .ifPresent(tx::setId));
         });
 
-        EscrowAccountJpaEntity saved = jpaRepo.save(entity);
+        jpaRepo.save(entity);
 
         for (DomainEvent domainEvent : account.pullDomainEvents()) {
             String payload;
@@ -69,7 +69,7 @@ public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
             escrowDomainEventJpaRepository.save(event);
             log.debug("Outbox event written: {} ({}) for escrow {}", event.getEventId(), event.getEventType(), event.getAggregateId());
         }
-        return mapper.toDomain(saved);
+        return account;
     }
 
     @Override
