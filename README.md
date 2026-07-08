@@ -16,21 +16,21 @@ This is a graduation project, but it's built around production concerns, not "do
 - **Idempotent money movement over at-least-once delivery** — RabbitMQ can redeliver the same instruction; the ledger is designed so a duplicated `lock`/`release`/`refund` can never double-apply.
 - **Append-only ledger with derived balances (FBO/omnibus model)** — balances are never stored and mutated in place; they're always computed from immutable ledger entries. This is how real escrow/marketplace custody works, and it sidesteps a whole family of dual-write and race-condition bugs.
 - **Tamper-evident audit trail via hash chaining** — each audit record links to the previous one; the DB user has `INSERT`/`SELECT` only. Chain integrity is verified on every EUDR export.
-- **Event-driven read models (CQRS)** for reputation and search — writes and reads are decoupled across services.
+- **Event-driven read models (CQRS)** for reputation and analytics — writes and reads are decoupled across services.
 - **Clean, enforced service boundaries** — `contract-service` owns delivery state, `escrow-service` owns money, `bank-service` is the only place funds physically sit. No service reaches across that line.
 
-If you're reviewing this as a hiring signal: the design reasoning behind these decisions lives in [`/docs`](docs/) as full design documents, including the trade-offs that were considered and rejected.
+The full design reasoning behind these decisions lives in [`/docs`](docs/) as complete design documents, including the trade-offs we considered and rejected.
 
 ---
 
 ## Build status — what's actually built vs. designed
 
-I'm keeping this explicit on purpose.
+We're keeping this explicit on purpose.
 
 | Phase | Scope | Status |
 |---|---|---|
 | **Phase 1 — MVP** | 6 services, full contract → escrow → settlement flow | **Built & runnable** (`docker compose up`) |
-| **Phase 2 — Production** | +8 services (bank, inspection, reputation, file, search, pricing, audit, analytics) | **Designed in depth**, partial implementation — see [`/docs`](docs/) design specs |
+| **Phase 2 — Production** | +7 services (bank, inspection, reputation, file, pricing, audit, analytics) | **Designed in depth**, partial implementation — see [`/docs`](docs/) design specs |
 
 Phase 2 services are documented as detailed design specs (domain models, event contracts, idempotency strategy, failure handling) before coding — the design docs are part of the deliverable.
 
@@ -63,7 +63,7 @@ AgriContract adds escrow, milestone-based settlement, tiered dispute resolution,
 | escrow-service | 8084 | Escrow lock/release/penalty (Phase 1: mock DB balance) |
 | notification-service | 8085 | Email notifications via MailHog |
 
-### Phase 2 — Production (designed, +8 services)
+### Phase 2 — Production (designed, +7 services)
 
 | Service | Port | New Capability |
 |---|---|---|
@@ -71,10 +71,11 @@ AgriContract adds escrow, milestone-based settlement, tiered dispute resolution,
 | inspection-service | 8087 | INSPECTOR role; immutable evidence records with SHA-256 hash |
 | reputation-service | 8088 | Event-driven read model; cross-contract reputation aggregation |
 | file-service | 8089 | MinIO binary storage; inspection report files |
-| search-service | 8090 | CQRS read model; cross-service listing search |
 | pricing-service | 8091 | Redis-cached external commodity price feeds |
 | audit-service | 8092 | Append-only event store; EUDR compliance export (PDF/CSV) |
 | analytics-service | 8093 | Time-series aggregation; platform analytics |
+
+> Listing search is handled as filter parameters inside `product-service` rather than a standalone service — port `8090` is intentionally unused.
 
 ### Infrastructure
 
@@ -138,7 +139,7 @@ Phase 2 layers tamper-evidence onto the audit trail:
 - **OpenFeign** — synchronous inter-service calls
 - **Keycloak 24** — identity provider, RBAC
 - **Docker** + Docker Compose — local orchestration
-- **Phase 2:** Kubernetes, Debezium CDC, MinIO, Redis, Zipkin, ELK, Prometheus/Grafana
+- **Phase 2:** Kubernetes (deploy & self-heal), MinIO (file storage), Redis (cache / rate limiting / pub-sub), Zipkin (distributed tracing across service hops)
 
 ---
 
@@ -185,7 +186,7 @@ Once Keycloak is healthy at http://localhost:8180:
 
 ---
 
-## Domain flow
+## Domain flow (Phase 1 — two-phase lock)
 
 | Step | Action | Contract State | Escrow State |
 |---|---|---|---|
@@ -195,8 +196,10 @@ Once Keycloak is healthy at http://localhost:8180:
 | 4 | Both parties sign | SIGNED | — |
 | 5 | Buyer locks payment; Seller locks deposit | ACTIVE | LOCKED |
 | 6 | Seller delivers | ACTIVE | LOCKED |
-| 7 | Buyer confirms receipt (Phase 2: INSPECTOR report) | DELIVERED | LOCKED |
+| 7 | Buyer confirms receipt | DELIVERED | LOCKED |
 | 8 | Escrow auto-releases to Seller | SETTLED | RELEASED |
+
+> **Phase 2 replaces this single-delivery flow with milestone escrow:** the contract stays `ACTIVE` across N delivery batches (no single `DELIVERED` state), each milestone locking/releasing its own amount, with an INSPECTOR-backed tiered dispute path and force-majeure handling per batch. Seller deposit becomes optional (negotiated per contract). See [`/docs`](docs/) for the full milestone state machine.
 
 **Cancellation & penalty** are executed automatically from the signed `ContractTerms` (deposit forfeit, full refund, or dispute routing), grounded in Civil Code 2015 Art. 328 and Commercial Law 2005 Art. 300–302 — the platform *enforces an agreement*, it does not *issue a ruling*.
 
@@ -206,6 +209,6 @@ Once Keycloak is healthy at http://localhost:8180:
 
 The platform sells to **industry associations** (VICOFA, VRA, VINACAS) and large procurement companies — not to cooperatives directly — which solves both the sales problem (small HTX don't buy software) and the trust problem (HTX trust the association that deployed it, and in Phase 2, trust the bank holding the funds).
 
-It's positioned against the **EUDR 2026** compliance deadline (deforestation-free audit trail for EU coffee/rubber exports) and Vietnam's agricultural digitalization policy. The platform holds **no real money** — Phase 1 uses mock balances, Phase 2 routes actual custody through Agribank/BIDV — which keeps it outside payment-service licensing requirements (Decree 52/2024, Art. 8.7).
+It's positioned against the **EUDR 2026** compliance deadline (deforestation-free audit trail for EU coffee/rubber exports) and Vietnam's agricultural digitalization policy. The platform holds **no real money** — Phase 1 uses mock balances, and Phase 2's `bank-service` is designed around a real bank's custody model (FBO/ledger) but stays mock-backed within the capstone scope, behind a clean interface so the mock can later be swapped for a real bank API (Agribank/BIDV) without changing business logic. This keeps it outside payment-service licensing requirements (Decree 52/2024, Art. 8.7).
 
 Full market analysis, competitive gap, and legal framework: [`/docs`](docs/).
