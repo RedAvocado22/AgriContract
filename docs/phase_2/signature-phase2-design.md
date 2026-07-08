@@ -1,6 +1,6 @@
 ---
 name: signature-phase2-design
-description: "Chữ ký điện tử buyer/seller + xác minh thẩm quyền đại diện — chi tiết hoá services.md mục 9. Nguồn: design session 02-03/07/2026."
+description: "Chữ ký điện tử buyer/seller + xác minh thẩm quyền đại diện — chi tiết hoá services.md mục 9. Nguồn: design session 02-03/07/2026, cập nhật 08/07/2026 (payload contract.signed mở rộng, escrow-service thêm làm consumer)."
 status: DESIGNED — chưa code.
 metadata:
     type: design
@@ -142,10 +142,13 @@ VerifyOtpAndSign(contractId, signerRole, otpCode):
   5. Publish Contract.signedContentHash vào audit-service (hash-chain-phase2-design.md §2.2)
      + gửi email anchor cho buyer/seller (hash-chain-phase2-design.md §4.1)
 
-  6. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026) — tách biệt
-     với việc push hash ở bước 5 (đó là ghi vào audit chain, không phải domain event
-     cho consumer khác nghe). Payload + consumer (analytics-service) — chi tiết catalog
-     ở milestone-escrow-phase2-design.md §7.2.
+  6. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026, payload mở
+     rộng 08/07/2026) — tách biệt với việc push hash ở bước 5 (đó là ghi vào audit
+     chain, không phải domain event cho consumer khác nghe). Payload mang thêm
+     `buyerDepositAmount`/`sellerDepositAmount` (đã tính sẵn, không phải rate thô) —
+     escrow-service (mới, 08/07/2026) cũng consume event này để biết số tiền cần khoá,
+     bên cạnh analytics-service. Payload + consumer đầy đủ — chi tiết catalog ở
+     milestone-escrow-phase2-design.md §7.2.
 ```
 
 ---
@@ -193,7 +196,7 @@ ALTER TABLE app_user ADD COLUMN authorization_expires_at TIMESTAMP NULL;
 
 **`reportHash`/INSPECTOR:** INSPECTOR là third-party actor, không qua cùng luồng KYC buyer/seller ở §5 — "same treatment" không áp trực tiếp được, cần session riêng xác định lại từ đầu.
 
-**Chi tiết nghiệp vụ buyer KYC (form nào, giấy tờ nào cụ thể):** doc này chỉ chốt **nguyên tắc đối xứng** với Seller (§5) — checklist giấy tờ cụ thể cho từng loại hình doanh nghiệp buyer (TNHH, cổ phần, hộ kinh doanh...) cần Cường/team xác nhận chi tiết nghiệp vụ trước khi đưa vào SDS.
+**Chi tiết nghiệp vụ buyer KYC (form nào, giấy tờ nào cụ thể):** doc này chỉ chốt **nguyên tắc đối xứng** với Seller (§5) — checklist giấy tờ cụ thể cho từng loại hình doanh nghiệp buyer (TNHH, cổ phần, hộ kinh doanh...) là việc tra quy định nghiệp vụ/pháp lý thật khi soạn form đăng ký, không phải quyết định thiết kế treo ở tầng này — điền chi tiết lúc làm màn hình KYC, không block phần còn lại của design.
 
 ---
 
@@ -202,6 +205,8 @@ ALTER TABLE app_user ADD COLUMN authorization_expires_at TIMESTAMP NULL;
 **Chốt (03/07/2026):** `Signature` là value object trong `Contract` aggregate, `UNIQUE(contractId, signerRole)` thay cho 2 cờ riêng trên `Contract`. Base-tier chữ ký điện tử theo Điều 22-23 Luật GDĐT 2023 — không bị phủ nhận giá trị pháp lý, không tương đương chữ ký tay, hợp đồng vẫn có hiệu lực đầy đủ, khác biệt nằm ở gánh nặng chứng minh khi tranh chấp. `signatureAuthMaxAgeSeconds` = 300s (`application.yml`) cho session freshness. Xác minh thẩm quyền đại diện (BLDS 2015 Điều 142) áp dụng đối xứng Buyer/Seller, gate lúc đăng ký tài khoản, `authorizationExpiresAt` nhập tay từ giấy tờ thật — không hardcode. Fail-closed mặc định khi chưa qua duyệt. WebAuthn và `reportHash`/INSPECTOR để ngoài phạm vi, có chủ đích.
 
 **Chốt bổ sung (03/07/2026) — OTP Email, lớp thứ 2 song song:** không đổi tier pháp lý (đã xác nhận qua Điều 22-23 — cả `chữ ký điện tử chuyên dùng bảo đảm an toàn` lẫn `chữ ký số` đều không đạt được bằng cơ chế xác thực mạnh hơn, 1 đường chỉ dành cho tổ chức đăng ký với Bộ TT&TT, đường kia cần chứng thư CA), chỉ nâng chất lượng bằng chứng — thêm possession-based factor (đang truy cập được hộp mail tại đúng thời điểm) song song với knowledge-based factor sẵn có (password step-up). Flow tách `InitiateSign`/`VerifyOtpAndSign` (§6), bảng `signature_otp` riêng (§7), config `otpLength`=6, `otpExpirySeconds`=300s, `otpMaxAttempts`=5, `otpMaxResendPerHour`=5, `otpResendCooldownSeconds`=60s (§4.1). Email OTP kèm `signedContentHash` — vừa xác thực người, vừa gắn đúng nội dung. WebAuthn/sinh trắc học vẫn để ngoài phạm vi — lý do không đổi (không có đường nào tới tier pháp lý cao hơn qua cơ chế xác thực kỹ thuật), OTP chọn vì rẻ hơn, tận dụng hạ tầng SendGrid sẵn có, không thêm third-party dependency mới.
+
+**Cập nhật (08/07/2026, phát sinh từ rà soát cross-service A1):** payload `contract.signed` (bước 6, §6) mở rộng thêm `buyerDepositAmount`/`sellerDepositAmount` — escrow-service (không chỉ analytics-service) giờ cũng consume event này để biết số tiền cần khoá lúc `SIGNED`. Không đổi gì ở logic ký/verify của file này — chỉ đổi payload của event đã publish sẵn.
 
 Signature — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
 

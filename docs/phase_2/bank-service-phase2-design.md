@@ -1,6 +1,6 @@
 ---
 name: bank-service-phase2-design
-description: "Bank-service — mock legal custody cho tiền, mô hình FBO/ledger thay vì account-per-contract. Nguồn: design session 03/07/2026, cập nhật 04/07/2026."
+description: "Bank-service — mock legal custody cho tiền, mô hình FBO/ledger thay vì account-per-contract. Nguồn: design session 03/07/2026, cập nhật 04/07/2026, 08/07/2026 (tách entryType 2 loại cọc, mapping Provisional Settlement Level 2, bank.large_transaction_flagged đúng ngưỡng/chủ thể pháp lý)."
 status: DESIGNED — chưa code.
 metadata:
   type: design
@@ -32,13 +32,15 @@ Số dư (buyer còn bao nhiêu, đang khoá bao nhiêu cho hợp đồng nào) 
 | `entryId` | UUID | |
 | `sourceEventId` | UUID | ID của event gốc kích hoạt entry này (từ Outbox message escrow-service gửi sang) — dùng làm idempotency key, xem §4 |
 | `contractId` | UUID | Bắt buộc — tách hợp đồng này với hợp đồng khác |
-| `milestoneId` | UUID, nullable | **NULL nếu là `buyerDepositRate`** (khoá 1 lần lúc SIGNED, không thuộc milestone nào — release/seize qua `contract.settled`/`contract.cancelled`, §3.2), có giá trị nếu là `batchAmount` của 1 milestone cụ thể (`milestone.settled`/`milestone.cancelled_with_penalty`, §3.1) — 2 loại khoá này đá vào 2 field khác nhau của `ContractTerms` (`milestone-escrow-phase2-design.md` §2.1), không được gộp chung nếu không sẽ không tách được milestone 3 đã settle với milestone 4 vẫn đang khoá |
+| `milestoneId` | UUID, nullable | **NULL nếu là cọc cấp Contract** (`buyerDepositRate` hoặc `sellerDepositRate` — khoá 1 lần lúc SIGNED, không thuộc milestone nào — release/seize qua `contract.settled`/`contract.cancelled`, §3.2), có giá trị nếu là `batchAmount` của 1 milestone cụ thể (`milestone.settled`/`milestone.cancelled_with_penalty`, §3.1) — 2 loại khoá này đá vào 2 field khác nhau của `ContractTerms` (`milestone-escrow-phase2-design.md` §2.1), không được gộp chung nếu không sẽ không tách được milestone 3 đã settle với milestone 4 vẫn đang khoá |
 | `userId` | UUID | Buyer hoặc seller, tuỳ `entryType` |
-| `entryType` | Enum | `LOCK_DEPOSIT` \| `LOCK_MILESTONE` \| `RELEASE_TO_SELLER` \| `SEIZE_PENALTY` \| `REFUND_TO_BUYER` |
+| `entryType` | Enum | `LOCK_BUYER_DEPOSIT` \| `LOCK_SELLER_DEPOSIT` \| `LOCK_MILESTONE` \| `RELEASE_TO_SELLER` \| `SEIZE_PENALTY` \| `REFUND_TO_BUYER` (**sửa 08/07/2026** — tách `LOCK_DEPOSIT` cũ thành 2 giá trị, xem ghi chú dưới) |
 | `amount` | Money | |
 | `createdAt` | Timestamp | |
 
 `UNIQUE(sourceEventId)` — chặn duplicate xử lý cùng 1 event 2 lần (xem §4).
+
+**Sửa (08/07/2026) — comment schema sai + không phân biệt được 2 loại cọc từ ledger thô:** comment cũ (`bank-service-phase2-design.md` §6 + SDS) ghi *"`milestoneId = NULL` = `buyerDepositRate`"* — sai từ 06/07/2026 khi `sellerDepositRate` optional ra đời, vì seller deposit cũng lock với `milestoneId = NULL`. Có **2 khoản `LOCK` cấp Contract** cùng `milestoneId = NULL`, trước đây phân biệt được qua `userId` (biết ai là buyer/seller của contract) **nhưng** bank-service tự nó agnostic — không biết `userId` nào là buyer/seller nếu chỉ đọc ledger thô, phải tra ngược sang contract-service mới biết. Ngược tinh thần "bằng chứng tự đứng" (ledger tự giải thích được, không cần tra chéo service khác) đã theo suốt thiết kế. **Chốt:** tách `entryType` thành `LOCK_BUYER_DEPOSIT`/`LOCK_SELLER_DEPOSIT` thay vì chung `LOCK_DEPOSIT` — ledger tự giải thích được ngay, không cần biết `userId` là ai. Enum thêm 1 giá trị, rẻ hơn phương án thêm cột `deposit_party` riêng.
 
 ---
 
@@ -84,7 +86,27 @@ Mỗi request có `sourceEventId` riêng (idempotency key, §4) dù cùng phát 
 | `contract.cancelled` (initiatedBy=SELLER) | `REFUND_TO_BUYER` | buyerId | `NULL` |
 | `contract.cancelled` (initiatedBy=BUYER) | `SEIZE_PENALTY` | buyerId | `NULL` |
 
-Không cần `entryType` mới — enum hiện tại (`LOCK_DEPOSIT` lúc `SIGNED`, rồi `RELEASE_TO_SELLER`/`SEIZE_PENALTY`/`REFUND_TO_BUYER` tuỳ kết quả) đã đủ diễn tả trọn vòng đời của `buyerDepositRate`.
+Không cần `entryType` mới ngoài phần đã tách ở §2 (08/07/2026) — enum hiện tại (`LOCK_BUYER_DEPOSIT` lúc `SIGNED`, rồi `RELEASE_TO_SELLER`/`SEIZE_PENALTY`/`REFUND_TO_BUYER` tuỳ kết quả) đã đủ diễn tả trọn vòng đời của `buyerDepositRate`. Tương tự, `sellerDepositRate` dùng `LOCK_SELLER_DEPOSIT` lúc `SIGNED`.
+
+### 3.3 Ledger entries từ Provisional Settlement Level 2 — 3 event mới (08/07/2026)
+
+**Bối cảnh:** `milestone-escrow-phase2-design.md` §3.2 định nghĩa 3 event provisional (`milestone.level2_provisional_settled` / `..._buffer_reconciled` / `..._terminal_settled`) và mechanics tiền đầy đủ 3 bước — nhưng bank-service trước bản này hoàn toàn chưa map event nào của luồng này sang `LedgerEntry`. Không cần `entryType` mới — vẫn `RELEASE_TO_SELLER`/`REFUND_TO_BUYER`, mỗi động tác 1 `sourceEventId` riêng (đúng pattern Delta 1/2 ở §3.1).
+
+| Event nhận | Ký hiệu (xem `milestone-escrow-phase2-design.md` §3.2) | `LedgerEntry` bắn ra |
+|---|---|---|
+| `milestone.level2_provisional_settled` | Bước 1 — release `X15×(1−rate)` cho seller, giữ khoá phần còn lại (`X15×rate` + `batchAmount−X15`) | `RELEASE_TO_SELLER(X15×(1−rate))` — 1 entry duy nhất, không refund buyer ở bước này |
+| `milestone.level2_buffer_reconciled` | Bước 2 — bù thêm seller `max(0, min(X2,batchAmount) − X15×(1−rate))`, refund buyer phần còn lại | `RELEASE_TO_SELLER(bù thêm)` + `REFUND_TO_BUYER(còn lại)` — 2 entry, `sourceEventId` riêng mỗi entry dù cùng 1 event gốc |
+| `milestone.level2_terminal_settled` | Bước 3 — seller nhận nốt `X15×rate` (buffer của chính seller), buyer nhận `batchAmount − X15` | `RELEASE_TO_SELLER(X15×rate)` + `REFUND_TO_BUYER(batchAmount − X15)` — 2 entry riêng |
+
+Payload mỗi event mang sẵn số tiền đã tính (không phải rate thô) — `contract-service`/`escrow-service` tính theo mechanics ở `milestone-escrow-phase2-design.md` §3.2, bank-service chỉ ghi ledger theo số nhận được, không tự tính lại `X15`/`X2`/`rate`.
+
+### 3.4 `bank.large_transaction_flagged` — báo cáo giao dịch giá trị lớn, không hold (mới, 08/07/2026)
+
+**Bối cảnh:** `reputation-service-phase2-design.md` §8 (bản trước) đặt hold cứng `CONFIRM_CLEAN` cho mọi giao dịch vượt ngưỡng tuyệt đối, không phân biệt hành vi — giết happy path (đa số hợp đồng nông sản thật vượt xa ngưỡng chỉ vì khối lượng lớn) và sai chủ thể pháp lý (nghĩa vụ báo cáo giao dịch giá trị lớn thuộc **tổ chức tài chính giữ tiền**, không phải platform số hoá hợp đồng — Luật PCRT 2022 Điều 4, Thông tư 27/2025/TT-NHNN). Đã tách lại đúng vai trò ở `reputation-service-phase2-design.md` §8 — bank-service chỉ **ghi nhận + audit trail cho nghĩa vụ báo cáo**, không hold giao dịch.
+
+**Ngưỡng — [VERIFIED ✓, 08/07/2026]:** `LedgerEntry` nào ≥ **500.000.000 VNĐ (giao dịch chuyển tiền điện tử trong nước)** → publish `bank.large_transaction_flagged`. Đây **không phải** ngưỡng "giao dịch có giá trị lớn phải báo cáo" chung (400 triệu, Điều 6 TT27/2025/TT-NHNN, kế thừa QĐ 11/2023/QĐ-TTg — áp dụng chủ yếu ngữ cảnh nộp/rút tiền mặt). Các operation của `ledger_entry` (lock/release/refund) là **chuyển khoản giữa các tài khoản ngân hàng** — đúng định nghĩa "giao dịch chuyển tiền điện tử" ở **Điều 9 Thông tư 27/2025/TT-NHNN**, ngưỡng 500 triệu (giữ nguyên từ 2007, TT27 chỉ làm rõ thêm trách nhiệm kỹ thuật, không đổi số) — 1.000 USD nếu có bên quốc tế tham gia (không áp dụng ở scope hiện tại, mock 1 pooled account nội địa). **Không dùng 400 triệu** — đó là ngưỡng cho loại giao dịch khác (tiền mặt), không phải loại giao dịch của bank-service.
+
+**Cơ chế:** bắn ngay khi `LedgerEntry` được ghi (không hold, không chờ Admin) — cùng transaction với insert `ledger_entry`. Payload: `{entryId, contractId, userId, amount, entryType, createdAt}`. Consumer: reputation-service (composite fraud score, không phải trigger hold độc lập — xem `reputation-service-phase2-design.md` §8), audit-service (bằng chứng cho nghĩa vụ báo cáo nếu sau này tích hợp ngân hàng thật). Thực tế ngân hàng thật vẫn cho giao dịch chạy rồi báo cáo Cục Phòng, chống rửa tiền trong 1 ngày làm việc (dữ liệu điện tử) — không đóng băng giao dịch chỉ vì vượt ngưỡng.
 
 ---
 
@@ -115,9 +137,9 @@ CREATE TABLE ledger_entry (
     entry_id          UUID PRIMARY KEY,
     source_event_id    UUID NOT NULL UNIQUE,   -- idempotency key, xem §4
     contract_id        UUID NOT NULL,
-    milestone_id       UUID NULL,               -- NULL = buyerDepositRate, có giá trị = batchAmount của milestone đó
+    milestone_id       UUID NULL,               -- NULL = cọc cấp Contract (buyer hoặc seller, phân biệt qua entry_type — sửa 08/07/2026, xem §2), có giá trị = batchAmount của milestone đó
     user_id            UUID NOT NULL,
-    entry_type         VARCHAR(20) NOT NULL,    -- LOCK_DEPOSIT | LOCK_MILESTONE | RELEASE_TO_SELLER | SEIZE_PENALTY | REFUND_TO_BUYER
+    entry_type         VARCHAR(20) NOT NULL,    -- LOCK_BUYER_DEPOSIT | LOCK_SELLER_DEPOSIT | LOCK_MILESTONE | RELEASE_TO_SELLER | SEIZE_PENALTY | REFUND_TO_BUYER
     amount             DECIMAL(15,2) NOT NULL,
     created_at         TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -147,8 +169,13 @@ CREATE INDEX idx_ledger_entry_user ON ledger_entry(user_id);
 
 **Việc còn treo, không block thiết kế này:** viết 2 entry vào `decisions.md` (arbitrator superseded, roadmap reframe) — chưa làm.
 
+**Chốt bổ sung (08/07/2026) — rà soát end-to-end, 3 điểm áp dụng:**
+- **B6** — comment schema sai từ khi `sellerDepositRate` optional ra đời (`milestoneId=NULL` không còn duy nhất nghĩa buyer deposit); tách `entryType` thành `LOCK_BUYER_DEPOSIT`/`LOCK_SELLER_DEPOSIT` để ledger tự giải thích được, không cần tra chéo contract-service (§2, §6).
+- **A3** — thêm mapping event→ledger cho Provisional Settlement Level 2 (3 event mới từ `milestone-escrow-phase2-design.md` §3.2), trước đây bank-service hoàn toàn chưa đụng luồng này (§3.3).
+- **A5** — thêm `bank.large_transaction_flagged` — đúng chủ thể pháp lý (bank ghi nhận + báo cáo, không hold), đúng ngưỡng 500 triệu (Điều 9 TT27/2025/TT-NHNN — giao dịch chuyển tiền điện tử, không phải 400 triệu của Điều 6 vốn áp dụng cho giao dịch tiền mặt) (§3.4).
+
 Bank-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
 
 ---
 
-*Design session: 03/07/2026 · Cập nhật: 04/07/2026 (ledger mechanics cho Delta 1/2 + buyerDepositRate) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 03/07/2026 · Cập nhật: 04/07/2026 (ledger mechanics cho Delta 1/2 + buyerDepositRate) · Cập nhật: 08/07/2026 (rà soát end-to-end: tách entryType 2 loại cọc — B6; mapping Provisional Settlement Level 2 — A3; thêm bank.large_transaction_flagged đúng ngưỡng/chủ thể pháp lý — A5) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
