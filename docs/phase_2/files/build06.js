@@ -75,6 +75,7 @@ push(table(
   { size: 17 }
 ));
 push(callout("Confident-wrong vs honest-fail.", "Các quyết định best-effort (parse case ID từ email, match commission) KHÔNG tự gán — chỉ gợi ý cho Admin xác nhận. Auto-match sai tạo ra confident-wrong (hệ thống tự tin gắn nhầm hợp đồng), nằm im tới đúng lúc dispute cần dùng report mới lộ — nguy hiểm hơn honest-fail (không match được, để PENDING_REVIEW chờ người xử lý).", "note"));
+push(P([runs("Nguồn tra accreditation (08/07/2026): ", { bold: true }), runs("Admin verify tổ chức Level 2 qua ba nguồn tra online xác định — BoA-VIAS (boa.gov.vn, scheme Inspection Bodies theo ISO/IEC 17020), IAF CertSearch (iafcertsearch.org, database validate chứng nhận toàn cầu), và ILAC Signatory Search (ilac.org/signatory-search). Không còn là hộp đen “chưa biết tra ở đâu”; tự động hoá full qua REST API là enhancement (chưa xác nhận BoA có API JSON export danh sách VIAS).", {})]));
 
 push(H2("2.3 Use case chính"));
 uc("UC-I1", "Level 1.5 nộp inspection report", [
@@ -294,7 +295,7 @@ push(numbered("Tạo OTS mới cho head hiện tại (tầng 2) làm anchor cho 
 push(numbered("Khớp 100% + anchoredHash còn tồn tại → WEEKLY_VERIFY_OK → DigestJob gửi digest cho Software Buyer. Ngược lại → WEEKLY_VERIFY_FAILED → flow alert."));
 push(P([runs("Alert routing khi fail — không để một người làm gatekeeper: ", { bold: true }), runs("verify fail → hệ thống tự động bắn SONG SONG (không qua bước duyệt của ai) tới Admin (điều tra kỹ thuật) VÀ nhiều địa chỉ liên hệ phía Software Buyer (không chỉ một người). Nếu chính Admin là người sửa data, cơ chế \"báo Admin rồi đợi Admin điều tra\" sẽ bị chặn vĩnh viễn — nên bỏ bước gatekeeper đó. Buyer/seller từng hợp đồng chỉ được báo SAU khi Admin khoanh vùng đúng contract_id bị ảnh hưởng (không tự động — thông tin nhạy cảm cần chính xác).", {})]));
 
-push(H2("4.5 source_type và xuất báo cáo EUDR"));
+push(P([runs("External Verifier self-service watchdog (08/07/2026): ", { bold: true }), runs("ngoài VerifyChainJob nội bộ, expose GET /security/audit-hash (chỉ-đọc, auth nhẹ — hash không phải bí mật) để tổ chức vận hành platform (Software Buyer, không cột cứng VICOFA) tự query record_hash và đối soát với bản hash nhận qua email anchor, bằng lịch riêng ngoài tầm Admin. Phát hiện lệch → ký lệnh emergency-lock (bank-service §4.5) đóng băng toàn hệ thống. Đây là lần đầu phép đối chiếu chủ động không phụ thuộc DUY NHẤT vào job nội bộ — thu hẹp lỗ hổng “phải có người chủ động nhìn” ở §6, dù không đóng hoàn toàn (verifier vẫn phải chịu query; collusion Admin+verifier là giới hạn cố hữu trusted-operator).", {})]));
 push(table(
   [3400, 6238],
   ["source_type", "Ý nghĩa / sức nặng bằng chứng"],
@@ -304,6 +305,8 @@ push(table(
     ["INSPECTION_REPORT", "Report Level 1.5 — đứng sau actor đã KYC + login (Signature + RBAC)"],
     ["EXTERNAL_INSPECTION_REPORT", "Report Level 2 đã CONFIRMED — không actor login (SPF/DKIM + Admin confirm)"],
     ["LEVEL2_INSPECTION_COMMISSIONED", "Chỉ ghi YÊU CẦU commission — không phải kết quả"],
+    ["EXTERNAL_VERIFIER_KEY_REGISTERED", "Đăng ký/đổi public key External Verifier — root-of-trust kill switch, chống Admin lén swap key (08/07/2026)"],
+    ["SECURITY_LOCK_TRIGGERED / _UNLOCK_", "Quyết định đóng/mở băng toàn hệ thống — kill switch tự nó cũng tamper-evident (08/07/2026)"],
   ],
   { size: 18 }
 ));

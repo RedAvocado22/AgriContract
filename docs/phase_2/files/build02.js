@@ -200,6 +200,10 @@ push(table(
   ],
   { size: 18 }
 ));
+push(P([runs("Chính sách đang dịch chuyển đúng hướng AgriContract — vừa xác nhận thị trường, vừa cần phân định ranh giới. ", { bold: true }), runs("Bộ Nông nghiệp & Môi trường đang xây dựng Nghị định thay thế Nghị định 98/2018 (dự kiến trình Chính phủ 2026). Theo đánh giá của chuyên gia PSAV, dự thảo lần đầu bổ sung tương đối đầy đủ các công cụ bảo đảm thực hiện hợp đồng — bảo lãnh, ký quỹ (escrow), bảo hiểm và cơ chế chia sẻ rủi ro — cùng một cơ sở dữ liệu về tình hình thực hiện hợp đồng để tổ chức tín dụng đánh giá khả năng cho vay theo dòng tiền. Đây chính xác là ba trụ mà AgriContract hiện thực hoá: ký quỹ tự thực thi, dữ liệu thực hiện hợp đồng, và tín dụng theo dòng tiền.", {})]));
+push(legal("Dự thảo Nghị định thay thế Nghị định 98/2018/NĐ-CP (trình Chính phủ 2026)", "Lần đầu đưa ký quỹ, bảo lãnh, bảo hiểm và cơ sở dữ liệu thực hiện hợp đồng vào chính sách liên kết chuỗi giá trị nông nghiệp; bổ sung khái niệm “chủ thể trung tâm chuỗi giá trị” để khắc phục bất cập của Nghị định 98 khi trách nhiệm các bên khó xác định lúc đứt gãy hợp đồng."));
+push(P([runs("Ranh giới cần nói rõ trước hội đồng: ", { bold: true }), runs("Nghị định quy định chính sách — khuyến khích, khung, hỗ trợ — chứ không xây phần mềm thực thi. Nghị định nói “cần có ký quỹ”; AgriContract là công cụ thực hiện ký quỹ đó, tự động theo milestone, tích hợp giám định, có tầng tranh chấp. Tương tự luật quy định “cần hoá đơn điện tử” nhưng vẫn cần công ty làm phần mềm hoá đơn — chính sách và công cụ thực thi là hai lớp khác nhau, và đó là vị trí AgriContract chiếm.", {})]));
+push(src("Chuyên gia PSAV (Đối tác phát triển nông nghiệp bền vững Việt Nam) đánh giá dự thảo Nghị định thay thế NĐ 98/2018; Báo Công Thương, Nông nghiệp Môi trường — sửa đổi Nghị định 98 (2026)."));
 
 push(H2("7.2 Năm rủi ro pháp lý và biện pháp kiểm soát"));
 push(P("Phần này trình bày các rủi ro pháp lý thực chất, không chỉ những điểm thuận lợi. Nhận diện rủi ro đầy đủ là cơ sở để thiết kế hệ thống đúng ngay từ đầu."));
@@ -224,15 +228,27 @@ push(table(
   [
     [["Lớp 1", "Tuân thủ EUDR"], "Hợp đồng thu mua từ HTX có audit trail bất biến = bằng chứng deforestation-free cho kiểm toán EU; xuất báo cáo on-demand thay vì tổng hợp thủ công", "Doanh nghiệp xuất khẩu cà phê, cao su, gỗ vào EU — deadline pháp lý 30/12/2026"],
     [["Lớp 2", "Kiểm soát rủi ro"], "Ký quỹ + Milestone: chi phí phá vỡ hợp đồng vượt lợi ích ngắn hạn. Giám định phân tầng: giải quyết tranh chấp trong ngày. Uy tín: vốn xã hội tích luỹ định giá được", "Cả bên mua lẫn bên bán — đặc biệt HTX không có nguồn lực pháp lý tự bảo vệ"],
-    [["Lớp 3", "Hạ tầng tín dụng"], "Audit trail tích luỹ = lịch sử tín dụng thực chất; ngân hàng đọc dữ liệu thay vì chỉ đếm tài sản thế chấp. 57% SME hiện không tiếp cận được vốn", "HTX nhỏ + ngân hàng (vai trò data oracle, không chỉ cấp tín dụng truyền thống)"],
+    [["Lớp 3", "Hạ tầng tín dụng"], "Audit trail tích luỹ = lịch sử tín dụng thực chất; ngân hàng đọc dữ liệu thay vì chỉ đếm tài sản thế chấp. 75,5% doanh nghiệp không vay được nếu thiếu tài sản thế chấp (VCCI 2025)", "HTX nhỏ + ngân hàng (vai trò data oracle, không chỉ cấp tín dụng truyền thống)"],
   ],
   { size: 18 }
 ));
 
 // ============================================================
-// 9. FAQ
+// 9. RELATED WORK
 // ============================================================
-push(H1("9. Câu hỏi thường gặp từ hội đồng thẩm định"));
+push(H1("9. Tổng quan giải pháp quốc tế và điểm khác biệt"));
+push(P("Bài toán “thiếu bên mua đáng tin khiến nông hộ bán tháo cho thương lái quen với giá thấp” không phải mới trong nghiên cứu quốc tế. Việc đối chiếu với literature vừa xác nhận AgriContract giải đúng một bài toán đã được ghi nhận rộng rãi, vừa cho phép định vị chính xác điểm khác biệt của hệ thống."));
+push(bullet([runs("MDPI Sustainability (2022), Smart Agricultural Futures Market: ", { bold: true }), runs("phỏng vấn nông hộ Sri Lanka cho thấy họ chọn broker quen có sẵn niềm tin để được trả tiền trong vài tuần dù giá thấp, chỉ bán cho broker lạ nếu nhận tiền mặt ngay — đúng bài toán thiếu trusted buyer dẫn tới side-selling và thu nhập thấp mà escrow giải quyết.", {})]));
+push(bullet([runs("ResearchGate (2025), Assured Contract Farming System: ", { bold: true }), runs("smart contract cung cấp cơ chế giảm rủi ro và thiết lập niềm tin giữa các bên giao dịch không quen biết; cả bốn kịch bản đều chỉ ra việc thiếu trusted party buộc nông dân bán rẻ.", {})]));
+push(bullet([runs("FAO e-Agriculture: ", { bold: true }), runs("sổ cái minh bạch tạo credibility để tổ chức tài chính cho vay và bảo hiểm — cùng logic “dữ liệu minh bạch mở khoá tín dụng” là lớp giá trị thứ ba của AgriContract.", {})]));
+push(src("MDPI Sustainability 14(5):2916 (2022); ResearchGate publication 391678097 (2025); FAO e-Agriculture — blockchain for smallholder farmers; arXiv 2102.09401 — Blockchain in agriculture survey."));
+push(P([runs("Điểm khác biệt của AgriContract so với cả literature quốc tế lẫn giải pháp Việt Nam hiện có. ", { bold: true }), runs("Escrow đã được nhà nước Việt Nam công nhận nhưng chỉ cho B2C bán lẻ (chống bom hàng, COD); escrow B2B hiện tại chỉ là tài khoản ký quỹ ngân hàng thủ công cho M&A/giải ngân — không có nền tảng số hoá tự thực thi theo milestone, không tích hợp giám định, không có state machine tranh chấp. Literature quốc tế cũng thiếu ba thứ AgriContract có: (i) tầng giám định ba cấp cho tranh chấp chất lượng nông sản thật, không chỉ nhị phân giao/không-giao; (ii) mô hình pháp lý Việt Nam thật — không tự giữ tiền, tách qua bank-service theo Nghị định 52/2024; (iii) neo vào hạ tầng dữ liệu đang hình thành trong nước. AgriContract do đó không phải “một giải pháp blockchain nông nghiệp thứ N”, mà là bản địa hoá cộng với tầng tranh chấp và khớp khung pháp lý Việt Nam cho forward contract B2B.", {})]));
+push(src("Bộ Công Thương (Cục TMĐT) — hệ thống đảm bảo giao dịch escrow B2C; BIDV — dịch vụ tài khoản Escrow; CeCA — ứng dụng giao dịch an toàn kết hợp hợp đồng điện tử (2025-2026)."));
+
+// ============================================================
+// 10. FAQ
+// ============================================================
+push(H1("10. Câu hỏi thường gặp từ hội đồng thẩm định"));
 const faq = [
   ["Ký quỹ dùng mock balance — có giá trị kỹ thuật gì?", "Giá trị kỹ thuật nằm ở logic, không phải ở tiền: Choreography Saga qua message queue, idempotency cho compensating transaction, Outbox Pattern đảm bảo at-least-once delivery. Các thách thức này đều thật và không thay đổi khi thay lớp giữ tiền mock bằng API ngân hàng thật — ranh giới interface được thiết kế sạch để việc thay thế không đụng business logic."],
   ["Nền tảng có đang thay thế chức năng của toà án không?", "Không. Admin thực thi điều khoản penalty mà hai bên đã tự thoả thuận và ký trước đó. Luật TM 2005 Điều 300 cho phép phạt vi phạm theo thoả thuận; Nghị định 98/2018 Điều 15 cho phép hoà giải nội bộ. Nền tảng không ra phán quyết — chỉ thực thi thoả thuận đã có."],
@@ -246,7 +262,7 @@ faq.forEach(([q, a]) => { push(P([runs(q, { bold: true, color: T.HEAD })], { aft
 // ============================================================
 // 10. LIMITATIONS
 // ============================================================
-push(H1("10. Giới hạn và phạm vi ngoài"));
+push(H1("11. Giới hạn và phạm vi ngoài"));
 push(P("Các điểm dưới đây là ranh giới có chủ đích của thiết kế, không phải điểm mù bị bỏ sót — nêu rõ để giữ độ tin cậy trước hội đồng."));
 push(bullet([runs("Ngân hàng giữ tiền là mock trong phạm vi đồ án. ", { bold: true }), runs("Không tổ chức tín dụng nào ký hợp đồng API cho một đồ án tốt nghiệp. Lớp giữ tiền được mô phỏng theo đúng ngữ nghĩa nghiệp vụ (mô hình ledger gộp), interface thiết kế sạch để tích hợp thật chỉ cần thay implementation — nhưng tích hợp thật nằm ngoài phạm vi.", {})]));
 push(bullet([runs("Chữ ký ở tầng cơ bản, không tương đương chữ ký tay. ", { bold: true }), runs("Chữ ký điện tử của nền tảng không có chứng thư từ CA được cấp phép nên không được luật tự động suy đoán; hợp đồng vẫn có hiệu lực đầy đủ, nhưng gánh nặng chứng minh khi tranh chấp thuộc về nền tảng (đã bù bằng audit trail). Chữ ký số CA và WebAuthn là hướng nâng cấp, chưa triển khai.", {})]));
@@ -257,7 +273,7 @@ push(bullet([runs("Đòn bẩy uy tín phụ thuộc giả định thể chế c
 // ============================================================
 // 11. SOURCES
 // ============================================================
-push(H1("11. Danh mục nguồn tham khảo"));
+push(H1("12. Danh mục nguồn tham khảo"));
 push(H3("Văn bản pháp luật"));
 [
   "Luật Giao dịch Điện tử 2023 (Luật 20/2023/QH15, hiệu lực 1/7/2024).",
@@ -279,7 +295,7 @@ push(H3("Thị trường & nghiên cứu"));
   "Báo Pháp Luật TP.HCM — Nghịch lý xuất khẩu cà phê Việt (4/4/2026).",
   "Vietnam.vn — Banks partner with the digital agricultural supply chain (1/4/2026).",
   "Agribank — Chương trình tín dụng chuỗi giá trị nông nghiệp 2024.",
-  "We-Fi / OCB — SME financing gap 68% in Vietnam (2022).",
+  "VCCI — Báo cáo Kinh tế tư nhân 2025 (75,5% doanh nghiệp cần tài sản thế chấp để tiếp cận tín dụng).",
   "EC Regulation (EU) 2025/2650 — EUDR timeline (23/12/2025).",
 ].forEach(s => push(bullet(s)));
 

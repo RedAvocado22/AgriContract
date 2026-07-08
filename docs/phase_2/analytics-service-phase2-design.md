@@ -41,7 +41,7 @@ CREATE TABLE dim_contract (
 );
 ```
 
-**Đã giải quyết (06/07/2026, rà soát lại):** điểm treo trước đây về nguồn `commodity` được chốt bằng cách thêm event mới `contract.signed` vào Event Catalog cấp Contract (`milestone-escrow-phase2-design.md` §7.2), publish đúng 1 lần lúc `Contract.transitionTo(SIGNED)`, payload `{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}`. `dim_contract` được `INSERT` (upsert theo `contract_id`) ngay khi nhận event này — chi tiết ingest ở §3.1 bên dưới. **Cập nhật (08/07/2026, đồng bộ Phase 1 Category redesign):** `commodity` trong payload contract-service đọc thẳng từ `Category.commodity` (enum cứng `COFFEE/RICE/RUBBER/CASHEW`, admin gán bắt buộc lúc `approve()` category) — không còn map từ enum `category` cũ, không cần bảng tra cứng. Vì category chỉ dùng được khi `APPROVED` và `approve()` bắt buộc gán `commodity`, mọi contract hợp lệ luôn có `commodity` non-null. Điểm treo mapping trước đây **đã đóng hoàn toàn**.
+**Đã giải quyết (06/07/2026, rà soát lại):** điểm treo trước đây về nguồn `commodity` được chốt bằng cách thêm event mới `contract.signed` vào Event Catalog cấp Contract (`milestone-escrow-phase2-design.md` §7.2), publish đúng 1 lần lúc `Contract.transitionTo(SIGNED)`, payload `{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}`. `dim_contract` được `INSERT` (upsert theo `contract_id`) ngay khi nhận event này — chi tiết ingest ở §3.1 bên dưới. **Cập nhật (08/07/2026):** `commodity` trong payload là enum cứng `COFFEE/RICE/RUBBER/CASHEW`, luôn non-null (analytics chỉ nhận và lưu, không tự map). Cơ chế `commodity` đến từ đâu (`Category.commodity`, admin gán lúc `approve()`, bỏ bảng mapping) chốt ở `product-phase2-design.md` §9 (owner) — không mô tả lại ở đây. Điểm treo mapping trước đây **đã đóng hoàn toàn**.
 
 ### 2.2 Sự đánh đổi: Real-time vs Pre-computed
 
@@ -260,7 +260,7 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 3. `dim_contract` chưa từng được wire vào ingest pipeline nào — thêm event mới `contract.signed` (`milestone-escrow-phase2-design.md` §7.2) + bước ingest §3.1.
 4. `has_force_majeure` gần như luôn `FALSE` do race condition (event `resolved` luôn tới trước khi fact row tồn tại) → thêm bảng staging `pending_force_majeure_flag` (§2.4), merge 2 chiều lúc `INSERT`.
 
-**Nguồn `commodity` đã đóng hoàn toàn (08/07/2026):** `commodity` đọc từ `Category.commodity` (aggregate `Category` Phase 1, admin gán enum cứng `COFFEE/RICE/RUBBER/CASHEW` lúc `approve()`) — không còn map từ enum `category` tiếng Việt, không cần bảng tra cứng, không có case rơi `NULL` (category `APPROVED` luôn có `commodity`). Chi tiết ở `milestone-escrow-phase2-design.md` §7.2.
+**Nguồn `commodity` đã đóng hoàn toàn (08/07/2026):** `commodity` non-null, đọc từ `Category.commodity`. Cơ chế chốt ở `product-phase2-design.md` §9 (owner).
 
 Analytics-service — **đóng session, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức** (sau khi điểm treo mapping ở trên được xác nhận).
 

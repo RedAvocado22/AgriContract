@@ -83,7 +83,7 @@ Không có bảng riêng lưu sẵn con số. Mọi truy vấn (completion count
 
 ## 4. Multiplier Formulas
 
-**Bảng tra nhanh** (nguồn gốc: `milestone-escrow-phase2-design.md` §6.1, copy nguyên vào đây để file này tự đứng được, không phải mở file khác giữa chừng):
+**⟢ SOURCE OF TRUTH cho công thức `lockDurationDays` là mục này (reputation-service §4).** Trước đây công thức được "chốt" ở `milestone-escrow-phase2-design.md` §6.1 và copy sang đây — nay đảo lại đúng chủ sở hữu: `reputation-service` là nơi tính và implement công thức này, nên nó chốt số ở đây. `milestone-escrow` §6.1 chỉ giữ **input/trigger** (khi nào bắn `milestone.cancelled_with_penalty`, vì sao tách penalty debt khỏi số ngày khoá) và tham chiếu về mục này cho baseline. Nếu 2 file lệch nhau về con số → bản ở đây thắng.
 
 ```
 lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier
