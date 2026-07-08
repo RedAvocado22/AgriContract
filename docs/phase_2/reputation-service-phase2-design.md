@@ -1,6 +1,6 @@
 ---
 name: reputation-service-phase2-design
-description: "Reputation-service — lock ledger bất biến + reputation score, phục vụ lockout enforcement, search ranking, và credit reference export. Nguồn: design session 04/07/2026, cập nhật 06/07/2026 (AML: thêm nhóm tín hiệu tuyệt đối theo ngưỡng luật định)."
+description: "Reputation-service — lock ledger bất biến + reputation score, phục vụ lockout enforcement, search ranking, và credit reference export. Nguồn: design session 04/07/2026, cập nhật 06/07/2026 (AML: thêm nhóm tín hiệu tuyệt đối theo ngưỡng luật định), 08/07/2026 (hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse)."
 status: DESIGNED — chưa code.
 metadata:
   type: design
@@ -76,6 +76,8 @@ Không có bảng riêng lưu sẵn con số. Mọi truy vấn (completion count
 |---|---|---|---|
 | `milestone.cancelled_with_penalty` | Negative | `contract-service`, đã có trong Event Catalog milestone-escrow §7.1 | Sẵn sàng dùng |
 | `contract.settled` | Positive | `contract-service` (`ContractSettledEvent`), đã tồn tại trong code Phase 1 | **Đã fix (04/07/2026) — xem cập nhật KI-1 ở §10.** Guard `Contract.settle()` được sửa để chạy từ `ACTIVE`, và `escrow-service` cũng consume event này để release `buyerDepositRate` — xem `milestone-escrow-phase2-design.md` §3.1, §6.3, §7.2. |
+| `milestone.dispute_resolved` (mới, 08/07/2026) | Tín hiệu hành vi (flag-abuse) | `contract-service` — bắn khi `DisputeRoutingService` ra phán quyết cho milestone `CONTESTED` | **Mới — cần thêm vào Event Catalog `milestone-escrow-phase2-design.md` §7.1.** Xem §6.1b. |
+| `bank.large_transaction_flagged` (mới, 08/07/2026) | Tín hiệu AML (1 phần input composite score) | `bank-service` (`bank-service-phase2-design.md` §3.4) | Không tự trigger hold — chỉ hold khi đi kèm ≥1 tín hiệu hành vi khác, xem §8 mục 2. |
 
 ---
 
@@ -84,7 +86,7 @@ Không có bảng riêng lưu sẵn con số. Mọi truy vấn (completion count
 **Bảng tra nhanh** (nguồn gốc: `milestone-escrow-phase2-design.md` §6.1, copy nguyên vào đây để file này tự đứng được, không phải mở file khác giữa chừng):
 
 ```
-lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultiplier
+lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier
 ```
 
 | Multiplier | Giá trị | Điều kiện |
@@ -92,6 +94,7 @@ lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultipl
 | `baseDays` | 30 | Cố định |
 | `repeatOffenseMultiplier` | 1x / 2x / 3x | Lần vi phạm thứ mấy trong `repeatOffenseLookbackMonths` gần nhất (§4.2) |
 | `trackRecordMultiplier` | 0.7x / 1.0x / 1.3x | Dưới 5 hợp đồng hoàn thành: mặc định 1.0x. Đủ 5 trở lên: tính theo % sạch thật (0.7x nếu track record tốt, 1.3x nếu kém) — không time window (§4.1) |
+| `zeroProgressMultiplier` | 1.5x / 1.0x | **Mới (08/07/2026):** 1.5x khi cancel lúc **0 milestone nào từng `SETTLED`** (ký xong bỏ ngay — tín hiệu xấu nhất, cũng là lớp ma sát cho disintermediation risk); 1.0x cho mọi trường hợp còn lại. Chốt tại `milestone-escrow-phase2-design.md` §6.1. |
 
 ### 4.1 `trackRecordMultiplier` — KHÔNG có time window
 
@@ -130,6 +133,25 @@ Lý do 2 tầng không thừa nhau: khoá chỉ chặn **tạo mới**, không h
 
 `reputation-service` publish event (`reputation.locked`/`reputation.unlocked`), `user-service` cache 1 field trên `UserProfile` (không gọi sync mỗi lần cần check) — tránh dual-write, đúng bài học đã rút từ `bank-service` §5 (cache state flag là ổn, cache số tiền mới là dual-write).
 
+### 6.1b Đối xứng hoá — buyer reputation hiển thị cho seller (mới, 08/07/2026)
+
+**Vấn đề:** mọi tín hiệu minh bạch đã xây (`verificationLevel`, `geoRiskLevel` bên `product-service`, reputation score ở đây) đều một chiều **buyer-xem-seller**. Seller không có tín hiệu nào để đánh giá buyer trước khi ký (buyer có hay bùng không, có hay lạm dụng `FLAG_ISSUE` ép seller vào dispute không). Với luận điểm "bảo vệ bên yếu" xuyên suốt dự án, đây là chỗ hội đồng dễ hỏi: *"seller được gì để tự bảo vệ, ngoài việc bị chấm điểm?"*
+
+**Tin tốt: dữ liệu đã có sẵn, chỉ thiếu chiều hiển thị.** `lock_entry` (§2.1) **đã** insert-only cho cả `penalizedRole = BUYER` lẫn `SELLER` từ đầu — dữ liệu "buyer này từng bùng mấy lần, lock bao lâu" đã tồn tại, không cần cơ chế mới. Chỉ cần:
+
+1. **Endpoint mới `GET /reputation/{userId}/public-summary`** — query theo đúng `userId` (không phân biệt buyer hay seller gọi), trả reputation score + lock history công khai (không cần consent như `credit-export` §6.3, vì đây là thông tin đối tác cần biết *trước khi* quyết định ký, không phải hồ sơ tín dụng riêng tư). Seller dùng endpoint này để xem uy tín buyer trước khi nhận offer/đàm phán — đối xứng thật với việc buyer xem seller lúc chọn listing.
+2. **Framing lại `buyerDepositRate`/`sellerDepositRate` là công cụ 2 chiều theo mức tin tưởng** (đã đúng về cơ chế ở `milestone-escrow-phase2-design.md` §2.1/§6.1, chỉ cần nói rõ ra): seller mới, gặp buyer lạ, xem `public-summary` thấy buyer có track record xấu → seller có quyền đàm phán `buyerDepositRate` cao hơn 5% mặc định lúc `NEGOTIATING` — không phải chỉ buyer mới có quyền đòi cọc seller.
+
+**Tín hiệu mới — chống buyer lạm dụng `FLAG_ISSUE` vô cớ (mới, 08/07/2026):** lỗ thật seller chưa được bảo vệ — buyer có thể flag bừa để ép seller vào dispute/kéo dài mà không mất gì (chi phí giám định do bên thua chịu, §8 milestone-escrow, nhưng buyer có thể chấp nhận rủi ro đó để gây áp lực). Thêm 1 input event mới:
+
+| Event | Loại | Nguồn | Ghi chú |
+|---|---|---|---|
+| `milestone.dispute_resolved` (mới, 08/07/2026 — cần thêm vào `milestone-escrow-phase2-design.md` §7.1) | Tín hiệu hành vi | `contract-service` — bắn khi `DisputeRoutingService` (3-tier) ra phán quyết cho milestone từng `CONTESTED`. Payload: `{milestoneId, flaggedBy: BUYER, resolutionFavors: BUYER\|SELLER}` (chỉ buyer flag được ở state machine hiện tại — nếu sau này seller cũng có quyền flag, mở rộng field `flaggedBy`) | `reputation-service` đếm tỷ lệ `resolutionFavors = SELLER` trên tổng số lần buyer đó từng `FLAG_ISSUE` — tỷ lệ cao (flag rồi thua nhiều lần) là tín hiệu buyer lạm dụng, hiển thị trong `public-summary` để seller thấy trước khi ký |
+
+Dùng đúng bộ máy reputation đã có (view sống, tính từ event, không bảng riêng, §2.2/§5.2) — chỉ thêm 1 loại tín hiệu đầu vào, không phải cơ chế mới.
+
+**Tổng kết B4:** đối xứng hoá reputation (dữ liệu đã có, chỉ thêm chiều hiển thị) + framing 2 deposit rate là công cụ 2 chiều (đã đúng cơ chế, chỉ cần nói rõ) + tín hiệu chống flag-abuse (nhỏ, tái dùng hạ tầng sẵn có). Không phải known-limitation cần chấp nhận — là hoàn chỉnh hoá luận điểm gốc "bảo vệ bên yếu thế" cho đúng cả 2 chiều.
+
 ### 6.2 `search-service`
 
 Chưa thiết kế — để dành session riêng. Kỳ vọng: `reputation-service` publish event mỗi khi score đổi, `search-service` tự consume để cập nhật bản denormalized, không gọi sync mỗi lần search.
@@ -153,7 +175,7 @@ Thiết kế:
 - **`UnlockEarlyUseCase`** — Admin trigger, set `status = UNLOCKED_EARLY` + `unlockReason` bắt buộc, publish `reputation.unlocked`. Dùng cho nhánh 2, 3 ở §5.
 - **`CheckLockStatusUseCase`** — expose cho `user-service` gọi qua Feign (§6.1), trả `lockedUntil` hiện tại của 1 `userId`.
 - **`GetCreditExportUseCase`** — seller tự trigger (consent-based, §6.3), check counterparty diversity gate trước khi trả JSON export.
-- **`FlagSuspiciousPatternUseCase`** — tính composite fraud score (§8), theo cặp buyer-seller/account, publish event hold khi vượt ngưỡng. **Cập nhật (06/07/2026):** tách 2 nhóm — tín hiệu tương đối (cần lịch sử, hold giao dịch kế tiếp) và tín hiệu tuyệt đối (ngưỡng luật định ~500 triệu, hold ngay trên chính giao dịch, kể cả giao dịch đầu tiên của account mới).
+- **`FlagSuspiciousPatternUseCase`** — tính composite fraud score (§8), theo cặp buyer-seller/account, publish event hold khi vượt ngưỡng. **Cập nhật (06/07/2026):** tách 2 nhóm — tín hiệu tương đối (cần lịch sử, hold giao dịch kế tiếp) và tín hiệu tuyệt đối (ngưỡng luật định 500 triệu, hold ngay trên chính giao dịch, kể cả giao dịch đầu tiên của account mới). **Sửa (08/07/2026):** consume thêm `bank.large_transaction_flagged` (`bank-service-phase2-design.md` §3.4) làm 1 input, không phải trigger hold độc lập — hold chỉ kích hoạt khi ngưỡng tuyệt đối **đi kèm** ≥1 tín hiệu hành vi khác (track record mỏng / zero-variance / counterparty mới), tránh hold thuần theo giá trị giết happy path — xem §8 mục 2.
 
 ---
 
@@ -171,11 +193,16 @@ Thiết kế:
 **Cập nhật (06/07/2026) — tách 2 nhóm tín hiệu, không gộp chung 1 rổ:** rà lại kỹ hơn phát hiện "đột biến doanh số" (mục 1 trên) tự nó ngầm định phải có **baseline lịch sử của chính account đó** để so sánh — account mới tinh, giao dịch đầu tiên, không có gì để so, nên dù giá trị giao dịch có lớn cỡ nào, nó không "đột biến" theo đúng nghĩa thống kê. Đây chính là gốc rễ giới hạn cấu trúc đã nêu ở mục 2 dưới (chỉ hold giao dịch kế tiếp) — không sửa được bằng đổi threshold, vì vấn đề không nằm ở *vị trí* ngưỡng mà ở việc *không có dữ liệu lịch sử để chấm điểm ngay từ đầu*.
 
 Giải pháp: thêm **nhóm tín hiệu tuyệt đối, không cần lịch sử** — song song với nhóm tương đối ở mục 1, không thay thế:
-   - **Ngưỡng giá trị tuyệt đối theo luật định** — giao dịch chuyển khoản từ 500 triệu đồng trở lên (Thông tư 27/2025/TT-NHNN, hiệu lực 01/11/2025, thay ngưỡng 400 triệu cũ) thuộc nhóm phải báo cáo/nhận biết khách hàng, bất kể account có lịch sử hay không — đây là con số so với luật, không phải so với chính account đó ngày hôm qua.
+   - **Ngưỡng giá trị tuyệt đối theo luật định** — giao dịch chuyển khoản từ 500 triệu đồng trở lên (Điều 9 Thông tư 27/2025/TT-NHNN, "giao dịch chuyển tiền điện tử", hiệu lực 01/11/2025 — ngưỡng này giữ nguyên từ 2007, không phải số mới) thuộc nhóm phải báo cáo, bất kể account có lịch sử hay không — đây là con số so với luật, không phải so với chính account đó ngày hôm qua.
    - **Trigger ngay trên chính giao dịch đó**, không chờ "giao dịch kế tiếp" như nhóm tín hiệu tương đối — vì không cần baseline để đánh giá, nhóm này có thể áp dụng ngay cả cho giao dịch đầu tiên của account hoàn toàn mới.
    - **Không thay thế nhóm tương đối** — 2 nhóm giải 2 loại rủi ro khác nhau: nhóm tương đối bắt fraud tích luỹ nhiều giao dịch nhỏ qua thời gian (giá trị vẫn dưới ngưỡng tuyệt đối); nhóm tuyệt đối bắt đúng kịch bản "đánh nhanh rút gọn" (one-shot, tài khoản giả, 1 hợp đồng khủng rồi bỏ) mà nhóm tương đối theo định nghĩa không bắt được lần đầu.
+   - **Sửa (08/07/2026) — nguồn phát hiện dời sang bank-service:** `reputation-service` không tự query `ledger_entry` để so giá trị — `bank-service` (bên giữ tiền thật, đúng chủ thể pháp lý theo Luật PCRT 2022 Điều 4) publish `bank.large_transaction_flagged` (`bank-service-phase2-design.md` §3.4) cho mọi `LedgerEntry` ≥ 500 triệu. `reputation-service` consume event này làm 1 trong các input cho composite score, không phải tự trigger hold độc lập — xem mục 2 dưới.
 
-2. **`CONFIRM_CLEAN` hold đồng bộ** khi composite score vượt ngưỡng — chuyển chờ Admin duyệt thay vì auto-`SETTLED` như mặc định. Căn cứ: "biện pháp trì hoãn giao dịch" (Luật PCRT 2022) không cần chờ giao dịch hoàn tất mới áp dụng được. **Với nhóm tín hiệu tương đối:** hold chỉ áp cho giao dịch **kế tiếp** của đúng cặp bị flag, không hồi tố hợp đồng đã `SETTLED`, không vạ lây cặp khác. **Xác nhận lại (04/07/2026, session review):** hệ quả chấp nhận được của cách chốt này là chính giao dịch làm score vượt ngưỡng **không** bị hold — chỉ giao dịch tiếp theo mới bị. Đây là giới hạn cấu trúc của kiểu detect dựa trên pattern lặp lại (cần đủ lịch sử mới nhận ra), không sửa được bằng cách đổi threshold. Giữ nguyên chủ đích, không đổi. **Với nhóm tín hiệu tuyệt đối (mới, 06/07/2026):** hold áp ngay trên **chính giao dịch đang vượt ngưỡng**, không đợi giao dịch kế tiếp — đóng đúng phần gap "one-shot fraud" mà nhóm tương đối không đóng được.
+2. **Sửa (08/07/2026) — ngưỡng tuyệt đối một mình không còn đủ để hold, phải đi kèm ≥1 tín hiệu hành vi khác:** bản 06/07/2026 để giá trị tuyệt đối tự nó trigger `CONFIRM_CLEAN` hold, không điều kiện gì thêm. Vấn đề phát hiện khi rà cross-check với ví dụ hợp đồng thật ở Doc02 (100-1000 tấn cà phê, tương đương 13,5-135 tỷ VNĐ, đối chiếu giá Robusta thị trường ~92.000-97.000đ/kg) — **gần như 100% hợp đồng thật của platform vượt xa 500 triệu chỉ vì khối lượng thương mại lớn**, không liên quan gì tới hành vi khả nghi. Hold cứng theo giá trị đơn thuần sẽ khiến phần lớn giao dịch điển hình bị treo chờ Admin duyệt — giết chết đúng selling point lõi "escrow tự thực thi, release tự động, không ai can thiệp" (Doc02 §3.3, §8), biến Admin thành nút cổ chai cho mọi giao dịch lớn, ngược triết lý neutral-party.
+
+   **`CONFIRM_CLEAN` hold đồng bộ**, chuyển chờ Admin duyệt thay vì auto-`SETTLED`, chỉ áp khi: **(ngưỡng tuyệt đối ≥500 triệu, từ `bank.large_transaction_flagged`) AND (≥1 tín hiệu hành vi khác)** — ví dụ: account có `< N` hợp đồng hoàn thành (chưa đủ track record), **OR** zero-variance pattern (mục 1 phần tương đối), **OR** counterparty hoàn toàn mới (chưa từng giao dịch với nhau). Bắt đúng kịch bản one-shot fraud thật (account mới + hợp đồng khủng = to *và* vô danh), **không** phạt cặp buyer-seller có track record sạch đang giao dịch bình thường ở quy mô thương mại thật.
+
+   **Với nhóm tín hiệu tương đối (không đổi):** hold chỉ áp cho giao dịch **kế tiếp** của đúng cặp bị flag, không hồi tố hợp đồng đã `SETTLED`, không vạ lây cặp khác. Chính giao dịch làm score vượt ngưỡng **không** bị hold — chỉ giao dịch tiếp theo mới bị (giới hạn cấu trúc của detect dựa trên pattern lặp lại, đã xác nhận 04/07/2026, không đổi). **Với nhóm tín hiệu tuyệt đối + điều kiện hành vi (sửa 08/07/2026):** hold áp ngay trên **chính giao dịch đang vượt ngưỡng VÀ có tín hiệu hành vi đi kèm** — vẫn đóng đúng phần gap "one-shot fraud", nhưng không còn đánh đồng "giao dịch lớn" với "giao dịch khả nghi".
 
 3. **Admin trigger inspection đột xuất** khi nghi ngờ, nhưng **không tự chọn tổ chức inspect** — hệ thống random từ danh sách đã vet sẵn (đồng nhất cơ chế Level 1.5 hiện có: Vinacontrol/Quatest, route tự động, không phải chọn tay). Tránh tái tạo đúng lỗ hổng đang có ở Level 2 (`level2InspectorOrg` negotiate tự do — xem KI-2).
 
@@ -219,8 +246,12 @@ Fix đã chốt tại `inspection-phase2-design.md` §3.2: allowlist 3 nhóm (ma
 
 **1 Known Issue còn treo, không block session này:** KI-3 (`email` IDOR còn sót). **KI-1 và KI-2 đã đóng** (§10) — fix KI-1 nằm ở `milestone-escrow-phase2-design.md`, fix KI-2 nằm ở `inspection-phase2-design.md` §3.2.
 
-Reputation-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức**, ngoại trừ bổ sung 06/07/2026 (tách 2 nhóm tín hiệu AML, xem ngay trên) — phần này về nguyên tắc đã chốt, không có điểm treo số liệu (ngưỡng 500 triệu là số luật định thật, không phải placeholder đoán).
+**Chốt bổ sung (08/07/2026) — rà soát end-to-end, 2 điểm PHẢI SỬA áp dụng vào file này:**
+- **A5** — ngưỡng tuyệt đối 500 triệu (Điều 9 TT27/2025/TT-NHNN, giao dịch chuyển tiền điện tử — số này **vẫn đúng, không đổi**, đã verify lại độc lập) không còn tự nó trigger hold. Detection dời sang `bank-service` (`bank.large_transaction_flagged`, đúng chủ thể pháp lý — bank giữ tiền, không phải platform). Hold chỉ kích hoạt khi ngưỡng tuyệt đối **đi kèm** ≥1 tín hiệu hành vi khác (track record mỏng/zero-variance/counterparty mới) — trước đó giá trị đơn thuần đã trigger hold, khiến gần như mọi hợp đồng thật (13,5-135 tỷ VNĐ theo ví dụ Doc02) bị treo chờ Admin, giết chết selling point "escrow tự thực thi" (§8).
+- **B4** — reputation trước đây một chiều (buyer xem seller, seller không có công cụ tự bảo vệ). Đối xứng hoá: expose reputation của buyer cho seller xem trước khi ký (dữ liệu `lock_entry` đã insert-only cho cả 2 role từ đầu, chỉ thiếu chiều hiển thị); thêm tín hiệu chống buyer lạm dụng `FLAG_ISSUE` vô cớ (tỷ lệ flag-rồi-thua/rút) — xem §6.1, §7 mục mới.
+
+Reputation-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức**, ngoại trừ bổ sung 06/07/2026 (tách 2 nhóm tín hiệu AML) — phần này về nguyên tắc đã chốt, không có điểm treo số liệu (ngưỡng 500 triệu là số luật định thật, không phải placeholder đoán).
 
 ---
 
-*Design session: 04/07/2026 · Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 04/07/2026 · Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Cập nhật: 08/07/2026 (rà soát end-to-end: hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service — A5; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse — B4) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
