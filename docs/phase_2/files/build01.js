@@ -229,6 +229,9 @@ push(...quote("Khi doanh nghiệp ký hợp đồng thu mua với nông dân ở
 push(P("Theo đánh giá tại Diễn đàn Thúc đẩy hợp tác liên kết chuỗi giá trị nông nghiệp (tháng 8/2024), chỉ khoảng 30% liên kết đạt mức bền chắc. Phần còn lại là liên kết lỏng lẻo, không có cơ chế thực thi."));
 push(...quote("Mô hình liên kết “4 nhà” đang đứt gãy vì nạn bẻ kèo. Cần lập các hợp đồng chuỗi ràng buộc trách nhiệm để ngân hàng tự tin giải ngân, thay vì chỉ chăm chăm đếm tài sản thế chấp.", "Bà Cao Xuân Thu Vân, Chủ tịch Liên minh Hợp tác xã Việt Nam"));
 push(src("Vietnamnet — 3 chiêu để hạn chế doanh nghiệp bẻ kèo, nông dân chạy làng (30/8/2024); Báo Pháp Luật TP.HCM — Nghịch lý xuất khẩu cà phê Việt (4/4/2026)."));
+push(P([runs("Bẻ kèo không phải giả định của nhóm — báo chí và cơ quan quản lý gọi thẳng tên trong năm 2026. ", { bold: true }), runs("Đài Tiếng nói Việt Nam (06/2026) mô tả tình trạng nông dân rũ bỏ cam kết đã ký khi thương lái đẩy giá, và nhấn mạnh rằng khi bẻ kèo xảy ra thì gần như không tồn tại cơ chế pháp lý đủ mạnh để bảo vệ quyền lợi — đây chính là khoảng trống mà AgriContract lấp. Báo Đắk Lắk (2024) ghi nhận điệp khúc “chặt–trồng, bẻ cọc, bẻ kèo” phá vỡ liên kết ngay tại vùng cà phê Tây Nguyên, thị trường lõi của hệ thống.", {})]));
+push(P([runs("Hiện tượng xảy ra theo cả hai chiều — nền tảng cho thiết kế đối xứng. ", { bold: true }), runs("Tạp chí Kinh tế Môi trường (VFC, 06/2026) xác nhận hợp đồng bao tiêu bị phá vỡ ở cả hai phía: khi giá thị trường vượt giá hợp đồng, một bộ phận nông dân bán ra ngoài; khi giá xuống dưới giá đã ký, một số doanh nghiệp từ chối thu mua hoặc ép giá lại. Vụ doanh nghiệp viện “bất khả kháng” không thu mua khoảng 2.000 tấn đu đủ như cam kết là ví dụ cụ thể cho nhánh doanh nghiệp bẻ kèo. Đây là căn cứ thực tế cho cơ chế penalty/lock đối xứng của AgriContract — cả bên mua lẫn bên bán đều chịu ràng buộc, không phải chỉ bảo vệ một phía.", {})]));
+push(src("VOV — Nạn bẻ kèo trong nông nghiệp (06/2026); Báo Đắk Lắk — Cái bẫy từ giá nông sản tăng đột biến (2024); Tạp chí Kinh tế Môi trường/VFC (06/2026); VnBusiness — liên kết đầu ra nông sản."));
 push(legal("Nghị định 98/2018/NĐ-CP, Điều 4 và Điều 15", "Hợp đồng liên kết sản xuất và tiêu thụ nông sản phải được lập thành văn bản (Điều 4). Các bên được lựa chọn phương thức phù hợp — thương lượng, hoà giải, hoặc trọng tài — mà không bắt buộc qua toà án (Điều 15)."));
 
 push(H2("2.2 Hàng dễ hỏng — mỗi ngày tranh chấp là thiệt hại không thu hồi được"));
@@ -238,10 +241,10 @@ push(legal("Luật Trọng tài Thương mại 2010, Điều 5", "Các bên có 
 
 push(H2("2.3 Bất đối xứng quyền lực — HTX không có công cụ tự bảo vệ"));
 push(P("Tại Đồng bằng sông Cửu Long, 90% sản lượng lúa vẫn tiêu thụ qua kênh thương lái, doanh nghiệp thu mua trực tiếp từ nông dân chỉ chiếm khoảng 10%. Bất đối xứng thông tin và quyền lực khiến HTX nhỏ không có khả năng đàm phán thực chất, càng không có nguồn lực pháp lý để tự bảo vệ khi bị vi phạm hợp đồng. Hệ quả kéo dài sang tận khả năng tiếp cận vốn:"));
-push(bullet("57% doanh nghiệp vừa và nhỏ chính thức tại Việt Nam không tiếp cận được tài chính (We-Fi / OCB, 2022)."));
-push(bullet("Khoảng cách tài chính SME so với nhu cầu tiềm năng ước tính 68%."));
-push(bullet("Nguyên nhân chính: thiếu tài sản thế chấp và không có lịch sử tín dụng chính thức có thể xác minh."));
-push(src("We-Fi & OCB — How cooperation from a bank gives wings to women entrepreneurs in Vietnam (2022)."));
+push(bullet("75,5% doanh nghiệp không thể tiếp cận tín dụng nếu thiếu tài sản thế chấp (VCCI — Báo cáo Kinh tế tư nhân 2025)."));
+push(bullet("Dư nợ tín dụng nông nghiệp nông thôn khoảng 4,2 triệu tỷ đồng (đầu 2026), chiếm hơn 22% tổng dư nợ nền kinh tế — quy mô lớn nhưng dòng vốn chưa chạm được doanh nghiệp vì phụ thuộc tài sản thế chấp."));
+push(bullet("Nguyên nhân chính: thiếu tài sản thế chấp và không có lịch sử tín dụng chính thức có thể xác minh — đúng khoảng trống dữ liệu dòng tiền mà AgriContract sinh ra."));
+push(src("VCCI — Báo cáo Kinh tế tư nhân 2025; VnEconomy, Báo Đầu Tư — khơi thông dòng vốn tín dụng nông nghiệp xanh và số (2026)."));
 
 // ============================================================
 // 3. WHY NOW
@@ -291,6 +294,22 @@ push(table(
   { size: 18 }
 ));
 push(src("Kamereo Series B (2024); Alibaba Trade Assurance."));
+push(P("Nhìn theo trục “tầng giá trị” thay vì từng sản phẩm, không đối thủ nào phủ đồng thời ba năng lực lõi của AgriContract — ký quỹ số hoá, hợp đồng tự thực thi theo milestone, và tranh chấp ba cấp:"));
+push(table(
+  [2280, 1900, 1780, 1900, 1778],
+  ["Đối thủ", "Tầng", "Ký quỹ?", "Tự thực thi?", "Tranh chấp 3-tier?"],
+  [
+    ["Kamereo / FoodMap / Koina", "Phân phối (tự mua-tự bán)", "Không", "Không", "Không"],
+    ["Agrichain / Intimex", "Truy xuất nguồn gốc", "Không", "Không", "Không"],
+    ["CeCA", "Hợp đồng điện tử", "Không", "Không (chỉ ký)", "Không"],
+    ["Escrow B2C (BCT / Ngân Lượng)", "Thanh toán bán lẻ", "Có (B2C)", "Không", "Không"],
+    ["Escrow ngân hàng (BIDV)", "Ký quỹ thủ công", "Có (thủ công)", "Không", "Không"],
+    ["AgriContract", "Thực thi hợp đồng B2B forward", "Có (số hoá)", "Có (milestone)", "Có (INSPECTOR 3-tier)"],
+  ],
+  { size: 18 }
+));
+push(P([runs("Câu chốt: ", { bold: true }), runs("ô “tự thực thi + tranh chấp 3-tier cho forward contract B2B” trống ở mọi đối thủ. Các nhóm hiện có hoặc tự mua-tự bán (phân phối), hoặc chỉ truy xuất/ký, hoặc chỉ ký quỹ cho bán lẻ B2C — không nhóm nào thực thi vòng đời hợp đồng forward B2B nông sản. Đó chính là khoảng trống AgriContract chiếm.", {})]));
+push(src("Tổng hợp rà soát đối thủ trực tiếp — Kamereo, FoodMap, Koina, Agrichain/Intimex, CeCA, cổng thanh toán B2C được NHNN cấp phép, dịch vụ ký quỹ ngân hàng (2025-2026)."));
 
 push(H2("4.2 Vì sao khoảng trống contract layer vẫn còn tồn tại"));
 push(P([runs("Phân khúc sai. ", { bold: true }), runs("Các startup đã thử gia nhập thị trường agtech Việt Nam đều tiếp cận sai phân khúc: bán trực tiếp cho nông dân lẻ, nơi quy mô giao dịch quá nhỏ để unit economics có thể hoạt động. Không ai trong số đó xây dựng mô hình triển khai qua hiệp hội ngành hàng — đây là cách duy nhất giải quyết được vấn đề niềm tin ở tầng HTX mà không cần startup tự xây dựng thương hiệu từ đầu.", {})]));
@@ -301,6 +320,22 @@ push(P([runs("Thời điểm. ", { bold: true }), runs("Trước khi EUDR có de
 // ============================================================
 // 5. PAIN POINTS
 // ============================================================
+push(H2("4.3 Bốn ngành — bốn cấu hình, một nền tảng"));
+push(P("Bốn ngành hàng mục tiêu không đồng nhất về yêu cầu: EUDR chỉ áp cà phê và cao su (không áp gạo và điều); nguồn giá tự động chỉ có cho cà phê/gạo (VNSAT) và cao su (quốc tế); geolocation chỉ bắt buộc cho ngành thuộc EUDR. AgriContract xử lý sự khác biệt này bằng thiết kế module hoá — bật/tắt tầng geolocation và giá tham chiếu theo commodity — thay vì ép một cấu hình chung cho mọi ngành."));
+push(table(
+  [1300, 1450, 1650, 1650, 3588],
+  ["Ngành", "Thuộc EUDR?", "Giá tự động?", "Geolocation?", "Động lực chính cho AgriContract"],
+  [
+    ["Cà phê", "Có — nặng nhất", "Có (VNSAT)", "Bắt buộc", "EUDR + escrow + tranh chấp — cấu hình đầy đủ"],
+    ["Gạo", "Không", "Có (VNSAT)", "Tuỳ chọn", "Escrow + tranh chấp + Đề án 1 triệu ha"],
+    ["Cao su", "Có", "Có (quốc tế)", "Bắt buộc", "EUDR + escrow — có giá tham chiếu quốc tế"],
+    ["Điều", "Không", "Không (Admin)", "Không", "Escrow + tranh chấp — core tối giản"],
+  ],
+  { size: 18 }
+));
+push(P([runs("Ý nghĩa cho phản biện: ", { bold: true }), runs("bốn ngành cho bốn cấu hình khác nhau chứng minh geolocation/EUDR là module bật-tắt theo luật, không phải năng lực lõi phổ quát. Điều — không EUDR, không giá tự động — là ví dụ cho thấy giá trị cốt lõi (escrow + tranh chấp + uy tín) vận hành độc lập với EUDR; cà phê là ví dụ đầy đủ tính năng. Đây là câu trả lời sẵn cho câu hỏi “vì sao đầu tư nặng vào geolocation mà chỉ phục vụ 2/4 ngành”.", {})]));
+push(src("Tổng hợp rà soát bốn ngành hàng — phạm vi EUDR (EU 2023/1115), nguồn giá VNSAT/quốc tế, yêu cầu geolocation theo commodity (2026)."));
+
 push(H1("5. Ba pain point hệ thống và ánh xạ giải pháp"));
 push(P("Ba đặc thù cấu trúc ở Mục 2 biểu hiện thành ba pain point cụ thể trong vận hành. Bảng dưới ánh xạ từng pain point sang cơ chế giải quyết của nền tảng và căn cứ pháp lý tương ứng."));
 push(table(
@@ -318,9 +353,9 @@ push(table(
 // 6. LONG TERM VISION
 // ============================================================
 push(H1("6. Tầm nhìn dài hạn — hạ tầng dữ liệu cho tín dụng nông nghiệp"));
-push(P("57% doanh nghiệp vừa và nhỏ chính thức tại Việt Nam không tiếp cận được tài chính, chủ yếu vì thiếu tài sản thế chấp và không có lịch sử tín dụng có thể xác minh (We-Fi / OCB, 2022). AgriContract tích luỹ chính xác dữ liệu mà ngân hàng cần để đánh giá tín dụng: lịch sử hoàn thành hợp đồng, tỷ lệ giao hàng đúng hạn, kết quả kiểm định chất lượng, và điểm đánh giá từ đối tác. Đây là credit profile thực chất — không phải tài sản thế chấp, không phải báo cáo tài chính."));
+push(P("75,5% doanh nghiệp không thể tiếp cận tín dụng nếu thiếu tài sản thế chấp (VCCI, Báo cáo Kinh tế tư nhân 2025) — trong khi dư nợ tín dụng nông nghiệp nông thôn khoảng 4,2 triệu tỷ đồng vẫn phụ thuộc gần như hoàn toàn vào bất động sản thế chấp. Diễn ngôn chính sách 2026 kêu gọi chuyển từ “vay dựa trên tài sản thế chấp” sang “vay dựa trên dòng tiền và hiệu quả phương án sản xuất”. AgriContract tích luỹ chính xác dữ liệu mà ngân hàng cần để cho vay theo dòng tiền: lịch sử hoàn thành hợp đồng, tỷ lệ giao hàng đúng hạn, kết quả kiểm định chất lượng, và điểm đánh giá từ đối tác. Đây là credit profile thực chất — khi chuỗi liên kết minh bạch, chính dòng tiền ổn định trở thành tài sản đảm bảo bằng niềm tin, thay cho bất động sản thế chấp."));
 push(P("BIDV đã tham gia nền tảng Agrichain blockchain với vai trò xác thực dữ liệu — không chỉ là bên tài trợ vốn. Đây là dịch chuyển có chủ đích từ cho vay theo tài sản thế chấp sang cho vay theo dữ liệu giao dịch. AgriContract xây dựng đúng lớp hạ tầng mà xu hướng này cần: dữ liệu uy tín tích luỹ được thiết kế để có thể xuất ra làm tham chiếu tín dụng cho bên thứ ba khi có đối tác chính thức."));
-push(src("Vietnam.vn — Xu hướng ứng dụng ngân hàng số vào chuỗi cung ứng nông sản (4/4/2026); We-Fi / OCB — SME financing gap 68% in Vietnam (2022)."));
+push(src("Vietnam.vn — Xu hướng ứng dụng ngân hàng số vào chuỗi cung ứng nông sản (4/4/2026); VCCI — Báo cáo Kinh tế tư nhân 2025; VnEconomy — khơi thông dòng vốn tín dụng nông nghiệp xanh và số (2026))."));
 
 // ============================================================
 // 7. LEGAL FRAMEWORK

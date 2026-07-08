@@ -108,6 +108,60 @@ Payload mỗi event mang sẵn số tiền đã tính (không phải rate thô) 
 
 **Cơ chế:** bắn ngay khi `LedgerEntry` được ghi (không hold, không chờ Admin) — cùng transaction với insert `ledger_entry`. Payload: `{entryId, contractId, userId, amount, entryType, createdAt}`. Consumer: reputation-service (composite fraud score, không phải trigger hold độc lập — xem `reputation-service-phase2-design.md` §8), audit-service (bằng chứng cho nghĩa vụ báo cáo nếu sau này tích hợp ngân hàng thật). Thực tế ngân hàng thật vẫn cho giao dịch chạy rồi báo cáo Cục Phòng, chống rửa tiền trong 1 ngày làm việc (dữ liệu điện tử) — không đóng băng giao dịch chỉ vì vượt ngưỡng.
 
+### 3.5 Emergency Lock — Zero-Trust Kill Switch cho External Verifier (mới, 08/07/2026, ĐANG MỞ LẠI SESSION)
+
+**Bối cảnh — lỗ hổng đã ghi nhận ở `hash-chain-phase2-design.md` §6:** toàn bộ 3 lớp bảo vệ hash chain đứng trên giả định trusted-operator, và cơ chế phát hiện tampering (`VerifyChainJob`) chạy **bên trong** platform — nếu chính Admin sửa data DB rồi vô hiệu hoá/lờ job đó đi, không có gì chặn được. Kill switch này thu hẹp đúng lỗ hổng đó: cho **bên xác minh ngoài** (External Verifier) một đường tự query hash để đối soát độc lập, và một đường tự đóng băng toàn hệ thống khi phát hiện lệch — không phụ thuộc bất kỳ job nào chạy trong platform.
+
+**Ai là External Verifier — KHÔNG cột cứng vào VICOFA:** đây là **tổ chức mua & vận hành platform** (Software Buyer — dùng đúng thuật ngữ đã có ở `hash-chain-phase2-design.md` §5.2), có thể là VICOFA, VRA, VINACAS, hoặc doanh nghiệp thu mua uy tín bất kỳ tuỳ deployment. Cơ chế chạy y hệt bất kể ai đóng vai — VICOFA chỉ là ví dụ minh hoạ thực tế nhất (đang có liên kết ngành), **không phải điều kiện bắt buộc** để cơ chế hoạt động. Mọi field/event/config dưới đây đặt tên generic (`verifierOrgId`, `EXTERNAL_VERIFIER_*`), không hardcode tên riêng tổ chức nào.
+
+**Vì sao không dùng API key/JWT thường bảo vệ 2 endpoint này:** Admin có quyền chui DB hoặc đọc environment variable → lấy được mọi secret đối xứng (API key, JWT signing secret) lưu trong tầm với runtime. Vũ khí duy nhất trị được Admin nội bộ ở case này là **mật mã bất đối xứng** — External Verifier giữ private key trong hạ tầng của họ (platform không bao giờ biết), platform chỉ giữ **public key** để verify chữ ký. Admin xem được public key cũng vô dụng: public key chỉ kiểm tra được chữ ký, không tạo ra chữ ký.
+
+#### 3.5.1 Ba đường, phân biệt rõ đọc vs thay-đổi-trạng-thái
+
+| Đường | Method | Auth | Bản chất |
+|---|---|---|---|
+| Query hash đối soát | `GET /api/v1/security/audit-hash?contractId=...` | Nhẹ (API key thường + rate limit) | **Chỉ đọc** — hash không phải bí mật, ai cầm bản gốc tự tính lại cũng ra; không cần chữ ký |
+| Emergency lock | `POST /api/v1/security/emergency-lock` | **Chữ ký bất đối xứng** External Verifier | **Đổi trạng thái** (đóng băng tiền) — bắt buộc asymmetric |
+| Emergency unlock | `POST /api/v1/security/emergency-unlock` | **Chữ ký bất đối xứng** External Verifier | **Đổi trạng thái** (mở băng) — mirror với lock, không có đường tắt cho Admin |
+
+Query endpoint chỉ cần auth nhẹ vì đọc hash không thay đổi gì; 2 endpoint lock/unlock đổi trạng thái tiền nên bắt buộc asymmetric. **Không** gộp chung cơ chế cho cả 3 — đọc mà bắt asymmetric là thừa, đổi-trạng-thái mà chỉ API key là hở đúng lỗ Admin.
+
+#### 3.5.2 Chống replay attack (lock & unlock)
+
+Payload bắt buộc mang `timestamp` + `nonce`, và **cả hai nằm trong chuỗi được ký**, không để rời ngoài header:
+
+```
+signedPayload = { action: "LOCK" | "UNLOCK", reason, timestamp, nonce }
+signature     = sign(SHA256(canonical_json(signedPayload)), verifierPrivateKey)   // phía External Verifier
+```
+
+Platform verify: (1) chữ ký khớp public key đang đăng ký; (2) `timestamp` trong cửa sổ cho phép (VD ±300s) — chặn gói tin cũ bị bắt lại bắn sau; (3) `nonce` chưa từng thấy (lưu bảng `used_nonce`, TTL theo cửa sổ timestamp) — chặn bắn lại y hệt trong cửa sổ. Ký gộp `timestamp`+`nonce` vào chính chuỗi ký (không để header rời) để verify 1 lần là xong, không phải verify chữ ký rồi lại check riêng field khác có bị sửa không — attacker MITM bắt được request hợp lệ vẫn không tạo được chữ ký mới cho `nonce` mới vì không có private key.
+
+#### 3.5.3 Gate — chốt chặn duy nhất, tận dụng "escrow-service là actor duy nhất"
+
+Vì escrow-service là **actor duy nhất** gọi bank-service (§3), không cần sửa contract-service/escrow-service để "đóng băng toàn hệ thống" — chỉ cần **1 chốt chặn ngay đầu bank-service**: trước khi xử lý bất kỳ `bank.lock_requested`/`release_requested`/`seize_requested`/`refund_requested` nào, check `SELECT 1 FROM system_lock WHERE status='ACTIVE'`. Có row ACTIVE → **không ghi ledger**, publish `bank.*_failed` tương ứng (đúng pattern request/confirmation §3, không cần state mới). escrow-service/contract-service không cần biết gì về freeze — chúng chỉ thấy `bank.*_failed` và tự xử theo nhánh fail sẵn có.
+
+#### 3.5.4 Tách freeze (kỹ thuật) khỏi notify (con người) — giữ nguyên tinh thần hash-chain §5.2
+
+- **Freeze:** tự động, tức thì, toàn cục, không ai duyệt. Freeze toàn cục (không phải chỉ 1 contract) vì tamper 1 điểm trong chain nghĩa là không còn tin được record nào khác cho tới khi điều tra xong — không có cơ sở khoanh vùng lúc mới phát hiện.
+- **Notify tự động:** chỉ 2 nơi — Admin (điều tra kỹ thuật) + External Verifier (xác nhận đã nhận lệnh). **KHÔNG** tự động email buyer/seller thật của từng hợp đồng — giữ đúng quyết định `hash-chain-phase2-design.md` §5.2: chỉ báo buyer/seller sau khi Admin khoanh vùng đúng `contract_id` bị ảnh hưởng, tránh hoảng loạn oan cho hàng loạt hợp đồng không liên quan.
+
+#### 3.5.5 Unlock — mirror lock, không ngoại lệ cho Admin
+
+Admin **không có** API/quyền nào set `system_lock.status='RELEASED'` trực tiếp. Muốn mở băng bắt buộc có request unlock **ký bởi External Verifier** (cùng cơ chế §3.5.2). Quy trình: Admin điều tra xong → báo External Verifier (ngoài hệ thống) → họ xem xét, đồng ý thì tự ký request unlock. Platform không tự động unlock trong **bất kỳ** trường hợp nào, kể cả false-positive đã chứng minh — vẫn cần chữ ký thật. Một khi có 1 ngoại lệ cho Admin (dù lý do chính đáng), cơ chế mất hết ý nghĩa vì Admin chính là bên đang phòng.
+
+#### 3.5.6 Public key của External Verifier — root-of-trust không nằm trong tầm Admin runtime
+
+Đây là điểm quyết định cơ chế đứng vững hay sụp. Public key **không** được lưu chỗ Admin sửa được lúc chạy (DB config table / env var) — nếu lưu đó, Admin swap public key bằng key của chính họ → tự ký giả mạo External Verifier, hoặc âm thầm đổi key để mọi cảnh báo thật bị verify fail và bị bỏ qua. Ba lớp bảo vệ root-of-trust:
+
+1. **Genesis key baked deploy-time:** public key ban đầu nằm trong config đi theo build artifact / secret do bên vận hành hạ tầng quản lý — **không phải** "Admin" (vai trò nghiệp vụ có quyền chui DB/env runtime). Đây là 2 vai trò khác nhau; Admin runtime không có quyền redeploy hay đổi secret hạ tầng.
+2. **Mọi lần rotation là 1 event anchor vào hash chain:** đăng ký/đổi public key = `source_type = 'EXTERNAL_VERIFIER_KEY_REGISTERED'` mới trong `audit_record` (`hash-chain-phase2-design.md` §2, đang bổ sung song song), **và** gửi email fingerprint key thẳng vào hộp thư External Verifier lúc đăng ký — ngoài tầm platform y hệt email anchor lúc `sign()`. Admin lén đổi giá trị config → lệch với record đã anchor trong chain (`VerifyChainJob` bắt được) và lệch với fingerprint External Verifier tự giữ.
+3. **Rotation hợp lệ phải ký bởi key CŨ:** muốn đổi sang public key mới, cần message ký bởi private key **đang có hiệu lực** ("tôi xác nhận đổi sang public key = XYZ"). Admin không có private key nào của External Verifier → không tạo được rotation hợp lệ, chỉ đổi được giá trị DB thô và giá trị đó sẽ lệch chain/email như lớp 2.
+
+#### 3.5.7 Lock & unlock cũng vào hash chain
+
+Cả 2 hành động vào `audit_record` như `source_type` mới (`SECURITY_LOCK_TRIGGERED` / `SECURITY_UNLOCK_TRIGGERED`) — đúng tiêu chí Event Catalog (`hash-chain-phase2-design.md` §2: "quyết định có thể bị tranh chấp làm bằng chứng sau này"). Kill switch tự nó cũng phải tamper-evident, không chỉ tiền mới cần.
+
 ---
 
 ## 4. Idempotency
@@ -148,6 +202,35 @@ CREATE INDEX idx_ledger_entry_user ON ledger_entry(user_id);
 -- Không có bảng "account" riêng — số dư luôn derive từ SUM(amount) lọc theo contract_id/milestone_id/user_id/entry_type.
 ```
 
+**Kill switch — `system_lock` + `used_nonce` (§3.5):**
+
+```sql
+CREATE TABLE system_lock (
+    lock_id         UUID PRIMARY KEY,
+    status          VARCHAR(20) NOT NULL,    -- 'ACTIVE' | 'RELEASED'
+    verifier_org_id UUID NOT NULL,           -- External Verifier (Software Buyer) đã trigger — generic, không hardcode tên tổ chức
+    reason          TEXT,
+    triggered_at    TIMESTAMP NOT NULL,
+    released_at     TIMESTAMP NULL
+);
+-- Gate check §3.5.3: SELECT 1 FROM system_lock WHERE status='ACTIVE' trước mọi bank.*_requested.
+
+CREATE TABLE used_nonce (
+    nonce       VARCHAR(64) PRIMARY KEY,      -- chống replay §3.5.2
+    seen_at     TIMESTAMP NOT NULL DEFAULT now()
+);
+-- Dọn định kỳ nonce quá cửa sổ timestamp cho phép (±300s) — không cần giữ mãi.
+```
+
+**`wallet_snapshot` — known scaling path, KHÔNG build trong Phase 2 (ghi nhận có chủ đích):**
+
+Ở quy mô đồ án (vài trăm hợp đồng × vài milestone → vài nghìn `ledger_entry` là max thực tế), `SUM(amount)` với 2 index sẵn có chạy dưới 50ms thoải mái — không cần snapshot. Đây là scaling path đã nghĩ tới, ghi lại để defend "đã tính tới scale" khi hội đồng hỏi, cùng cách `hash-chain-phase2-design.md` §5.1 xử lý chi phí O(n) của `VerifyChainJob`:
+
+- **Vấn đề nếu chain phình:** derive số dư qua `SUM()` là O(n) theo số entry của contract/user — với hàng triệu giao dịch (kịch bản productize dài hạn, không phải scope hiện tại) sẽ chậm dần.
+- **Hướng fix — Snapshotting:** chốt sổ số dư định kỳ vào `wallet_snapshot(scope_key, total, cutoff_entry_id, snapshotted_at)`. Balance query = `snapshot.total + SUM(amount WHERE entry_id > snapshot.cutoff_entry_id)` — chỉ cộng phần mới sau snapshot.
+- **Ràng buộc để không thành dual-write (§5):** snapshot phải là **derived, single-writer, idempotent** — đúng 1 job tự tính lại từ `ledger_entry` (không service nào khác ghi tay vào), cutoff dùng `cutoff_entry_id` (không dùng timestamp — timestamp có race ở biên). Snapshot chỉ là bản tính sẵn tự vá lại được từ `ledger_entry` bất cứ lúc nào, không phải nguồn số dư thứ hai phải đồng bộ tay.
+- **Không code trong Phase 2** — nêu hướng + ràng buộc là đủ; build 1 job không ai stress-test nổi ở quy mô triệu-dòng chỉ tạo rủi ro "sao biết cần" mà không chứng minh được.
+
 ---
 
 ## 7. Known Limitations / Out of Scope (có chủ đích)
@@ -156,6 +239,7 @@ CREATE INDEX idx_ledger_entry_user ON ledger_entry(user_id);
 - **Vai trò arbitrator (docx §3.3) bị superseded** — ghi vào `decisions.md` `[2026-07-03]`, không xoá docx gốc: mock bank không đủ điều kiện độc lập/trách nhiệm pháp lý cần có cho vai arbitrator, INSPECTOR licensed org thoả điều kiện đó trong giới hạn Phase 2.
 - **Roadmap docx §4.2 "Bank Integration — tích hợp escrow thật"** — định vị lại trong `decisions.md` cùng entry `[2026-07-03]`, không xoá: mục tiêu Phase 2 là thiết kế sẵn sàng tích hợp, không phải tích hợp thật.
 - **Multi-bank (Agribank vs BIDV)** — không cần model, mock giả định 1 pooled account duy nhất.
+- **Kill switch phụ thuộc External Verifier tồn tại & giữ private key an toàn (§3.5)** — cơ chế chỉ chạy khi deployment có 1 tổ chức vận hành (Software Buyer) đóng vai verifier và giữ private key trong hạ tầng của họ. Không cột cứng VICOFA — bất kỳ tổ chức mua platform nào cũng đóng vai này. Nếu External Verifier để lộ private key hoặc chính họ thông đồng với Admin, cơ chế không còn tác dụng — đây là giới hạn cố hữu của mô hình trusted-operator (`hash-chain-phase2-design.md` §6), không phải lỗi thực thi. Genesis public key baked deploy-time nằm ngoài tầm Admin runtime là điều kiện tiên quyết để cơ chế đứng vững (§3.5.6).
 
 ---
 
@@ -174,8 +258,14 @@ CREATE INDEX idx_ledger_entry_user ON ledger_entry(user_id);
 - **A3** — thêm mapping event→ledger cho Provisional Settlement Level 2 (3 event mới từ `milestone-escrow-phase2-design.md` §3.2), trước đây bank-service hoàn toàn chưa đụng luồng này (§3.3).
 - **A5** — thêm `bank.large_transaction_flagged` — đúng chủ thể pháp lý (bank ghi nhận + báo cáo, không hold), đúng ngưỡng 500 triệu (Điều 9 TT27/2025/TT-NHNN — giao dịch chuyển tiền điện tử, không phải 400 triệu của Điều 6 vốn áp dụng cho giao dịch tiền mặt) (§3.4).
 
-Bank-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
+**Chốt bổ sung (08/07/2026, chiều) — MỞ LẠI SESSION, thêm Kill Switch, CHƯA ĐÓNG LẠI:**
+- **§3.5 — Emergency Lock / Zero-Trust Kill Switch cho External Verifier:** thu hẹp lỗ hổng `hash-chain-phase2-design.md` §6 (phát hiện tampering phụ thuộc job chạy trong platform). External Verifier (generic — Software Buyer bất kỳ, không cột cứng VICOFA) tự query hash đối soát độc lập + tự đóng băng toàn hệ thống qua chữ ký bất đối xứng khi phát hiện lệch. Gate = 1 chốt chặn `system_lock` ở đầu bank-service (tận dụng escrow-service là actor duy nhất). Freeze tự động toàn cục, tách khỏi notify buyer/seller (giữ hash-chain §5.2). Unlock mirror lock, không ngoại lệ Admin. Root-of-trust (public key) baked deploy-time ngoài tầm Admin runtime, rotation ký bởi key cũ + anchor vào chain.
+- **`wallet_snapshot`** (§6) — known scaling path, nêu hướng + ràng buộc chống dual-write, KHÔNG build Phase 2.
+
+**Việc còn treo:** (1) đồng bộ với `hash-chain-phase2-design.md` — 2 `source_type` mới (`EXTERNAL_VERIFIER_KEY_REGISTERED`, `SECURITY_LOCK_TRIGGERED`/`_UNLOCK_`) phải được thêm bên đó (đang làm song song); (2) review lại §3.5 end-to-end trước khi đóng lại session — **chưa promote lên SDS/Architecture cho tới khi đóng.**
+
+Bank-service — ledger mechanics **đã đóng**; phần Kill Switch (§3.5) **đang mở, chờ review đóng lại.**
 
 ---
 
-*Design session: 03/07/2026 · Cập nhật: 04/07/2026 (ledger mechanics cho Delta 1/2 + buyerDepositRate) · Cập nhật: 08/07/2026 (rà soát end-to-end: tách entryType 2 loại cọc — B6; mapping Provisional Settlement Level 2 — A3; thêm bank.large_transaction_flagged đúng ngưỡng/chủ thể pháp lý — A5) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 03/07/2026 · Cập nhật: 04/07/2026 (ledger mechanics cho Delta 1/2 + buyerDepositRate) · Cập nhật: 08/07/2026 sáng (rà soát end-to-end: tách entryType 2 loại cọc — B6; mapping Provisional Settlement Level 2 — A3; thêm bank.large_transaction_flagged đúng ngưỡng/chủ thể pháp lý — A5) · Cập nhật: 08/07/2026 chiều (MỞ LẠI: §3.5 Emergency Lock Kill Switch cho External Verifier + system_lock/used_nonce schema + wallet_snapshot scaling note — chưa đóng lại session) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*

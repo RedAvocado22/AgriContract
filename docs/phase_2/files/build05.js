@@ -100,8 +100,8 @@ push(table(
 ));
 push(P([runs("Quyền claim bất khả kháng ", { bold: true }), runs("không gắn cứng một bước — có thể chen ngang bất kỳ lúc nào trước khi milestone SETTLED, miễn còn trong forceMajeureReportWindowDays kể từ lúc seller biết sự kiện (không neo theo ngày giao).", {})]));
 
-push(P([runs("Provisional settlement khi CONTESTED escalate Level 2 (mới, 06/07/2026). ", { bold: true }), runs("Khi DisputeRoutingService route milestone CONTESTED sang LEVEL_2, platform commission tổ chức Level 2 (InitiateLevel2Inspection) và chờ report thật trong tối đa level2BufferWindowDays. Hết window mà report chưa CONFIRMED: platform commission thêm 1 giám định Level 1.5 làm phán quyết tạm thời, settle ngay (1 − level2SafetyBufferRate) của batchAmount cho seller theo số 1.5, giữ khoá phần còn lại trong escrow (không ghi debt — seller không có tài sản đối ứng để đòi). Khi report Level 2 thật về sau đó, chênh lệch (nếu có) trừ/bù thẳng từ buffer đang khoá. Hết thêm level2BufferTerminalDays (placeholder 30 ngày, tính từ lúc level2BufferWindowDays hết) mà vẫn chưa có report CONFIRMED: phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer cho seller, đóng milestone.", {})]));
-push(bullet([runs("Chưa đóng — còn treo (06/07/2026): ", { bold: true }), runs("cả 3 số (level2BufferWindowDays 7-14 ngày, level2SafetyBufferRate 10-15%, level2BufferTerminalDays 30 ngày) là placeholder, chưa validate với đơn vị Level 2 thật. Chi tiết đầy đủ ở milestone-escrow-phase2-design.md §3.2.", {})]));
+push(P([runs("Provisional settlement khi CONTESTED escalate Level 2 (mới, 06/07/2026). ", { bold: true }), runs("Khi DisputeRoutingService route milestone CONTESTED sang LEVEL_2, platform commission tổ chức Level 2 (InitiateLevel2Inspection) và chờ report thật trong tối đa level2BufferWindowDays. Hết window mà report chưa CONFIRMED: platform commission thêm 1 giám định Level 1.5 làm phán quyết tạm thời, settle ngay (1 − level2SafetyBufferRate) của batchAmount cho seller theo số 1.5, giữ khoá phần còn lại trong escrow (không ghi debt — seller không có tài sản đối ứng để đòi). Mechanics đầy đủ 3 bước (Provisional/Reconcile/Terminal, chi tiết milestone-escrow-phase2-design.md §3.2): Bước 1 provisional release X15×(1−rate) cho seller; Bước 2 khi report Level 2 thật về, bù/refund phần chênh; Bước 3 hết terminal cutoff mà report không về thì phán quyết Level 1.5 thành chung thẩm. Hết thêm level2BufferTerminalDays (placeholder 30 ngày, tính từ lúc level2BufferWindowDays hết) mà vẫn chưa có report CONFIRMED: phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer cho seller, đóng milestone.", {})]));
+push(bullet([runs("Chưa đóng — còn treo (06/07/2026): ", { bold: true }), runs("level2BufferWindowDays đã neo 5-10 ngày theo benchmark SCA (08/07/2026); level2SafetyBufferRate (10-15%) và level2BufferTerminalDays (30 ngày) vẫn placeholder honest, chưa validate với đơn vị Level 2 thật. Chi tiết đầy đủ ở milestone-escrow-phase2-design.md §3.2.", {})]));
 
 push(H2("2.4 Quy tắc nghiệp vụ — Delta 1 và Delta 2"));
 push(table(
@@ -359,7 +359,7 @@ push(table(
   [3400, 3100, 3138],
   ["Lệnh (escrow → bank)", "Xác nhận (bank → escrow)", "Ledger entryType"],
   [
-    ["bank.lock_requested", "bank.lock_completed / _failed", "LOCK_DEPOSIT / LOCK_MILESTONE"],
+    ["bank.lock_requested", "bank.lock_completed / _failed", "LOCK_BUYER_DEPOSIT / LOCK_SELLER_DEPOSIT / LOCK_MILESTONE"],
     ["bank.release_requested", "bank.release_completed / _failed", "RELEASE_TO_SELLER"],
     ["bank.seize_requested", "bank.seize_completed / _failed", "SEIZE_PENALTY"],
     ["bank.refund_requested", "bank.refund_completed / _failed", "REFUND_TO_BUYER"],
@@ -375,14 +375,36 @@ push(codeblock([
   "  contract_id     UUID NOT NULL,",
   "  milestone_id    UUID NULL,              -- NULL = buyerDepositRate (cấp contract)",
   "  user_id         UUID NOT NULL,",
-  "  entry_type      VARCHAR(20) NOT NULL,   -- LOCK_DEPOSIT|LOCK_MILESTONE|RELEASE_TO_SELLER",
-  "                                          -- |SEIZE_PENALTY|REFUND_TO_BUYER",
+  "  entry_type      VARCHAR(24) NOT NULL,   -- LOCK_BUYER_DEPOSIT|LOCK_SELLER_DEPOSIT|LOCK_MILESTONE",
+  "                                          -- |RELEASE_TO_SELLER|SEIZE_PENALTY|REFUND_TO_BUYER",
   "  amount          DECIMAL(15,2) NOT NULL,",
   "  created_at      TIMESTAMP NOT NULL DEFAULT now()",
   ");",
   "CREATE INDEX idx_ledger_contract ON ledger_entry(contract_id, milestone_id);",
   "CREATE INDEX idx_ledger_user ON ledger_entry(user_id);",
   "-- Không có bảng 'account': số dư = SUM(amount) lọc theo tiêu chí, tính lúc cần.",
+]));
+push(P([runs("Ghi chú tách 2 loại cọc (08/07/2026): ", { bold: true }), runs("buyerDepositRate dùng LOCK_BUYER_DEPOSIT, sellerDepositRate (optional) dùng LOCK_SELLER_DEPOSIT — 2 entryType riêng để ledger phân biệt được nguồn cọc lúc release/seize/refund, thay vì gộp chung LOCK_DEPOSIT.", {})]));
+
+push(H2("4.4 bank.large_transaction_flagged — báo cáo giao dịch giá trị lớn, không hold"));
+push(P("LedgerEntry nào ≥ 500.000.000 VNĐ (ngưỡng giao dịch chuyển tiền điện tử trong nước, Điều 9 Thông tư 27/2025/TT-NHNN) → publish bank.large_transaction_flagged ngay khi ghi entry, cùng transaction, KHÔNG hold. Nghĩa vụ báo cáo giao dịch giá trị lớn thuộc tổ chức tài chính giữ tiền, không phải platform số hoá hợp đồng — nên bank-service chỉ ghi nhận + tạo audit trail, không đóng băng giao dịch. Consumer: reputation-service (composite fraud score), audit-service."));
+push(legal("Thông tư 27/2025/TT-NHNN, Điều 9; Luật Phòng, chống rửa tiền 2022, Điều 4", "Ngưỡng 500 triệu áp cho giao dịch chuyển tiền điện tử (đúng loại operation lock/release/refund của ledger), khác ngưỡng 400 triệu cho giao dịch tiền mặt (Điều 6). Ngân hàng thật cho giao dịch chạy rồi báo cáo Cục Phòng, chống rửa tiền trong 1 ngày làm việc — không đóng băng theo ngưỡng."));
+
+push(H2("4.5 Emergency Lock — Zero-Trust Kill Switch cho External Verifier"));
+push(P("Thu hẹp lỗ hổng trusted-operator (audit-service §4, phần dưới): cho tổ chức vận hành platform (External Verifier / Software Buyer — VICOFA/VRA/doanh nghiệp bất kỳ, không cột cứng 1 tên) một đường độc lập để đóng băng toàn hệ thống khi phát hiện tampering, không phụ thuộc job chạy trong platform."));
+push(bullet([runs("Gate 1 chốt chặn: ", { bold: true }), runs("vì escrow-service là actor duy nhất gọi bank-service, chỉ cần check system_lock (status=ACTIVE) trước mọi bank.*_requested — có lock thì reject, publish bank.*_failed; không service nào khác cần biết về freeze.", {})]));
+push(bullet([runs("Chữ ký bất đối xứng: ", { bold: true }), runs("POST /security/emergency-lock và /emergency-unlock KHÔNG dùng API key/JWT (Admin chui DB/env lấy được secret đối xứng) — dùng RSA/ECDSA: External Verifier giữ private key, platform chỉ giữ public key. Payload gồm timestamp + nonce nằm trong chuỗi ký, chống replay.", {})]));
+push(bullet([runs("Freeze tách khỏi notify: ", { bold: true }), runs("freeze tự động toàn cục; buyer/seller KHÔNG được tự động báo cho tới khi Admin khoanh vùng xong (giữ audit-service §5.3). Unlock mirror lock — cần chữ ký External Verifier, không ngoại lệ Admin.", {})]));
+push(bullet([runs("Root-of-trust: ", { bold: true }), runs("public key baked deploy-time (ngoài tầm Admin runtime); mỗi lần rotation là 1 event EXTERNAL_VERIFIER_KEY_REGISTERED anchor vào hash chain + email fingerprint cho External Verifier; rotation phải ký bởi key cũ.", {})]));
+push(P([runs("wallet_snapshot — scaling path, không build Phase 2: ", { bold: true }), runs("ở quy mô đồ án (vài nghìn entry) SUM có index chạy dưới 50ms; snapshot chốt sổ định kỳ (cutoff theo entry_id, single-writer, derived) chỉ ghi nhận là hướng scale khi lên hàng triệu giao dịch, không thực thi.", {})]));
+push(codeblock([
+  "CREATE TABLE system_lock (",
+  "  lock_id         UUID PRIMARY KEY,",
+  "  status          VARCHAR(20) NOT NULL,   -- ACTIVE | RELEASED",
+  "  verifier_org_id UUID NOT NULL,          -- External Verifier (generic, không hardcode tên)",
+  "  reason          TEXT, triggered_at TIMESTAMP NOT NULL, released_at TIMESTAMP NULL",
+  ");",
+  "CREATE TABLE used_nonce (nonce VARCHAR(64) PRIMARY KEY, seen_at TIMESTAMP NOT NULL);",
 ]));
 
 // ============================================================
@@ -455,7 +477,7 @@ push(table(
     ["buyerDepositRate", "ContractTerms", "Mặc định 5% totalAmount"],
     ["sellerDepositRate (mới, 06/07/2026)", "ContractTerms", "Optional, mặc định 0 — đàm phán per-contract, thay quyết định \"bỏ hẳn\" trước đây"],
     ["forceMajeureReportWindowDays", "ContractTerms", "Mặc định 3 ngày; khác theo mặt hàng"],
-    ["level2BufferWindowDays (mới, 06/07/2026)", "application.yml", "Placeholder 7-14 ngày làm việc — chưa validate với đơn vị Level 2 thật"],
+    ["level2BufferWindowDays (06/07/2026, neo lại 08/07/2026)", "application.yml", "5-10 ngày làm việc — neo theo benchmark lab test cà phê chuẩn SCA (5 ngày/mẫu) + buffer vận chuyển, thay số đoán 7-14; chưa validate với đơn vị Level 2 thật cho thị trường VN"],
     ["level2SafetyBufferRate (mới, 06/07/2026)", "application.yml", "Placeholder 10-15% batchAmount — chưa có dữ liệu variance thật"],
     ["level2BufferTerminalDays (mới, 06/07/2026)", "application.yml", "Placeholder 30 ngày — hết hạn thì phán quyết Level 1.5 tự động thành chung thẩm"],
   ],
@@ -471,7 +493,7 @@ push(bullet([runs("Event contract.cancelled ", { bold: true }), runs("là phát 
 push(bullet([runs("Checklist KYC theo loại hình doanh nghiệp buyer ", { bold: true }), runs("(TNHH, cổ phần, hộ kinh doanh…) — Signature design mới chốt nguyên tắc đối xứng buyer/seller (BLDS 142), chưa chốt danh mục giấy tờ cụ thể.", {})]));
 push(bullet([runs("Payload event mang commodity — đã giải quyết (06/07/2026). ", { bold: true }), runs("Thêm event contract.signed cấp Contract (publisher contract-service, bắn lúc Contract.transitionTo(SIGNED)), payload {contractId, commodity, buyerId, sellerId, totalAmount, signedAt} — analytics-service dùng để populate dim_contract mà không cần Feign ngược (chi tiết Phần 5 §4). Còn treo cấp thấp hơn: bảng mapping Product.category (enum tiếng Việt) → commodity enum dùng chung (COFFEE/RICE/RUBBER/CASHEW) cần xác nhận nghiệp vụ trước khi contract-service code phần publish.", {})]));
 push(callout("Ghi chú.", "WebAuthn/chữ ký số CA là hướng nâng cấp sole-control mạnh hơn nhưng KHÔNG đổi tier pháp lý (cần chứng thư từ CA được cấp phép); ghi nhận out-of-scope, không thiết kế trong phần này.", "note"));
-push(bullet([runs("Provisional settlement Level 2 (mới, 06/07/2026, chưa đóng). ", { bold: true }), runs("level2BufferWindowDays (7-14 ngày), level2SafetyBufferRate (10-15%), level2BufferTerminalDays (30 ngày) đều là placeholder, chưa validate với đơn vị Level 2 thật (đã liên hệ NHL, chưa có phản hồi). Cơ chế terminal cutoff đã đóng câu hỏi \"buffer xử lý sao nếu report không bao giờ về\".", {})]));
+push(bullet([runs("Provisional settlement Level 2 (mới, 06/07/2026, chưa đóng). ", { bold: true }), runs("level2BufferWindowDays đã neo 5-10 ngày (benchmark SCA, 08/07/2026); level2SafetyBufferRate (10-15%) và level2BufferTerminalDays (30 ngày) vẫn placeholder, chưa validate với đơn vị Level 2 thật (đã liên hệ NHL, chưa có phản hồi). Cơ chế terminal cutoff đã đóng câu hỏi \"buffer xử lý sao nếu report không bao giờ về\".", {})]));
 push(bullet([runs("sellerDepositRate optional (mới, 06/07/2026, chưa đóng hoàn toàn). ", { bold: true }), runs("Thay quyết định \"bỏ hẳn\" trước đây — đàm phán per-contract. Còn treo: lockDurationDays nặng hơn riêng cho case cancel-ở-0-milestone khi sellerDepositRate=0 — Cường chưa xác nhận áp dụng hay không.", {})]));
 
 module.exports = { body };

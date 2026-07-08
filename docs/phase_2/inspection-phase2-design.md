@@ -100,7 +100,12 @@ SGS/Bureau Veritas không có account, không login, không role trên platform.
 
 `InitiateLevel2Inspection` (§3.4) bước 2 mở rộng: nếu `org` thuộc nhóm `BOA_VERIFIED`/`ADMIN_AD_HOC`, bắt buộc Admin nhập `verificationReference` trước khi commission được tạo — không cho tạo commission mà thiếu căn cứ. Bước 5 (INSERT `audit_record`, `source_type = LEVEL2_INSPECTION_COMMISSIONED`) đã tồn tại sẵn — chỉ mở rộng `content` thêm 3 field trên, **không cần event/source_type mới**. Hash chain hiện có (`hash-chain-phase2-design.md`) tự động cho quyết định này tính bất biến — đúng cơ chế đã dùng cho mọi quyết định quan trọng khác trong hệ thống, không phải cơ chế riêng mới.
 
-**Còn treo, deferred có chủ đích (không phải quên):** tự động hoá tra cứu BoA-VIAS/ILAC qua API — hiện tại Admin tra tay qua web (đúng pattern đã chọn cho `external_verification_status` ở §3.6, không phải ngoại lệ). Nếu 2 tổ chức này có API công khai thật, tự động hoá sau, không phải bây giờ.
+**Đã thu hẹp (08/07/2026, L4) — từ "deferred, chưa biết tra ở đâu" sang "có nguồn tra online rõ ràng":** verify accreditation không còn là hộp đen. Ba nguồn tra online cụ thể:
+- **BoA-VIAS** (`boa.gov.vn`) — VIAS = scheme Inspection Bodies theo ISO/IEC 17020, đúng loại tổ chức cho Level 2 inspector. BoA (nay thuộc STAMEQ, Bộ KH&CN từ 01/01/2025) là signatory ILAC-MRA/IAF-MLA/APAC-MRA — tra thẳng cho tổ chức trong nước.
+- **IAF CertSearch** (`iafcertsearch.org`) — global database validate chứng nhận, BoA Vietnam có mặt.
+- **ILAC Signatory Search** (`ilac.org/signatory-search`) — directory accreditation body, có cả code nhúng vào website để host search facility.
+
+Admin tra tay trên 3 nguồn này (vài phút/lần, sự kiện tần suất thấp — không phải hot path). **Tự động hoá full qua REST API là enhancement, không phải bây giờ:** chưa xác nhận BoA có API export danh sách VIAS dạng JSON (có thể vẫn phải tra trên portal). Nhưng từ "không biết tra đâu" → "3 nguồn tra online xác định" là nâng cấp thật cho khả năng defend — không còn là điểm mù.
 
 ### 3.3 Ingestion flow — hòm mail platform thay thế vị trí Admin trong 3-mail song song
 
@@ -309,7 +314,7 @@ CREATE TABLE inspection_report (
 - **Level 2 ingestion chuyển từ thuần thủ công sang auto-intake + human-confirm:** hòm mail platform (`intake@...`, qua SendGrid Inbound Parse) thay thế vị trí Admin trong 3-mail song song gốc (buyer/seller không đổi, §3.3). Thêm use case `InitiateLevel2Inspection` ghi nhận platform đã yêu cầu commission org đi đâu, lúc nào (§3.4). Case ID của org dùng làm join key qua bảng `level2_inspection_commission`, match tự động chỉ ở mức gợi ý, Admin xác nhận thật (§3.5). Report cuối ingest tự động, hash đóng băng ngay khi nhận, publish audit chain dời sang lúc Admin `CONFIRMED` qua `ReviewPendingExternalReport` (§3.6). Giữ ingestion thủ công gốc làm fallback (`ingestion_source = ADMIN_MANUAL`).
 - **`audit_record.source_type` có 3 giá trị mới:** `INSPECTION_REPORT`, `EXTERNAL_INSPECTION_REPORT`, `LEVEL2_INSPECTION_COMMISSIONED` — tách riêng vì sức nặng bằng chứng khác nhau (§4).
 - **Fix cross-service FK bug (phát hiện lúc rà kiến trúc 04/07/2026):** `signature.report_id` **không** dùng `REFERENCES inspection_report(report_id)` nữa — vi phạm database-per-service, vì `signature` (contract_db) và `inspection_report` (inspection-service DB) là 2 database khác nhau. Giữ integrity ở application layer, cùng pattern các cross-service reference khác trong hệ thống (§5).
-- **KI-2 đóng (§3.2):** allowlist 3 nhóm cho `level2InspectorOrg` — major quốc tế hardcode, trong nước verify qua BoA-VIAS, "lạ" thì Admin duyệt case-by-case và **không** lưu vào danh sách dùng chung (né bài toán dọn danh sách khi tổ chức phá sản/mất accreditation). Verify qua accreditation certificate number, tra đúng cơ quan công nhận quốc gia đã phát hành. Tự động hoá tra cứu API BoA/ILAC — deferred có chủ đích, không phải quên.
+- **KI-2 đóng (§3.2):** allowlist 3 nhóm cho `level2InspectorOrg` — major quốc tế hardcode, trong nước verify qua BoA-VIAS, "lạ" thì Admin duyệt case-by-case và **không** lưu vào danh sách dùng chung (né bài toán dọn danh sách khi tổ chức phá sản/mất accreditation). Verify qua accreditation certificate number, tra đúng cơ quan công nhận quốc gia đã phát hành. **Nguồn tra cứu (thu hẹp 08/07/2026, L4):** BoA-VIAS (`boa.gov.vn`) + IAF CertSearch (`iafcertsearch.org`) + ILAC Signatory Search (`ilac.org/signatory-search`) — 3 nguồn online xác định, Admin tra tay; tự động hoá full qua API là enhancement, chưa xác nhận BoA có API JSON.
 
 **Nguyên tắc xuyên suốt cho phần auto-intake:** tự động hoá phần lặp lại, nhàm chán, không cần phán đoán (nhận mail, tính hash, gợi ý match) — giữ nguyên quyết định cuối (cái biến 1 file thành bằng chứng) ở người, có RBAC, có audit trail, không thể lặng lẽ override. Mục tiêu không phải loại bỏ con người khỏi quyết định — mục tiêu là không để 1 người là điểm duy nhất quyết định cái gì là bằng chứng thật.
 
@@ -317,4 +322,4 @@ Inspection — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technic
 
 ---
 
-*Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*

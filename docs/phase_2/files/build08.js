@@ -197,13 +197,16 @@ push(table(
     ["milestone.cancelled_with_penalty", "contract-service", "escrow, reputation, analytics, notification, audit"],
     ["bank.lock/release/seize/refund_requested", "escrow-service", "bank-service"],
     ["bank.lock/release/seize/refund_completed | _failed", "bank-service", "escrow-service"],
+    ["bank.large_transaction_flagged (08/07/2026)", "bank-service", "reputation, audit (báo cáo ≥500tr, không hold)"],
+    ["milestone.level2_provisional_settled | _buffer_reconciled | _terminal_settled (08/07/2026)", "contract-service", "escrow, notification (provisional settlement 3 bước)"],
     ["reputation.locked | reputation.unlocked", "reputation-service", "user-service"],
     ["file.uploaded.direct | file.email.received", "file-service", "file-service (queue nội bộ)"],
     ["file.ready | file.failed", "file-service", "dịch vụ sở hữu fileId (contract, inspection, product)"],
   ],
   { size: 17 }
 ));
-push(P("Ghi hash vào audit-service (source_type: MILESTONE_EVENT, CONTRACT_SIGNED, INSPECTION_REPORT, EXTERNAL_INSPECTION_REPORT, LEVEL2_INSPECTION_COMMISSIONED) đi qua consumer của audit trên các event tương ứng, không phải routing key riêng."));
+push(P("Ghi hash vào audit-service (source_type: MILESTONE_EVENT, CONTRACT_SIGNED, INSPECTION_REPORT, EXTERNAL_INSPECTION_REPORT, LEVEL2_INSPECTION_COMMISSIONED, EXTERNAL_VERIFIER_KEY_REGISTERED, SECURITY_LOCK_TRIGGERED, SECURITY_UNLOCK_TRIGGERED) đi qua consumer của audit trên các event tương ứng, không phải routing key riêng."));
+push(P([runs("Kill switch (08/07/2026) không qua RabbitMQ: ", { bold: true }), runs("emergency-lock/emergency-unlock là REST endpoint External Verifier gọi trực tiếp (chữ ký bất đối xứng, bank-service §4.5); gate freeze là check system_lock trước mọi bank.*_requested. Ba source_type security ở trên là bản ghi các quyết định đó vào hash chain, không phải event RabbitMQ độc lập.", {})]));
 
 // ============================================================
 // 6. APPENDIX B — SERVICE MATRIX
