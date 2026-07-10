@@ -189,15 +189,17 @@ push(table(
     ["contract.settled", "contract-service", "escrow (hoàn cọc), reputation, notification, analytics"],
     ["contract.cancelled", "contract-service", "escrow (seize/refund cọc), notification, analytics"],
     ["milestone.seller_weighed", "contract-service", "file, notification, audit"],
-    ["milestone.buyer_confirmed", "contract-service", "escrow, notification, audit"],
+    ["milestone.buyer_confirmed", "contract-service", "notification, audit (sửa 08/07/2026 — bỏ escrow, tránh release tiền 2 lần; release tiền thật đi qua milestone.settled)"],
     ["milestone.flagged", "contract-service", "notification"],
     ["milestone.force_majeure_claimed", "contract-service", "notification (Admin), audit"],
     ["milestone.force_majeure_resolved", "contract-service", "escrow, notification, audit"],
     ["milestone.settled", "contract-service", "escrow, notification, reputation, analytics, audit"],
     ["milestone.cancelled_with_penalty", "contract-service", "escrow, reputation, analytics, notification, audit"],
+    ["milestone.dispute_resolved (mới, 08/07/2026)", "contract-service", "reputation (đếm tỷ lệ buyer flag-rồi-thua — tín hiệu chống lạm dụng FLAG_ISSUE, Phần 3 §3.5)"],
     ["bank.lock/release/seize/refund_requested", "escrow-service", "bank-service"],
     ["bank.lock/release/seize/refund_completed | _failed", "bank-service", "escrow-service"],
-    ["bank.large_transaction_flagged (08/07/2026)", "bank-service", "reputation, audit (báo cáo ≥500tr, không hold)"],
+    ["escrow.deposit_locked (mới, 08/07/2026)", "escrow-service", "contract-service (chuyển ACTIVE); escrow-service tự dùng để lock batchAmount milestone đầu"],
+    ["bank.large_transaction_flagged (08/07/2026)", "bank-service", "reputation, audit (báo cáo ≥500tr, không hold — reputation chỉ dùng làm 1 input composite score, không tự trigger hold)"],
     ["milestone.level2_provisional_settled | _buffer_reconciled | _terminal_settled (08/07/2026)", "contract-service", "escrow, notification (provisional settlement 3 bước)"],
     ["reputation.locked | reputation.unlocked", "reputation-service", "user-service"],
     ["file.uploaded.direct | file.email.received", "file-service", "file-service (queue nội bộ)"],
@@ -237,9 +239,9 @@ push(P("(Port 8090 bỏ trống — search-service đã gộp thành 2 tham số
 // 7. OPEN ITEMS
 // ============================================================
 push(H1("Điểm còn treo tổng hợp"));
-push(bullet([runs("Payload event mang commodity — đã giải quyết (06/07/2026). ", { bold: true }), runs("contract.signed (mới) mang {commodity, buyerId, sellerId, totalAmount} để analytics-service populate dim_contract không cần Feign ngược. Còn treo cấp thấp hơn: bảng mapping Product.category (tiếng Việt) → commodity enum dùng chung (COFFEE/RICE/RUBBER/CASHEW) cần xác nhận nghiệp vụ trước khi contract-service code phần publish.", {})]));
+push(bullet([runs("Payload event mang commodity — đã đóng hoàn toàn (08/07/2026). ", { bold: true }), runs("contract.signed mang {contractId, commodity, buyerId, sellerId, totalAmount, buyerDepositAmount, sellerDepositAmount, signedAt} — commodity là enum cứng COFFEE/RICE/RUBBER/CASHEW, luôn non-null (analytics-service chỉ nhận và lưu, không tự map). Nguồn: contract-service đọc Category.commodity của category gắn với sản phẩm — không có case NULL vì category chỉ dùng được khi APPROVED và approve() bắt buộc gán commodity. Cơ chế Category/commodity (2 tầng, vì sao bỏ bảng mapping) chốt ở product-service §2.6 (owner) — không mô tả lại ở đây. Điểm treo mapping trước đây đã đóng hoàn toàn.", {})]));
 push(bullet([runs("Checklist KYC theo loại hình doanh nghiệp ", { bold: true }), runs("(buyer TNHH/cổ phần/hộ kinh doanh; giấy tờ INSPECTOR) — nguyên tắc đã chốt, danh mục cụ thể cần xác nhận nghiệp vụ.", {})]));
-push(bullet([runs("search-service ", { bold: true }), runs("chưa thiết kế — kỳ vọng consume event khi reputation score / listing đổi để cập nhật bản denormalized.", {})]));
+push(bullet([runs("search-service — đã loại bỏ, không phải \"chưa thiết kế\". ", { bold: true }), runs("Map-based browse cần mật độ dữ liệu chưa có ở quy mô pilot; reputation score không tương thích kiến trúc read-model riêng; filter còn lại giống hệt query SQL sẵn có ở product-service. Quyết định: gộp thành 2 tham số filter trong product-service, port 8090 bỏ trống (Phụ lục B).", {})]));
 
 if (IS_MAIN) push(endMark());
 

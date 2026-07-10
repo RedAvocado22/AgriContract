@@ -108,6 +108,16 @@ Payload mỗi event mang sẵn số tiền đã tính (không phải rate thô) 
 
 **Cơ chế:** bắn ngay khi `LedgerEntry` được ghi (không hold, không chờ Admin) — cùng transaction với insert `ledger_entry`. Payload: `{entryId, contractId, userId, amount, entryType, createdAt}`. Consumer: reputation-service (composite fraud score, không phải trigger hold độc lập — xem `reputation-service-phase2-design.md` §8), audit-service (bằng chứng cho nghĩa vụ báo cáo nếu sau này tích hợp ngân hàng thật). Thực tế ngân hàng thật vẫn cho giao dịch chạy rồi báo cáo Cục Phòng, chống rửa tiền trong 1 ngày làm việc (dữ liệu điện tử) — không đóng băng giao dịch chỉ vì vượt ngưỡng.
 
+### 3.4b Consume `analytics.structuring_pattern_detected` — báo cáo giao dịch **khả nghi** (structuring), khác §3.4 (mới, 10/07/2026)
+
+**Phân biệt với §3.4 — 2 nghĩa vụ báo cáo khác nhau, đừng gộp:** §3.4 là báo cáo **giao dịch giá trị lớn** (ngưỡng đơn ≥500 triệu, bank-service tự phát hiện lúc ghi `LedgerEntry`, publish). Mục này là báo cáo **giao dịch khả nghi** (structuring — hành vi rải mỏng nhiều hợp đồng dưới ngưỡng để né §3.4). Structuring không thể phát hiện từ 1 `LedgerEntry` đơn lẻ (mỗi entry đều dưới ngưỡng, hợp lệ) — chỉ thấy khi nhìn cộng dồn qua thời gian trên data warehouse. `analytics-service.AmlPatternScanJob` (batch, `analytics-service-phase2-design.md` §3.5) làm việc đó và publish `analytics.structuring_pattern_detected`.
+
+**Vì sao bank-service là consumer, không phải reputation-service:** phát hiện structuring **mà không báo cáo cơ quan** tự nó là lỗi tuân thủ trong khung AML. Nghĩa vụ báo cáo giao dịch khả nghi (STR) thuộc **tổ chức tài chính giữ tiền** (Luật PCRT 2022 Điều 4, Điều 26 — báo cáo giao dịch đáng ngờ), cùng chủ thể đã lo báo cáo giá trị lớn ở §3.4. `reputation-service` chỉ xử lý *nội bộ* (set cặp `ELEVATED_RISK`, chặn giao dịch tương lai — `reputation-service-phase2-design.md` §8); bank-service lo nghĩa vụ *ra ngoài*. Cùng 1 event, 2 consumer, 2 vai độc lập — không phụ thuộc nhau.
+
+**Cơ chế:** consume `analytics.structuring_pattern_detected` (payload `{buyerId, sellerId, contractIds[], nearThresholdCount, windowStart, windowEnd, detectedAt}`) → tạo `SuspiciousTransactionReport` (bản ghi nội bộ, append-only, cùng tinh thần `ledger_entry`) + ghi hash vào audit-service (`source_type: STRUCTURING_REPORT`) làm bằng chứng due diligence. **Không hold** gì ở đây (batch chạy hồi cứu, các giao dịch trong `contractIds[]` đã settle — không có gì để hold; việc chặn giao dịch *tương lai* của cặp là của `ELEVATED_RISK` bên reputation). Idempotent theo `(buyerId, sellerId, windowEnd)` — batch chạy lại cùng cửa sổ không đẻ báo cáo trùng.
+
+**Scope đồ án (honest):** platform mock 1 pooled account nội địa, chưa tích hợp cổng báo cáo thật của Cục PCRT — `SuspiciousTransactionReport` là bản ghi sẵn sàng export (đúng field STR cần), nếu sau này tích hợp ngân hàng/cơ quan thật chỉ cần thêm adapter, không đổi business logic. Cùng tinh thần "mock legal custody" đã dùng cho toàn bộ bank-service.
+
 ### 3.5 Emergency Lock — Zero-Trust Kill Switch cho External Verifier (mới, 08/07/2026, ĐANG MỞ LẠI SESSION)
 
 **Bối cảnh — lỗ hổng đã ghi nhận ở `hash-chain-phase2-design.md` §6:** toàn bộ 3 lớp bảo vệ hash chain đứng trên giả định trusted-operator, và cơ chế phát hiện tampering (`VerifyChainJob`) chạy **bên trong** platform — nếu chính Admin sửa data DB rồi vô hiệu hoá/lờ job đó đi, không có gì chặn được. Kill switch này thu hẹp đúng lỗ hổng đó: cho **bên xác minh ngoài** (External Verifier) một đường tự query hash để đối soát độc lập, và một đường tự đóng băng toàn hệ thống khi phát hiện lệch — không phụ thuộc bất kỳ job nào chạy trong platform.
@@ -250,6 +260,8 @@ CREATE TABLE used_nonce (
 **Chốt bổ sung (04/07/2026):** ledger mechanics cho 2 luồng trước đây chưa map rõ:
 - **Delta 1/2 pro-rata** (§3.1) — payload `milestone.settled` mang `lockedAmount`/`actualAmount`, escrow-service tự tính diff, bắn cặp `RELEASE_TO_SELLER` + `REFUND_TO_BUYER` (chỉ khi `diff > 0`) cùng `milestoneId`.
 - **`buyerDepositRate`** (§3.2) — 2 event cấp Contract mới (`contract.settled`, `contract.cancelled`, xem `milestone-escrow-phase2-design.md` §6.3) map thẳng vào `REFUND_TO_BUYER`/`SEIZE_PENALTY` với `milestoneId = NULL`, không cần `entryType` mới.
+
+**Chốt bổ sung (10/07/2026) — consume `analytics.structuring_pattern_detected`, báo cáo giao dịch khả nghi (§3.4b):** bank-service thêm 1 consumer mới cho event batch AML từ analytics-service, tạo `SuspiciousTransactionReport` (append-only) + hash audit (`source_type: STRUCTURING_REPORT`). Đây là nghĩa vụ báo cáo giao dịch **đáng ngờ** (STR, Luật PCRT 2022 Điều 4/Điều 26), tách khỏi báo cáo giá trị lớn ở §3.4 — 2 nghĩa vụ khác nhau, cùng chủ thể pháp lý giữ tiền. Không hold (batch hồi cứu, giao dịch đã settle; chặn tương lai của cặp là việc `ELEVATED_RISK` bên reputation-service). Idempotent theo `(buyerId, sellerId, windowEnd)`. Scope đồ án: bản ghi sẵn sàng export đúng field STR, chưa nối cổng Cục PCRT thật — thêm adapter sau, không đổi logic.
 
 **Việc còn treo, không block thiết kế này:** viết 2 entry vào `decisions.md` (arbitrator superseded, roadmap reframe) — chưa làm.
 

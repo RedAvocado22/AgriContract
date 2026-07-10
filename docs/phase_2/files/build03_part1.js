@@ -120,23 +120,27 @@ push(svcTable([
   ["Port · DB", "8083 · contract_db"],
   ["Trách nhiệm", "Vòng đời hợp đồng (state machine), milestone, chữ ký điện tử, nguồn hash nội dung hợp đồng"],
   ["Aggregate", "Contract (rich model, ContractTerms VO + milestoneSchedule, Signature VO); Milestone (aggregate riêng, cùng service/DB)"],
-  ["Publishes", "contract.signed, contract.settled, contract.cancelled, milestone.* (weighed / confirmed / settled / cancelled_with_penalty / force_majeure_*)"],
-  ["Consumes", "escrow event xác nhận trạng thái tiền để chuyển state hợp đồng"],
+  ["Publishes", "contract.signed, contract.settled, contract.cancelled, milestone.* (weighed / confirmed / settled / cancelled_with_penalty / force_majeure_* / dispute_resolved)"],
+  ["Consumes", "escrow.deposit_locked (SIGNED → ACTIVE, cả buyerDepositRate + sellerDepositRate nếu có đã khoá xong)"],
 ]));
 push(P("Đây là dịch vụ phức tạp nhất (Core domain). Milestone là aggregate riêng chứ không phải entity con của Contract: milestone thứ 3 quyết toán không cần atomic cùng lúc với các milestone khác — chúng độc lập về nghiệp vụ, nhét chung một aggregate là nhầm quan hệ khoá ngoại với ranh giới transaction thật cần thiết (nguyên tắc Effective Aggregate Design — Vernon)."));
+push(P([runs("SIGNED ≠ mốc tiền. ", { bold: true }), runs("SIGNED là mốc chữ ký (đủ 2 chữ ký hợp lệ), độc lập với tiền. ACTIVE mới là mốc tiền — chỉ đạt khi escrow.deposit_locked về tới nơi (cọc đã khoá thành công ở bank-service). Nếu lock cọc fail, Contract kẹt ở SIGNED chưa ACTIVE — nhánh retry/rollback cần định nghĩa lúc implement.", {})]));
 push(P([runs("Đồng bộ Milestone → Contract bằng Local Outbox. ", { bold: true }), runs("Khi milestone cuối quyết toán, Contract phải chuyển SETTLED. Dùng Spring ApplicationEvent nội bộ có một bug thật: nếu app crash sau khi milestone commit nhưng trước khi listener chạy, event bay mất — ApplicationEvent không có retry mặc định — và Contract kẹt vĩnh viễn ở ACTIVE mà không có exception nào báo. Thay bằng Local Outbox: mỗi lần milestone quyết toán, ghi một row outbox trong cùng transaction; một @Scheduled poller đọc row chưa xử lý, kiểm tra điều kiện “mọi milestone đã SETTLED” rồi gọi completeAllMilestones(). At-least-once, không mất, không qua network hop (khác với Outbox Pattern qua RabbitMQ).", {})]));
 push(P([runs("Chữ ký điện tử. ", { bold: true }), runs("Signature là value object trong Contract (sống/chết cùng hợp đồng). Ràng buộc UNIQUE(contractId, signerRole) thay cho hai cờ riêng; Contract chuyển SIGNED khi đủ hai dòng BUYER + SELLER. Sole control đảm bảo qua step-up re-auth lúc bấm “Ký” (session freshness signatureAuthMaxAgeSeconds = 300s) cộng OTP email — hai yếu tố knowledge-based + possession-based.", {})]));
 push(legal("Luật GDĐT 2023, Điều 22–23", "Chữ ký JWT/OTP thuộc chữ ký điện tử cơ bản — không bị phủ nhận giá trị pháp lý (Điều 23 khoản 1) nhưng không tương đương chữ ký tay (khoản 2, cần chứng thư CA). Hợp đồng vẫn có hiệu lực đầy đủ (Điều 34–36 tách biệt khỏi loại chữ ký); khác biệt nằm ở gánh nặng chứng minh — được bù bằng audit trail và hash."));
+push(P([runs("ContractTerms mở rộng (08/07/2026). ", { bold: true }), runs("sellerDepositRate (optional, mặc định 0, đàm phán per-contract — thay quyết định \"bỏ hẳn\" cọc seller vì HTX không đủ vốn để deposit cứng). expectedDeliveryDate/graceDays trên MilestoneTerm — mốc neo timeout giao trễ, trước đây không có mốc ngày nào nên không định nghĩa được \"seller giao trễ\". Guardrail range cho toleranceRate/shortfallPenaltyThreshold/penaltyRate validate lúc sign() — chặn buyer (bên mạnh hơn) ép điều khoản về 0%.", {})]));
 
 // 3.4 escrow
 push(H2("3.4 escrow-service"));
 push(svcTable([
   ["Port · DB", "8084 · escrow_db"],
   ["Trách nhiệm", "Logic ký quỹ theo đợt: tính toán khoá/giải ngân/phạt; điều phối bank-service"],
-  ["Aggregate", "EscrowAccount, EscrowMilestone (chỉ giữ state LOCKED/RELEASED/PENALIZED, không giữ số tiền)"],
-  ["Consumes", "milestone.settled, milestone.buyer_confirmed, milestone.cancelled_with_penalty, contract.settled, contract.cancelled"],
+  ["Aggregate", "EscrowAccount (buyerDepositState + sellerDepositState độc lập), EscrowMilestone (chỉ giữ state LOCKED/RELEASED/PENALIZED, không giữ số tiền)"],
+  ["Publishes", "escrow.deposit_locked (mới, 08/07/2026 — cả 2 cọc đã khoá xong → trigger contract-service chuyển ACTIVE)"],
+  ["Consumes", "contract.signed (trigger khoá cọc), milestone.settled, milestone.cancelled_with_penalty, contract.settled, contract.cancelled"],
 ]));
 push(P("escrow-service là actor duy nhất gọi bank-service; contract-service không bao giờ nói chuyện trực tiếp với bank. Nguyên tắc chống dual-write: EscrowAccount/EscrowMilestone chỉ giữ trạng thái, không tự lưu con số tiền phải đồng bộ tay với bank — số tiền thật là single source of truth ở ledger bên bank-service. Khi nhận milestone.settled (mang lockedAmount và actualAmount sau pro-rata), escrow-service tự tính chênh lệch và bắn cặp lệnh RELEASE_TO_SELLER + REFUND_TO_BUYER nếu số thực nhận thấp hơn số đã khoá."));
+push(P([runs("Sửa 08/07/2026 — pure consumer không tự tính được tiền. ", { bold: true }), runs("contract.signed phải mang sẵn buyerDepositAmount/sellerDepositAmount đã tính (= rate × totalAmount, tính ở contract-service — nơi có đủ ContractTerms). escrow-service không Feign ngược lấy ContractTerms nên không tự nhân rate×totalAmount được nếu chỉ nhận rate thô. Cũng từ đợt rà soát này: milestone.buyer_confirmed KHÔNG còn là consumer của escrow-service — release tiền thật chỉ đi qua milestone.settled, tránh release 2 lần cho cùng milestone (di sản logic Phase 1 đã dọn).", {})]));
 
 // 3.5 bank
 push(H2("3.5 bank-service"));
@@ -147,6 +151,9 @@ push(svcTable([
 ]));
 push(P("Mô hình FBO/Omnibus (chuẩn công nghiệp: ví điện tử, escrow bất động sản): chỉ một chỗ giữ tiền chung, toàn bộ chi tiết “ai sở hữu bao nhiêu, cho việc gì” nằm trong LedgerEntry append-only. Số dư không lưu sẵn ở đâu — luôn là kết quả cộng dồn (SUM) từ các dòng ledger liên quan, tính lúc cần."));
 push(P([runs("Không fire-and-forget. ", { bold: true }), runs("escrow-service gửi lệnh (bank.lock_requested…) và đợi confirmation (bank.lock_completed / bank.lock_failed) mới đổi state — không tự set trước. Nếu set trước rồi bank fail, hai bên lệch state không ai biết (đúng dạng dual-write problem). Idempotency key là sourceEventId (ID của outbox message escrow gửi sang), UNIQUE — nhận trùng thì không insert lại nhưng vẫn re-publish confirmation (tránh escrow treo chờ mãi).", {})]));
+push(P([runs("entryType tách 2 loại cọc (08/07/2026). ", { bold: true }), runs("LOCK_BUYER_DEPOSIT / LOCK_SELLER_DEPOSIT thay vì gộp chung LOCK_DEPOSIT — cả 2 khoản cọc cấp Contract đều có milestoneId=NULL, nếu gộp chung thì ledger tự nó không phân biệt được nguồn cọc lúc release/seize/refund mà phải tra ngược sang contract-service, ngược nguyên tắc \"ledger tự giải thích được\" xuyên suốt thiết kế.", {})]));
+push(P([runs("bank.large_transaction_flagged (mới, 08/07/2026). ", { bold: true }), runs("LedgerEntry ≥ 500 triệu VNĐ (Điều 9 Thông tư 27/2025/TT-NHNN — đúng loại giao dịch chuyển khoản điện tử của ledger, không phải ngưỡng 400 triệu cho tiền mặt) → publish, không hold. bank-service chỉ ghi nhận nghĩa vụ báo cáo, không tự đóng băng; reputation-service dùng làm 1 input composite fraud score.", {})]));
+push(P([runs("Emergency Lock — Zero-Trust Kill Switch (mới, 08/07/2026). ", { bold: true }), runs("External Verifier (tổ chức vận hành platform, không cột cứng 1 tên) giữ private key ký REST /security/emergency-lock trực tiếp bank-service, độc lập RabbitMQ — Admin không có đường bypass. Vì escrow-service là actor duy nhất gọi bank-service, chỉ cần 1 gate (check system_lock) trước mọi bank.*_requested là chặn được toàn hệ thống. Root-of-trust: public key baked deploy-time, mỗi lần rotation anchor vào hash chain (audit-service §3.8). Thu hẹp — không đóng hoàn toàn — giới hạn collusion Admin+bank ở §11.", {})]));
 push(legal("Nghị định 52/2024/NĐ-CP, Điều 8 Khoản 7", "Nghiêm cấm cung ứng dịch vụ trung gian thanh toán không phép. Tách bank-service làm nơi giữ tiền (ngân hàng có license trong triển khai thật) khiến nền tảng chỉ ra lệnh, không giữ tiền — không thuộc phạm vi phải xin giấy phép. Đây là quyết định kiến trúc phục vụ trực tiếp một ràng buộc pháp lý."));
 
 // 3.6 inspection
@@ -163,10 +170,13 @@ push(P([runs("Ranh giới cross-service. ", { bold: true }), runs("signature.rep
 push(H2("3.7 reputation-service"));
 push(svcTable([
   ["Port · DB", "8088 · reputation_db"],
-  ["Trách nhiệm", "Sổ khoá bất biến (enforce lockout); điểm uy tín (search ranking); tham chiếu tín dụng (export)"],
+  ["Trách nhiệm", "Sổ khoá bất biến (enforce lockout); điểm uy tín (search ranking, đối xứng buyer/seller); tham chiếu tín dụng (export)"],
   ["Aggregate", "LockEntry (insert-only, lockDurationDays snapshot bất biến, sourceEventId idempotency key)"],
-  ["Consumes", "milestone.cancelled_with_penalty, contract.settled"],
+  ["Consumes", "milestone.cancelled_with_penalty, contract.settled, milestone.dispute_resolved (mới, chống flag-abuse), bank.large_transaction_flagged (mới, 1 input AML)"],
 ]));
 push(P("Dịch vụ này gánh ba loại dữ liệu khác bản chất, không gộp chung logic: sổ khoá (không thể là pure read model vì là bằng chứng pháp lý — lockDurationDays snapshot cứng lúc tính, không recompute), điểm uy tín (view sống, tính lại được), và tham chiếu tín dụng (export cho bên thứ ba). Enforcement thực hiện ở tầng use-case chứ không ở Gateway: sign() fail-closed (ưu tiên đóng circuit-breaker gap ở hành động rủi ro nhất), CreateListing fail-open. user-service là nơi enforce khoá thật dựa trên quyết định từ reputation-service."));
+push(P([runs("lockDurationDays thêm hệ số zeroProgressMultiplier (mới, 08/07/2026). ", { bold: true }), runs("1.5x khi cancel lúc 0 milestone nào từng SETTLED (ký xong bỏ ngay là tín hiệu xấu nhất, cũng là ma sát chống disintermediation — 2 bên quen nhau qua platform rồi rủ nhau giao dịch tay ngoài né phí); 1.0x mọi trường hợp khác.", {})]));
+push(risk("Sửa AML (08/07/2026) — hold tuyệt đối không còn tự đứng một mình.", "Bản trước để ngưỡng 500 triệu tự nó trigger hold ngay giao dịch đầu — nhưng hợp đồng cà phê thật thường 13,5-135 tỷ VNĐ, tức GẦN NHƯ MỌI giao dịch điển hình sẽ bị treo chờ Admin, biến platform tự-thực-thi thành cổ chai thủ công. Chốt: hold chỉ kích hoạt khi ngưỡng tuyệt đối ĐI KÈM ≥1 tín hiệu hành vi khác (track record mỏng/zero-variance/counterparty mới). Nguồn phát hiện cũng dời sang bank-service (đúng chủ thể pháp lý theo Luật PCRT 2022) — reputation-service chỉ consume bank.large_transaction_flagged làm input, không tự query ledger."));
+push(P([runs("Đối xứng hoá + chống flag-abuse (mới, 08/07/2026). ", { bold: true }), runs("Mọi tín hiệu minh bạch trước đây một chiều buyer-xem-seller. Endpoint GET /reputation/{userId}/public-summary (không cần consent, đối xứng thật) cho seller xem track record buyer trước khi ký — dữ liệu đã có sẵn ở lock_entry (penalizedRole=BUYER đã insert từ đầu), chỉ thêm chiều hiển thị. Song song: milestone.dispute_resolved đếm tỷ lệ buyer flag-rồi-thua, phơi ra ở public-summary — chống buyer lạm dụng FLAG_ISSUE ép seller vào dispute mà không mất gì.", {})]));
 
 module.exports = { body, push, code, svcTable, codeblock };

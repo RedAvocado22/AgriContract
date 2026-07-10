@@ -90,19 +90,23 @@ push(table(
   [3100, 2400, 4138],
   ["Routing key", "Publisher", "Consumer(s)"],
   [
-    ["contract.signed", "contract-service", "escrow-service, notification-service, audit-service, analytics-service"],
+    ["contract.signed", "contract-service", "escrow-service (trigger lock cọc, mang buyerDepositAmount/sellerDepositAmount tính sẵn), notification-service, audit-service, analytics-service"],
     ["contract.settled", "contract-service", "escrow-service (hoàn buyerDepositRate), reputation-service, analytics-service"],
     ["contract.cancelled", "contract-service", "escrow-service (seize/refund cọc), notification-service, analytics-service"],
     ["milestone.seller_weighed", "contract-service", "file-service, notification-service, audit-service"],
-    ["milestone.buyer_confirmed", "contract-service", "escrow-service (trigger release), notification-service, audit-service"],
+    ["milestone.buyer_confirmed", "contract-service", "notification-service, audit-service (sửa 08/07/2026 — bỏ escrow-service, tránh release tiền 2 lần; release thật đi qua milestone.settled)"],
     ["milestone.settled", "contract-service", "escrow-service, notification-service, reputation-service, analytics-service, audit-service"],
     ["milestone.cancelled_with_penalty", "contract-service", "escrow-service, reputation-service (tính lockDurationDays), analytics-service, audit-service"],
     ["milestone.force_majeure_claimed / _resolved", "contract-service", "escrow-service, notification-service, audit-service"],
-    ["bank.lock_requested / release_ / seize_ / refund_", "escrow-service", "bank-service"],
+    ["milestone.dispute_resolved (mới, 08/07/2026)", "contract-service", "reputation-service (tín hiệu chống lạm dụng FLAG_ISSUE, §3.7)"],
+    ["milestone.level2_provisional_settled / _buffer_reconciled / _terminal_settled (mới, 08/07/2026)", "contract-service", "escrow-service, notification-service"],
+    ["escrow.deposit_locked (mới, 08/07/2026)", "escrow-service", "contract-service (chuyển ACTIVE); escrow-service tự dùng để lock batchAmount milestone đầu"],
+    ["bank.lock_requested / release_ / seize_ / refund_ (entryType tách LOCK_BUYER_DEPOSIT/LOCK_SELLER_DEPOSIT, 08/07/2026)", "escrow-service", "bank-service"],
     ["bank.lock_completed / _failed (+ release/seize/refund)", "bank-service", "escrow-service"],
+    ["bank.large_transaction_flagged (mới, 08/07/2026)", "bank-service", "reputation-service (1 input AML), audit-service — báo cáo ≥500tr, không hold"],
     ["file.ready / file.failed", "file-service", "dịch vụ sở hữu fileId tương ứng"],
   ],
-  { size: 17 }
+  { size: 16 }
 ));
 push(P([runs("Hai loại event tách cấp. ", { bold: true }), runs("Event cấp milestone (milestone.*) xử lý từng đợt giao hàng; event cấp contract (contract.settled/cancelled) xử lý phần buyerDepositRate ở cấp hợp đồng. Một lần Contract.cancel() bắn đúng một contract.cancelled cho phần cọc, độc lập với các milestone.cancelled_with_penalty riêng lẻ của từng đợt còn lại.", {})]));
 
@@ -170,14 +174,14 @@ push(table(
   [700, 2500, 3400, 3038],
   ["#", "Actor / Dịch vụ", "Hành động / Event", "Kết quả"],
   [
-    ["1", "contract-service", "Hợp đồng đủ 2 chữ ký → publish contract.signed", "buyerDepositRate được yêu cầu khoá"],
-    ["2", "escrow → bank-service", "bank.lock_requested (cọc) → bank.lock_completed", "Ledger ghi LOCK_DEPOSIT; contract ACTIVE"],
+    ["1", "contract-service", "Hợp đồng đủ 2 chữ ký → publish contract.signed", "buyerDepositRate (+ sellerDepositRate nếu có) được yêu cầu khoá"],
+    ["2", "escrow → bank-service", "bank.lock_requested (LOCK_BUYER_DEPOSIT, + LOCK_SELLER_DEPOSIT nếu có) → bank.lock_completed → publish escrow.deposit_locked", "Ledger ghi LOCK_BUYER_DEPOSIT/LOCK_SELLER_DEPOSIT; contract ACTIVE"],
     ["3", "escrow → bank-service", "Khoá batchAmount milestone đầu (lock sớm)", "Ledger ghi LOCK_MILESTONE"],
     ["4", "Seller (API)", "Cân hàng + upload ảnh → milestone.seller_weighed", "file-service lưu evidence; audit ghi hash"],
     ["5", "Buyer (API)", "Cân lại + upload ảnh → milestone.buyer_confirmed / CONFIRM_CLEAN", "Tính pro-rata Delta 2"],
     ["6", "escrow → bank-service", "milestone.settled (lockedAmount, actualAmount) → RELEASE_TO_SELLER (+ REFUND_TO_BUYER nếu chênh)", "Ledger ghi release/refund; milestone SETTLED"],
     ["7", "contract-service", "Milestone cuối SETTLED → Local Outbox → completeAllMilestones()", "Contract SETTLED; publish contract.settled"],
-    ["8", "escrow → bank-service", "contract.settled → REFUND_TO_BUYER (buyerDepositRate)", "Hoàn cọc; reputation ghi input tích cực"],
+    ["8", "escrow → bank-service", "contract.settled → REFUND_TO_BUYER (buyerDepositRate) + RELEASE_TO_SELLER (sellerDepositRate nếu có)", "Hoàn/giải cọc; reputation ghi input tích cực"],
   ],
   { size: 17, colAlign: [AlignmentType.CENTER, null, null, null] }
 ));
@@ -190,13 +194,14 @@ push(H1("8. Mô hình bảo mật"));
 push(H2("8.1 Xác thực và phân quyền"));
 push(P("Keycloak (:8180, realm agricontract) là IAM server, cấp JWT RS256 với các vai trò BUYER/SELLER/ADMIN/INSPECTOR. Luồng: Frontend đăng nhập Keycloak → nhận JWT → gửi kèm Authorization: Bearer → Nginx → API Gateway validate token qua Keycloak JWKS → tiêm định danh (X-User-Id, X-User-Email, X-User-Role) xuống downstream. Downstream tin các header này vì request đến từ Gateway trong mạng nội bộ; ranh giới tin cậy nội bộ được siết bằng X-Internal-Secret, tiến hoá lên mTLS khi triển khai thật."));
 push(H2("8.2 Bảo vệ tính toàn vẹn và chống chối bỏ"));
-push(P("Năm lớp phối hợp, mỗi lớp phủ một attack vector khác nhau:"));
+push(P("Sáu lớp phối hợp, mỗi lớp phủ một attack vector khác nhau:"));
 push(numbered("Hash nội dung hợp đồng — SHA-256 toàn bộ ContractTerms lúc ký; mọi state transition sau đó verify hash trước khi proceed. Sửa DB → hash mismatch → operation reject."));
 push(numbered("Chuỗi hash audit trail — previousHash + recordHash; DB user chỉ INSERT + SELECT; verify khi export EUDR và định kỳ hàng tuần."));
 push(numbered("Hash inspection report — SHA-256(content + timestamp + inspectorId) lúc submit; contract-service verify trước khi advance state; bất biến sau submit."));
 push(numbered("Lưu hash nhiều nơi — signedContentHash và reportHash lưu độc lập ở contract_db, audit_db, và file gửi hai bên; attacker phải compromise cả ba cùng lúc."));
 push(numbered("Neo timestamp qua email + Bitcoin — email cho hai bên sau mỗi lần ký/submit là điểm neo ngoài platform; OTS neo hash cam kết toàn cục lên Bitcoin, tồn tại độc lập kể cả khi platform sập."));
-push(P([runs("Vì sao hash thay vì blockchain. ", { bold: true }), runs("Platform có trusted operator (hiệp hội/DN triển khai) — bài toán trustless consensus không tồn tại. Ba lớp phủ được attack vector tương đương blockchain với chi phí thấp hơn nhiều, phù hợp ràng buộc 5 tháng của dự án.", {})]));
+push(numbered("Emergency Lock — Zero-Trust Kill Switch cho External Verifier (mới, 08/07/2026) — REST endpoint ký bất đối xứng (RSA/ECDSA), độc lập RabbitMQ, không qua Admin. Chỉ 1 gate chặn (system_lock trước mọi bank.*_requested) vì escrow-service là actor duy nhất gọi bank-service. Đóng băng toàn hệ thống khi External Verifier tự phát hiện tampering qua self-service query hash — không phụ thuộc duy nhất vào job nội bộ platform (chi tiết bank-service §3.5)."));
+push(P([runs("Vì sao hash thay vì blockchain. ", { bold: true }), runs("Platform có trusted operator (hiệp hội/DN triển khai) — bài toán trustless consensus không tồn tại. Sáu lớp phủ được attack vector tương đương blockchain với chi phí thấp hơn nhiều, phù hợp ràng buộc 5 tháng của dự án. Kill Switch thu hẹp — không đóng hoàn toàn — giới hạn collusion Admin+External Verifier vẫn là giới hạn cố hữu của mô hình trusted-operator (§11).", {})]));
 
 // ============================================================
 // 9. INFRA
@@ -254,7 +259,7 @@ push(table(
     ["bank-service là mock, không tích hợp ngân hàng thật", "Không tổ chức tín dụng nào ký API cho đồ án; interface (event contract) thiết kế sạch, business logic không đổi khi swap", "Tích hợp Agribank/BIDV API — chỉ thay implementation bên trong bank-service"],
     ["Outbox Poller dùng @Scheduled (latency ~1–2s)", "Functional correctness đảm bảo; độ trễ chấp nhận được", "Debezium CDC đọc binlog"],
     ["Eventual consistency ở read side (analytics, reputation score)", "Non-critical path; đánh đổi kinh điển của CQRS/event-driven", "Chấp nhận có chủ đích; tài liệu hoá rõ data lag"],
-    ["Chống thông đồng toàn diện (Admin + đa số Software Buyer)", "Đúng bài toán trustless consensus mà nhóm chủ đích không theo hướng blockchain", "Neo email + Bitcoin đảm bảo bằng chứng tồn tại độc lập cho bên thứ ba kiểm tra"],
+    ["Chống thông đồng Admin + External Verifier (mới, 08/07/2026 — thay khung cũ \"Admin + đa số Software Buyer\")", "Kill Switch (bank-service §3.5, bảo mật §8.2) đã thu hẹp: 1 bên độc lập ngoài platform tự query hash + tự đóng băng được, không phụ thuộc duy nhất vào job nội bộ. Nhưng nếu chính External Verifier thông đồng với Admin thì vẫn hở — đúng bài toán trustless consensus mà nhóm chủ đích không theo hướng blockchain", "Neo email + Bitcoin đảm bảo bằng chứng tồn tại độc lập cho bên thứ ba kiểm tra; đa External Verifier (quorum) là hướng mở rộng nếu cần siết thêm"],
     ["Chữ ký điện tử cơ bản, chưa có chứng thư CA", "Hợp đồng vẫn hiệu lực; gánh nặng chứng minh bù bằng audit trail", "Tích hợp chữ ký số CA / WebAuthn — nâng chất lượng bằng chứng"],
     ["Một endpoint user-service còn lộ email (IDOR sót)", "Phát hiện lúc rà code, không thuộc đường tiền tệ", "Bổ sung ownership/role check trước khi đưa vào vận hành thật"],
   ],

@@ -172,6 +172,41 @@ Mỗi khi nhận event từ RabbitMQ, pipeline xử lý phải đi qua bước c
 * *Cách chạy:* Quét dữ liệu ngày hôm qua từ **`fact_contract_settlement` + `fact_contract_cancellation`** (JOIN với `dim_contract` để lấy `commodity` — granularity Contract, cho `total_contracts_settled`/`total_contracts_cancelled`) **và** từ `fact_milestone_performance` (JOIN `dim_contract`, granularity Milestone, cho `total_value_settled`/`escrow_efficiency_rate`/`force_majeure_incidents`) — 2 nguồn khác granularity, cộng dồn (upsert) vào đúng cột tương ứng của dòng `agg_monthly_commodity_stats` tháng hiện tại. *(Sửa 06/07/2026: bản gốc chỉ quét `fact_milestone_performance`, khiến `total_contracts_settled` bị tính sai — xem §2.2/§3.3.)*
 * *Tính Rate:* `cancellation_rate = total_contracts_cancelled / (total_contracts_settled + total_contracts_cancelled)`, cả 2 số hạng lấy từ `fact_contract_settlement`/`fact_contract_cancellation`, không lẫn với số liệu milestone. Tính và ghi đè thẳng vào cột, API sau này chỉ việc `SELECT` và trả về O(1).
 
+### 3.5 Batch Job AML — `AmlPatternScanJob` (mới, 10/07/2026 — đóng gap structuring chậm §9 reputation-service)
+
+**Bối cảnh — vì sao phải là batch, không dồn vào tầng realtime:** `reputation-service` §8 đã có 2 tầng phát hiện chạy realtime — nhóm tín hiệu tương đối (cửa sổ ngắn, bắt structuring dồn trong vài ngày) + nhóm tuyệt đối (ngưỡng 500 triệu, bắt one-shot lớn). Cả 2 đều **không thể** bắt kịch bản rải mỏng: kẻ gian đẩy đều đặn nhiều hợp đồng ~490 triệu (dưới ngưỡng tuyệt đối) giãn cách nhiều tuần/tháng (ngoài cửa sổ tương đối). Mỗi hợp đồng đứng riêng đều vô hại — chỉ khi nhìn xuyên nhiều tháng mới thấy *hình dạng* structuring. Đây đúng là việc của batch phân tích hành vi cộng dồn trên data warehouse (`reputation-service` §9 đã ghi nhận đây là gap còn hở, không đóng được bằng công cụ pattern realtime).
+
+**Chốt (10/07/2026):** job `AmlPatternScanJob` chạy `@Scheduled` **riêng biệt**, KHÔNG gộp vào `MonthlyAggregationJob` — 2 job khác mục đích hoàn toàn (`MonthlyAggregationJob` = báo cáo thương mại vĩ mô cho dashboard hiệp hội; `AmlPatternScanJob` = phát hiện gian lận). Trộn chung làm 1 job vi phạm single-responsibility, và lịch chạy/tần suất/xử lý lỗi khác nhau.
+
+**Nguồn dữ liệu — JOIN, không thêm cột:** `dim_contract` đã có sẵn `buyer_id`, `seller_id`, `total_amount`; `fact_contract_settlement` có `contract_id` + `settled_at`. Job JOIN 2 bảng theo `contract_id`, KHÔNG cần thêm `total_amount` vào bảng fact (tránh phải sửa payload event `contract.settled` — cascade không cần thiết).
+
+```sql
+-- Quét cụm near-threshold theo cặp buyer-seller, cửa sổ 90 ngày.
+SELECT dc.buyer_id, dc.seller_id,
+       COUNT(*) AS near_threshold_count,
+       ARRAY_AGG(fcs.contract_id) AS contract_ids
+FROM   fact_contract_settlement fcs
+JOIN   dim_contract dc ON dc.contract_id = fcs.contract_id
+WHERE  fcs.settled_at >= (now() - INTERVAL '90 days')
+  AND  dc.total_amount >= 475000000      -- [95%, 100%) của ngưỡng 500 triệu
+  AND  dc.total_amount <  500000000
+GROUP BY dc.buyer_id, dc.seller_id
+HAVING COUNT(*) >= 5;                     -- min 5 hợp đồng near-threshold cùng cặp
+```
+
+**3 tham số (số cứng, không placeholder — dẫn từ ngưỡng luật định 500 triệu, đã public):**
+- **Band near-threshold: `[475 triệu, 500 triệu)`** = `[95%, 100%)` của ngưỡng. Bám sát mép báo cáo. *Band một mình KHÔNG phải tín hiệu* — tín hiệu thật là **clustering low-variance**: nhiều hợp đồng dồn trong dải hẹp sát mép. Cặp làm ăn thật deal to-nhỏ lẫn lộn (ví dụ Doc02: 13,5-135 tỷ), không cluster quanh đúng 490 triệu.
+- **Min count: 5 hợp đồng** near-threshold cùng cặp trong window. Dưới 5 là bằng chứng yếu → false-positive cặp mua lặp hợp pháp.
+- **Lookback: 90 ngày.** Phải dài hơn hẳn cửa sổ realtime (48-72h) vì bắt slow-drip. Neo ~1 chu kỳ vụ; dài hơn thì vắt qua nhiều mùa không liên quan (nhiễu), ngắn hơn thì lọt kẻ rải mỏng.
+
+**Output — publish event, KHÔNG tự quyết định gì:** bắt cụm → `analytics-service` publish `analytics.structuring_pattern_detected`. `analytics-service` là pure consumer/read-model (§6), **không** tự hold giao dịch, **không** tự flag reputation, **không** tự báo cáo cơ quan — chỉ phát hiện và phát tín hiệu. Ai xử lý là việc của consumer.
+
+| Event | Payload | Consumers |
+|---|---|---|
+| `analytics.structuring_pattern_detected` | `{buyerId, sellerId, contractIds[], nearThresholdCount, windowStart, windowEnd, detectedAt}` | **`reputation-service`** (set cặp `ELEVATED_RISK` — `reputation-service-phase2-design.md` §8) · **`bank-service`** (báo cáo giao dịch khả nghi cho cơ quan — nghĩa vụ Luật PCRT 2022, đúng chủ thể pháp lý giữ tiền; consumer cần thêm vào `bank-service-phase2-design.md`) |
+
+**Giới hạn cấu trúc (ghi rõ, không cố lấp):** batch chỉ thấy hình sau khi các mảnh **đã settle** — vài hợp đồng đầu (trước khi đủ cụm ≥5) chắc chắn lọt, tiền đã đi. Không thiết kế nào bắt được mảnh đầu của một pattern chưa thành hình. Batch **không** cứu one-shot nhỏ lẻ (1 hợp đồng dưới ngưỡng rồi biến — không đủ cụm). Nó chỉ đóng đúng phần slow-drip *có lặp lại* — xem `reputation-service-phase2-design.md` §9 để biết residual còn lại.
+
 ---
 
 ## 4. API Endpoints
@@ -261,6 +296,8 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 4. `has_force_majeure` gần như luôn `FALSE` do race condition (event `resolved` luôn tới trước khi fact row tồn tại) → thêm bảng staging `pending_force_majeure_flag` (§2.4), merge 2 chiều lúc `INSERT`.
 
 **Nguồn `commodity` đã đóng hoàn toàn (08/07/2026):** `commodity` non-null, đọc từ `Category.commodity`. Cơ chế chốt ở `product-phase2-design.md` §9 (owner).
+
+**Chốt bổ sung (10/07/2026) — `AmlPatternScanJob` đóng gap structuring chậm (§3.5):** thêm job batch AML riêng (KHÔNG gộp `MonthlyAggregationJob`) quét cụm near-threshold `[475tr, 500tr)`, min 5 hợp đồng/cặp, lookback 90 ngày, JOIN `dim_contract` (đã có `total_amount`/`buyer_id`/`seller_id`) — **không** thêm cột vào `fact_contract_settlement`, tránh sửa payload `contract.settled`. Bắt cụm → publish `analytics.structuring_pattern_detected`; `analytics-service` chỉ phát hiện, không tự hold/flag/báo cáo (pure consumer). Consumer: `reputation-service` (ELEVATED_RISK) + `bank-service` (báo cáo cơ quan). Đóng đúng phần slow-drip có lặp mà 2 tầng realtime của `reputation-service` (§8) không bắt được; residual (vài mảnh đầu + one-shot nhỏ lẻ) ghi rõ ở `reputation-service-phase2-design.md` §9.
 
 Analytics-service — **đóng session, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức** (sau khi điểm treo mapping ở trên được xác nhận).
 
