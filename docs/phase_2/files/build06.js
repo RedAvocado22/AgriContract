@@ -177,7 +177,7 @@ push(table(
 
 push(H2("3.1 Sổ khoá và công thức lockDurationDays"));
 push(P("lockDurationDays snapshot cứng lúc tính, KHÔNG recompute sau đó — kể cả khi input (trackRecordMultiplier) đổi giá trị. Lý do: là bằng chứng pháp lý (LTM 2005 Điều 302), một con số tự đổi sau khi ghi thì mất giá trị bằng chứng."));
-push(P([runs("lockDurationDays = baseDays × repeatOffenseMultiplier × trackRecordMultiplier", { bold: true, color: T.SUB })], { align: AlignmentType.CENTER }));
+push(P([runs("lockDurationDays = baseDays × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier", { bold: true, color: T.SUB })], { align: AlignmentType.CENTER }));
 push(table(
   [3000, 2200, 4438],
   ["Multiplier", "Giá trị", "Điều kiện"],
@@ -185,6 +185,7 @@ push(table(
     ["baseDays", "30", "Cố định"],
     ["repeatOffenseMultiplier", "1x / 2x / 3x", "Lần vi phạm thứ mấy trong 24 tháng gần nhất (CÓ time window — khoảng cách dài giữa 2 vi phạm mang ý nghĩa: đã sửa hành vi)"],
     ["trackRecordMultiplier", "0.7x / 1.0x / 1.3x", "Dưới 5 hợp đồng hoàn thành: 1.0x. Từ 5 trở lên: 0.7x nếu ≥90% sạch, 1.0x nếu 70–90%, 1.3x nếu <70%. KHÔNG time window (mùa vụ tạo khoảng trống tự nhiên, không phải dấu hiệu bất thường)"],
+    ["zeroProgressMultiplier (mới, 08/07/2026)", "1.5x / 1.0x", "1.5x khi cancel lúc 0 milestone nào từng SETTLED (ký xong bỏ ngay — tín hiệu xấu nhất có thể có, khác hẳn cancel giữa chừng do mâu thuẫn phát sinh); 1.0x mọi trường hợp còn lại. Cũng là lớp ma sát kỹ thuật cho rủi ro disintermediation (2 bên quen nhau qua platform rồi rủ nhau cancel-ở-milestone-đầu để tự giao dịch tay ngoài né phí) — không chặn tuyệt đối được, nhưng tăng chi phí lockout cho đúng pattern đáng nghi nhất"],
   ],
   { size: 18 }
 ));
@@ -202,6 +203,8 @@ push(H2("3.3 Tham chiếu tín dụng & AML"));
 push(P("Credit export định vị là reputation attestation, không phải nguồn chấm điểm tín dụng chính (reputation ≠ cash-flow data). Hướng đối tác: VARI (xếp hạng tín nhiệm DN nông nghiệp) — đóng vai đọc dữ liệu nền tảng rồi đưa cho ngân hàng. Chỉ chạy khi seller chủ động yêu cầu (consent rõ ràng), gate theo counterparty diversity (chỉ giao dịch 1-2 đối tác dù đủ 5+ hợp đồng sạch cũng không đủ điều kiện — giảm động cơ tạo hợp đồng giả)."));
 push(P([runs("Chống rửa tiền (AML): ", { bold: true }), runs("giao dịch thông đồng (hai bên hợp tác, không ai dispute) không bao giờ chạm INSPECTOR — lỗ hổng cấu trúc mà credit export làm nặng thêm. Biện pháp: composite fraud score (không dựa một signal đơn) kết hợp tín hiệu luật định (structuring, đột biến doanh số) + tín hiệu nông sản (counterparty concentration, zero-variance pattern — cân seller khớp tuyệt đối cân buyer lặp lại nhiều lần là bất thường vì nông sản luôn hao hụt), tính theo cặp buyer-seller. Vượt ngưỡng → CONFIRM_CLEAN hold giao dịch KẾ TIẾP của cặp đó (không hồi tố). Admin trigger inspection đột xuất nhưng KHÔNG tự chọn tổ chức (random từ danh sách đã vet); chi phí do nền tảng chịu.", {})]));
 push(P([runs("Cập nhật (06/07/2026) — tách 2 nhóm tín hiệu: ", { bold: true }), runs("\"đột biến doanh số\" (tín hiệu tương đối) cần baseline lịch sử của chính account — account mới không có gì để so, nên không sửa được bằng đổi threshold. Thêm nhóm tín hiệu TUYỆT ĐỐI song song: ngưỡng chuyển khoản 500 triệu đồng (Thông tư 27/2025/TT-NHNN) trigger CONFIRM_CLEAN hold NGAY trên chính giao dịch, kể cả giao dịch đầu tiên của account mới — đóng đúng gap \"one-shot fraud\" (tài khoản giả, 1 hợp đồng khủng, rút rồi bỏ) mà nhóm tương đối chỉ bắt được từ giao dịch thứ 2. Không đóng toàn bộ — one-shot fraud dưới 500 triệu vẫn còn nguyên gap cũ.", {})]));
+push(risk("Sửa (08/07/2026) — ngưỡng tuyệt đối một mình không còn đủ để hold, phải đi kèm ≥1 tín hiệu hành vi khác.", "Bản 06/07/2026 để giá trị tuyệt đối tự nó trigger CONFIRM_CLEAN hold, không điều kiện gì thêm. Vấn đề phát hiện khi đối chiếu ví dụ hợp đồng thật (100-1000 tấn cà phê, tương đương 13,5-135 tỷ VNĐ theo giá Robusta thị trường ~92.000-97.000đ/kg) — gần như 100% hợp đồng thật của platform vượt xa 500 triệu chỉ vì khối lượng thương mại lớn, không liên quan gì tới hành vi khả nghi. Hold cứng theo giá trị đơn thuần sẽ khiến phần lớn giao dịch điển hình bị treo chờ Admin duyệt — giết chết đúng selling point lõi \"escrow tự thực thi, release tự động, không ai can thiệp\", biến Admin thành nút cổ chai cho mọi giao dịch lớn, ngược triết lý neutral-party. Chốt: hold chỉ kích hoạt khi ngưỡng tuyệt đối ĐI KÈM ≥1 tín hiệu hành vi khác (track record mỏng / zero-variance / counterparty mới) — vẫn đóng đúng phần gap \"one-shot fraud\", nhưng không còn đánh đồng \"giao dịch lớn\" với \"giao dịch khả nghi\". Với nhóm tín hiệu tương đối: không đổi, hold chỉ áp giao dịch KẾ TIẾP."));
+push(P([runs("Nguồn phát hiện dời sang bank-service (sửa 08/07/2026): ", { bold: true }), runs("reputation-service không tự query ledger_entry để so giá trị — bank-service (bên giữ tiền thật, đúng chủ thể pháp lý theo Luật PCRT 2022 Điều 4) publish bank.large_transaction_flagged (Phần 2 §4.4) cho mọi LedgerEntry ≥ 500 triệu. reputation-service consume event này làm 1 trong các input cho composite score, không phải tự trigger hold độc lập.", {})]));
 push(legal("Điều 29 Nghị định 52/2024 & Luật Phòng chống rửa tiền 2022", "Mục tiêu thiết kế là đạt bar \"có biện pháp quản trị rủi ro\", không phải bắt 100% fraud (bất khả thi với collusion đủ nguồn lực). Audit trail bất biến là bằng chứng due diligence nếu bị điều tra."));
 
 push(H2("3.4 Use case & lược đồ dữ liệu"));
@@ -213,7 +216,7 @@ push(table(
     ["UnlockEarlyUseCase", "Admin trigger → status=UNLOCKED_EARLY + unlockReason bắt buộc → publish reputation.unlocked"],
     ["CheckLockStatusUseCase", "Expose cho user-service gọi Feign → trả lockedUntil hiện tại"],
     ["GetCreditExportUseCase", "Seller tự trigger (consent) → check counterparty diversity gate → JSON export"],
-    ["FlagSuspiciousPatternUseCase", "Tính composite fraud score theo cặp/account (2 nhóm tín hiệu, mới 06/07/2026) → publish event hold khi vượt ngưỡng — nhóm tương đối hold giao dịch kế tiếp, nhóm tuyệt đối hold ngay giao dịch hiện tại"],
+    ["FlagSuspiciousPatternUseCase", "Tính composite fraud score theo cặp/account (2 nhóm tín hiệu) → publish event hold khi vượt ngưỡng. Nhóm tương đối: hold giao dịch KẾ TIẾP. Nhóm tuyệt đối (consume bank.large_transaction_flagged — sửa 08/07/2026): hold ngay giao dịch hiện tại CHỈ KHI đi kèm ≥1 tín hiệu hành vi khác — không tự hold một mình"],
   ],
   { size: 18 }
 ));
@@ -237,6 +240,12 @@ push(codeblock([
   "CREATE INDEX idx_lock_entry_user ON lock_entry(user_id);",
   "-- reputation score: KHÔNG có bảng riêng — tính từ lock_entry + contract.settled lúc cần",
 ]));
+
+push(H2("3.5 Đối xứng hoá — buyer reputation hiển thị cho seller + chống flag-abuse (mới, 08/07/2026)"));
+push(P("Mọi tín hiệu minh bạch đã xây (verificationLevel, geoRiskLevel bên product-service, reputation score ở đây) đều một chiều buyer-xem-seller. Seller không có tín hiệu nào để đánh giá buyer trước khi ký (buyer có hay bùng không, có hay lạm dụng FLAG_ISSUE ép seller vào dispute không) — với luận điểm \"bảo vệ bên yếu\" xuyên suốt dự án, đây là chỗ hội đồng dễ hỏi: \"seller được gì để tự bảo vệ, ngoài việc bị chấm điểm?\""));
+push(P([runs("Dữ liệu đã có sẵn, chỉ thiếu chiều hiển thị: ", { bold: true }), runs("lock_entry (§3.4) đã insert-only cho cả penalizedRole=BUYER lẫn SELLER từ đầu — dữ liệu \"buyer này từng bùng mấy lần, lock bao lâu\" đã tồn tại, không cần cơ chế mới. Thêm: (1) endpoint GET /reputation/{userId}/public-summary — query theo userId (không phân biệt buyer/seller gọi), trả reputation score + lock history công khai, không cần consent như credit-export (§3.3) vì đây là thông tin đối tác cần biết TRƯỚC KHI quyết định ký, không phải hồ sơ tín dụng riêng tư; (2) framing lại buyerDepositRate/sellerDepositRate là công cụ 2 chiều theo mức tin tưởng (cơ chế đã đúng ở milestone-escrow §2.1/§6.1, chỉ cần nói rõ) — seller mới gặp buyer lạ, xem public-summary thấy buyer track record xấu → seller có quyền đàm phán buyerDepositRate cao hơn 5% mặc định lúc NEGOTIATING, không phải chỉ buyer mới có quyền đòi cọc seller.", {})]));
+push(P([runs("Tín hiệu chống buyer lạm dụng FLAG_ISSUE vô cớ: ", { bold: true }), runs("lỗ thật seller chưa được bảo vệ — buyer có thể flag bừa để ép seller vào dispute/kéo dài mà không mất gì (chi phí giám định do bên thua chịu, nhưng buyer có thể chấp nhận rủi ro đó để gây áp lực). Thêm 1 input event mới: milestone.dispute_resolved (contract-service — bắn khi DisputeRoutingService 3-tier ra phán quyết cho milestone từng CONTESTED; payload {milestoneId, flaggedBy: BUYER, resolutionFavors: BUYER|SELLER}, chỉ buyer flag được ở state machine hiện tại). reputation-service đếm tỷ lệ resolutionFavors=SELLER trên tổng số lần buyer đó từng FLAG_ISSUE — tỷ lệ cao (flag rồi thua nhiều lần) là tín hiệu buyer lạm dụng, hiển thị trong public-summary để seller thấy trước khi ký. Dùng đúng bộ máy reputation đã có (view sống, tính từ event, không bảng riêng) — chỉ thêm 1 loại tín hiệu đầu vào, không phải cơ chế mới.", {})]));
+push(P("Không phải known-limitation cần chấp nhận — là hoàn chỉnh hoá luận điểm gốc \"bảo vệ bên yếu thế\" cho đúng cả 2 chiều, không chỉ chiều buyer nhìn seller."));
 
 // ============================================================
 // 4. AUDIT-SERVICE

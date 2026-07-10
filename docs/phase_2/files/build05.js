@@ -63,7 +63,9 @@ push(table(
   ],
   { size: 18 }
 ));
-push(P([runs("ContractTerms — các field then chốt: ", { bold: true }), runs("milestoneSchedule (List<MilestoneTerm>), toleranceRate (ngưỡng lệch cân Delta 2, mặc định chia 50/50), shortfallPenaltyThreshold (mặc định 5%), buyerPenaltyRate / sellerPenaltyRate, forceMajeureReportWindowDays (mặc định 3 ngày), buyerDepositRate (mặc định 5% totalAmount). sellerDepositRate (mới, 06/07/2026) — optional, mặc định 0, đàm phán per-contract giữa buyer/seller lúc NEGOTIATING, thay quyết định \"bỏ hẳn\" trước đây.", {})]));
+push(P([runs("ContractTerms — các field then chốt: ", { bold: true }), runs("milestoneSchedule (List<MilestoneTerm>), toleranceRate (ngưỡng lệch cân Delta 2, mặc định chia 50/50 phần vượt ngưỡng — xem §2.4), shortfallPenaltyThreshold (mặc định 5%), buyerPenaltyRate / sellerPenaltyRate, forceMajeureReportWindowDays (mặc định 3 ngày), buyerDepositRate (mặc định 5% totalAmount). sellerDepositRate (mới, 06/07/2026) — optional, mặc định 0, đàm phán per-contract giữa buyer/seller lúc NEGOTIATING, thay quyết định \"bỏ hẳn\" trước đây.", {})]));
+push(P([runs("MilestoneTerm — 2 field mới (08/07/2026): ", { bold: true }), runs("expectedDeliveryDate (Date, snapshot bất biến lúc sign() giống mọi field khác trong MilestoneTerm) và graceDays (Integer, số ngày ân hạn sau expectedDeliveryDate). Trước bản này, MilestoneTerm không có bất kỳ mốc ngày nào — hệ quả: không neo được timeout nào ở giai đoạn giao hàng, và hệ thống không định nghĩa được \"seller giao trễ\" (Delta 1 chỉ đo thiếu lượng, không đo trễ hạn — trong khi trễ hạn là vi phạm phổ biến nhất của forward contract nông sản). Cửa sổ hợp lệ là [expectedDeliveryDate, expectedDeliveryDate + graceDays], không phải mốc cứng. graceDays để trong ContractTerms/MilestoneTerm (per-contract), không phải application.yml, vì độ nhạy thời gian khác nhau theo mặt hàng (cà phê khô để lâu, giao trễ vài ngày không sao; rau quả tươi trễ là hỏng) — cùng lý do forceMajeureReportWindowDays đã để per-contract.", {})]));
+push(risk("Guardrail cho field negotiate tự do (mới, 08/07/2026).", "toleranceRate, shortfallPenaltyThreshold, buyerPenaltyRate/sellerPenaltyRate negotiate tự do per-contract nhưng trước bản này không validate range ở đâu. Buyer (bên mạnh hơn — luận điểm gốc của cả dự án là chống bất đối xứng quyền lực) hoàn toàn có thể ép shortfallPenaltyThreshold=0% (seller thiếu 1 gram cũng dính penalty) hoặc toleranceRate=0% (seller gánh 100% hao mòn ngay từ gram đầu) — thiết kế sinh ra để chống bất đối xứng quyền lực lại để hở đúng cơ chế đó. Chốt: validate range lúc sign() — shortfallPenaltyThreshold ∈ [3%,15%], toleranceRate ∈ [0%,10%], buyerPenaltyRate/sellerPenaltyRate ∈ [0%,30%]."));
 
 push(H2("2.2 State machine cấp hợp đồng"));
 push(table(
@@ -72,13 +74,14 @@ push(table(
   [
     ["OFFERED", "Bên mua gửi/đàm phán điều khoản", "NEGOTIATING", "Mọi thay đổi ghi audit trail"],
     ["NEGOTIATING", "Đủ 2 chữ ký (VerifyOtpAndSign lần 2)", "SIGNED", "ContractTerms đóng băng; sinh signedContentHash"],
-    ["SIGNED", "bank xác nhận đã khoá buyerDepositRate", "ACTIVE", "N milestone chuyển IN_PROGRESS"],
+    ["SIGNED", "Nhận escrow.deposit_locked (buyerDepositRate + sellerDepositRate nếu có, cả 2 khoản đã khoá xong ở bank-service)", "ACTIVE", "N milestone chuyển IN_PROGRESS"],
     ["ACTIVE", "completeAllMilestones() — mọi milestone SETTLED", "SETTLED", "Qua Local Outbox (§2.6); guard cho phép từ ACTIVE"],
     ["SIGNED / ACTIVE", "cancel() (buyer hoặc seller)", "CANCELLED", "Pro-rata phần chưa SETTLED (§2.4)"],
   ],
   { size: 18 }
 ));
 push(P([runs("Điểm sửa quan trọng: ", { bold: true }), runs("guard của completeAllMilestones() phải cho phép chuyển SETTLED từ ACTIVE (không còn trạng thái DELIVERED của mô hình một-điểm-giao-hàng cũ). Các đường dead-path liên quan (confirmDelivery, sự kiện contract.delivered và consumer của nó) được loại bỏ khi hiện thực hoá.", {})]));
+push(P([runs("SIGNED ≠ mốc tiền, ACTIVE mới là mốc tiền (làm rõ 08/07/2026): ", { bold: true }), runs("SIGNED là mốc chữ ký — transitionTo(SIGNED) khi đủ 2 chữ ký hợp lệ, độc lập hoàn toàn với tiền. contract.signed publish ngay tại đây là đúng — \"hợp đồng đã được ký kết\" là sự thật kể cả nếu bước lock cọc ngay sau đó thất bại. ACTIVE = đã ký VÀ cọc đã khoá thành công — đúng lúc escrow.deposit_locked (§3.2 UC-E1, escrow-service) về tới contract-service. Nếu lock cọc fail (bank-service trả bank.lock_failed) → Contract kẹt ở SIGNED, chưa ACTIVE; nhánh xử lý fail (retry lock, hoặc rollback về trạng thái trước ký) cần định nghĩa khi implement, hiện chưa có. Hệ quả cho analytics-service: contract.signed đo \"đã ký\", contract.settled/milestone events đo \"đã vận hành thật\" — hai câu hỏi khác nhau, không được lẫn khi tính conversion rate.", {})]));
 
 push(H2("2.3 State machine cấp milestone"));
 push(table(
@@ -86,7 +89,9 @@ push(table(
   ["Từ trạng thái", "Trigger", "Sang trạng thái", "Kết quả"],
   [
     ["CREATED", "Contract chuyển ACTIVE", "IN_PROGRESS", "Chờ seller gom hàng"],
+    ["IN_PROGRESS", "Quá expectedDeliveryDate + graceDays mà chưa SELLER_WEIGHED (mới, 08/07/2026)", "Xử như Delta 1 penalty nhánh 2, hoặc cancel pro-rata milestone", "Buyer trigger được nhánh seller-quá-hạn; buyer KHÔNG bị seize cọc (buyer không phải bên phá kèo). Seller còn cửa claim bất khả kháng trong forceMajeureReportWindowDays"],
     ["IN_PROGRESS", "Seller cân + upload ảnh", "SELLER_WEIGHED", "Ghi sellerDeclaredWeight"],
+    ["SELLER_WEIGHED", "Hết buyerReceiveWindowDays mà buyer chưa cân nhận (mới, 08/07/2026)", "— (không tự chuyển state)", "Notify buyer; im lặng tiếp → Admin/Level 1 quyết theo bằng chứng hiện có, KHÔNG auto-settle theo số seller tự khai"],
     ["SELLER_WEIGHED", "Vận chuyển, buyer cân lại + ảnh", "BUYER_RECEIVED", "Ghi buyerReceivedWeight"],
     ["BUYER_RECEIVED", "CONFIRM_CLEAN hoặc timeout buyerConfirmWindowDays", "SETTLED", "Pro-rata Delta 2, release"],
     ["BUYER_RECEIVED", "FLAG_ISSUE", "AWAITING_SELLER_RESPONSE", "Seller có sellerResponseWindowDays để phản hồi"],
@@ -98,6 +103,7 @@ push(table(
   ],
   { size: 17 }
 ));
+push(risk("2 lỗ hổng timeout đã vá (08/07/2026).", "SELLER_WEIGHED không có timeout trước bản này — nếu hàng đã cân/gửi mà buyer không bao giờ cân lại/ghi nhận, milestone kẹt SELLER_WEIGHED vĩnh viễn, batchAmount khoá vĩnh viễn. Buyer chỉ cần không bấm gì ở bước nhận hàng là né sạch mọi timeout đã dựng — và vì batchAmount lock sớm (§UC-E2), lối thoát duy nhất trước đây là cancel(), khiến buyer bị seize cọc dù mình mới là bên gây kẹt (bất công ngược đúng chỗ luận điểm gốc \"bảo vệ bên yếu\" muốn tránh). Vá bằng buyerReceiveWindowDays (mặc định 2 ngày làm việc, application.yml — invariant kỹ thuật). Song song, IN_PROGRESS trước bản này cũng không có timeout nào cho seller giao trễ, vì MilestoneTerm chưa có mốc ngày — vá bằng expectedDeliveryDate/graceDays (§2.1) mới thêm."));
 push(P([runs("Quyền claim bất khả kháng ", { bold: true }), runs("không gắn cứng một bước — có thể chen ngang bất kỳ lúc nào trước khi milestone SETTLED, miễn còn trong forceMajeureReportWindowDays kể từ lúc seller biết sự kiện (không neo theo ngày giao).", {})]));
 
 push(P([runs("Provisional settlement khi CONTESTED escalate Level 2 (mới, 06/07/2026). ", { bold: true }), runs("Khi DisputeRoutingService route milestone CONTESTED sang LEVEL_2, platform commission tổ chức Level 2 (InitiateLevel2Inspection) và chờ report thật trong tối đa level2BufferWindowDays. Hết window mà report chưa CONFIRMED: platform commission thêm 1 giám định Level 1.5 làm phán quyết tạm thời, settle ngay (1 − level2SafetyBufferRate) của batchAmount cho seller theo số 1.5, giữ khoá phần còn lại trong escrow (không ghi debt — seller không có tài sản đối ứng để đòi). Mechanics đầy đủ 3 bước (Provisional/Reconcile/Terminal, chi tiết milestone-escrow-phase2-design.md §3.2): Bước 1 provisional release X15×(1−rate) cho seller; Bước 2 khi report Level 2 thật về, bù/refund phần chênh; Bước 3 hết terminal cutoff mà report không về thì phán quyết Level 1.5 thành chung thẩm. Hết thêm level2BufferTerminalDays (placeholder 30 ngày, tính từ lúc level2BufferWindowDays hết) mà vẫn chưa có report CONFIRMED: phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer cho seller, đóng milestone.", {})]));
@@ -110,11 +116,12 @@ push(table(
   [
     ["So sánh", "committedQuantity vs sellerDeclaredWeight", "sellerDeclaredWeight vs buyerReceivedWeight", ""],
     ["Bản chất", "Seller kiểm soát được (trước khi xe chạy)", "Ngoài kiểm soát 2 bên (trong vận chuyển)", ""],
-    ["Ai chịu", "Seller (trừ khi bất khả kháng)", "Chia theo toleranceRate (mặc định 50/50)", ""],
+    ["Ai chịu", "Seller (trừ khi bất khả kháng)", "Trong ngưỡng: buyer tự chịu. Vượt ngưỡng: chỉ phần vượt chia toleranceRate (mặc định 50/50) — sửa 08/07/2026", ""],
     ["Xử lý", "3 nhánh (dưới)", "Luôn pro-rata tự động", ""],
   ],
   { size: 17 }
 ));
+push(P([runs("Công thức Delta 2 (chốt 08/07/2026): ", { bold: true }), runs("gọi within = ngưỡng khối lượng theo toleranceRate. Nếu delta2 ≤ within (chưa vượt ngưỡng) → actualAmount = buyerReceivedWeight × agreedPrice như cơ chế cũ, không đổi gì — trong ngưỡng, buyer chấp nhận hao mòn là bình thường (đã ngầm chấp nhận lúc ký). Nếu delta2 > within → chỉ phần VƯỢT ngưỡng (không phải toàn bộ delta2) mới chia theo toleranceRate, chia trên khối lượng (không phải tiền, vì agreedPrice cố định suốt hợp đồng nên 2 cách cho kết quả y hệt, nhưng khớp cách Delta 1 đã tính) — seller không gánh 100% phần bất thường, buyer chia sẻ trách nhiệm vì rủi ro vận chuyển ngoài kiểm soát cả hai. Sửa vì bản trước để 1 đường duy nhất — milestone.settled release theo buyerReceivedWeight, seller gánh 100% hao mòn — mâu thuẫn với chính nguyên tắc \"chia theo toleranceRate\" đã công bố. contract-service (có đủ ContractTerms) là nơi tính actualAmount cuối cùng, truyền số đã tính xuống escrow-service qua payload milestone.settled — escrow-service không tự tính lại tolerance split (xem UC-E3, §3.2).", {})]));
 push(table(
   [1100, 4700, 3838],
   ["Nhánh", "Điều kiện (Delta 1)", "Kết quả"],
@@ -306,8 +313,8 @@ push(table(
 
 push(H2("3.2 Use case (event-driven)"));
 uc("UC-E1", "Khoá cọc cấp hợp đồng khi SIGNED", [
-  ["Trigger", "Nhận contract.signed"],
-  ["Luồng", "Gửi bank.lock_requested(entryType=LOCK_DEPOSIT, milestoneId=NULL, amount=buyerDepositRate×totalAmount, sourceEventId) → đợi bank.lock_completed → set buyerDepositState=DEPOSIT_LOCKED. Nếu sellerDepositRate>0 (mới, 06/07/2026): gửi thêm 1 bank.lock_requested riêng (userId=sellerId, sourceEventId khác) → set sellerDepositState=DEPOSIT_LOCKED. Cả hai xong → báo contract-service để chuyển ACTIVE"],
+  ["Trigger", "Nhận contract.signed — payload mang sẵn buyerDepositAmount/sellerDepositAmount (đã tính = rate × totalAmount ở contract-service). escrow-service KHÔNG tự nhân rate×totalAmount (sửa 08/07/2026): là pure event consumer, không Feign ngược lấy ContractTerms, nên không tính nổi số tiền cần khoá nếu chỉ nhận rate thô"],
+  ["Luồng", "Gửi bank.lock_requested(entryType=LOCK_BUYER_DEPOSIT, milestoneId=NULL, amount=buyerDepositAmount, sourceEventId) → đợi bank.lock_completed → set buyerDepositState=DEPOSIT_LOCKED. Nếu sellerDepositAmount>0: gửi thêm 1 bank.lock_requested riêng (entryType=LOCK_SELLER_DEPOSIT, userId=sellerId, sourceEventId khác) → set sellerDepositState=DEPOSIT_LOCKED (sellerDepositAmount=0 → bỏ qua, không bắn thêm LedgerEntry). Cả 2 khoản cần khoá xong (chỉ buyer nếu sellerDepositAmount=0) → publish escrow.deposit_locked(contractId, buyerDepositState, sellerDepositState) — contract-service consume để chuyển ACTIVE; escrow-service tự dùng làm tín hiệu nối tiếp lock batchAmount milestone đầu tiên (UC-E2), không cần round-trip qua contract-service"],
 ]);
 uc("UC-E2", "Khoá batchAmount đợt (lock sớm)", [
   ["Trigger", "Contract ACTIVE (milestone đầu) hoặc milestone trước SETTLED", ],
@@ -421,8 +428,9 @@ push(table(
     ["3", "notification-service", "Gửi email OTP kèm signedContentHash", "Bên ký nhận mã"],
     ["4", "contract-service", "VerifyOtpAndSign: khớp OTP → INSERT signature", "Tạo Signature của bên đó"],
     ["5", "contract-service", "Đủ 2 chữ ký → Contract SIGNED → publish contract.signed + đẩy hash", "audit-service nối chain; email anchor"],
-    ["6", "escrow → bank", "bank.lock_requested (LOCK_DEPOSIT) → bank.lock_completed", "Ledger LOCK_DEPOSIT; DEPOSIT_LOCKED"],
-    ["7", "contract-service", "Nhận xác nhận cọc đã khoá → Contract ACTIVE", "N milestone → IN_PROGRESS"],
+    ["6", "escrow → bank", "bank.lock_requested (LOCK_BUYER_DEPOSIT, + LOCK_SELLER_DEPOSIT nếu sellerDepositAmount>0) → bank.lock_completed", "Ledger LOCK_BUYER_DEPOSIT/LOCK_SELLER_DEPOSIT; DEPOSIT_LOCKED"],
+    ["7", "escrow-service", "Cả 2 khoản cọc cần khoá đã confirm xong → publish escrow.deposit_locked", "contract-service consume để chuyển ACTIVE"],
+    ["8", "contract-service", "Nhận escrow.deposit_locked → Contract ACTIVE", "N milestone → IN_PROGRESS"],
   ],
   { size: 17, colAlign: [AlignmentType.CENTER, null, null, null] }
 ));
@@ -472,11 +480,15 @@ push(table(
     ["Escalation cap bất khả kháng = Level 1.5", "application.yml", "Invariant — sai chuyên môn nếu lên Level 2"],
     ["Ngưỡng giá trị/loại hàng kích hoạt cấp dispute", "application.yml", "Per-deployment config"],
     ["milestoneSchedule", "ContractTerms", "Đàm phán số đợt và tỷ lệ từng đợt"],
-    ["shortfallPenaltyThreshold / toleranceRate", "ContractTerms", "Mặc định 5% / 50-50; negotiate được"],
-    ["buyerPenaltyRate / sellerPenaltyRate", "ContractTerms", "Đàm phán theo hợp đồng"],
+    ["shortfallPenaltyThreshold / toleranceRate", "ContractTerms", "Mặc định 5% / 50-50 (phần vượt ngưỡng); negotiate được. Guardrail (mới, 08/07/2026): validate range lúc sign() — shortfallPenaltyThreshold ∈ [3%,15%], toleranceRate ∈ [0%,10%]"],
+    ["buyerPenaltyRate / sellerPenaltyRate", "ContractTerms", "Đàm phán theo hợp đồng. Guardrail (mới, 08/07/2026): validate range [0%,30%] lúc sign()"],
     ["buyerDepositRate", "ContractTerms", "Mặc định 5% totalAmount"],
     ["sellerDepositRate (mới, 06/07/2026)", "ContractTerms", "Optional, mặc định 0 — đàm phán per-contract, thay quyết định \"bỏ hẳn\" trước đây"],
     ["forceMajeureReportWindowDays", "ContractTerms", "Mặc định 3 ngày; khác theo mặt hàng"],
+    ["expectedDeliveryDate (mới, 08/07/2026)", "ContractTerms/MilestoneTerm", "Snapshot bất biến lúc sign() — mốc neo timeout giao hàng, per-milestone"],
+    ["graceDays (mới, 08/07/2026)", "ContractTerms/MilestoneTerm", "Số ngày ân hạn sau expectedDeliveryDate — per-contract vì độ nhạy khác theo mặt hàng, cùng lý do forceMajeureReportWindowDays"],
+    ["buyerReceiveWindowDays (mới, 08/07/2026)", "application.yml", "Mặc định 2 ngày làm việc — vá lỗ hổng SELLER_WEIGHED không timeout (§2.3). Invariant kỹ thuật, không khác theo hợp đồng"],
+    ["zeroProgressMultiplier (mới, 08/07/2026)", "application.yml", "1.5x — nhân vào công thức lockDurationDays (reputation-service, Phần 3 §3.1) khi cancel lúc 0 milestone nào từng SETTLED; 1.0x mọi trường hợp khác"],
     ["level2BufferWindowDays (06/07/2026, neo lại 08/07/2026)", "application.yml", "5-10 ngày làm việc — neo theo benchmark lab test cà phê chuẩn SCA (5 ngày/mẫu) + buffer vận chuyển, thay số đoán 7-14; chưa validate với đơn vị Level 2 thật cho thị trường VN"],
     ["level2SafetyBufferRate (mới, 06/07/2026)", "application.yml", "Placeholder 10-15% batchAmount — chưa có dữ liệu variance thật"],
     ["level2BufferTerminalDays (mới, 06/07/2026)", "application.yml", "Placeholder 30 ngày — hết hạn thì phán quyết Level 1.5 tự động thành chung thẩm"],
