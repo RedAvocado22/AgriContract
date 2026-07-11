@@ -127,4 +127,35 @@ public class NotificationEventConsumer {
             throw new InvalidEventPayloadException("Malformed escrow.penalized payload: " + event, e);
         }
     }
+
+    @RabbitListener(queues = "notification-svc.category.approved")
+    public void onCategoryApproved(Map<String, Object> event) {
+        processNotificationUseCase.handleCategoryApproved(parseCategoryApprovedEvent(event));
+    }
+
+    private CategoryApprovedCommand parseCategoryApprovedEvent(Map<String, Object> event) {
+        try {
+            return new CategoryApprovedCommand(
+                    (String) event.get("eventId"), (String) event.get("categoryId"),
+                    (String) event.get("name"), (String) event.get("proposedByEmail"));
+        } catch (RuntimeException e) {
+            throw new InvalidEventPayloadException("Malformed category.approved payload: " + event, e);
+        }
+    }
+
+    @RabbitListener(queues = "notification-svc.category.rejected")
+    public void onCategoryRejected(Map<String, Object> event) {
+        processNotificationUseCase.handleCategoryRejected(parseCategoryRejectedEvent(event));
+    }
+
+    private CategoryRejectedCommand parseCategoryRejectedEvent(Map<String, Object> event) {
+        try {
+            return new CategoryRejectedCommand(
+                    (String) event.get("eventId"), (String) event.get("categoryId"),
+                    (String) event.get("name"), (String) event.get("proposedByEmail"),
+                    (String) event.get("rejectionReason"));
+        } catch (RuntimeException e) {
+            throw new InvalidEventPayloadException("Malformed category.rejected payload: " + event, e);
+        }
+    }
 }

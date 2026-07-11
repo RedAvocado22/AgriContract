@@ -16,4 +16,8 @@ public interface ProcessNotificationUseCase {
     void handleEscrowReleased(EscrowReleasedCommand command);
 
     void handleEscrowPenalized(EscrowPenalizedCommand command);
+
+    void handleCategoryApproved(CategoryApprovedCommand command);
+
+    void handleCategoryRejected(CategoryRejectedCommand command);
 }

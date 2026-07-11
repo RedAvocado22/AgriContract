@@ -30,11 +30,13 @@ public class RabbitMQConfig {
     public Declarables notificationEventDeclarables() {
         TopicExchange contractsExchange = new TopicExchange("agricontract.contracts", true, false);
         TopicExchange escrowExchange = new TopicExchange("agricontract.escrow", true, false);
+        TopicExchange productEventsExchange = new TopicExchange("agricontract.events", true, false);
         DirectExchange contractsDlx = new DirectExchange("notification-svc.contracts.dlx", true, false);
         DirectExchange escrowDlx = new DirectExchange("notification-svc.escrow.dlx", true, false);
+        DirectExchange productEventsDlx = new DirectExchange("notification-svc.events.dlx", true, false);
 
         List<Declarable> declarables = new ArrayList<>(
-                List.of(contractsExchange, escrowExchange, contractsDlx, escrowDlx));
+                List.of(contractsExchange, escrowExchange, productEventsExchange, contractsDlx, escrowDlx, productEventsDlx));
 
         for (String routingKey : List.of("contract.signed", "contract.delivered", "contract.cancelled", "contract.disputed")) {
             Queue queue = QueueBuilder.durable("notification-svc." + routingKey)
@@ -58,6 +60,18 @@ public class RabbitMQConfig {
             declarables.add(dlq);
             declarables.add(BindingBuilder.bind(queue).to(escrowExchange).with(routingKey));
             declarables.add(BindingBuilder.bind(dlq).to(escrowDlx).with(routingKey));
+        }
+
+        for (String routingKey : List.of("category.approved", "category.rejected")) {
+            Queue queue = QueueBuilder.durable("notification-svc." + routingKey)
+                    .withArgument("x-dead-letter-exchange", productEventsDlx.getName())
+                    .build();
+            Queue dlq = QueueBuilder.durable("notification-svc." + routingKey + ".dlq").build();
+
+            declarables.add(queue);
+            declarables.add(dlq);
+            declarables.add(BindingBuilder.bind(queue).to(productEventsExchange).with(routingKey));
+            declarables.add(BindingBuilder.bind(dlq).to(productEventsDlx).with(routingKey));
         }
 
         return new Declarables(declarables);
