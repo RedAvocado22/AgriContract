@@ -108,4 +108,20 @@ public class ProcessNotificationUseCaseImpl implements ProcessNotificationUseCas
 
         sendNotification(command.eventId(), command.penalizedPartyEmail(), subject, body);
     }
+
+    @Override
+    public void handleCategoryApproved(CategoryApprovedCommand command) {
+        String subject = "[AgriContract] Category proposal approved";
+        String body = "Your proposed category \"" + command.name() + "\" has been approved.";
+
+        sendNotification(command.eventId(), command.proposedByEmail(), subject, body);
+    }
+
+    @Override
+    public void handleCategoryRejected(CategoryRejectedCommand command) {
+        String subject = "[AgriContract] Category proposal rejected";
+        String body = "Your proposed category \"" + command.name() + "\" has been rejected. Reason: " + command.rejectionReason();
+
+        sendNotification(command.eventId(), command.proposedByEmail(), subject, body);
+    }
 }
