@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo "==> Resetting seed data..."
+docker exec -i user-db     mysql -uroot -ppassword user_db     < "$SCRIPT_DIR/seed/02-user-db.sql"
 docker exec -i product-db  mysql -uroot -ppassword product_db  < "$SCRIPT_DIR/seed/01-product-db.sql"
 docker exec -i contract-db mysql -uroot -ppassword contract_db < "$SCRIPT_DIR/seed/03-contract-db.sql"
 docker exec -i escrow-db   mysql -uroot -ppassword escrow_db   < "$SCRIPT_DIR/seed/04-escrow-db.sql"

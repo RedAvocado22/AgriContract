@@ -6,12 +6,19 @@
 
 SET @seller1_id = '1a5a2ddd-56b9-492a-b966-99f436e0fc85';
 
+-- Categories (APPROVED — products cần category_id trỏ tới category đã approved)
+INSERT IGNORE INTO categories (category_id, name, normalized_name, status, proposed_by, proposed_by_email, created_at, updated_at) VALUES
+  ('cat-seed-grain',  'Ngũ cốc',  'ngu coc',  'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW()),
+  ('cat-seed-coffee', 'Cà phê',   'ca phe',   'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW()),
+  ('cat-seed-spice',  'Gia vị',   'gia vi',   'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW()),
+  ('cat-seed-fruit',  'Trái cây', 'trai cay', 'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW());
+
 -- Products
-INSERT IGNORE INTO products (product_id, name, unit, category, created_at, updated_at) VALUES
-  ('prod-seed-rice',   'Gạo tẻ ST25',           'kg', 'GRAIN',  NOW(), NOW()),
-  ('prod-seed-coffee', 'Cà phê Robusta',         'kg', 'COFFEE', NOW(), NOW()),
-  ('prod-seed-pepper', 'Hồ tiêu đen',            'kg', 'SPICE',  NOW(), NOW()),
-  ('prod-seed-durian', 'Sầu riêng Musang King',  'kg', 'FRUIT',  NOW(), NOW());
+INSERT IGNORE INTO products (product_id, name, unit, category_id, images, created_at, updated_at) VALUES
+  ('prod-seed-rice',   'Gạo tẻ ST25',           'kg', 'cat-seed-grain',  JSON_ARRAY('https://picsum.photos/seed/prod-seed-rice/800'),   NOW(), NOW()),
+  ('prod-seed-coffee', 'Cà phê Robusta',         'kg', 'cat-seed-coffee', JSON_ARRAY('https://picsum.photos/seed/prod-seed-coffee/800'), NOW(), NOW()),
+  ('prod-seed-pepper', 'Hồ tiêu đen',            'kg', 'cat-seed-spice',  JSON_ARRAY('https://picsum.photos/seed/prod-seed-pepper/800'), NOW(), NOW()),
+  ('prod-seed-durian', 'Sầu riêng Musang King',  'kg', 'cat-seed-fruit',  JSON_ARRAY('https://picsum.photos/seed/prod-seed-durian/800'), NOW(), NOW());
 
 -- Listings — ACTIVE (để browse + dùng cho OFFERED/NEGOTIATING contract)
 INSERT IGNORE INTO listings (listing_id, seller_id, product_id, product_name, quantity, quantity_unit, price_floor, currency, delivery_deadline, status, created_at, updated_at)
