@@ -67,6 +67,10 @@
   --radius-lg: 16px;
   --radius-xl: 20px;
   --radius-full: 999px;
+
+  /* Custom Auth Layout Tokens */
+  --radius-auth-card: 20px;
+  --shadow-auth-card: 0 12px 40px rgba(15, 23, 42, 0.1);
 }
 
 @layer base {
@@ -90,4 +94,13 @@
     vertical-align: middle;
     font-style: normal;
   }
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

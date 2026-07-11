@@ -33,6 +33,10 @@ const buttonVariants = cva(
         "icon-sm":
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
         "icon-lg": "size-9",
+        /** Nav bar button — mockup: padding 9px 18px, radius 8px */
+        nav: "h-auto rounded-[8px] px-[18px] py-[9px] text-sm font-medium",
+        /** CTA / landing section button — mockup: padding 13px 26px, radius 9px */
+        cta: "h-auto rounded-[9px] px-[26px] py-[13px] text-[15px] font-medium",
       },
     },
     defaultVariants: {
