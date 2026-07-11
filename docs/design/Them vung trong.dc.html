@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="29 / 28 Thêm vùng trồng">
+
+  <!-- SIDEBAR (seller) -->
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 24px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Tổng quan</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Hợp đồng</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cột mốc</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Ký quỹ</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Sản phẩm</div>
+    <div style="padding:10px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Vùng trồng</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Uy tín</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Nhật ký</div>
+    <div style="flex:1;"></div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <!-- TOP BAR -->
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8; gap:8px;"><span class="ms" style="font-size:18px;">search</span> Tìm hợp đồng, đối tác...</div>
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="padding:4px 10px; border-radius:999px; background:#DCFCE7; font-size:13px; font-weight:500; color:#15803D;">88</div>
+      <div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+    </div>
+
+    <div style="padding:24px 32px 80px; max-width:1280px; width:100%; margin:0 auto; box-sizing:border-box;">
+
+      <div style="font-size:13px; color:#64748B; margin-bottom:10px;"><a href="#">Vùng trồng</a> <span style="margin:0 6px; color:#CBD5E1;">/</span> Thêm vùng trồng</div>
+      <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Thêm vùng trồng</div>
+      <div style="font-size:14px; color:#64748B; margin-bottom:20px;">Cà phê thuộc EUDR — vùng trồng phải khai toạ độ. Sau khi lưu, hệ thống gửi kiểm tra vệ tinh trước khi vùng dùng được cho listing.</div>
+
+      <!-- METHOD SEGMENTED -->
+      <div style="display:inline-flex; border:0.5px solid #E2E8F0; border-radius:8px; padding:3px; background:#FFFFFF; margin-bottom:20px;">
+        <div onClick="{{ pickKml }}" style="{{ kmlTabStyle }}"><span class="ms" style="font-size:17px;">upload_file</span> Nhập từ file KML</div>
+        <div onClick="{{ pickPin }}" style="{{ pinTabStyle }}"><span class="ms" style="font-size:17px;">add_location_alt</span> Ghim thủ công trên bản đồ</div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 420px; gap:24px; align-items:start;">
+
+        <!-- MAP -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:16px; position:sticky; top:24px;">
+          <div style="position:relative; border-radius:8px; overflow:hidden; height:520px; background:#E7EDEB;">
+            <svg viewBox="0 0 560 520" style="width:100%; height:100%; display:block;" data-om-raster>
+              <rect width="560" height="520" fill="#E3EAE7"/>
+              <g opacity="0.5">
+                <rect x="40" y="60" width="150" height="110" fill="#CBD8CF"/>
+                <rect x="210" y="40" width="180" height="90" fill="#D6DED6"/>
+                <rect x="60" y="200" width="200" height="130" fill="#C6D3C8"/>
+                <rect x="300" y="180" width="210" height="160" fill="#D0D9CF"/>
+                <rect x="120" y="360" width="240" height="120" fill="#CDD8CC"/>
+              </g>
+              <path d="M20,300 Q180,240 340,300 T560,270" fill="none" stroke="#94A3B8" stroke-width="2" stroke-dasharray="5 5" opacity="0.6"/>
+              <polygon points="200,150 360,130 400,270 300,330 190,280" fill="#15803D" fill-opacity="0.14" stroke="#15803D" stroke-width="2.5"/>
+              <g>
+                <circle cx="200" cy="150" r="6" fill="#15803D" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="360" cy="130" r="6" fill="#15803D" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="400" cy="270" r="6" fill="#15803D" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="300" cy="330" r="6" fill="#15803D" stroke="#fff" stroke-width="1.5"/>
+                <circle cx="190" cy="280" r="6" fill="#15803D" stroke="#fff" stroke-width="1.5"/>
+              </g>
+            </svg>
+            <div style="position:absolute; top:12px; left:12px; right:12px; display:flex; gap:8px; align-items:center; background:rgba(255,255,255,0.94); border:0.5px solid #E2E8F0; border-radius:8px; padding:9px 12px; font-size:12.5px; color:#475569;">
+              <span class="ms" style="font-size:17px; color:#15803D;">touch_app</span> {{ mapHint }}
+            </div>
+            <div style="position:absolute; bottom:12px; right:12px; display:flex; flex-direction:column; gap:6px;">
+              <div style="width:34px; height:34px; background:#fff; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:18px; color:#64748B;">add</span></div>
+              <div style="width:34px; height:34px; background:#fff; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:18px; color:#64748B;">remove</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FORM -->
+        <div style="display:flex; flex-direction:column; gap:16px;">
+
+          <!-- KML import (only when method=kml) -->
+          <sc-if value="{{ isKml }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px;">
+              <div style="font-size:14px; font-weight:500; margin-bottom:10px;">Tệp KML <span style="color:#DC2626;">*</span></div>
+              <div style="border:1px dashed #CBD5E1; border-radius:10px; padding:22px; text-align:center; margin-bottom:14px;">
+                <span class="ms" style="font-size:30px; color:#94A3B8;">upload_file</span>
+                <div style="font-size:13.5px; margin-top:6px;">Kéo thả tệp .kml vào đây hoặc <span style="color:#15803D; font-weight:500;">chọn tệp</span></div>
+                <div style="font-size:11.5px; color:#94A3B8; margin-top:4px;">Xuất từ Google Earth, QGIS hoặc thiết bị GPS · tối đa 10 MB</div>
+              </div>
+              <!-- processing file row -->
+              <div style="display:flex; align-items:center; gap:12px; border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 14px;">
+                <div style="width:34px; height:34px; border-radius:6px; background:#F1F5F4; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:19px; color:#64748B;">description</span></div>
+                <div style="flex:1; min-width:0;"><div style="font-size:13.5px;">ea-kar-vung-b.kml</div><div style="font-size:11px; color:#94A3B8;">2,1 MB · 5 đỉnh polygon</div></div>
+                <span style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#16A34A;"><span class="ms" style="font-size:15px;">check_circle</span> Sẵn sàng</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- manual pin hint (only when method=pin) -->
+          <sc-if value="{{ isPin }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px;">
+              <div style="font-size:14px; font-weight:500; margin-bottom:8px;">Vẽ ranh giới trên bản đồ <span style="color:#DC2626;">*</span></div>
+              <div style="font-size:12.5px; color:#64748B; line-height:1.55; margin-bottom:12px;">Bấm lần lượt các đỉnh của vườn trên bản đồ để tạo vùng, hoặc bấm một điểm nếu chỉ khai toạ độ trung tâm. Bấm lại đỉnh đầu để khép vùng.</div>
+              <div style="display:flex; justify-content:space-between; padding:9px 0; border-top:0.5px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Số đỉnh đã ghim</span><span style="font-family:'JetBrains Mono',monospace;">5</span></div>
+              <div style="display:flex; justify-content:space-between; padding:9px 0; border-top:0.5px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Diện tích ước tính</span><span style="font-family:'JetBrains Mono',monospace;">3,1 ha</span></div>
+              <div style="display:flex; justify-content:space-between; padding:9px 0; border-top:0.5px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Toạ độ tâm</span><span style="font-family:'JetBrains Mono',monospace;">12,8347°N · 108,4521°E</span></div>
+            </div>
+          </sc-if>
+
+          <!-- common fields -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px;">
+            <div style="font-size:14px; font-weight:500; margin-bottom:16px;">Thông tin vùng trồng</div>
+
+            <div style="margin-bottom:16px;">
+              <div style="font-size:13px; margin-bottom:6px;">Tên vùng <span style="color:#DC2626;">*</span></div>
+              <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 12px; font-size:14px;">Vùng B — Ea Kar</div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+              <div>
+                <div style="font-size:13px; margin-bottom:6px;">Loại hình <span style="color:#DC2626;">*</span></div>
+                <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">Vùng (polygon) <span class="ms" style="font-size:18px; color:#94A3B8;">expand_more</span></div>
+              </div>
+              <div>
+                <div style="font-size:13px; margin-bottom:6px;">Tỉnh/thành <span style="color:#DC2626;">*</span></div>
+                <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">Đắk Lắk <span class="ms" style="font-size:18px; color:#94A3B8;">expand_more</span></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size:13px; margin-bottom:8px;">Mức xác minh <span style="color:#DC2626;">*</span></div>
+              <div onClick="{{ pickSelf }}" style="{{ selfOptStyle }}">
+                <div style="width:16px; height:16px; border-radius:50%; border:1.5px solid {{ selfDot }}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px;"><sc-if value="{{ isSelf }}" hint-placeholder-val="{{ true }}"><span style="width:8px; height:8px; border-radius:50%; background:#15803D;"></span></sc-if></div>
+                <div><div style="font-size:13.5px;">Tự khai</div><div style="font-size:12px; color:#64748B;">Toạ độ do tôi khai, chưa có giấy tờ địa chính kèm theo.</div></div>
+              </div>
+              <div onClick="{{ pickCadastral }}" style="{{ cadOptStyle }}">
+                <div style="width:16px; height:16px; border-radius:50%; border:1.5px solid {{ cadDot }}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px;"><sc-if value="{{ isCadastral }}" hint-placeholder-val="{{ false }}"><span style="width:8px; height:8px; border-radius:50%; background:#15803D;"></span></sc-if></div>
+                <div><div style="font-size:13.5px;">Có trích lục địa chính</div><div style="font-size:12px; color:#64748B;">Đính kèm trích lục — vùng được đánh dấu xác minh cao hơn.</div></div>
+              </div>
+
+              <sc-if value="{{ isCadastral }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:12px; border:1px dashed #CBD5E1; border-radius:10px; padding:16px; text-align:center;">
+                  <span class="ms" style="font-size:24px; color:#94A3B8;">attach_file</span>
+                  <div style="font-size:13px; margin-top:4px;">Tải trích lục địa chính (PDF/ảnh)</div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+
+          <!-- pending notice -->
+          <div style="display:flex; gap:10px; align-items:flex-start; background:#FEF3C7; border-radius:10px; padding:13px 15px;">
+            <span class="ms" style="font-size:19px; color:#B45309; margin-top:1px;">satellite_alt</span>
+            <div style="font-size:12.5px; color:#92400E; line-height:1.55;">Sau khi lưu, vùng ở trạng thái <b style="font-weight:500;">Đang kiểm tra</b> vệ tinh (thường vài giờ) và <b style="font-weight:500;">chưa chọn được</b> khi tạo listing cho tới khi có kết quả.</div>
+          </div>
+
+          <div style="display:flex; gap:9px; align-items:flex-start; font-size:11.5px; color:#94A3B8; line-height:1.5; padding:0 2px;"><span class="ms" style="font-size:15px; margin-top:1px;">history</span> Hồ sơ due diligence EUDR phải giữ tối thiểu 5 năm — không thể xoá vùng đã dùng cho hợp đồng.</div>
+
+          <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <span style="padding:10px 18px; border-radius:8px; border:0.5px solid #E2E8F0; background:#fff; font-size:14px; font-weight:500;">Huỷ</span>
+            <span style="padding:10px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500; display:flex; align-items:center; gap:8px;"><span class="ms" style="font-size:18px;">check</span> Lưu vùng trồng</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { method: 'pin', verify: 'self' };
+
+  renderVals() {
+    const isKml = this.state.method === 'kml';
+    const isPin = this.state.method === 'pin';
+    const isSelf = this.state.verify === 'self';
+    const isCadastral = this.state.verify === 'cadastral';
+
+    const tab = (on) => `display:flex; align-items:center; gap:7px; padding:9px 16px; border-radius:6px; font-size:14px; font-weight:500; cursor:pointer; ${on ? 'background:#15803D; color:#fff;' : 'color:#64748B;'}`;
+    const opt = (on) => `display:flex; gap:10px; align-items:flex-start; border:0.5px solid ${on ? '#15803D' : '#E2E8F0'}; border-radius:8px; padding:12px 14px; margin-bottom:10px; cursor:pointer; background:${on ? '#F6FBF7' : '#fff'};`;
+
+    return {
+      isKml, isPin, isSelf, isCadastral,
+      kmlTabStyle: tab(isKml),
+      pinTabStyle: tab(isPin),
+      selfOptStyle: opt(isSelf),
+      cadOptStyle: opt(isCadastral),
+      selfDot: isSelf ? '#15803D' : '#CBD5E1',
+      cadDot: isCadastral ? '#15803D' : '#CBD5E1',
+      mapHint: isKml ? 'Xem trước ranh giới từ tệp KML. Kéo đỉnh để chỉnh nếu cần.' : 'Bấm trên bản đồ để ghim từng đỉnh của vườn.',
+      pickKml: () => this.setState({ method: 'kml' }),
+      pickPin: () => this.setState({ method: 'pin' }),
+      pickSelf: () => this.setState({ verify: 'self' }),
+      pickCadastral: () => this.setState({ verify: 'cadastral' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

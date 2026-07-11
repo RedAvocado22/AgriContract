@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <meta name="design_doc_mode" content="canvas">
+  <style>
+    body { margin:0; background:#EEF2F0; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; flex-wrap:wrap; gap:32px; padding:40px; background:#EEF2F0; align-items:flex-start; color:#0F172A;">
+
+  <!-- ===== 5.8a MODAL MẶC ĐỊNH ===== -->
+  <div style="display:flex; flex-direction:column; gap:12px;" data-screen-label="5.8a Ký hợp đồng — nhập OTP">
+    <div style="font-size:13px; color:#64748B; font-weight:500;">Ký hợp đồng — nhập OTP</div>
+    <div style="width:460px; background:#FFFFFF; border-radius:16px; box-shadow:0 20px 50px rgba(15,23,42,0.16); overflow:hidden;">
+      <div style="padding:20px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Ký hợp đồng</div>
+        <span class="ms" style="font-size:20px; color:#94A3B8; cursor:pointer;">close</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="font-size:13px; color:#64748B; margin-bottom:6px;">Bạn đang ký hợp đồng</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:15px; margin-bottom:16px;">HĐ-2026-0142 · 5.000.000.000 ₫</div>
+
+        <div style="background:#F1F5F4; border-radius:10px; padding:12px 14px; margin-bottom:22px;">
+          <div style="font-size:12.5px; color:#64748B; margin-bottom:6px;">Hash nội dung hợp đồng</div>
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:14px;">a3f9e1d4…c21b7f80</span>
+            <span style="display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#15803D; font-weight:500; cursor:pointer;"><span class="ms" style="font-size:15px;">content_copy</span> Sao chép</span>
+          </div>
+        </div>
+
+        <div style="font-size:13.5px; color:#475569; margin-bottom:10px;">Nhập mã OTP đã gửi tới số điện thoại đăng ký</div>
+        <div style="display:flex; gap:8px; margin-bottom:14px;">
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">4</div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">2</div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">7</div>
+          <div style="flex:1; height:52px; border:1.5px solid #15803D; border-radius:8px; box-shadow:0 0 0 2px rgba(21,128,61,0.2); display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">9</div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px;"></div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px;"></div>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+          <div style="display:flex; align-items:center; gap:6px; font-size:13px; color:#64748B;"><span class="ms" style="font-size:16px; color:#D97706;">schedule</span> Mã hết hạn sau <span style="font-family:'JetBrains Mono',monospace; font-weight:500; color:#0F172A;">04:52</span></div>
+          <a href="#" style="font-size:13px; color:#94A3B8; pointer-events:none;">Gửi lại mã</a>
+        </div>
+
+        <div style="height:48px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500;">Xác nhận ký</div>
+        <div style="font-size:12px; color:#94A3B8; text-align:center; margin-top:12px; line-height:1.5;">Chữ ký được băm và ghi vào nhật ký kiểm toán, không thể thu hồi.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 5.8b MÃ SAI ===== -->
+  <div style="display:flex; flex-direction:column; gap:12px;" data-screen-label="5.8b OTP sai">
+    <div style="font-size:13px; color:#64748B; font-weight:500;">Mã OTP không đúng</div>
+    <div style="width:460px; background:#FFFFFF; border-radius:16px; box-shadow:0 20px 50px rgba(15,23,42,0.16); overflow:hidden;">
+      <div style="padding:20px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Ký hợp đồng</div>
+        <span class="ms" style="font-size:20px; color:#94A3B8; cursor:pointer;">close</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="display:flex; gap:9px; align-items:flex-start; background:#FEE2E2; border-radius:9px; padding:11px 13px; margin-bottom:18px;"><span class="ms" style="font-size:18px; color:#DC2626; margin-top:1px;">error</span><span style="font-size:13px; color:#991B1B; line-height:1.5;">Mã OTP không đúng. Còn 2 lần thử.</span></div>
+
+        <div style="font-size:13.5px; color:#475569; margin-bottom:10px;">Nhập lại mã OTP</div>
+        <div style="display:flex; gap:8px; margin-bottom:14px;">
+          <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">4</div>
+          <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">2</div>
+          <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">7</div>
+          <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">1</div>
+          <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">0</div>
+          <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:20px;">3</div>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+          <div style="display:flex; align-items:center; gap:6px; font-size:13px; color:#64748B;"><span class="ms" style="font-size:16px; color:#D97706;">schedule</span> Mã hết hạn sau <span style="font-family:'JetBrains Mono',monospace; font-weight:500; color:#0F172A;">03:18</span></div>
+          <a href="#" style="font-size:13px;">Gửi lại mã</a>
+        </div>
+
+        <div style="height:48px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500;">Xác nhận ký</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 5.8c PHIÊN HẾT HẠN ===== -->
+  <div style="display:flex; flex-direction:column; gap:12px;" data-screen-label="5.8c Phiên hết hạn">
+    <div style="font-size:13px; color:#64748B; font-weight:500;">Phiên ký hết hạn</div>
+    <div style="width:460px; background:#FFFFFF; border-radius:16px; box-shadow:0 20px 50px rgba(15,23,42,0.16); overflow:hidden;">
+      <div style="padding:20px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Ký hợp đồng</div>
+        <span class="ms" style="font-size:20px; color:#94A3B8; cursor:pointer;">close</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="display:flex; gap:9px; align-items:flex-start; background:#FEF3C7; border-radius:9px; padding:11px 13px; margin-bottom:18px;"><span class="ms" style="font-size:18px; color:#D97706; margin-top:1px;">timer_off</span><span style="font-size:13px; color:#92400E; line-height:1.5;">Phiên ký đã hết hạn. Khởi tạo lại để nhận mã mới.</span></div>
+
+        <div style="display:flex; gap:8px; margin-bottom:14px; opacity:0.5;">
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; background:#F8FAF9;"></div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; background:#F8FAF9;"></div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; background:#F8FAF9;"></div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; background:#F8FAF9;"></div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; background:#F8FAF9;"></div>
+          <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:8px; background:#F8FAF9;"></div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px; font-size:13px; color:#94A3B8; margin-bottom:22px;"><span class="ms" style="font-size:16px;">schedule</span> Mã hết hạn sau <span style="font-family:'JetBrains Mono',monospace; font-weight:500;">00:00</span></div>
+
+        <div style="height:48px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; font-size:15px; font-weight:500;"><span class="ms" style="font-size:18px;">refresh</span> Khởi tạo lại phiên ký</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 5.8d ĐÃ KÝ, KHOÁ CỌC THẤT BẠI ===== -->
+  <div style="display:flex; flex-direction:column; gap:12px;" data-screen-label="5.8d Đã ký nhưng khoá cọc thất bại">
+    <div style="font-size:13px; color:#64748B; font-weight:500;">Đã ký, nhưng khoá ký quỹ thất bại</div>
+    <div style="width:460px; background:#FFFFFF; border-radius:16px; box-shadow:0 20px 50px rgba(15,23,42,0.16); overflow:hidden;">
+      <div style="padding:20px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Kết quả ký hợp đồng</div>
+        <span class="ms" style="font-size:20px; color:#94A3B8; cursor:pointer;">close</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px; padding:12px 14px; background:#DCFCE7; border-radius:9px;">
+          <span class="ms" style="font-size:20px; color:#16A34A;">check_circle</span>
+          <div style="font-size:13.5px; color:#14532D; line-height:1.5;">Đã ghi nhận chữ ký của cả hai bên. Chữ ký là sự thật, đã vào nhật ký kiểm toán.</div>
+        </div>
+
+        <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:22px; padding:12px 14px; background:#FEE2E2; border-radius:9px;">
+          <span class="ms" style="font-size:20px; color:#DC2626; margin-top:1px;">error</span>
+          <div>
+            <div style="font-size:13.5px; color:#991B1B; font-weight:500; margin-bottom:2px;">Chưa khoá được ký quỹ</div>
+            <div style="font-size:12.5px; color:#B91C1C; line-height:1.5;">Hợp đồng đang chờ, chưa thực hiện. Kiểm tra số dư rồi thử khoá lại. Hợp đồng đang ở trạng thái <span style="font-family:'JetBrains Mono',monospace;">Đã ký, chờ khoá ký quỹ</span>.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1; height:48px; border-radius:9px; border:0.5px solid #E2E8F0; background:#FFFFFF; color:#0F172A; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:500;">Xem hợp đồng</div>
+          <div style="flex:1; height:48px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px;">refresh</span> Thử khoá lại</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

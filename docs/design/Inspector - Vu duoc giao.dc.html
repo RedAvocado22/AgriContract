@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="38–39 Inspector — Vụ được giao">
+
+  <!-- INSPECTOR SIDEBAR (gọn) -->
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 6px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:0 20px 22px; font-size:12px; color:#94A3B8;">Đơn vị kiểm định · Level 1.5</div>
+    <div style="padding:9px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D; display:flex; justify-content:space-between; align-items:center;">Vụ được giao <span style="background:#DC2626; color:#fff; font-size:11px; border-radius:999px; padding:1px 7px;">3</span></div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Đã nộp báo cáo</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Lịch sử giám định</div>
+    <div style="flex:1;"></div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <!-- TOP BAR -->
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8; gap:8px;"><span class="ms" style="font-size:18px;">search</span> Tìm mã vụ, mã HĐ...</div>
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="display:flex; align-items:center; gap:8px;"><div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div><div style="font-size:13px;"><div style="font-weight:500;">Vinacontrol</div><div style="color:#94A3B8; font-size:12px;">Kiểm định độc lập</div></div></div>
+    </div>
+
+    <div style="padding:24px 32px 80px; max-width:1360px; width:100%; margin:0 auto; box-sizing:border-box;">
+      <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Vụ được giao</div>
+      <div style="font-size:14px; color:#64748B; margin-bottom:24px;">Chỉ hiển thị các vụ được điều phối tới đơn vị của bạn.</div>
+
+      <div style="display:grid; grid-template-columns:400px 1fr; gap:24px; align-items:start;">
+
+        <!-- QUEUE -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden;">
+          <div style="padding:14px 18px; border-bottom:0.5px solid #E2E8F0; font-size:14px; font-weight:500; display:flex; justify-content:space-between;">Hàng chờ <span style="color:#94A3B8;">3 vụ</span></div>
+
+          <div style="padding:14px 18px; border-bottom:0.5px solid #E2E8F0; background:#F8FAF9; border-left:2px solid #15803D; cursor:pointer;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:14px;">GD-2026-018</span>
+              <span style="padding:3px 9px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:12px; font-weight:500;">Chờ nộp báo cáo</span>
+            </div>
+            <div style="font-size:13px; color:#64748B; margin-bottom:4px;">HĐ-2026-0142 · Cột mốc 2 · Cà phê Robusta</div>
+            <div style="font-size:12px; color:#94A3B8;">Tranh chấp chất lượng · giao 08/07/2026 · còn 3 ngày</div>
+          </div>
+
+          <div style="padding:14px 18px; border-bottom:0.5px solid #E2E8F0; cursor:pointer;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:14px;">GD-2026-015</span>
+              <span style="padding:3px 9px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:12px; font-weight:500;">Đang lấy mẫu</span>
+            </div>
+            <div style="font-size:13px; color:#64748B; margin-bottom:4px;">HĐ-2026-0128 · Cột mốc 1 · Cao su</div>
+            <div style="font-size:12px; color:#94A3B8;">Bất khả kháng · giao 06/07/2026 · còn 1 ngày</div>
+          </div>
+
+          <div style="padding:14px 18px; cursor:pointer;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:14px;">GD-2026-011</span>
+              <span style="padding:3px 9px; border-radius:999px; background:#FEE2E2; color:#DC2626; font-size:12px; font-weight:500;">Quá hạn nộp</span>
+            </div>
+            <div style="font-size:13px; color:#64748B; margin-bottom:4px;">HĐ-2026-0119 · Cột mốc 3 · Cà phê Arabica</div>
+            <div style="font-size:12px; color:#94A3B8;">Tranh chấp khối lượng · giao 03/07/2026</div>
+          </div>
+        </div>
+
+        <!-- DETAIL PANEL -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; padding-bottom:18px; border-bottom:0.5px solid #E2E8F0;">
+            <div>
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;"><span style="font-family:'JetBrains Mono',monospace; font-size:16px;">GD-2026-018</span><span style="padding:3px 9px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:12px; font-weight:500;">Chờ nộp báo cáo</span></div>
+              <div style="font-size:14px; color:#64748B;">HĐ-2026-0142 · Cột mốc 2 — Giao hàng đợt 2 · Cà phê Robusta, 10 tấn · Kho Buôn Ma Thuột</div>
+            </div>
+            <div style="text-align:right;"><div style="font-size:12px; color:#94A3B8;">Hạn nộp báo cáo</div><div style="font-family:'JetBrains Mono',monospace; font-size:16px; color:#D97706;">còn 3 ngày</div></div>
+          </div>
+
+          <!-- context -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+            <div style="background:#F1F5F4; border-radius:12px; padding:16px 18px;">
+              <div style="font-size:13px; color:#64748B; margin-bottom:8px;">Nội dung điều phối</div>
+              <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:14px; border-bottom:0.5px solid #E2E8F0;"><span style="color:#64748B;">Tầng</span><span>Level 1.5 — chung thẩm với bất khả kháng</span></div>
+              <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:14px; border-bottom:0.5px solid #E2E8F0;"><span style="color:#64748B;">Loại</span><span>Tranh chấp chất lượng</span></div>
+              <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:14px;"><span style="color:#64748B;">Hình thức</span><span>Lấy mẫu tại kho</span></div>
+            </div>
+            <div style="background:#F1F5F4; border-radius:12px; padding:16px 18px;">
+              <div style="font-size:13px; color:#64748B; margin-bottom:8px;">Điểm tranh chấp</div>
+              <div style="font-size:13px; color:#475569; line-height:1.6;">Bên mua báo độ ẩm vượt tiêu chuẩn TCVN 4193:2014 (≤ 13%). Bên bán phản đối, cho rằng đo tại thời điểm giao đạt chuẩn. Cần đo lại độ ẩm, tạp chất, hạt lỗi trên mẫu đại diện.</div>
+            </div>
+          </div>
+
+          <!-- evidence from both sides -->
+          <div style="margin-bottom:22px;">
+            <div style="font-size:14px; font-weight:500; margin-bottom:10px;">Bằng chứng hai bên đã nộp</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <div style="width:120px;"><div style="height:88px; border-radius:8px; background:repeating-linear-gradient(135deg,#F1F5F4,#F1F5F4 8px,#FFFFFF 8px,#FFFFFF 16px); border:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:11px; color:#94A3B8;">ảnh cân bên bán</div><div style="font-size:11px; color:#64748B; margin-top:4px;">Bên bán · can-01.jpg</div></div>
+              <div style="width:120px;"><div style="height:88px; border-radius:8px; background:repeating-linear-gradient(135deg,#F1F5F4,#F1F5F4 8px,#FFFFFF 8px,#FFFFFF 16px); border:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:11px; color:#94A3B8;">ảnh mẫu bên mua</div><div style="font-size:11px; color:#64748B; margin-top:4px;">Bên mua · mau-01.jpg</div></div>
+              <div style="width:150px; height:88px; border-radius:8px; border:0.5px solid #E2E8F0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;"><span class="ms" style="font-size:24px; color:#15803D;">description</span><div style="font-size:12px;">Phiếu đo độ ẩm</div><span style="font-size:11px; color:#16A34A; display:inline-flex; align-items:center; gap:3px;"><span class="ms" style="font-size:13px;">check_circle</span> Sẵn sàng</span></div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center;">
+            <span style="font-size:12px; color:#94A3B8; margin-right:auto;">Chỉ đơn vị được giao mới xem được bằng chứng của vụ này.</span>
+            <span style="padding:10px 18px; border-radius:8px; border:0.5px solid #E2E8F0; background:#fff; font-size:14px; font-weight:500;">Tải bằng chứng</span>
+            <span style="padding:10px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;">Nộp báo cáo giám định</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

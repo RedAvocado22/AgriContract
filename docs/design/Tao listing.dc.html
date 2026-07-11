@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+    .ti { width:100%; box-sizing:border-box; border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 12px; font-size:14px; color:#0F172A; outline:none; font-family:'Be Vietnam Pro',sans-serif; }
+    .ti:focus { border-color:#15803D; box-shadow:0 0 0 2px rgba(21,128,61,.15); }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="5.17 Tạo listing">
+
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 24px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Tổng quan</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Hợp đồng</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cột mốc</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Ký quỹ</div>
+    <div style="padding:10px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Sản phẩm</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Vùng trồng</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Uy tín</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Nhật ký</div>
+    <div style="flex:1;"></div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8;">Tìm sản phẩm...</div>
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="padding:4px 10px; border-radius:999px; background:#DCFCE7; font-size:13px; font-weight:500; color:#15803D;">88</div>
+      <div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+    </div>
+
+    <div style="padding:24px 32px 80px; max-width:1100px; width:100%; margin:0 auto; box-sizing:border-box;">
+
+      <div style="font-size:14px; color:#64748B; margin-bottom:14px;">Sản phẩm <span style="margin:0 6px; color:#CBD5E1;">/</span> <span style="color:#0F172A;">Tạo listing</span></div>
+      <div style="font-size:22px; font-weight:500; margin-bottom:24px;">Đăng bán nông sản</div>
+
+      <!-- STEPPER (feature-gated) -->
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:22px 28px; margin-bottom:24px;">
+        <div style="display:flex; align-items:center;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div style="width:28px; height:28px; border-radius:50%; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">1</div>
+            <div style="font-size:13px; color:#0F172A; font-weight:500;">Thông tin sản phẩm</div>
+          </div>
+          <div style="flex:1; height:1px; background:#E2E8F0; margin:0 10px 22px;"></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div style="width:28px; height:28px; border-radius:50%; background:#FFFFFF; border:1.5px solid #CBD5E1; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">2</div>
+            <div style="font-size:13px; color:#94A3B8;">Danh mục</div>
+          </div>
+          <div style="flex:1; height:1px; background:#E2E8F0; margin:0 10px 22px;"></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div style="width:28px; height:28px; border-radius:50%; background:#FFFFFF; border:1.5px solid #CBD5E1; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">3</div>
+            <div style="font-size:13px; color:#94A3B8;">Giá &amp; khối lượng</div>
+          </div>
+          <!-- EUDR gate step -->
+          <sc-if value="{{ isEudr }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1; height:1px; background:#E2E8F0; margin:0 10px 22px;"></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div style="width:28px; height:28px; border-radius:50%; background:#FFFFFF; border:1.5px solid #CBD5E1; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">4</div>
+            <div style="font-size:13px; color:#94A3B8; display:flex; align-items:center; gap:4px;">Vùng trồng <span class="ms" title="EUDR — bắt buộc cho cà phê và cao su." style="font-size:14px; color:#D97706;">eco</span></div>
+          </div>
+          </sc-if>
+          <div style="flex:1; height:1px; background:#E2E8F0; margin:0 10px 22px;"></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div style="width:28px; height:28px; border-radius:50%; background:#FFFFFF; border:1.5px solid #CBD5E1; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">{{ lastStepNo }}</div>
+            <div style="font-size:13px; color:#94A3B8;">Xem lại</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 300px; gap:24px; align-items:start;">
+
+        <!-- FORM: Bước 1 -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:28px;">
+          <div style="font-size:18px; font-weight:500; margin-bottom:4px;">Thông tin sản phẩm</div>
+          <div style="font-size:14px; color:#64748B; margin-bottom:24px;">Mặt hàng quyết định các bước tiếp theo của quy trình đăng bán.</div>
+
+          <!-- commodity picker -->
+          <div style="font-size:13px; margin-bottom:8px;">Mặt hàng <span style="color:#DC2626;">*</span></div>
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:6px;">
+            <div onClick="{{ pickCoffee }}" style="border:1.5px solid {{ coffeeBorder }}; background:{{ coffeeBg }}; border-radius:8px; padding:12px; text-align:center; cursor:pointer;">
+              <div style="font-size:14px; font-weight:500;">Cà phê</div>
+              <div style="font-size:11px; color:#D97706; margin-top:2px;">EUDR</div>
+            </div>
+            <div onClick="{{ pickRubber }}" style="border:1.5px solid {{ rubberBorder }}; background:{{ rubberBg }}; border-radius:8px; padding:12px; text-align:center; cursor:pointer;">
+              <div style="font-size:14px; font-weight:500;">Cao su</div>
+              <div style="font-size:11px; color:#D97706; margin-top:2px;">EUDR</div>
+            </div>
+            <div onClick="{{ pickRice }}" style="border:1.5px solid {{ riceBorder }}; background:{{ riceBg }}; border-radius:8px; padding:12px; text-align:center; cursor:pointer;">
+              <div style="font-size:14px; font-weight:500;">Gạo</div>
+              <div style="font-size:11px; color:#94A3B8; margin-top:2px;">&nbsp;</div>
+            </div>
+            <div onClick="{{ pickCashew }}" style="border:1.5px solid {{ cashewBorder }}; background:{{ cashewBg }}; border-radius:8px; padding:12px; text-align:center; cursor:pointer;">
+              <div style="font-size:14px; font-weight:500;">Điều</div>
+              <div style="font-size:11px; color:#94A3B8; margin-top:2px;">&nbsp;</div>
+            </div>
+          </div>
+          <div style="font-size:12px; color:#94A3B8; margin-bottom:22px;">{{ gateNote }}</div>
+
+          <div style="margin-bottom:20px;">
+            <div style="font-size:13px; margin-bottom:6px;">Tên sản phẩm <span style="color:#DC2626;">*</span></div>
+            <input class="ti" value="{{ productName }}" placeholder="VD Cà phê Robusta nhân xô">
+          </div>
+
+          <!-- rice-only varietyName -->
+          <sc-if value="{{ isRice }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-bottom:20px;">
+            <div style="font-size:13px; margin-bottom:6px;">Tên giống lúa cụ thể <span style="color:#94A3B8;">(giúp khớp đúng giá tham khảo)</span></div>
+            <input class="ti" placeholder="VD OM 18, ST25, IR 50404">
+            <div style="font-size:12px; color:#94A3B8; margin-top:4px;">Cùng tỉnh, cùng ngày nhưng khác giống thì giá lệch nhau đáng kể.</div>
+          </div>
+          </sc-if>
+
+          <div style="margin-bottom:4px;">
+            <div style="font-size:13px; margin-bottom:6px;">Mô tả</div>
+            <textarea class="ti" style="height:80px; resize:none;" placeholder="Mô tả chất lượng, mùa vụ, điều kiện bảo quản..."></textarea>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; margin-top:28px; padding-top:24px; border-top:0.5px solid #E2E8F0;">
+            <span style="padding:10px 18px; border-radius:8px; border:0.5px solid #E2E8F0; background:#FFFFFF; font-size:14px; font-weight:500; color:#94A3B8;">Quay lại</span>
+            <span style="padding:10px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;">Tiếp tục</span>
+          </div>
+        </div>
+
+        <!-- sticky summary -->
+        <div style="position:sticky; top:24px; background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px;">
+          <div style="font-size:15px; font-weight:500; margin-bottom:16px;">Quy trình đăng bán</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; font-size:13px;"><span class="ms" style="font-size:16px; color:#15803D;">check_circle</span> Thông tin sản phẩm</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; font-size:13px; color:#64748B;"><span class="ms" style="font-size:16px; color:#CBD5E1;">radio_button_unchecked</span> Danh mục</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; font-size:13px; color:#64748B;"><span class="ms" style="font-size:16px; color:#CBD5E1;">radio_button_unchecked</span> Giá &amp; khối lượng</div>
+          <sc-if value="{{ isEudr }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; font-size:13px; color:#D97706;"><span class="ms" style="font-size:16px; color:#D97706;">eco</span> Khai vùng trồng (EUDR)</div>
+          </sc-if>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; font-size:13px; color:#64748B;"><span class="ms" style="font-size:16px; color:#CBD5E1;">radio_button_unchecked</span> Xem lại</div>
+          <div style="font-size:12px; color:#94A3B8; margin-top:12px; padding-top:12px; border-top:0.5px solid #E2E8F0; line-height:1.6;">{{ summaryNote }}</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { commodity: 'COFFEE' };
+  renderVals(){
+    const c = this.state.commodity;
+    const isEudr = c === 'COFFEE' || c === 'RUBBER';
+    const isRice = c === 'RICE';
+    const sel = '#15803D', selBg = '#DCFCE7', off = '#E2E8F0', offBg = '#FFFFFF';
+    const names = { COFFEE:'Cà phê Robusta nhân xô', RUBBER:'Mủ cao su SVR 3L', RICE:'Gạo ST25', CASHEW:'Hạt điều thô' };
+    return {
+      isEudr, isRice,
+      lastStepNo: isEudr ? '5' : '4',
+      productName: names[c] || '',
+      gateNote: isEudr
+        ? 'Cà phê và cao su thuộc EUDR — quy trình có thêm bước khai vùng trồng (toạ độ) để tuân thủ EU 2023/1115.'
+        : 'Gạo và điều không thuộc EUDR — không có bước khai vùng trồng.',
+      summaryNote: isEudr
+        ? 'EUDR áp cho doanh nghiệp lớn từ 30/12/2026, doanh nghiệp nhỏ từ 30/6/2027.'
+        : 'Quy trình 4 bước, không yêu cầu khai vùng trồng.',
+      coffeeBorder: c==='COFFEE'?sel:off, coffeeBg: c==='COFFEE'?selBg:offBg,
+      rubberBorder: c==='RUBBER'?sel:off, rubberBg: c==='RUBBER'?selBg:offBg,
+      riceBorder: c==='RICE'?sel:off, riceBg: c==='RICE'?selBg:offBg,
+      cashewBorder: c==='CASHEW'?sel:off, cashewBg: c==='CASHEW'?selBg:offBg,
+      pickCoffee: ()=> this.setState({ commodity:'COFFEE' }),
+      pickRubber: ()=> this.setState({ commodity:'RUBBER' }),
+      pickRice: ()=> this.setState({ commodity:'RICE' }),
+      pickCashew: ()=> this.setState({ commodity:'CASHEW' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

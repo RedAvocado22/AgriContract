@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="44 Admin — Duyệt danh mục sản phẩm">
+
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 6px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:0 20px 22px; font-size:12px; color:#94A3B8;">Bảng điều hành vận hành</div>
+    <div style="padding:6px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Vận hành</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tổng quan</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Duyệt tài khoản</div>
+    <div style="padding:9px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Duyệt danh mục</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Tranh chấp</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Bất khả kháng</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tranh chấp Level 1</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giám định Level 2</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">AML &amp; Rủi ro</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Sổ cái hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giao dịch lớn</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cặp rủi ro</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Chờ rà soát tất toán</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Báo cáo Cục PCRT</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Đóng băng hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Uy tín &amp; khoá</div>
+    <div style="flex:1;"></div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8; gap:8px;"><span class="ms" style="font-size:18px;">search</span> Tìm danh mục, bên bán...</div>
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="display:flex; align-items:center; gap:8px;"><div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div><div style="font-size:13px;"><div style="font-weight:500;">Admin vận hành</div><div style="color:#94A3B8; font-size:12px;">Quản trị nền tảng</div></div></div>
+    </div>
+
+    <div style="padding:24px 32px 80px; max-width:1440px; width:100%; margin:0 auto; box-sizing:border-box;">
+      <div style="font-size:13px; color:#64748B; margin-bottom:4px;">Vận hành <span style="margin:0 6px; color:#CBD5E1;">/</span> Duyệt danh mục</div>
+      <div style="font-size:22px; font-weight:500; margin-bottom:6px;">Duyệt danh mục sản phẩm</div>
+      <div style="font-size:14px; color:#64748B; margin-bottom:20px; max-width:840px;">Mỗi danh mục mới phải được gán một mặt hàng khi duyệt. Việc gán mặt hàng quyết định danh mục có thuộc EUDR hay không — cà phê và cao su bắt buộc khai vùng trồng, gạo và điều thì không.</div>
+
+      <div style="display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;">
+
+        <!-- Queue -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden;">
+          <div style="display:flex; border-bottom:0.5px solid #E2E8F0;">
+            <div style="flex:1; padding:11px 14px; font-size:13px; font-weight:500; color:#15803D; border-bottom:2px solid #15803D; text-align:center;">Chờ duyệt <span style="color:#D97706;">4</span></div>
+            <div style="flex:1; padding:11px 14px; font-size:13px; color:#64748B; text-align:center;">Đã duyệt</div>
+          </div>
+
+          <div style="padding:14px 16px; border-bottom:0.5px solid #E2E8F0; background:#F1F5F4; border-left:2px solid #15803D;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">Cà phê Robusta honey</span><span style="padding:2px 8px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:11.5px; font-weight:500;">Chưa gán</span></div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:5px;">HTX Krông Pắc · đề xuất 09/07/2026</div>
+          </div>
+          <div style="padding:14px 16px; border-bottom:0.5px solid #E2E8F0;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">Gạo ST25 hữu cơ</span><span style="padding:2px 8px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:11.5px; font-weight:500;">Chưa gán</span></div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:5px;">HTX Lúa gạo Ngã Năm · đề xuất 09/07/2026</div>
+          </div>
+          <div style="padding:14px 16px; border-bottom:0.5px solid #E2E8F0;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">Mủ cao su ly tâm</span><span style="padding:2px 8px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:11.5px; font-weight:500;">Chưa gán</span></div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:5px;">HTX Cao su Dầu Tiếng · đề xuất 08/07/2026</div>
+          </div>
+          <div style="padding:14px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">Điều rang muối W240</span><span style="padding:2px 8px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:11.5px; font-weight:500;">Chưa gán</span></div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:5px;">HTX Điều Bù Đăng · đề xuất 07/07/2026</div>
+          </div>
+        </div>
+
+        <!-- Detail panel -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+
+          <!-- Category header -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; gap:12px;"><div style="width:44px; height:44px; border-radius:8px; background:#F1F5F4; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:24px; color:#94A3B8;">category</span></div><div><div style="font-size:17px; font-weight:500;">Cà phê Robusta honey</div><div style="font-size:13px; color:#64748B;">Do HTX Krông Pắc đề xuất · 09/07/2026</div></div></div>
+              <span style="padding:4px 10px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:12.5px; font-weight:500;">Chờ duyệt</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px 24px;">
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Tên danh mục đề xuất</div><div style="font-size:14px;">Cà phê Robusta honey</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Danh mục cha</div><div style="font-size:14px;">Cà phê</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Đơn vị đo</div><div style="font-size:14px;">kg / tấn</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Mã tạm</div><div style="font-size:14px; font-family:'JetBrains Mono',monospace;">CAT-2026-0071</div></div>
+            </div>
+            <div style="font-size:13px; color:#475569; line-height:1.6; margin-top:14px; padding-top:14px; border-top:0.5px solid #E2E8F0;">Mô tả: Cà phê Robusta chế biến honey, phơi nguyên vỏ thịt một phần, hương trái cây. Bên bán đề xuất thêm vào nhánh danh mục cà phê.</div>
+          </div>
+
+          <!-- Assign commodity (mandatory) -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><div style="font-size:16px; font-weight:500;">Gán mặt hàng</div><span style="color:#DC2626;">*</span></div>
+            <div style="font-size:12.5px; color:#64748B; margin-bottom:16px;">Bắt buộc. Quyết định danh mục có thuộc EUDR hay không — không thể để trống khi duyệt.</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div style="border:1px solid #15803D; background:#F6FDF9; border-radius:10px; padding:14px 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14.5px; font-weight:500;">Cà phê</span><span class="ms" style="font-size:20px; color:#15803D;">radio_button_checked</span></div>
+                <div style="display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:3px 9px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:11.5px; font-weight:500;"><span class="ms" style="font-size:14px;">eco</span> Thuộc EUDR — khai vùng trồng</div>
+              </div>
+              <div style="border:0.5px solid #E2E8F0; border-radius:10px; padding:14px 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14.5px; font-weight:500;">Cao su</span><span class="ms" style="font-size:20px; color:#CBD5E1;">radio_button_unchecked</span></div>
+                <div style="display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:3px 9px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:11.5px; font-weight:500;"><span class="ms" style="font-size:14px;">eco</span> Thuộc EUDR — khai vùng trồng</div>
+              </div>
+              <div style="border:0.5px solid #E2E8F0; border-radius:10px; padding:14px 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14.5px; font-weight:500;">Gạo</span><span class="ms" style="font-size:20px; color:#CBD5E1;">radio_button_unchecked</span></div>
+                <div style="display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:3px 9px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:11.5px; font-weight:500;">Không thuộc EUDR</div>
+              </div>
+              <div style="border:0.5px solid #E2E8F0; border-radius:10px; padding:14px 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14.5px; font-weight:500;">Điều</span><span class="ms" style="font-size:20px; color:#CBD5E1;">radio_button_unchecked</span></div>
+                <div style="display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:3px 9px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:11.5px; font-weight:500;">Không thuộc EUDR</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:flex-start; margin-top:14px; font-size:12.5px; color:#2563EB; background:#DBEAFE; border-radius:8px; padding:12px 14px; line-height:1.5;"><span class="ms" style="font-size:16px; margin-top:1px;">info</span><span>Gán "Cà phê" sẽ bật bước khai vùng trồng cho mọi listing thuộc danh mục này. Với gạo/điều, bước vùng trồng bị ẩn hoàn toàn.</span></div>
+          </div>
+
+          <!-- Decision -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="font-size:16px; font-weight:500; margin-bottom:12px;">Quyết định</div>
+            <div style="font-size:12.5px; color:#94A3B8; margin-bottom:6px;">Ghi chú (bắt buộc khi từ chối)</div>
+            <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:12px; font-size:14px; color:#94A3B8; height:60px; margin-bottom:16px;">Nêu lý do nếu từ chối danh mục...</div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px;">check</span> Duyệt &amp; gán mặt hàng</span>
+              <span style="display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border-radius:8px; border:1px solid #DC2626; color:#DC2626; background:#FFFFFF; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px;">close</span> Từ chối</span>
+              <div style="flex:1;"></div>
+              <span style="font-size:12.5px; color:#94A3B8;">Chưa chọn mặt hàng thì chưa duyệt được.</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

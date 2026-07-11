@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&amp;display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="5.24 Admin — Nhập giá thủ công">
+
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 6px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:0 20px 22px; font-size:12px; color:#94A3B8;">Bảng điều hành vận hành</div>
+    <div style="padding:6px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Vận hành</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tổng quan</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Duyệt tài khoản</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Duyệt danh mục</div>
+    <div style="padding:9px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Nhập giá thủ công</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Analytics</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Tranh chấp</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Bất khả kháng</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tranh chấp Level 1</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giám định Level 2</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">AML &amp; Rủi ro</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Sổ cái hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giao dịch lớn</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Đóng băng hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Uy tín &amp; khoá</div>
+    <div style="flex:1;"></div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8; gap:8px;"><span class="ms" style="font-size:18px;">search</span> Tìm mặt hàng, mã tham chiếu...</div>
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="display:flex; align-items:center; gap:8px;"><div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div><div style="font-size:13px;"><div style="font-weight:500;">Admin vận hành</div><div style="color:#94A3B8; font-size:12px;">Quản trị nền tảng</div></div></div>
+    </div>
+
+    <div style="padding:24px 32px 80px; max-width:1360px; width:100%; margin:0 auto; box-sizing:border-box;">
+      <div style="font-size:13px; color:#64748B; margin-bottom:4px;">Vận hành <span style="margin:0 6px; color:#CBD5E1;">/</span> Nhập giá thủ công</div>
+      <div style="font-size:22px; font-weight:500; margin-bottom:8px;">Nhập giá tham chiếu thủ công</div>
+
+      <!-- feed-down alert (why manual entry exists) -->
+      <div style="display:flex; gap:12px; align-items:flex-start; padding:14px 18px; border-radius:12px; background:#FEF3C7; border:0.5px solid #FDE68A; margin-bottom:24px;">
+        <span class="ms" style="font-size:20px; color:#B45309;">warning</span>
+        <div style="font-size:13px; color:#92400E; line-height:1.5;">
+          <span style="font-weight:500;">Nguồn giá tự động (Sở Giao dịch Hàng hoá VN) đang gián đoạn từ 06:14 hôm nay.</span> Giá nhập tay bên dưới sẽ được dùng làm mốc tham chiếu cho tính phạt &amp; định giá ký quỹ cho tới khi feed phục hồi. Mọi lần nhập đều ghi log và cần lý do.
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1.15fr; gap:24px; align-items:start;">
+
+        <!-- FORM -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+          <div style="font-size:16px; font-weight:500; margin-bottom:18px;">Bút toán giá mới</div>
+
+          <div style="font-size:13px; color:#475569; margin-bottom:6px;">Mặt hàng</div>
+          <div style="height:42px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-size:14px; margin-bottom:16px;">Cà phê Robusta — loại 1 <span class="ms" style="font-size:18px; color:#94A3B8;">keyboard_arrow_down</span></div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+            <div>
+              <div style="font-size:13px; color:#475569; margin-bottom:6px;">Giá tham chiếu</div>
+              <div style="height:42px; border:1px solid #15803D; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; font-family:'JetBrains Mono',monospace;">92.400 <span style="color:#94A3B8; margin-left:auto; font-family:'Be Vietnam Pro',sans-serif; font-size:13px;">₫/kg</span></div>
+            </div>
+            <div>
+              <div style="font-size:13px; color:#475569; margin-bottom:6px;">Áp dụng từ</div>
+              <div style="height:42px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-size:14px;">10/07/2026 <span class="ms" style="font-size:18px; color:#94A3B8;">calendar_today</span></div>
+            </div>
+          </div>
+
+          <div style="font-size:13px; color:#475569; margin-bottom:6px;">Nguồn dữ liệu</div>
+          <div style="height:42px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-size:14px; margin-bottom:16px;">Bản tin giá Sở GDHH VN (bản PDF 07:00) <span class="ms" style="font-size:18px; color:#94A3B8;">keyboard_arrow_down</span></div>
+
+          <div style="font-size:13px; color:#475569; margin-bottom:6px;">Lý do nhập tay <span style="color:#DC2626;">*</span></div>
+          <div style="min-height:64px; border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 12px; font-size:14px; color:#0F172A; line-height:1.5; margin-bottom:8px;">Feed API gián đoạn, nhập theo bản tin giá sáng của Sở để không kẹt tất toán các HĐ đáo hạn hôm nay.</div>
+
+          <!-- deviation guard -->
+          <div style="display:flex; gap:10px; align-items:center; padding:10px 14px; border-radius:8px; background:#F1F5F9; font-size:12.5px; color:#475569; margin-bottom:20px;">
+            <span class="ms" style="font-size:18px; color:#2563EB;">info</span>
+            Lệch <span style="font-family:'JetBrains Mono',monospace; color:#0F172A;">+1,8%</span> so với giá gần nhất (90.800 ₫). Trong ngưỡng ±5% nên không cần phê duyệt cấp 2.
+          </div>
+
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1; height:44px; border-radius:8px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px;">save</span> Lưu &amp; áp dụng</div>
+            <div style="height:44px; padding:0 18px; border-radius:8px; border:0.5px solid #E2E8F0; color:#475569; display:flex; align-items:center; font-size:14px;">Huỷ</div>
+          </div>
+        </div>
+
+        <!-- AUDIT / RECENT -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <div style="font-size:16px; font-weight:500;">Lịch sử nhập giá</div>
+            <span style="font-size:13px; color:#15803D;">Xem toàn bộ log</span>
+          </div>
+          <div style="font-size:13px; color:#64748B; margin-bottom:18px;">Mỗi bút toán bất biến — không sửa, chỉ ghi đè bằng bút toán mới.</div>
+
+          <div style="display:flex; flex-direction:column;">
+
+            <div style="display:flex; gap:14px; padding:14px 0; border-bottom:0.5px solid #F1F5F4;">
+              <div style="width:34px; height:34px; border-radius:8px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span class="ms" style="font-size:19px; color:#15803D;">edit_note</span></div>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:14px; font-weight:500;">Cà phê Robusta — loại 1</span><span style="font-size:14px; font-family:'JetBrains Mono',monospace;">92.400 ₫</span></div>
+                <div style="font-size:12.5px; color:#64748B; margin-top:3px;">Nhập tay · Admin vận hành · hôm nay 08:12 · <span style="color:#B45309;">gián đoạn</span></div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:14px; padding:14px 0; border-bottom:0.5px solid #F1F5F4;">
+              <div style="width:34px; height:34px; border-radius:8px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span class="ms" style="font-size:19px; color:#15803D;">edit_note</span></div>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:14px; font-weight:500;">Hồ tiêu đen 500g/l</span><span style="font-size:14px; font-family:'JetBrains Mono',monospace;">148.000 ₫</span></div>
+                <div style="font-size:12.5px; color:#64748B; margin-top:3px;">Nhập tay · Admin vận hành · hôm nay 08:05 · <span style="color:#B45309;">gián đoạn</span></div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:14px; padding:14px 0; border-bottom:0.5px solid #F1F5F4;">
+              <div style="width:34px; height:34px; border-radius:8px; background:#F1F5F9; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span class="ms" style="font-size:19px; color:#64748B;">sync</span></div>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:14px; font-weight:500;">Cà phê Robusta — loại 1</span><span style="font-size:14px; font-family:'JetBrains Mono',monospace;">90.800 ₫</span></div>
+                <div style="font-size:12.5px; color:#64748B; margin-top:3px;">Tự động · Feed Sở GDHH · hôm qua 07:00</div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:14px; padding:14px 0;">
+              <div style="width:34px; height:34px; border-radius:8px; background:#FEF3C7; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span class="ms" style="font-size:19px; color:#B45309;">gavel</span></div>
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; justify-content:space-between; gap:8px;"><span style="font-size:14px; font-weight:500;">Cao su SVR 3L</span><span style="font-size:14px; font-family:'JetBrains Mono',monospace;">41.200 ₫</span></div>
+                <div style="font-size:12.5px; color:#64748B; margin-top:3px;">Nhập tay · lệch +7,2% · <span style="color:#B45309;">đã qua phê duyệt cấp 2</span> · 08/07</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

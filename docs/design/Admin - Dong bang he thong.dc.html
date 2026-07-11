@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="5.21 Admin — Đóng băng hệ thống">
+
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 6px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:0 20px 22px; font-size:12px; color:#94A3B8;">Bảng điều hành vận hành</div>
+    <div style="padding:6px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Vận hành</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tổng quan</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Duyệt tài khoản</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Duyệt danh mục</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Tranh chấp</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Bất khả kháng</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tranh chấp Level 1</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giám định Level 2</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">AML &amp; Rủi ro</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Sổ cái hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giao dịch lớn</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cặp rủi ro</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Chờ rà soát tất toán</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Báo cáo Cục PCRT</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Hệ thống</div>
+    <div style="padding:9px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Đóng băng hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Uy tín &amp; khoá</div>
+    <div style="flex:1;"></div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="display:flex; align-items:center; gap:8px;"><div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div><div style="font-size:13px;"><div style="font-weight:500;">Admin vận hành</div><div style="color:#94A3B8; font-size:12px;">Quản trị nền tảng</div></div></div>
+    </div>
+
+    <div style="padding:24px 32px 80px; max-width:1360px; width:100%; margin:0 auto; box-sizing:border-box;">
+      <div style="font-size:13px; color:#64748B; margin-bottom:4px;">Hệ thống <span style="margin:0 6px; color:#CBD5E1;">/</span> Đóng băng hệ thống</div>
+      <div style="font-size:22px; font-weight:500; margin-bottom:20px;">Đóng băng / mở băng hệ thống</div>
+
+      <!-- Current status -->
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:22px 24px; margin-bottom:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="width:12px; height:12px; border-radius:50%; background:#16A34A;"></span>
+            <div><div style="font-size:16px; font-weight:500;">Đang hoạt động bình thường</div><div style="font-size:13px; color:#64748B;">Mọi giao dịch tiền đang chạy bình thường.</div></div>
+          </div>
+          <span onClick="{{ openModal }}" style="display:inline-flex; align-items:center; gap:8px; padding:11px 18px; border-radius:8px; background:#DC2626; color:#fff; font-size:14px; font-weight:500; cursor:pointer;"><span class="ms" style="font-size:18px;">ac_unit</span> Đóng băng hệ thống</span>
+        </div>
+      </div>
+
+      <!-- Confirm modal opens as overlay on click -->
+      <sc-if value="{{ open }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ close }}" style="position:fixed; inset:0; background:rgba(15,23,42,0.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:24px;">
+          <div onClick="{{ stop }}" style="background:#FFFFFF; border-radius:12px; overflow:hidden; width:100%; max-width:560px; box-shadow:0 12px 44px rgba(15,23,42,0.24);">
+            <div style="padding:16px 20px; border-bottom:0.5px solid #E2E8F0; font-size:16px; font-weight:500; color:#DC2626; display:flex; align-items:center; gap:8px;"><span class="ms" style="font-size:20px;">ac_unit</span> Đóng băng hệ thống</div>
+            <div style="padding:20px;">
+              <div style="font-size:14px; color:#64748B; margin-bottom:14px;">Khi đóng băng, mọi thao tác tiền (khoá cọc, giải ngân, hoàn trả) sẽ thất bại cho tới khi được mở băng. Các thao tác khác vẫn hoạt động.</div>
+              <div style="font-size:14px; margin-bottom:6px;">Gõ lại <span style="font-family:'JetBrains Mono',monospace; color:#0F172A;">ĐÓNG BĂNG</span> để xác nhận</div>
+              <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 12px; font-size:14px; font-family:'JetBrains Mono',monospace; color:#94A3B8;">Nhập từ khoá xác nhận</div>
+              <div style="font-size:13px; margin:14px 0 6px;">Lý do đóng băng <span style="color:#DC2626;">*</span></div>
+              <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:10px 12px; font-size:14px; color:#94A3B8; min-height:48px;">Ghi rõ lý do — ghi vào chuỗi kiểm toán.</div>
+            </div>
+            <div style="padding:16px 20px; border-top:0.5px solid #E2E8F0; display:flex; justify-content:flex-end; gap:8px;">
+              <span onClick="{{ close }}" style="padding:8px 16px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:14px; cursor:pointer;">Huỷ</span>
+              <span style="padding:8px 16px; border-radius:8px; background:#F1F5F9; color:#94A3B8; font-size:14px; font-weight:500;">Đóng băng hệ thống</span>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- Frozen state preview -->
+      <div style="font-size:13px; color:#94A3B8; margin-bottom:10px;">Khi hệ thống đang đóng băng — không có nút "Mở khoá"</div>
+      <div style="background:#FFFFFF; border:0.5px solid #FCA5A5; border-radius:12px; padding:22px 24px;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px; padding-bottom:18px; border-bottom:0.5px solid #E2E8F0;">
+          <span style="width:12px; height:12px; border-radius:50%; background:#DC2626;"></span>
+          <div style="flex:1;"><div style="font-size:16px; font-weight:500; color:#DC2626;">Đang đóng băng</div><div style="font-size:13px; color:#64748B;">Đóng băng 10/07/2026 09:14 · Admin vận hành · Lý do: nghi ngờ truy cập trái phép hệ thống thanh toán.</div></div>
+        </div>
+
+        <div style="display:flex; gap:12px; padding:16px 18px; border-radius:12px; background:#FEF3C7; color:#92400E; font-size:14px; margin-bottom:18px; align-items:flex-start;">
+          <span class="ms" style="font-size:20px;">gpp_maybe</span>
+          <div>Mở khoá yêu cầu chữ ký của bên xác minh độc lập. Nền tảng <b style="font-weight:500;">không tự mở khoá</b> trong bất kỳ trường hợp nào — kể cả Admin. Admin chính là bên mà cơ chế này đang phòng.</div>
+        </div>
+
+        <div style="font-size:14px; margin-bottom:6px;">Chữ ký bên xác minh độc lập</div>
+        <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:12px; font-size:13px; font-family:'JetBrains Mono',monospace; color:#94A3B8; min-height:72px; margin-bottom:14px;">Dán chuỗi chữ ký số (PGP / ký khoá cứng) do bên xác minh độc lập cấp...</div>
+        <div style="display:flex; justify-content:flex-end;">
+          <span style="display:inline-flex; align-items:center; gap:8px; padding:11px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px;">verified</span> Xác minh chữ ký và mở khoá</span>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:16px; padding:14px 18px; border-radius:12px; background:#DC2626; color:#fff; font-size:14px; align-items:center;"><span class="ms" style="font-size:20px;">error</span> Banner toàn cục khi đóng băng: "Hệ thống tạm dừng mọi giao dịch tiền. Các thao tác khác vẫn hoạt động." — dính đỉnh trang mọi màn, không đóng được.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { open: false };
+  renderVals() {
+    return {
+      open: this.state.open,
+      openModal: () => this.setState({ open: true }),
+      close: () => this.setState({ open: false }),
+      stop: (e) => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>

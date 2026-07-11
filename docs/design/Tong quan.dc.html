@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="5.3–5.4 Tổng quan">
+
+  <!-- SIDEBAR -->
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 24px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:10px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Tổng quan</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Hợp đồng</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cột mốc</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Ký quỹ</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Kiểm định</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Uy tín</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Nhật ký</div>
+    <div style="flex:1;"></div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <!-- TOP BAR -->
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8;">Tìm hợp đồng, đối tác...</div>
+      <div style="flex:1;"></div>
+      <div style="display:inline-flex; border:0.5px solid #E2E8F0; border-radius:8px; padding:2px;">
+        <div onClick="{{ showBuyer }}" style="{{ buyerTabStyle }}">Bên mua</div>
+        <div onClick="{{ showSeller }}" style="{{ sellerTabStyle }}">Bên bán</div>
+      </div>
+      <div style="position:relative; display:flex;"><span style="font-family:'Material Symbols Outlined'; font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="padding:4px 10px; border-radius:999px; background:#DCFCE7; font-size:13px; font-weight:500; color:#15803D;">{{ repScore }}</div>
+      <div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+    </div>
+
+    <!-- ========== BUYER ========== -->
+    <div style="{{ buyerView }}">
+      <div style="max-width:1200px; width:100%; margin:0 auto; padding:28px 32px 80px;">
+        <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Tổng quan</div>
+        <div style="font-size:14px; color:#64748B; margin-bottom:24px;">Công ty TNHH Cà phê Tây Nguyên · Bên mua</div>
+
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px;">
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Hợp đồng đang hoạt động</div><div style="font-size:24px; font-weight:500;">14</div></div>
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Tổng ký quỹ đang khoá</div><div style="font-size:24px; font-weight:500; font-family:'JetBrains Mono',monospace;">32.400.000.000 ₫</div></div>
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Việc cần xử lý</div><div style="font-size:24px; font-weight:500; color:#D97706;">3</div></div>
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Điểm uy tín</div><div style="font-size:24px; font-weight:500; color:#15803D;">92</div></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:24px; align-items:start;">
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+            <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Cột mốc sắp đến hạn</div>
+            <div style="display:flex; align-items:center; gap:16px; padding:12px 0; border-bottom:0.5px solid #E2E8F0;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; width:120px;">HĐ-2026-0142</div>
+              <div style="flex:1; font-size:14px;">Cà phê · 10 tấn · Cột mốc 2</div>
+              <div style="font-size:13px; color:#64748B;">20/06/2026</div>
+              <span style="padding:3px 10px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:13px; font-weight:500;">Còn 2 ngày</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:16px; padding:12px 0; border-bottom:0.5px solid #E2E8F0;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; width:120px;">HĐ-2026-0138</div>
+              <div style="flex:1; font-size:14px;">Cao su · 15 tấn · Cột mốc 1</div>
+              <div style="font-size:13px; color:#64748B;">24/06/2026</div>
+              <span style="padding:3px 10px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:13px; font-weight:500;">Còn 6 ngày</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:16px; padding:12px 0;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; width:120px;">HĐ-2026-0131</div>
+              <div style="flex:1; font-size:14px;">Điều · 8 tấn · Cột mốc 3</div>
+              <div style="font-size:13px; color:#DC2626;">14/06/2026</div>
+              <span style="padding:3px 10px; border-radius:999px; background:#FEE2E2; color:#DC2626; font-size:13px; font-weight:500;">Quá hạn 1 ngày</span>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+              <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Việc cần làm</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:0.5px solid #E2E8F0;">
+                <div style="font-size:14px;">Xác nhận nhận hàng — HĐ-0142</div>
+                <span style="padding:6px 12px; border-radius:8px; background:#15803D; color:#fff; font-size:13px; font-weight:500; white-space:nowrap;">Xác nhận</span>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:0.5px solid #E2E8F0;">
+                <div style="font-size:14px;">Nạp ký quỹ — HĐ-0138</div>
+                <span style="padding:6px 12px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500; white-space:nowrap;">Nạp</span>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0;">
+                <div style="font-size:14px;">Xem phán quyết — HĐ-0131</div>
+                <span style="padding:6px 12px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500; white-space:nowrap;">Xem</span>
+              </div>
+            </div>
+            <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+              <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Ký quỹ theo trạng thái</div>
+              <div style="display:flex; height:10px; border-radius:999px; overflow:hidden; margin-bottom:16px;"><div style="width:62%; background:#2563EB;"></div><div style="width:28%; background:#16A34A;"></div><div style="width:10%; background:#D97706;"></div></div>
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#64748B; margin-bottom:6px;"><span style="width:10px; height:10px; border-radius:50%; background:#2563EB;"></span> Đang khoá <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; color:#0F172A;">32.400.000.000 ₫</span></div>
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#64748B; margin-bottom:6px;"><span style="width:10px; height:10px; border-radius:50%; background:#16A34A;"></span> Đã giải ngân <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; color:#0F172A;">14.600.000.000 ₫</span></div>
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#64748B;"><span style="width:10px; height:10px; border-radius:50%; background:#D97706;"></span> Chờ hoàn <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; color:#0F172A;">5.200.000.000 ₫</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== SELLER ========== -->
+    <div style="{{ sellerView }}">
+      <div style="max-width:1200px; width:100%; margin:0 auto; padding:28px 32px 80px;">
+        <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Tổng quan</div>
+        <div style="font-size:14px; color:#64748B; margin-bottom:24px;">HTX Nông nghiệp Ea Kar, Đắk Lắk · Bên bán</div>
+
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px;">
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Hợp đồng đang hoạt động</div><div style="font-size:24px; font-weight:500;">6</div></div>
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Tiền sắp được giải ngân</div><div style="font-size:24px; font-weight:500; font-family:'JetBrains Mono',monospace; color:#15803D;">7.500.000.000 ₫</div></div>
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Việc cần xử lý</div><div style="font-size:24px; font-weight:500; color:#D97706;">2</div></div>
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Điểm uy tín</div><div style="font-size:24px; font-weight:500; color:#15803D;">88</div></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:24px; align-items:start;">
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+            <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Cột mốc cần giao</div>
+            <div style="display:flex; align-items:center; gap:16px; padding:12px 0; border-bottom:0.5px solid #E2E8F0;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; width:120px;">HĐ-2026-0142</div>
+              <div style="flex:1; font-size:14px;">Cà phê · 10 tấn · Cột mốc 2</div>
+              <div style="font-size:13px; color:#64748B;">20/06/2026</div>
+              <span style="padding:6px 14px; border-radius:8px; background:#15803D; color:#fff; font-size:13px; font-weight:500; white-space:nowrap;">Cân hàng</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:16px; padding:12px 0;">
+              <div style="font-family:'JetBrains Mono',monospace; font-size:13px; width:120px;">HĐ-2026-0140</div>
+              <div style="flex:1; font-size:14px;">Cà phê · 12 tấn · Cột mốc 1</div>
+              <div style="font-size:13px; color:#64748B;">30/06/2026</div>
+              <span style="padding:6px 14px; border-radius:8px; background:#15803D; color:#fff; font-size:13px; font-weight:500; white-space:nowrap;">Cân hàng</span>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+              <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Vùng trồng</div>
+              <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:0.5px solid #E2E8F0; font-size:14px;"><span style="color:#64748B;">Đã khai</span><span>8 vùng</span></div>
+              <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:0.5px solid #E2E8F0; font-size:14px;"><span style="color:#64748B;">Đang chờ kiểm tra vệ tinh</span><span style="color:#D97706;">2 vùng</span></div>
+              <div style="display:flex; justify-content:space-between; padding:8px 0; font-size:14px;"><span style="color:#64748B;">Rủi ro cao</span><span style="color:#DC2626;">1 vùng</span></div>
+            </div>
+            <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+              <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Tiền sắp giải ngân</div>
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#64748B; margin-bottom:6px;">HĐ-0142 · Cột mốc 2 <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; color:#15803D;">2.500.000.000 ₫</span></div>
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#64748B;">HĐ-0140 · Cột mốc 1 <span style="margin-left:auto; font-family:'JetBrains Mono',monospace; color:#15803D;">5.000.000.000 ₫</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { role: 'buyer' };
+  renderVals() {
+    const isBuyer = this.state.role === 'buyer';
+    const tabBase = 'padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer;';
+    const tabActive = tabBase + ' background:#15803D; color:#fff; font-weight:500;';
+    const tabIdle = tabBase + ' color:#64748B;';
+    return {
+      showBuyer: () => this.setState({ role: 'buyer' }),
+      showSeller: () => this.setState({ role: 'seller' }),
+      buyerTabStyle: isBuyer ? tabActive : tabIdle,
+      sellerTabStyle: isBuyer ? tabIdle : tabActive,
+      buyerView: isBuyer ? 'display:block;' : 'display:none;',
+      sellerView: isBuyer ? 'display:none;' : 'display:block;',
+      repScore: isBuyer ? '92' : '88',
+    };
+  }
+}
+</script>
+</body>
+</html>

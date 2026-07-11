@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    @keyframes acSpin { to { transform: rotate(360deg); } }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="34 Nạp ký quỹ">
+
+  <!-- SIDEBAR -->
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 24px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Tổng quan</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Hợp đồng</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cột mốc</div>
+    <div style="padding:10px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Ký quỹ</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Kiểm định</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Uy tín</div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Nhật ký</div>
+    <div style="flex:1;"></div>
+    <div style="padding:10px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <!-- TOP BAR -->
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8;">Tìm hợp đồng, đối tác...</div>
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="padding:4px 10px; border-radius:999px; background:#DCFCE7; font-size:13px; font-weight:500; color:#15803D;">92</div>
+      <div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+    </div>
+
+    <div style="max-width:1080px; width:100%; margin:0 auto; padding:28px 32px 100px;">
+
+      <!-- breadcrumb + demo switcher -->
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div style="font-size:13px; color:#64748B;">Hợp đồng <span style="margin:0 6px; color:#CBD5E1;">/</span> <span style="font-family:'JetBrains Mono',monospace; color:#0F172A;">HĐ-2026-0142</span> <span style="margin:0 6px; color:#CBD5E1;">/</span> <span style="color:#0F172A;">Nạp ký quỹ</span></div>
+        <div style="display:inline-flex; align-items:center; gap:8px;">
+          <span style="font-size:12px; color:#94A3B8;">Xem trạng thái:</span>
+          <div style="display:inline-flex; border:0.5px solid #E2E8F0; border-radius:8px; padding:2px; background:#FFFFFF;">
+            <div onClick="{{ showDefault }}" style="{{ tabDefault }}">Mặc định</div>
+            <div onClick="{{ showLocking }}" style="{{ tabLocking }}">Đang khoá</div>
+            <div onClick="{{ showFailed }}" style="{{ tabFailed }}">Thất bại</div>
+            <div onClick="{{ showSuccess }}" style="{{ tabSuccess }}">Đã khoá</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+        <div style="font-size:22px; font-weight:500;">Nạp ký quỹ</div>
+        <span style="{{ headerBadgeStyle }}">{{ headerBadgeText }}</span>
+      </div>
+
+      <!-- STATUS BANNERS -->
+      <sc-if value="{{ isSigned }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 18px; border-radius:12px; background:#FEF3C7; color:#92400E; font-size:14px; margin-bottom:20px;">
+          <span class="ms" style="font-size:20px; margin-top:1px;">lock_clock</span>
+          <div>
+            <div style="font-weight:500; margin-bottom:2px;">Hợp đồng đã ký, chưa khoá ký quỹ</div>
+            <div style="color:#78716C;">Đủ 2 chữ ký nhưng tiền chưa khoá. Khoá ký quỹ để hợp đồng chuyển sang trạng thái đang thực hiện.</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isFailed }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:14px 18px; border-radius:12px; background:#FEE2E2; color:#991B1B; font-size:14px; margin-bottom:20px;">
+          <span style="display:flex; align-items:flex-start; gap:12px;">
+            <span class="ms" style="font-size:20px; margin-top:1px;">error</span>
+            <span>
+              <span style="font-weight:500; display:block; margin-bottom:2px;">Không khoá được ký quỹ. Hợp đồng đang chờ, chưa thực hiện.</span>
+              <span style="color:#B91C1C;">Kiểm tra số dư tài khoản rồi thử lại. Chữ ký đã được ghi nhận — bạn không cần ký lại.</span>
+            </span>
+          </span>
+          <span onClick="{{ retry }}" style="border:1px solid #DC2626; color:#DC2626; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:500; background:#FFFFFF; white-space:nowrap; cursor:pointer;">Thử khoá lại</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSuccess }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 18px; border-radius:12px; background:#DCFCE7; color:#14532D; font-size:14px; margin-bottom:20px;">
+          <span class="ms" style="font-size:20px;">check_circle</span>
+          <div><span style="font-weight:500;">Đã khoá ký quỹ 5.000.000.000 ₫.</span> Hợp đồng bắt đầu thực hiện.</div>
+        </div>
+      </sc-if>
+
+      <!-- MAIN GRID -->
+      <div style="display:grid; grid-template-columns:1fr 340px; gap:24px; align-items:start;">
+
+        <!-- LEFT COLUMN -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+
+          <!-- AMOUNT TO LOCK -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Số tiền cần khoá</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:0.5px solid #E2E8F0; font-size:14px;">
+              <span style="color:#64748B;">Cọc bên mua <span style="color:#94A3B8;">(100% giá trị hợp đồng)</span></span>
+              <span style="font-family:'JetBrains Mono',monospace;">5.000.000.000 ₫</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; font-size:14px;">
+              <span style="color:#64748B;">Phí nền tảng</span>
+              <span style="font-family:'JetBrains Mono',monospace;">0 ₫</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; margin-top:8px; background:#F1F5F4; border-radius:10px;">
+              <span style="font-size:14px; font-weight:500;">Tổng khoá</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:500;">5.000.000.000 ₫</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:#94A3B8;">
+              <span class="ms" style="font-size:16px;">info</span>
+              Cọc bên bán 500.000.000 ₫ do bên bán tự khoá, không tính vào khoản này.
+            </div>
+          </div>
+
+          <!-- FUNDING SOURCE -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="font-size:16px; font-weight:500; margin-bottom:4px;">Nguồn tiền</div>
+            <div style="font-size:13px; color:#64748B; margin-bottom:16px;">Tài khoản ngân hàng dùng để khoá ký quỹ.</div>
+
+            <div style="display:flex; align-items:center; gap:12px; border:1.5px solid #15803D; border-radius:10px; padding:14px 16px; margin-bottom:10px;">
+              <div style="width:16px; height:16px; border:1.5px solid #15803D; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><div style="width:8px; height:8px; border-radius:50%; background:#15803D;"></div></div>
+              <div style="flex:1;">
+                <div style="font-size:14px; font-weight:500;">Vietcombank — Công ty TNHH Cà phê Tây Nguyên</div>
+                <div style="font-size:13px; color:#64748B; font-family:'JetBrains Mono',monospace;">•••• 4821</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px; color:#94A3B8;">Số dư khả dụng</div>
+                <div style="font-size:14px; font-family:'JetBrains Mono',monospace;">6.240.000.000 ₫</div>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:12px; border:0.5px solid #E2E8F0; border-radius:10px; padding:14px 16px; opacity:.7;">
+              <div style="width:16px; height:16px; border:1.5px solid #CBD5E1; border-radius:50%; flex-shrink:0;"></div>
+              <div style="flex:1;">
+                <div style="font-size:14px; font-weight:500;">BIDV — Công ty TNHH Cà phê Tây Nguyên</div>
+                <div style="font-size:13px; color:#64748B; font-family:'JetBrains Mono',monospace;">•••• 1730</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px; color:#94A3B8;">Số dư khả dụng</div>
+                <div style="font-size:14px; font-family:'JetBrains Mono',monospace;">1.850.000.000 ₫</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONFIRM + ACTION -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:18px;">
+              <div style="width:16px; height:16px; border:1.5px solid #15803D; border-radius:4px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;"><span class="ms" style="font-size:13px;">check</span></div>
+              <div style="font-size:13px; color:#64748B;">Tôi xác nhận khoá 5.000.000.000 ₫ vào ký quỹ hợp đồng HĐ-2026-0142. Tiền chỉ được giải ngân theo cột mốc, không thể rút tuỳ ý.</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span onClick="{{ primaryAction }}" style="{{ primaryBtnStyle }}">
+                <sc-if value="{{ isLocking }}" hint-placeholder-val="{{ false }}"><span style="width:15px; height:15px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; display:inline-block; animation:acSpin .8s linear infinite;"></span></sc-if>
+                {{ primaryBtnText }}
+              </span>
+              <a href="#" style="font-size:14px; color:#64748B;">Huỷ</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: STICKY SUMMARY -->
+        <div style="position:sticky; top:24px; display:flex; flex-direction:column; gap:16px;">
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:18px 20px;">
+            <div style="font-size:14px; font-weight:500; margin-bottom:14px;">Tóm tắt hợp đồng</div>
+            <div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:0.5px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Mã hợp đồng</span><span style="font-family:'JetBrains Mono',monospace;">HĐ-2026-0142</span></div>
+            <div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:0.5px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Mặt hàng</span><span>Cà phê Robusta</span></div>
+            <div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:0.5px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Khối lượng</span><span>20 tấn</span></div>
+            <div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:0.5px solid #E2E8F0; font-size:13px;"><span style="color:#64748B;">Bên bán</span><span style="text-align:right;">HTX Ea Kar</span></div>
+            <div style="display:flex; justify-content:space-between; padding:9px 0; font-size:13px;"><span style="color:#64748B;">Tổng giá trị</span><span style="font-family:'JetBrains Mono',monospace; font-weight:500;">5.000.000.000 ₫</span></div>
+          </div>
+
+          <div style="background:#F1F5F4; border-radius:12px; padding:16px 18px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; color:#15803D; margin-bottom:8px;"><span class="ms" style="font-size:18px;">shield</span> Ký quỹ tự thực thi</div>
+            <div style="font-size:13px; color:#64748B; line-height:1.55;">Tiền bị khoá trước, giải ngân tự động theo từng cột mốc giao hàng. Sổ cái chỉ ghi thêm — không thể sửa hoặc xoá bút toán.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { mode: 'default' };
+  set(mode){ this.setState({ mode }); }
+  renderVals(){
+    const mode = this.state.mode;
+    const tab = (m, label) => {
+      const on = mode === m;
+      return 'padding:5px 12px; border-radius:6px; font-size:12px; cursor:pointer; ' +
+        (on ? 'background:#15803D; color:#fff; font-weight:500;' : 'color:#64748B;');
+    };
+    const badge = () => {
+      if (mode === 'success') return { t:'Đang thực hiện', s:'padding:5px 12px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:13px; font-weight:500;' };
+      return { t:'Đã ký, chờ khoá ký quỹ', s:'padding:5px 12px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:13px; font-weight:500;' };
+    };
+    const b = badge();
+    const locking = mode === 'locking';
+    const success = mode === 'success';
+    let btnText = 'Khoá ký quỹ';
+    if (locking) btnText = 'Đang khoá ký quỹ...';
+    else if (mode === 'failed') btnText = 'Thử khoá lại';
+    else if (success) btnText = 'Đã khoá ký quỹ';
+    const disabled = locking || success;
+    const btnStyle = 'display:inline-flex; align-items:center; gap:8px; padding:11px 22px; border-radius:8px; font-size:14px; font-weight:500; ' +
+      (disabled ? 'background:#94A3B8; color:#fff; cursor:default;' : 'background:#15803D; color:#fff; cursor:pointer;');
+    return {
+      isSigned: mode === 'default' || mode === 'locking',
+      isFailed: mode === 'failed',
+      isSuccess: success,
+      isLocking: locking,
+      headerBadgeText: b.t,
+      headerBadgeStyle: b.s,
+      primaryBtnText: btnText,
+      primaryBtnStyle: btnStyle,
+      tabDefault: tab('default'),
+      tabLocking: tab('locking'),
+      tabFailed: tab('failed'),
+      tabSuccess: tab('success'),
+      showDefault: () => this.set('default'),
+      showLocking: () => this.set('locking'),
+      showFailed: () => this.set('failed'),
+      showSuccess: () => this.set('success'),
+      retry: () => this.set('locking'),
+      primaryAction: () => {
+        if (disabled) return;
+        if (this.state.mode === 'failed') this.set('locking');
+        else this.set('locking');
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; background:#F8FAF9; color:#0F172A; min-height:100vh;" data-screen-label="2 Sàn nguồn hàng công khai">
+
+  <!-- PUBLIC NAV -->
+  <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 40px; gap:32px; position:sticky; top:0; z-index:5;">
+    <div style="font-size:17px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="display:flex; gap:26px; font-size:14px; color:#475569;">
+      <span style="color:#15803D; font-weight:500;">Sàn nguồn hàng</span>
+      <span>Bảng giá tham khảo</span>
+      <span>Cách hoạt động</span>
+      <span>Về ký quỹ</span>
+    </div>
+    <div style="flex:1;"></div>
+    <span style="font-size:14px; color:#475569;">Đăng nhập</span>
+    <span style="padding:9px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;">Đăng ký doanh nghiệp</span>
+  </div>
+
+  <div style="max-width:1280px; margin:0 auto; padding:32px 40px 80px; box-sizing:border-box;">
+
+    <div style="font-size:26px; font-weight:500; margin-bottom:6px;">Sàn nguồn hàng</div>
+    <div style="font-size:14px; color:#64748B; margin-bottom:6px; max-width:720px;">Listing công khai từ bên bán đã được duyệt. Xem uy tín và mức rủi ro EUDR trước khi liên hệ.</div>
+
+    <!-- login banner -->
+    <div style="display:flex; gap:10px; align-items:center; background:#F6FDF9; border:0.5px solid #BBF7D0; border-radius:10px; padding:12px 16px; margin:14px 0 20px;">
+      <span class="ms" style="font-size:19px; color:#15803D;">info</span>
+      <span style="font-size:13.5px; color:#475569; flex:1;">Đăng nhập bằng tài khoản doanh nghiệp đã duyệt để gửi đề nghị hợp đồng và nạp ký quỹ.</span>
+      <span style="padding:7px 14px; border-radius:8px; background:#15803D; color:#fff; font-size:13px; font-weight:500;">Đăng nhập</span>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:14px 16px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px;">
+      <div style="flex:1; min-width:200px; height:38px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8; gap:8px;"><span class="ms" style="font-size:18px;">search</span> Tìm theo tên bên bán, giống, vùng...</div>
+      <div style="height:38px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; gap:8px;">Tất cả mặt hàng <span class="ms" style="font-size:18px; color:#94A3B8;">expand_more</span></div>
+      <div style="height:38px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; gap:8px; color:#64748B;">Tỉnh: Tất cả <span class="ms" style="font-size:18px; color:#94A3B8;">expand_more</span></div>
+      <div style="height:38px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; gap:8px; color:#64748B;">Uy tín ≥ 80 <span class="ms" style="font-size:18px; color:#94A3B8;">expand_more</span></div>
+      <div style="height:38px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; gap:8px; color:#64748B;">Rủi ro EUDR: Tất cả <span class="ms" style="font-size:18px; color:#94A3B8;">expand_more</span></div>
+    </div>
+    <div style="font-size:13px; color:#64748B; margin-bottom:18px;">6 nguồn hàng · sắp xếp theo <span style="color:#0F172A;">Uy tín cao nhất</span></div>
+
+    <!-- GRID -->
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="height:96px; background:repeating-linear-gradient(135deg,#E4EAE3,#E4EAE3 8px,#EDF1EC 8px,#EDF1EC 16px); display:flex; align-items:flex-end; padding:10px 12px;"><span style="background:#0F172A; color:#fff; font-size:11px; padding:3px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace;">Cà phê</span></div>
+        <div style="padding:14px 16px; flex:1; display:flex; flex-direction:column;">
+          <div style="font-size:15px; font-weight:500; margin-bottom:2px;">Robusta sàng 18</div>
+          <div style="font-size:12.5px; color:#64748B; margin-bottom:10px;">Ea Kar, Đắk Lắk</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-top:0.5px solid #E2E8F0;">
+            <div style="width:26px; height:26px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+            <div style="flex:1; font-size:12.5px;">HTX Nông nghiệp Ea Kar</div>
+            <span style="padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;">88</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0;"><span style="color:#64748B;">Còn lại</span><span style="font-family:'JetBrains Mono',monospace;">40 tấn</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:0 0 10px;"><span style="color:#64748B;">Giá</span><span style="font-family:'JetBrains Mono',monospace;">118.500 ₫/kg</span></div>
+          <div style="display:flex; gap:6px; margin-bottom:12px;"><span style="padding:3px 9px; border-radius:999px; background:#DCFCE7; color:#16A34A; font-size:11.5px; font-weight:500;">Đã kiểm tra</span><span style="padding:3px 9px; border-radius:999px; background:#DCFCE7; color:#16A34A; font-size:11.5px; font-weight:500;">Rủi ro thấp</span></div>
+          <div style="margin-top:auto; text-align:center; padding:9px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500;">Xem chi tiết</div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="height:96px; background:repeating-linear-gradient(135deg,#E4EAE3,#E4EAE3 8px,#EDF1EC 8px,#EDF1EC 16px); display:flex; align-items:flex-end; padding:10px 12px;"><span style="background:#0F172A; color:#fff; font-size:11px; padding:3px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace;">Cà phê</span></div>
+        <div style="padding:14px 16px; flex:1; display:flex; flex-direction:column;">
+          <div style="font-size:15px; font-weight:500; margin-bottom:2px;">Arabica Cầu Đất</div>
+          <div style="font-size:12.5px; color:#64748B; margin-bottom:10px;">Lạc Dương, Lâm Đồng</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-top:0.5px solid #E2E8F0;">
+            <div style="width:26px; height:26px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+            <div style="flex:1; font-size:12.5px;">HTX Cà phê Cầu Đất</div>
+            <span style="padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;">81</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0;"><span style="color:#64748B;">Còn lại</span><span style="font-family:'JetBrains Mono',monospace;">12 tấn</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:0 0 10px;"><span style="color:#64748B;">Giá</span><span style="font-family:'JetBrains Mono',monospace;">195.000 ₫/kg</span></div>
+          <div style="display:flex; gap:6px; margin-bottom:12px;"><span style="padding:3px 9px; border-radius:999px; background:#DCFCE7; color:#16A34A; font-size:11.5px; font-weight:500;">Đã kiểm tra</span><span style="padding:3px 9px; border-radius:999px; background:#FEE2E2; color:#DC2626; font-size:11.5px; font-weight:500;">Rủi ro cao</span></div>
+          <div style="margin-top:auto; text-align:center; padding:9px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500;">Xem chi tiết</div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="height:96px; background:repeating-linear-gradient(135deg,#E4EAE3,#E4EAE3 8px,#EDF1EC 8px,#EDF1EC 16px); display:flex; align-items:flex-end; padding:10px 12px;"><span style="background:#0F172A; color:#fff; font-size:11px; padding:3px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace;">Cao su</span></div>
+        <div style="padding:14px 16px; flex:1; display:flex; flex-direction:column;">
+          <div style="font-size:15px; font-weight:500; margin-bottom:2px;">Mủ nước SVR 3L</div>
+          <div style="font-size:12.5px; color:#64748B; margin-bottom:10px;">Dầu Tiếng, Tây Ninh</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-top:0.5px solid #E2E8F0;">
+            <div style="width:26px; height:26px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+            <div style="flex:1; font-size:12.5px;">HTX Cao su Dầu Tiếng</div>
+            <span style="padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;">84</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0;"><span style="color:#64748B;">Còn lại</span><span style="font-family:'JetBrains Mono',monospace;">60 tấn</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:0 0 10px;"><span style="color:#64748B;">Giá</span><span style="font-family:'JetBrains Mono',monospace;">39.200 ₫/kg</span></div>
+          <div style="display:flex; gap:6px; margin-bottom:12px;"><span style="padding:3px 9px; border-radius:999px; background:#DCFCE7; color:#16A34A; font-size:11.5px; font-weight:500;">Đã kiểm tra</span><span style="padding:3px 9px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:11.5px; font-weight:500;">Không kết luận được</span></div>
+          <div style="margin-top:auto; text-align:center; padding:9px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500;">Xem chi tiết</div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="height:96px; background:repeating-linear-gradient(135deg,#E4EAE3,#E4EAE3 8px,#EDF1EC 8px,#EDF1EC 16px); display:flex; align-items:flex-end; padding:10px 12px;"><span style="background:#0F172A; color:#fff; font-size:11px; padding:3px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace;">Gạo</span></div>
+        <div style="padding:14px 16px; flex:1; display:flex; flex-direction:column;">
+          <div style="font-size:15px; font-weight:500; margin-bottom:2px;">Gạo ST25</div>
+          <div style="font-size:12.5px; color:#64748B; margin-bottom:10px;">Ngã Năm, Sóc Trăng</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-top:0.5px solid #E2E8F0;">
+            <div style="width:26px; height:26px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+            <div style="flex:1; font-size:12.5px;">HTX Lúa gạo Ngã Năm</div>
+            <span style="padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;">90</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0;"><span style="color:#64748B;">Còn lại</span><span style="font-family:'JetBrains Mono',monospace;">80 tấn</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:0 0 10px;"><span style="color:#64748B;">Giá</span><span style="font-family:'JetBrains Mono',monospace;">21.500 ₫/kg</span></div>
+          <div style="font-size:11.5px; color:#94A3B8; margin-bottom:12px;">Gạo không thuộc EUDR — không cần khai vùng trồng.</div>
+          <div style="margin-top:auto; text-align:center; padding:9px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500;">Xem chi tiết</div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">
+        <div style="height:96px; background:repeating-linear-gradient(135deg,#E4EAE3,#E4EAE3 8px,#EDF1EC 8px,#EDF1EC 16px); display:flex; align-items:flex-end; padding:10px 12px;"><span style="background:#0F172A; color:#fff; font-size:11px; padding:3px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace;">Điều</span></div>
+        <div style="padding:14px 16px; flex:1; display:flex; flex-direction:column;">
+          <div style="font-size:15px; font-weight:500; margin-bottom:2px;">Điều thô W320</div>
+          <div style="font-size:12.5px; color:#64748B; margin-bottom:10px;">Bù Đăng, Bình Phước</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-top:0.5px solid #E2E8F0;">
+            <div style="width:26px; height:26px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+            <div style="flex:1; font-size:12.5px;">HTX Điều Bù Đăng</div>
+            <span style="padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;">86</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0;"><span style="color:#64748B;">Còn lại</span><span style="font-family:'JetBrains Mono',monospace;">25 tấn</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:0 0 10px;"><span style="color:#64748B;">Giá</span><span style="font-family:'JetBrains Mono',monospace;">31.000 ₫/kg</span></div>
+          <div style="font-size:11.5px; color:#94A3B8; margin-bottom:12px;">Điều không thuộc EUDR — không cần khai vùng trồng.</div>
+          <div style="margin-top:auto; text-align:center; padding:9px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500;">Xem chi tiết</div>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; opacity:0.9;">
+        <div style="height:96px; background:repeating-linear-gradient(135deg,#E4EAE3,#E4EAE3 8px,#EDF1EC 8px,#EDF1EC 16px); display:flex; align-items:flex-end; padding:10px 12px;"><span style="background:#0F172A; color:#fff; font-size:11px; padding:3px 8px; border-radius:6px; font-family:'JetBrains Mono',monospace;">Cà phê</span></div>
+        <div style="padding:14px 16px; flex:1; display:flex; flex-direction:column;">
+          <div style="font-size:15px; font-weight:500; margin-bottom:2px;">Robusta honey</div>
+          <div style="font-size:12.5px; color:#64748B; margin-bottom:10px;">Krông Pắc, Đắk Lắk</div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-top:0.5px solid #E2E8F0;">
+            <div style="width:26px; height:26px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+            <div style="flex:1; font-size:12.5px;">HTX Krông Pắc</div>
+            <span style="padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;">79</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0;"><span style="color:#64748B;">Còn lại</span><span style="font-family:'JetBrains Mono',monospace;">18 tấn</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:0 0 10px;"><span style="color:#64748B;">Giá</span><span style="font-family:'JetBrains Mono',monospace;">121.000 ₫/kg</span></div>
+          <div style="display:flex; gap:6px; margin-bottom:12px;"><span style="padding:3px 9px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:11.5px; font-weight:500;">Đang kiểm tra vùng trồng</span></div>
+          <div style="margin-top:auto; text-align:center; padding:9px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:13px; font-weight:500;">Xem chi tiết</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="font-size:12.5px; color:#94A3B8; margin-top:22px;">Giá hiển thị là giá chào bán tham khảo, không phải giá giao dịch cuối trên nền tảng.</div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

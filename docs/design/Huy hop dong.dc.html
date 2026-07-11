@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+    .cancel-input { width:100%; box-sizing:border-box; border:0.5px solid #E2E8F0; border-radius:8px; padding:11px 12px; font-size:15px; font-family:'JetBrains Mono',monospace; color:#0F172A; outline:none; }
+    .cancel-input:focus { border-color:#DC2626; box-shadow:0 0 0 2px rgba(220,38,38,.15); }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; min-height:100vh; background:#F8FAF9; color:#0F172A; position:relative;" data-screen-label="5.6c Huỷ hợp đồng">
+
+  <!-- dimmed context: bottom of contract detail -->
+  <div style="max-width:1000px; margin:0 auto; padding:48px 32px; filter:blur(1px); opacity:.5; pointer-events:none;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+      <div style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:500;">HĐ-2026-0142</div>
+      <span style="padding:4px 10px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:13px; font-weight:500;">Đang thực hiện</span>
+    </div>
+    <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px; margin-bottom:16px; height:120px;"></div>
+    <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px; height:80px;"></div>
+    <div style="display:flex; justify-content:flex-end; margin-top:24px;">
+      <span style="padding:10px 18px; border-radius:8px; color:#DC2626; font-size:14px; font-weight:500;">Huỷ hợp đồng</span>
+    </div>
+  </div>
+
+  <!-- overlay -->
+  <div style="position:fixed; inset:0; background:rgba(15,23,42,.4); display:flex; align-items:center; justify-content:center; padding:24px;">
+
+    <!-- STEP 1 -->
+    <sc-if value="{{ isStep1 }}" hint-placeholder-val="{{ true }}">
+    <div style="width:560px; max-width:100%; background:#FFFFFF; border-radius:12px; overflow:hidden;">
+      <div style="padding:18px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Huỷ hợp đồng <span style="font-family:'JetBrains Mono',monospace;">HĐ-2026-0142</span></div>
+        <span style="font-size:12px; color:#94A3B8;">Bước 1 / 2</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="font-size:14px; color:#64748B; margin-bottom:16px;">Huỷ pro-rata phần chưa giao. Bạn sẽ chịu các hậu quả sau:</div>
+        <div style="background:#F8FAF9; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden;">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:0.5px solid #E2E8F0;">
+            <span style="font-size:14px; color:#64748B;">Bị tịch thu cọc</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:500; color:#DC2626;">− 500.000.000 ₫</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:0.5px solid #E2E8F0;">
+            <span style="font-size:14px; color:#64748B;">Ghi nhận nợ phạt</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:500; color:#DC2626;">320.000.000 ₫</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px;">
+            <span style="font-size:14px; color:#64748B;">Bị khoá tài khoản</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:500;">45 ngày <span style="color:#94A3B8; font-weight:400;">(đến 24/08/2026)</span></span>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; background:#FEE2E2; border-radius:12px; padding:14px 16px; margin-top:16px;">
+          <span class="ms" style="font-size:18px; color:#DC2626; flex-shrink:0;">warning</span>
+          <div style="font-size:13px; color:#991B1B; line-height:1.6;">Đây là hợp đồng chưa có cột mốc nào hoàn thành — mức phạt bị nhân thêm hệ số 1,5 lần so với huỷ giữa chừng thông thường.</div>
+        </div>
+      </div>
+      <div style="padding:16px 24px; border-top:0.5px solid #E2E8F0; display:flex; justify-content:flex-end; gap:8px;">
+        <span onClick="{{ close }}" style="padding:9px 16px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:14px; font-weight:500; cursor:pointer;">Đóng</span>
+        <span onClick="{{ goStep2 }}" style="padding:9px 16px; border-radius:8px; border:1px solid #DC2626; color:#DC2626; background:#FFFFFF; font-size:14px; font-weight:500; cursor:pointer;">Tôi hiểu, tiếp tục</span>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- STEP 2 -->
+    <sc-if value="{{ isStep2 }}" hint-placeholder-val="{{ false }}">
+    <div style="width:560px; max-width:100%; background:#FFFFFF; border-radius:12px; overflow:hidden;">
+      <div style="padding:18px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500; color:#DC2626;">Xác nhận huỷ hợp đồng</div>
+        <span style="font-size:12px; color:#94A3B8;">Bước 2 / 2</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="font-size:14px; color:#64748B; line-height:1.6; margin-bottom:16px;">Hành động không thể hoàn tác. Gõ lại chính xác cụm dưới đây để xác nhận:</div>
+        <div style="background:#F1F5F4; border-radius:8px; padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:15px; text-align:center; margin-bottom:12px; user-select:all;">HUỶ HĐ-2026-0142</div>
+        <input class="cancel-input" placeholder="Gõ cụm xác nhận ở đây" value="{{ typed }}" onInput="{{ onType }}">
+      </div>
+      <div style="padding:16px 24px; border-top:0.5px solid #E2E8F0; display:flex; justify-content:space-between; gap:8px;">
+        <span onClick="{{ goStep1 }}" style="padding:9px 16px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:14px; font-weight:500; cursor:pointer;">Quay lại</span>
+        <span style="padding:9px 16px; border-radius:8px; font-size:14px; font-weight:500; background:{{ confirmBg }}; color:{{ confirmColor }}; cursor:{{ confirmCursor }};">Xác nhận huỷ</span>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { step: 1, typed: '' };
+  renderVals(){
+    const s = this.state;
+    const match = s.typed.trim() === 'HUỶ HĐ-2026-0142';
+    return {
+      isStep1: s.step === 1,
+      isStep2: s.step === 2,
+      typed: s.typed,
+      close: ()=> this.setState({ step: 1, typed: '' }),
+      goStep2: ()=> this.setState({ step: 2 }),
+      goStep1: ()=> this.setState({ step: 1 }),
+      onType: (e)=> this.setState({ typed: e.target.value }),
+      confirmBg: match ? '#DC2626' : '#F1F5F9',
+      confirmColor: match ? '#FFFFFF' : '#94A3B8',
+      confirmCursor: match ? 'pointer' : 'not-allowed',
+    };
+  }
+}
+</script>
+</body>
+</html>

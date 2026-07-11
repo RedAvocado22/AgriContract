@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; background:#F8FAF9; color:#0F172A;" data-screen-label="1 Trang chủ / landing (công khai)">
+
+  <!-- PUBLIC NAV -->
+  <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 40px; gap:32px; position:sticky; top:0; z-index:5;">
+    <div style="font-size:17px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="display:flex; gap:26px; font-size:14px; color:#475569;">
+      <span>Sàn nguồn hàng</span>
+      <span>Bảng giá tham khảo</span>
+      <span>Cách hoạt động</span>
+      <span>Về ký quỹ</span>
+    </div>
+    <div style="flex:1;"></div>
+    <span style="font-size:14px; color:#475569;">Đăng nhập</span>
+    <span style="padding:9px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;">Đăng ký doanh nghiệp</span>
+  </div>
+
+  <!-- HERO -->
+  <div style="background:#15803D; color:#fff;">
+    <div style="max-width:1160px; margin:0 auto; padding:72px 40px 76px; display:grid; grid-template-columns:1.15fr 1fr; gap:56px; align-items:center;">
+      <div>
+        <div style="display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:rgba(255,255,255,0.12); font-size:12.5px; color:#DCFCE7; margin-bottom:22px;"><span class="ms" style="font-size:16px;">verified_user</span> Nền tảng hợp đồng nông sản có ký quỹ</div>
+        <div style="font-size:42px; font-weight:500; line-height:1.18; letter-spacing:-0.015em; margin-bottom:20px;">Mua bán nông sản kỳ hạn, không lo bẻ kèo.</div>
+        <div style="font-size:16px; color:#DCFCE7; line-height:1.65; max-width:520px; margin-bottom:32px;">Tiền được khoá trong ký quỹ và chỉ giải ngân theo từng cột mốc giao hàng khi cả hai bên xác nhận. Tranh chấp có giám định độc lập, lịch sử uy tín công khai.</div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <span style="padding:13px 24px; border-radius:9px; background:#fff; color:#15803D; font-size:15px; font-weight:500;">Đăng ký doanh nghiệp</span>
+          <span style="padding:13px 24px; border-radius:9px; border:1px solid rgba(255,255,255,0.35); color:#fff; font-size:15px; font-weight:500; display:inline-flex; align-items:center; gap:8px;">Xem sàn nguồn hàng <span class="ms" style="font-size:18px;">arrow_forward</span></span>
+        </div>
+        <div style="display:flex; gap:40px; margin-top:44px;">
+          <div><div style="font-size:26px; font-weight:500; font-family:'JetBrains Mono',monospace;">2.400+</div><div style="font-size:13px; color:#BBF7D0;">hợp đồng đã tất toán</div></div>
+          <div><div style="font-size:26px; font-weight:500; font-family:'JetBrains Mono',monospace;">98,2%</div><div style="font-size:13px; color:#BBF7D0;">giao dịch không tranh chấp</div></div>
+          <div><div style="font-size:26px; font-weight:500; font-family:'JetBrains Mono',monospace;">4</div><div style="font-size:13px; color:#BBF7D0;">mặt hàng: cà phê, gạo, cao su, điều</div></div>
+        </div>
+      </div>
+
+      <!-- escrow snapshot card -->
+      <div style="background:#fff; color:#0F172A; border-radius:16px; padding:22px 24px; box-shadow:0 20px 50px rgba(15,23,42,0.18);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <span style="font-size:13px; font-family:'JetBrains Mono',monospace; color:#64748B;">HĐ-2026-0142</span>
+          <span style="padding:3px 10px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:12px; font-weight:500;">Đang thực hiện</span>
+        </div>
+        <div style="font-size:13px; color:#64748B; margin-bottom:2px;">Đang khoá trong ký quỹ</div>
+        <div style="font-size:28px; font-weight:500; font-family:'JetBrains Mono',monospace; margin-bottom:18px;">5.000.000.000 ₫</div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div style="display:flex; gap:12px; align-items:flex-start;">
+            <span class="ms" style="font-size:20px; color:#16A34A;">check_circle</span>
+            <div style="flex:1;"><div style="font-size:13.5px;">Cột mốc 1 — 10 tấn</div><div style="font-size:12px; color:#94A3B8;">Đã tất toán · giải ngân 2.500.000.000 ₫</div></div>
+          </div>
+          <div style="display:flex; gap:12px; align-items:flex-start;">
+            <span class="ms" style="font-size:20px; color:#D97706;">radio_button_checked</span>
+            <div style="flex:1;"><div style="font-size:13.5px;">Cột mốc 2 — 10 tấn</div><div style="font-size:12px; color:#94A3B8;">Chờ xác nhận nhận hàng · 2.500.000.000 ₫</div></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:flex-start; margin-top:18px; padding:11px 13px; background:#F1F5F4; border-radius:9px;"><span class="ms" style="font-size:16px; color:#64748B; margin-top:1px;">lock</span><span style="font-size:12px; color:#64748B; line-height:1.5;">Sổ cái chỉ ghi thêm — không thể sửa hoặc xoá bút toán.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROBLEM -->
+  <div style="max-width:1160px; margin:0 auto; padding:64px 40px 8px;">
+    <div style="font-size:13px; color:#15803D; font-weight:500; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px;">Vấn đề</div>
+    <div style="font-size:26px; font-weight:500; line-height:1.4; max-width:820px;">Hợp đồng nông sản kỳ hạn ở Việt Nam thường bị bẻ kèo khi giá biến động — và bên yếu thế là nông dân, hợp tác xã chịu rủi ro lớn nhất.</div>
+  </div>
+
+  <!-- THREE PILLARS -->
+  <div style="max-width:1160px; margin:0 auto; padding:40px 40px 24px; display:grid; grid-template-columns:repeat(3,1fr); gap:20px;">
+    <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+      <span class="ms" style="font-size:26px; color:#15803D;">account_balance_wallet</span>
+      <div style="font-size:17px; font-weight:500; margin:14px 0 8px;">Ký quỹ tự thực thi</div>
+      <div style="font-size:14px; color:#64748B; line-height:1.6;">Tiền bị khoá trước khi giao hàng và giải ngân tự động theo từng cột mốc. Không bên nào rút được ngoài quy tắc đã ký.</div>
+    </div>
+    <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+      <span class="ms" style="font-size:26px; color:#15803D;">flag</span>
+      <div style="font-size:17px; font-weight:500; margin:14px 0 8px;">Giao hàng theo cột mốc</div>
+      <div style="font-size:14px; color:#64748B; line-height:1.6;">Mỗi đợt giao là một cột mốc có vòng đời và giải ngân riêng, giúp bên bán được thanh toán sớm cho phần đã giao.</div>
+    </div>
+    <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+      <span class="ms" style="font-size:26px; color:#15803D;">gavel</span>
+      <div style="font-size:17px; font-weight:500; margin:14px 0 8px;">Tranh chấp 3 tầng</div>
+      <div style="font-size:14px; color:#64748B; line-height:1.6;">Từ quản trị nội bộ đến Vinacontrol/Quatest và SGS/Bureau Veritas — giám định độc lập, kết luận có ràng buộc.</div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div style="max-width:1160px; margin:0 auto; padding:48px 40px;">
+    <div style="font-size:13px; color:#15803D; font-weight:500; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px;">Cách hoạt động</div>
+    <div style="font-size:24px; font-weight:500; margin-bottom:32px;">Từ đề nghị đến tất toán, mọi bước đều kiểm chứng được</div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:0; position:relative;">
+      <div style="padding-right:20px;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;"><span style="width:32px; height:32px; border-radius:50%; background:#DCFCE7; color:#15803D; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500; font-family:'JetBrains Mono',monospace;">1</span><div style="flex:1; height:0.5px; background:#E2E8F0;"></div></div>
+        <div style="font-size:15px; font-weight:500; margin-bottom:6px;">Ký hợp đồng</div>
+        <div style="font-size:13.5px; color:#64748B; line-height:1.55;">Hai bên thống nhất điều khoản trong dải guardrail và ký bằng OTP.</div>
+      </div>
+      <div style="padding-right:20px;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;"><span style="width:32px; height:32px; border-radius:50%; background:#DCFCE7; color:#15803D; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500; font-family:'JetBrains Mono',monospace;">2</span><div style="flex:1; height:0.5px; background:#E2E8F0;"></div></div>
+        <div style="font-size:15px; font-weight:500; margin-bottom:6px;">Khoá ký quỹ</div>
+        <div style="font-size:13.5px; color:#64748B; line-height:1.55;">Tiền cọc và tiền cột mốc được khoá, ghi vào sổ cái chỉ-ghi-thêm.</div>
+      </div>
+      <div style="padding-right:20px;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;"><span style="width:32px; height:32px; border-radius:50%; background:#DCFCE7; color:#15803D; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500; font-family:'JetBrains Mono',monospace;">3</span><div style="flex:1; height:0.5px; background:#E2E8F0;"></div></div>
+        <div style="font-size:15px; font-weight:500; margin-bottom:6px;">Giao &amp; xác nhận</div>
+        <div style="font-size:13.5px; color:#64748B; line-height:1.55;">Bên bán cân hàng, bên mua cân lại và xác nhận theo từng đợt.</div>
+      </div>
+      <div>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;"><span style="width:32px; height:32px; border-radius:50%; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500; font-family:'JetBrains Mono',monospace;">4</span></div>
+        <div style="font-size:15px; font-weight:500; margin-bottom:6px;">Giải ngân</div>
+        <div style="font-size:13.5px; color:#64748B; line-height:1.55;">Hệ thống giải ngân đúng phần đã nhận, tính pro-rata, không cần trung gian.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMMODITIES -->
+  <div style="background:#F1F5F4; border-top:0.5px solid #E2E8F0; border-bottom:0.5px solid #E2E8F0;">
+    <div style="max-width:1160px; margin:0 auto; padding:48px 40px; display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center;">
+      <div>
+        <div style="font-size:13px; color:#15803D; font-weight:500; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px;">Truy xuất nguồn gốc</div>
+        <div style="font-size:24px; font-weight:500; line-height:1.35; margin-bottom:14px;">Cà phê và cao su khai vùng trồng, sẵn sàng cho EUDR</div>
+        <div style="font-size:14px; color:#64748B; line-height:1.65; margin-bottom:18px;">Với cà phê và cao su, bên bán khai toạ độ vùng trồng và hệ thống đối chiếu vệ tinh. EUDR áp cho doanh nghiệp lớn từ 30/12/2026 và doanh nghiệp nhỏ từ 30/6/2027.</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; gap:10px; align-items:center; font-size:13.5px; color:#475569;"><span class="ms" style="font-size:18px; color:#16A34A;">check_circle</span> Kết quả kiểm tra tách bạch: tiến trình và mức rủi ro</div>
+          <div style="display:flex; gap:10px; align-items:center; font-size:13.5px; color:#475569;"><span class="ms" style="font-size:18px; color:#16A34A;">check_circle</span> Hồ sơ due diligence giữ tối thiểu 5 năm</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:16px 18px;"><div style="font-size:15px; font-weight:500;">Cà phê</div><div style="font-size:12.5px; color:#64748B; margin-top:4px;">Thuộc EUDR — khai vùng trồng</div></div>
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:16px 18px;"><div style="font-size:15px; font-weight:500;">Cao su</div><div style="font-size:12.5px; color:#64748B; margin-top:4px;">Thuộc EUDR — khai vùng trồng</div></div>
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:16px 18px;"><div style="font-size:15px; font-weight:500;">Gạo</div><div style="font-size:12.5px; color:#64748B; margin-top:4px;">Không thuộc EUDR</div></div>
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:16px 18px;"><div style="font-size:15px; font-weight:500;">Điều</div><div style="font-size:12.5px; color:#64748B; margin-top:4px;">Không thuộc EUDR</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div style="max-width:1160px; margin:0 auto; padding:64px 40px; text-align:center;">
+    <div style="font-size:28px; font-weight:500; margin-bottom:12px;">Bắt đầu giao dịch có bảo chứng</div>
+    <div style="font-size:15px; color:#64748B; margin-bottom:28px;">Mở tài khoản miễn phí. Quản trị viên duyệt hồ sơ trước khi kích hoạt.</div>
+    <div style="display:flex; gap:12px; justify-content:center;">
+      <span style="padding:13px 26px; border-radius:9px; background:#15803D; color:#fff; font-size:15px; font-weight:500;">Đăng ký doanh nghiệp</span>
+      <span style="padding:13px 26px; border-radius:9px; border:0.5px solid #E2E8F0; background:#fff; color:#0F172A; font-size:15px; font-weight:500;">Đăng nhập</span>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="background:#0F172A; color:#94A3B8;">
+    <div style="max-width:1160px; margin:0 auto; padding:40px 40px; display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:24px;">
+      <div>
+        <div style="font-size:16px; font-weight:500; color:#fff; margin-bottom:6px;">AgriContract</div>
+        <div style="font-size:13px; line-height:1.6; max-width:320px;">Hợp đồng nông sản minh bạch, thanh toán an toàn qua ký quỹ. Cà phê · gạo · cao su · điều.</div>
+      </div>
+      <div style="display:flex; gap:56px; font-size:13.5px;">
+        <div style="display:flex; flex-direction:column; gap:9px;"><span style="color:#E2E8F0;">Sản phẩm</span><span>Sàn nguồn hàng</span><span>Bảng giá tham khảo</span><span>Cách hoạt động</span></div>
+        <div style="display:flex; flex-direction:column; gap:9px;"><span style="color:#E2E8F0;">Tuân thủ</span><span>Ký quỹ &amp; giải ngân</span><span>Giải quyết tranh chấp</span><span>EUDR &amp; truy xuất</span></div>
+      </div>
+    </div>
+    <div style="border-top:0.5px solid rgba(255,255,255,0.08);"><div style="max-width:1160px; margin:0 auto; padding:16px 40px; font-size:12.5px;">© 2026 AgriContract. Giá hiển thị là giá tham khảo, không phải giá giao dịch trên nền tảng.</div></div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
