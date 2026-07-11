@@ -34,6 +34,9 @@ public class ListingJpaEntity {
     @Column(name = "product_name", nullable = false, length = 255)
     private String productName;
 
+    @Column(name = "cover_image_url", nullable = false, length = 1000)
+    private String coverImageUrl;
+
     @Column(nullable = false, precision = 15, scale = 3)
     private BigDecimal quantity;
 

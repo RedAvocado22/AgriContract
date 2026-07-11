@@ -21,6 +21,9 @@ public class ProductRepositoryImpl implements ProductRepository {
     @Transactional
     public Product save(Product product) {
         ProductJpaEntity entity = productMapper.toJpaEntity(product);
+        productJpaRepository.findByProductId(product.getProductId().value())
+                .ifPresent(existing -> entity.setId(existing.getId()));
+
         ProductJpaEntity savedEntity = productJpaRepository.save(entity);
         return productMapper.toDomain(savedEntity);
     }
