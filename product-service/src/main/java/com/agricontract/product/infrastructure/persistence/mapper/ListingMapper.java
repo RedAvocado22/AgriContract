@@ -18,6 +18,7 @@ public interface ListingMapper {
                 .sellerId(domain.getSellerId())
                 .productId(domain.getProductId().value())
                 .productName(domain.getProductName())
+                .coverImageUrl(domain.getCoverImageUrl())
                 .quantity(domain.getQuantity().value())
                 .quantityUnit(domain.getQuantity().unit())
                 .priceFloor(domain.getPriceFloor().amount())
@@ -33,6 +34,7 @@ public interface ListingMapper {
                 .sellerId(listing.getSellerId())
                 .productId(listing.getProductId().value())
                 .productName(listing.getProductName())
+                .coverImageUrl(listing.getCoverImageUrl())
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
                 .priceFloor(listing.getPriceFloor().amount())
@@ -48,6 +50,7 @@ public interface ListingMapper {
                 entity.getSellerId(),
                 new ProductId(entity.getProductId()),
                 entity.getProductName(),
+                entity.getCoverImageUrl(),
                 new Quantity(entity.getQuantity(), entity.getQuantityUnit()),
                 new Money(entity.getPriceFloor(), entity.getCurrency()),
                 entity.getDeliveryDeadline(),
