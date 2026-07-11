@@ -1,0 +1,41 @@
+meta {
+  name: POST /api/v1/categories (second category, to be rejected)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{product_service_url}}/api/v1/categories
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: {{seller1_sub}}
+  X-User-Role: SELLER
+  X-User-Email: {{seller1_email}}
+}
+
+body:json {
+  {
+    "name": "Rau Củ Không Rõ"
+  }
+}
+
+script:post-response {
+  const categoryId = res.getBody()?.data?.categoryId;
+  if (categoryId) {
+    bru.setEnvVar("category_id_reject", categoryId);
+  }
+}
+
+tests {
+  test("should return 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("status should be PENDING", function() {
+    expect(res.getBody().data.status).to.equal("PENDING");
+  });
+}

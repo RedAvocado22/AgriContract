@@ -1,0 +1,30 @@
+meta {
+  name: 19. Verify MailHog received proposer email for category.rejected
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_category_rejected_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("exactly 1 email sent (proposer)", function() {
+    expect(res.getBody().count).to.equal(1);
+  });
+
+  test("recipient is buyer1", function() {
+    const recipients = res.getBody().items.map(i => i.Content.Headers.To[0]);
+    expect(recipients).to.include(bru.getEnvVar("buyer1_email"));
+  });
+
+  test("subject matches category rejected template", function() {
+    expect(res.getBody().items[0].Content.Headers.Subject[0]).to.equal("[AgriContract] Category proposal rejected");
+  });
+
+  test("body includes rejection reason", function() {
+    expect(res.getBody().items[0].Content.Body).to.include("Trung ten voi danh muc da co");
+  });
+}

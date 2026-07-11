@@ -1,19 +1,17 @@
 meta {
-  name: GET /api/v1/listings/seller (seller's own listings)
+  name: GET /api/v1/listings (public — all active)
   type: http
-  seq: 4
+  seq: 9
 }
 
 get {
-  url: {{product_service_url}}/api/v1/listings/seller
+  url: {{product_service_url}}/api/v1/listings
   body: none
   auth: none
 }
 
 headers {
   X-Gateway-Secret: {{gateway_secret}}
-  X-User-Id: {{seller1_sub}}
-  X-User-Role: SELLER
 }
 
 params:query {
@@ -34,10 +32,11 @@ tests {
     expect(res.getBody().data.content).to.be.an("array");
   });
 
-  test("all listings belong to this seller", function() {
-    const sellerId = bru.getEnvVar("seller1_sub");
-    res.getBody().data.content.forEach(function(listing) {
-      expect(listing.sellerId).to.equal(sellerId);
-    });
+  test("at least one listing returned", function() {
+    expect(res.getBody().data.content.length).to.be.greaterThan(0);
+  });
+
+  test("totalElements >= 1", function() {
+    expect(res.getBody().data.totalElements).to.be.greaterThan(0);
   });
 }

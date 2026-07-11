@@ -1,7 +1,7 @@
 meta {
   name: POST /api/v1/listings (create listing)
   type: http
-  seq: 1
+  seq: 7
 }
 
 post {
@@ -53,6 +53,10 @@ tests {
 
   test("productName snapshot should be set", function() {
     expect(res.getBody().data.productName).to.equal("Gao ST25");
+  });
+
+  test("coverImageUrl snapshot should be product's first image", function() {
+    expect(res.getBody().data.coverImageUrl).to.equal("https://cdn.agricontract.test/products/gao-st25-1.jpg");
   });
 
   test("status should be ACTIVE", function() {

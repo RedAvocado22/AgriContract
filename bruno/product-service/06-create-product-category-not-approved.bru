@@ -1,0 +1,36 @@
+meta {
+  name: POST /api/v1/products (rejected category — 400 CategoryNotApproved)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{product_service_url}}/api/v1/products
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: {{seller1_sub}}
+  X-User-Role: SELLER
+}
+
+body:json {
+  {
+    "name": "San Pham Loi",
+    "unit": "kg",
+    "categoryId": "{{category_id_reject}}",
+    "imageUrls": ["https://cdn.agricontract.test/products/x.jpg"]
+  }
+}
+
+tests {
+  test("should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("success flag is false", function() {
+    expect(res.getBody().success).to.equal(false);
+  });
+}

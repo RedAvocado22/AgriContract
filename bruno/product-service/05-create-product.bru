@@ -1,7 +1,7 @@
 meta {
-  name: POST /api/v1/products (create product)
+  name: POST /api/v1/products (create product with categoryId + imageUrls)
   type: http
-  seq: 0
+  seq: 5
 }
 
 post {
@@ -20,7 +20,8 @@ body:json {
   {
     "name": "Gao ST25",
     "unit": "kg",
-    "category": "Gao"
+    "categoryId": "{{category_id}}",
+    "imageUrls": ["https://cdn.agricontract.test/products/gao-st25-1.jpg", "https://cdn.agricontract.test/products/gao-st25-2.jpg"]
   }
 }
 
@@ -46,5 +47,13 @@ tests {
 
   test("should return correct name", function() {
     expect(res.getBody().data.name).to.equal("Gao ST25");
+  });
+
+  test("categoryId should match", function() {
+    expect(res.getBody().data.categoryId).to.equal(bru.getEnvVar("category_id"));
+  });
+
+  test("images should have 2 entries", function() {
+    expect(res.getBody().data.images.length).to.equal(2);
   });
 }
