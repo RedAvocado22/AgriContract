@@ -13,6 +13,7 @@ public record ListingResponse(
         String sellerId,
         String productId,
         String productName,    // snapshot field
+        String coverImageUrl,  // snapshot field
         BigDecimal quantity,
         String quantityUnit,
         BigDecimal priceFloor,
@@ -26,6 +27,7 @@ public record ListingResponse(
                 .sellerId(listing.getSellerId())
                 .productId(listing.getProductId().value())
                 .productName(listing.getProductName())
+                .coverImageUrl(listing.getCoverImageUrl())
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
                 .priceFloor(listing.getPriceFloor().amount())

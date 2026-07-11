@@ -14,6 +14,7 @@ public class Listing {
     private String sellerId;
     private ProductId productId;
     private String productName;
+    private String coverImageUrl;
     private Quantity quantity;
     private Money priceFloor;
     private LocalDate deliveryDeadline;
@@ -23,7 +24,7 @@ public class Listing {
     }
 
     public static Listing reconstruct(ListingId listingId, String sellerId,
-                                      ProductId productId, String productName,
+                                      ProductId productId, String productName, String coverImageUrl,
                                       Quantity quantity, Money priceFloor,
                                       LocalDate deliveryDeadline, ListingStatus status) {
         Listing listing = new Listing();
@@ -31,6 +32,7 @@ public class Listing {
         listing.sellerId = sellerId;
         listing.productId = productId;
         listing.productName = productName;
+        listing.coverImageUrl = coverImageUrl;
         listing.quantity = quantity;
         listing.priceFloor = priceFloor;
         listing.deliveryDeadline = deliveryDeadline;
@@ -39,8 +41,12 @@ public class Listing {
         return listing;
     }
 
+    /**
+     * coverImageUrl is snapshotted once here, same as productName — never re-synced
+     * if the seller later updates the product's image list (audit trail for disputes).
+     */
     public static Listing create(ListingId listingId, String sellerId,
-                                 ProductId productId, String productName,
+                                 ProductId productId, String productName, String coverImageUrl,
                                  Quantity quantity, Money priceFloor,
                                  LocalDate deliveryDeadline) {
         Listing listing = new Listing();
@@ -48,6 +54,7 @@ public class Listing {
         listing.sellerId = sellerId;
         listing.productId = productId;
         listing.productName = productName;
+        listing.coverImageUrl = coverImageUrl;
         listing.quantity = quantity;
         listing.priceFloor = priceFloor;
         listing.deliveryDeadline = deliveryDeadline;
