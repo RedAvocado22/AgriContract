@@ -44,6 +44,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                 sellerId,
                 new ProductId(request.productId()),
                 product.getName(),
+                product.getCoverImageUrl(),
                 new Quantity(request.quantity(), request.quantityUnit()),
                 new Money(request.priceFloor(), request.currency()),
                 request.deliveryDeadline()
@@ -80,6 +81,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                 .sellerId(listing.getSellerId())
                 .productId(listing.getProductId().value())
                 .productName(listing.getProductName())
+                .coverImageUrl(listing.getCoverImageUrl())
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
                 .priceFloor(listing.getPriceFloor().amount())
