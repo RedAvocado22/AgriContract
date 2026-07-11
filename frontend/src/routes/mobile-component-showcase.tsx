@@ -50,7 +50,7 @@ function MobileComponentShowcase() {
           Không phải shared component thường, page riêng theo{" "}
           <span className="font-mono">Mobile components.dc.html</span>. Khung 390px.
         </div>
-        <a href="/" className="mt-2 inline-block text-sm text-primary">
+        <a href="/components" className="mt-2 inline-block text-sm text-primary">
           ← Về component library desktop
         </a>
       </div>

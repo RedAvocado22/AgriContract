@@ -158,7 +158,7 @@ function ComponentShowcase() {
           55 component nền tảng, dựng theo Component Library.dc.html §6.1–6.6. Dùng để mày duyệt
           trước khi ráp vào màn thật.
         </div>
-        <a href="/?mobile" className="mt-2 inline-block text-sm text-primary">
+        <a href="/components/mobile" className="mt-2 inline-block text-sm text-primary">
           Xem component cho mobile →
         </a>
       </div>
