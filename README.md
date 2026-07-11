@@ -153,7 +153,7 @@ Phase 2 layers tamper-evidence onto the audit trail:
 
 ```bash
 git clone https://github.com/RedAvocado22/AgriContract.git
-cd AgriContract
+cd AgriContract/backend
 cp .env.example .env   # defaults work out of the box for local dev
 ```
 
@@ -171,7 +171,7 @@ Once Keycloak is healthy at http://localhost:8180:
 
 1. Log in with `admin` / `admin` (or your `.env` values).
 2. **Realm settings → Import realm**.
-3. Upload `infra/keycloak/agricontract-realm.json` — creates the `agricontract` realm with pre-configured clients and roles.
+3. Upload `backend/infra/keycloak/agricontract-realm.json` — creates the `agricontract` realm with pre-configured clients and roles.
 
 ### 4. Access the services
 
