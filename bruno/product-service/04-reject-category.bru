@@ -1,0 +1,37 @@
+meta {
+  name: PUT /api/v1/categories/:categoryId/reject
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{product_service_url}}/api/v1/categories/{{category_id_reject}}/reject
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: admin-1
+  X-User-Role: ADMIN
+}
+
+body:json {
+  {
+    "reason": "Tên không rõ ràng, đề nghị đặt lại"
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("status should be REJECTED", function() {
+    expect(res.getBody().data.status).to.equal("REJECTED");
+  });
+
+  test("rejectionReason should be set", function() {
+    expect(res.getBody().data.rejectionReason).to.equal("Tên không rõ ràng, đề nghị đặt lại");
+  });
+}

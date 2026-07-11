@@ -1,0 +1,26 @@
+meta {
+  name: 17. Verify MailHog received proposer email for category.approved
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_category_approved_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("exactly 1 email sent (proposer)", function() {
+    expect(res.getBody().count).to.equal(1);
+  });
+
+  test("recipient is seller1", function() {
+    const recipients = res.getBody().items.map(i => i.Content.Headers.To[0]);
+    expect(recipients).to.include(bru.getEnvVar("seller1_email"));
+  });
+
+  test("subject matches category approved template", function() {
+    expect(res.getBody().items[0].Content.Headers.Subject[0]).to.equal("[AgriContract] Category proposal approved");
+  });
+}
