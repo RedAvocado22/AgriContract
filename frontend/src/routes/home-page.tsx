@@ -269,14 +269,14 @@ function FinalCta() {
         Mở tài khoản miễn phí. Quản trị viên duyệt hồ sơ trước khi kích hoạt.
       </div>
       <div className="flex justify-center gap-3">
-        <Link to="/register" className={cn(buttonVariants({ size: "cta" }))}>
-          Đăng ký doanh nghiệp
-        </Link>
         <Link
           to="/login"
           className={cn(buttonVariants({ variant: "outline", size: "cta" }))}
         >
           Đăng nhập
+        </Link>
+        <Link to="/register" className={cn(buttonVariants({ size: "cta" }))}>
+          Đăng ký doanh nghiệp
         </Link>
       </div>
     </div>
