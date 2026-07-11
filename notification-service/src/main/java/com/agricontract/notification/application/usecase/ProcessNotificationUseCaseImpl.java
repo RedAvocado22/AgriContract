@@ -8,6 +8,7 @@ import com.agricontract.notification.domain.model.vo.NotificationStatus;
 import com.agricontract.notification.domain.repository.NotificationLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,7 +29,13 @@ public class ProcessNotificationUseCaseImpl implements ProcessNotificationUseCas
             return;
         }
 
-        notificationLogRepository.save(log);
+        try {
+            notificationLogRepository.save(log);
+        } catch (DataIntegrityViolationException e) {
+            // uq_event_user (event_id, user_id) tripped — another concurrent delivery already
+            // inserted this log first, so this thread must not send a duplicate email.
+            return;
+        }
 
         try {
             emailPort.sendEmail(recipientEmail, subject, body);
