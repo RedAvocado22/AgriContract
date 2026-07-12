@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; background:#F8FAF9; color:#0F172A;" data-screen-label="Cách hoạt động (công khai)">
+
+  <!-- PUBLIC NAV -->
+  <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 40px; gap:32px; position:sticky; top:0; z-index:5;">
+    <div style="font-size:17px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="display:flex; gap:26px; font-size:14px; color:#475569;">
+      <span>Sàn nguồn hàng</span>
+      <span>Bảng giá tham khảo</span>
+      <span style="color:#15803D; font-weight:500;">Cách hoạt động</span>
+      <a href="Ve ky quy.dc.html" style="color:#475569;">Về ký quỹ</a>
+    </div>
+    <div style="flex:1;"></div>
+    <span style="font-size:14px; color:#475569;">Đăng nhập</span>
+    <span style="padding:9px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;">Đăng ký doanh nghiệp</span>
+  </div>
+
+  <!-- HERO -->
+  <div style="border-bottom:0.5px solid #E2E8F0; background:#FFFFFF;">
+    <div style="max-width:1160px; margin:0 auto; padding:64px 40px 60px;">
+      <div style="font-size:13px; color:#15803D; font-weight:500; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:14px;">Cách hoạt động</div>
+      <div style="font-size:40px; font-weight:500; line-height:1.2; letter-spacing:-0.015em; max-width:820px; margin-bottom:18px; text-wrap:balance;">Sáu bước từ lúc bắt tay đến khi tiền về tài khoản</div>
+      <div style="font-size:17px; color:#64748B; line-height:1.65; max-width:680px;">Không có thuật ngữ khó hiểu. Mỗi hợp đồng đi qua một vòng đời rõ ràng, và ở mỗi bước đều có bằng chứng — nên không ai có thể lật kèo giữa chừng.</div>
+    </div>
+  </div>
+
+  <!-- 6 STEPS -->
+  <div style="max-width:1160px; margin:0 auto; padding:56px 40px 20px;">
+    <div style="font-size:22px; font-weight:500; margin-bottom:26px;">Vòng đời một hợp đồng, theo đúng thứ tự</div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px;">
+
+      <!-- CARD 1 -->
+      <div style="position:relative; background:#fff; border:0.5px solid #E2E8F0; border-radius:16px; padding:26px 24px; overflow:hidden;">
+        <div style="position:absolute; top:14px; right:20px; font-size:56px; font-weight:600; font-family:'JetBrains Mono',monospace; color:#EAF7EF; line-height:1; letter-spacing:-0.02em;">01</div>
+        <span style="position:relative; width:46px; height:46px; border-radius:12px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; margin-bottom:18px;"><span class="ms" style="font-size:24px; color:#15803D;">forum</span></span>
+        <div style="position:relative; font-size:18px; font-weight:500; margin-bottom:9px;">Thoả thuận điều khoản</div>
+        <div style="position:relative; font-size:14px; color:#64748B; line-height:1.65;">Hai bên đàm phán khối lượng, giá và mức phạt vi phạm ngay trên nền tảng. Có dải giới hạn cho từng con số, nên không bên nào ép giá được bên kia.</div>
+      </div>
+
+      <!-- CARD 2 -->
+      <div style="position:relative; background:#fff; border:0.5px solid #E2E8F0; border-radius:16px; padding:26px 24px; overflow:hidden;">
+        <div style="position:absolute; top:14px; right:20px; font-size:56px; font-weight:600; font-family:'JetBrains Mono',monospace; color:#EAF7EF; line-height:1; letter-spacing:-0.02em;">02</div>
+        <span style="position:relative; width:46px; height:46px; border-radius:12px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; margin-bottom:18px;"><span class="ms" style="font-size:24px; color:#15803D;">lock</span></span>
+        <div style="position:relative; font-size:18px; font-weight:500; margin-bottom:9px;">Ký &amp; khoá tiền</div>
+        <div style="position:relative; font-size:14px; color:#64748B; line-height:1.65; margin-bottom:14px;">Ký điện tử xác thực bằng OTP. Tiền của bên mua chuyển vào tài khoản trung gian độc lập — không vào túi bên nào, chỉ giải ngân theo quy tắc đã ký.</div>
+        <div style="position:relative; display:inline-flex; align-items:center; gap:8px; padding:7px 11px; border-radius:8px; background:#F1F5F4; font-size:12.5px; color:#64748B;"><span class="ms" style="font-size:15px; color:#15803D;">shield</span> Tiền được khoá <b style="font-weight:500; color:#0F172A;">trước</b> khi giao hàng</div>
+      </div>
+
+      <!-- CARD 3 -->
+      <div style="position:relative; background:#fff; border:0.5px solid #E2E8F0; border-radius:16px; padding:26px 24px; overflow:hidden;">
+        <div style="position:absolute; top:14px; right:20px; font-size:56px; font-weight:600; font-family:'JetBrains Mono',monospace; color:#EAF7EF; line-height:1; letter-spacing:-0.02em;">03</div>
+        <span style="position:relative; width:46px; height:46px; border-radius:12px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; margin-bottom:18px;"><span class="ms" style="font-size:24px; color:#15803D;">local_shipping</span></span>
+        <div style="position:relative; font-size:18px; font-weight:500; margin-bottom:9px;">Giao hàng theo từng đợt</div>
+        <div style="position:relative; font-size:14px; color:#64748B; line-height:1.65;">Mỗi đợt giao đều được cân đo và chụp ảnh làm bằng chứng. Không phải chờ đến cuối hợp đồng mới xác nhận — giao đến đâu, ghi nhận đến đó.</div>
+      </div>
+
+      <!-- CARD 4 -->
+      <div style="position:relative; background:#fff; border:0.5px solid #E2E8F0; border-radius:16px; padding:26px 24px; overflow:hidden;">
+        <div style="position:absolute; top:14px; right:20px; font-size:56px; font-weight:600; font-family:'JetBrains Mono',monospace; color:#EAF7EF; line-height:1; letter-spacing:-0.02em;">04</div>
+        <span style="position:relative; width:46px; height:46px; border-radius:12px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; margin-bottom:18px;"><span class="ms" style="font-size:24px; color:#15803D;">verified</span></span>
+        <div style="position:relative; font-size:18px; font-weight:500; margin-bottom:9px;">Kiểm định độc lập khi cần</div>
+        <div style="position:relative; font-size:14px; color:#64748B; line-height:1.65;">Khi hai bên không thống nhất về chất lượng, một đơn vị giám định thứ ba (Vinacontrol, SGS…) vào cuộc xác nhận. Không bên nào tự phán kết quả.</div>
+      </div>
+
+      <!-- CARD 5 -->
+      <div style="position:relative; background:#fff; border:0.5px solid #E2E8F0; border-radius:16px; padding:26px 24px; overflow:hidden;">
+        <div style="position:absolute; top:14px; right:20px; font-size:56px; font-weight:600; font-family:'JetBrains Mono',monospace; color:#EAF7EF; line-height:1; letter-spacing:-0.02em;">05</div>
+        <span style="position:relative; width:46px; height:46px; border-radius:12px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; margin-bottom:18px;"><span class="ms" style="font-size:24px; color:#15803D;">payments</span></span>
+        <div style="position:relative; font-size:18px; font-weight:500; margin-bottom:9px;">Giải ngân ngay khi xác nhận</div>
+        <div style="position:relative; font-size:14px; color:#64748B; line-height:1.65;">Tiền chuyển cho bên bán tự động ngay khi cột mốc hoàn thành, tính đúng phần đã giao — không phải đợi hết hợp đồng mới được thanh toán.</div>
+      </div>
+
+      <!-- CARD 6 -->
+      <div style="position:relative; background:#fff; border:0.5px solid #E2E8F0; border-radius:16px; padding:26px 24px; overflow:hidden;">
+        <div style="position:absolute; top:14px; right:20px; font-size:56px; font-weight:600; font-family:'JetBrains Mono',monospace; color:#EAF7EF; line-height:1; letter-spacing:-0.02em;">06</div>
+        <span style="position:relative; width:46px; height:46px; border-radius:12px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; margin-bottom:18px;"><span class="ms" style="font-size:24px; color:#15803D;">gavel</span></span>
+        <div style="position:relative; font-size:18px; font-weight:500; margin-bottom:9px;">Tranh chấp có lối thoát rõ ràng</div>
+        <div style="position:relative; font-size:14px; color:#64748B; line-height:1.65; margin-bottom:14px;">Luôn có nơi phân xử, không rơi vào bế tắc. Tranh chấp leo qua ba tầng, tầng sau độc lập hơn tầng trước:</div>
+        <div style="position:relative; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:#475569;"><span style="width:20px; height:20px; border-radius:50%; background:#F1F5F4; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace; color:#64748B; flex-shrink:0;">1</span> Xử lý nội tuyến</div>
+          <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:#475569;"><span style="width:20px; height:20px; border-radius:50%; background:#F1F5F4; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace; color:#64748B; flex-shrink:0;">2</span> Vinacontrol / Quatest</div>
+          <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:#475569;"><span style="width:20px; height:20px; border-radius:50%; background:#F1F5F4; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace; color:#64748B; flex-shrink:0;">3</span> SGS / Bureau Veritas</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TRUST STRIP -->
+  <div style="background:#F1F5F4; border-top:0.5px solid #E2E8F0; border-bottom:0.5px solid #E2E8F0;">
+    <div style="max-width:1160px; margin:0 auto; padding:48px 40px; display:grid; grid-template-columns:repeat(3,1fr); gap:24px;">
+      <div style="display:flex; gap:14px; align-items:flex-start;">
+        <span style="width:40px; height:40px; border-radius:10px; background:#fff; border:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span class="ms" style="font-size:22px; color:#15803D;">receipt_long</span></span>
+        <div>
+          <div style="font-size:15.5px; font-weight:500; margin-bottom:5px;">Sổ cái minh bạch không sửa được</div>
+          <div style="font-size:13.5px; color:#64748B; line-height:1.6;">Mọi bút toán chỉ ghi thêm — không có nút sửa hay xoá ở bất kỳ đâu.</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:14px; align-items:flex-start;">
+        <span style="width:40px; height:40px; border-radius:10px; background:#fff; border:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span class="ms" style="font-size:22px; color:#15803D;">sync_alt</span></span>
+        <div>
+          <div style="font-size:15.5px; font-weight:500; margin-bottom:5px;">Uy tín 2 chiều</div>
+          <div style="font-size:13.5px; color:#64748B; line-height:1.6;">Cả bên mua và bên bán đều có lịch sử công khai để đối tác xem trước khi ký.</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:14px; align-items:flex-start;">
+        <span style="width:40px; height:40px; border-radius:10px; background:#fff; border:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span class="ms" style="font-size:22px; color:#15803D;">eco</span></span>
+        <div>
+          <div style="font-size:15.5px; font-weight:500; margin-bottom:5px;">Tuân thủ EUDR</div>
+          <div style="font-size:13.5px; color:#64748B; line-height:1.6;">Cà phê và cao su khai vùng trồng, sẵn sàng cho quy định chống phá rừng của EU.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div style="max-width:1160px; margin:0 auto; padding:64px 40px; text-align:center;">
+    <div style="font-size:28px; font-weight:500; margin-bottom:12px;">Sẵn sàng giao dịch có bảo chứng?</div>
+    <div style="font-size:15px; color:#64748B; margin-bottom:28px;">Mở tài khoản miễn phí. Quản trị viên duyệt hồ sơ trước khi kích hoạt.</div>
+    <div style="display:flex; gap:12px; justify-content:center;">
+      <span style="padding:13px 26px; border-radius:9px; background:#15803D; color:#fff; font-size:15px; font-weight:500;">Bắt đầu miễn phí</span>
+      <a href="Ve ky quy.dc.html" style="padding:13px 26px; border-radius:9px; border:0.5px solid #E2E8F0; background:#fff; color:#0F172A; font-size:15px; font-weight:500; display:inline-flex; align-items:center; gap:8px;">Tìm hiểu về ký quỹ <span class="ms" style="font-size:18px; color:#15803D;">arrow_forward</span></a>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="background:#0F172A; color:#94A3B8;">
+    <div style="max-width:1160px; margin:0 auto; padding:40px 40px; display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:24px;">
+      <div>
+        <div style="font-size:16px; font-weight:500; color:#fff; margin-bottom:6px;">AgriContract</div>
+        <div style="font-size:13px; line-height:1.6; max-width:320px;">Hợp đồng nông sản minh bạch, thanh toán an toàn qua ký quỹ. Cà phê · gạo · cao su · điều.</div>
+      </div>
+      <div style="display:flex; gap:56px; font-size:13.5px;">
+        <div style="display:flex; flex-direction:column; gap:9px;"><span style="color:#E2E8F0;">Sản phẩm</span><span>Sàn nguồn hàng</span><span>Bảng giá tham khảo</span><span>Cách hoạt động</span></div>
+        <div style="display:flex; flex-direction:column; gap:9px;"><span style="color:#E2E8F0;">Tuân thủ</span><span>Ký quỹ &amp; giải ngân</span><span>Giải quyết tranh chấp</span><span>EUDR &amp; truy xuất</span></div>
+      </div>
+    </div>
+    <div style="border-top:0.5px solid rgba(255,255,255,0.08);"><div style="max-width:1160px; margin:0 auto; padding:16px 40px; font-size:12.5px;">© 2026 AgriContract. Giá hiển thị là giá tham khảo, không phải giá giao dịch trên nền tảng.</div></div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
