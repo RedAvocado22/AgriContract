@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; background:#F8FAF9; color:#0F172A;" data-screen-label="Về ký quỹ (công khai)">
+
+  <!-- PUBLIC NAV -->
+  <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 40px; gap:32px; position:sticky; top:0; z-index:5;">
+    <div style="font-size:17px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="display:flex; gap:26px; font-size:14px; color:#475569;">
+      <span>Sàn nguồn hàng</span>
+      <span>Bảng giá tham khảo</span>
+      <a href="Cach hoat dong.dc.html" style="color:#475569;">Cách hoạt động</a>
+      <span style="color:#15803D; font-weight:500;">Về ký quỹ</span>
+    </div>
+    <div style="flex:1;"></div>
+    <span style="font-size:14px; color:#475569;">Đăng nhập</span>
+    <span style="padding:9px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;">Đăng ký doanh nghiệp</span>
+  </div>
+
+  <!-- HERO -->
+  <div style="border-bottom:0.5px solid #E2E8F0; background:#FFFFFF;">
+    <div style="max-width:1160px; margin:0 auto; padding:64px 40px 60px;">
+      <div style="font-size:13px; color:#15803D; font-weight:500; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:14px;">Về ký quỹ</div>
+      <div style="font-size:40px; font-weight:500; line-height:1.2; letter-spacing:-0.015em; max-width:820px; margin-bottom:18px; text-wrap:balance;">Ký quỹ tự thực thi là gì?</div>
+      <div style="font-size:17px; color:#64748B; line-height:1.65; max-width:720px;">Tiền được khoá <b style="font-weight:500; color:#0F172A;">trước</b> khi giao hàng và giải ngân tự động theo từng cột mốc. Không bên nào rút được ngoài quy tắc đã ký — quy tắc tự chạy, không cần ai bấm nút thủ công hay đặt niềm tin vào bên còn lại.</div>
+    </div>
+  </div>
+
+  <!-- MONEY-FLOW DIAGRAM -->
+  <div style="max-width:1160px; margin:0 auto; padding:60px 40px 24px;">
+    <div style="font-size:13px; color:#15803D; font-weight:500; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:10px;">Dòng tiền</div>
+    <div style="font-size:24px; font-weight:500; margin-bottom:8px;">Tiền đi đâu, ai giữ, khi nào chuyển</div>
+    <div style="font-size:15px; color:#64748B; line-height:1.6; max-width:680px; margin-bottom:36px;">Từ lúc khoá cho đến lúc tất toán, tiền luôn nằm ở một nơi trung lập và chỉ dịch chuyển theo quy tắc đã ký.</div>
+
+    <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:16px; padding:36px 32px;">
+      <div style="display:grid; grid-template-columns:1fr auto 1.15fr auto 1.15fr; gap:0; align-items:center;">
+
+        <!-- COL 1: INPUTS -->
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div style="border:0.5px solid #E2E8F0; border-radius:12px; padding:16px 18px; background:#F8FAF9;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;"><span class="ms" style="font-size:20px; color:#15803D;">storefront</span><span style="font-size:14.5px; font-weight:500;">Bên mua</span></div>
+            <div style="font-size:12.5px; color:#64748B; line-height:1.55;">Khoá <b style="font-weight:500; color:#0F172A;">100% tiền hàng</b> vào ký quỹ ngay khi hợp đồng có hiệu lực.</div>
+          </div>
+          <div style="border:0.5px dashed #CBD5E1; border-radius:12px; padding:16px 18px; background:#fff;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;"><div style="display:flex; align-items:center; gap:10px;"><span class="ms" style="font-size:20px; color:#64748B;">agriculture</span><span style="font-size:14.5px; font-weight:500;">Bên bán</span></div><span style="font-size:11px; color:#64748B; background:#F1F5F4; padding:2px 8px; border-radius:999px;">Tuỳ chọn</span></div>
+            <div style="font-size:12.5px; color:#64748B; line-height:1.55;">Khoá thêm một khoản <b style="font-weight:500; color:#0F172A;">cọc đảm bảo</b> để tăng độ tin cậy.</div>
+          </div>
+        </div>
+
+        <!-- ARROW 1 -->
+        <div style="display:flex; align-items:center; justify-content:center; padding:0 14px;"><span class="ms" style="font-size:26px; color:#CBD5E1;">arrow_forward</span></div>
+
+        <!-- COL 2: VAULT -->
+        <div style="border:1.5px solid #15803D; border-radius:14px; padding:22px 22px; background:#F6FDF9;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;"><span style="width:38px; height:38px; border-radius:10px; background:#15803D; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:22px; color:#fff;">lock</span></span><div><div style="font-size:15.5px; font-weight:600;">Tài khoản trung gian</div><div style="font-size:12px; color:#15803D; font-family:'JetBrains Mono',monospace;">FBO / omnibus</div></div></div>
+          <div style="font-size:13px; color:#475569; line-height:1.6; margin-bottom:14px;">Tiền nằm ở một tài khoản trung lập — <b style="font-weight:500; color:#0F172A;">không thuộc túi bên nào</b>. Không có tài khoản riêng cho từng hợp đồng.</div>
+          <div style="display:flex; gap:8px; align-items:flex-start; padding:10px 12px; background:#fff; border:0.5px solid #BBF7D0; border-radius:9px;"><span class="ms" style="font-size:16px; color:#15803D; margin-top:1px;">receipt_long</span><span style="font-size:12px; color:#64748B; line-height:1.5;">Sổ cái chỉ ghi thêm. Số dư luôn tính lại từ bút toán, không lưu sẵn.</span></div>
+        </div>
+
+        <!-- ARROW 2 -->
+        <div style="display:flex; align-items:center; justify-content:center; padding:0 14px;"><span class="ms" style="font-size:26px; color:#CBD5E1;">arrow_forward</span></div>
+
+        <!-- COL 3: OUTPUTS -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div style="border:0.5px solid #BBF7D0; border-radius:12px; padding:14px 16px; background:#F6FDF9;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;"><div style="display:flex; align-items:center; gap:9px;"><span class="ms" style="font-size:19px; color:#15803D;">payments</span><span style="font-size:14px; font-weight:500;">Giải ngân từng đợt</span></div><span style="font-size:11px; color:#15803D; background:#DCFCE7; padding:2px 8px; border-radius:999px; white-space:nowrap;">→ Bên bán</span></div>
+            <div style="font-size:12.5px; color:#64748B; line-height:1.55;">Mỗi cột mốc giao xong, phần tiền tương ứng tự động chuyển cho bên bán.</div>
+          </div>
+          <div style="border:0.5px solid #FDE68A; border-radius:12px; padding:14px 16px; background:#FFFBEB;">
+            <div style="display:flex; align-items:center; gap:9px; margin-bottom:6px;"><span class="ms" style="font-size:19px; color:#D97706;">gavel</span><span style="font-size:14px; font-weight:500;">Tịch thu phạt nếu vi phạm</span></div>
+            <div style="font-size:12.5px; color:#64748B; line-height:1.55;">Nếu một bên vi phạm, phần phạt được trích theo đúng mức đã ký từ trước.</div>
+          </div>
+          <div style="border:0.5px solid #E2E8F0; border-radius:12px; padding:14px 16px; background:#F8FAF9;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;"><div style="display:flex; align-items:center; gap:9px;"><span class="ms" style="font-size:19px; color:#64748B;">restart_alt</span><span style="font-size:14px; font-weight:500;">Hoàn phần còn lại</span></div><span style="font-size:11px; color:#64748B; background:#F1F5F4; padding:2px 8px; border-radius:999px; white-space:nowrap;">→ Bên mua</span></div>
+            <div style="font-size:12.5px; color:#64748B; line-height:1.55;">Khi tất toán, phần chưa dùng đến được trả lại đúng bên, tính pro-rata.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SEQUENCE CAPTION -->
+      <div style="display:grid; grid-template-columns:1fr auto 1fr auto 1fr auto 1fr; align-items:center; margin-top:30px; padding-top:24px; border-top:0.5px solid #E2E8F0;">
+        <span style="display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:13px; color:#475569;"><span style="width:22px; height:22px; border-radius:50%; background:#15803D; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace; flex-shrink:0;">1</span> Khoá tiền</span>
+        <span class="ms" style="font-size:16px; color:#CBD5E1; padding:0 10px;">arrow_forward</span>
+        <span style="display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:13px; color:#475569;"><span style="width:22px; height:22px; border-radius:50%; background:#15803D; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace; flex-shrink:0;">2</span> Giữ ở tài khoản trung gian</span>
+        <span class="ms" style="font-size:16px; color:#CBD5E1; padding:0 10px;">arrow_forward</span>
+        <span style="display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:13px; color:#475569;"><span style="width:22px; height:22px; border-radius:50%; background:#15803D; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace; flex-shrink:0;">3</span> Giải ngân theo cột mốc</span>
+        <span class="ms" style="font-size:16px; color:#CBD5E1; padding:0 10px;">arrow_forward</span>
+        <span style="display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:13px; color:#475569;"><span style="width:22px; height:22px; border-radius:50%; background:#15803D; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace; flex-shrink:0;">4</span> Tất toán &amp; hoàn phần còn lại</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div style="background:#F1F5F4; border-top:0.5px solid #E2E8F0; border-bottom:0.5px solid #E2E8F0; margin-top:40px;">
+    <div style="max-width:1160px; margin:0 auto; padding:56px 40px;">
+      <div style="font-size:24px; font-weight:500; margin-bottom:28px;">Câu hỏi thường gặp</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+          <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:10px;"><span class="ms" style="font-size:22px; color:#15803D; margin-top:1px;">help</span><div style="font-size:16.5px; font-weight:500; line-height:1.4;">Vì sao cả hai bên đều phải đặt cọc?</div></div>
+          <div style="font-size:14px; color:#64748B; line-height:1.65;">Bên mua khoá tiền hàng để bên bán yên tâm giao. Bên bán khoá cọc đảm bảo để bên mua yên tâm hàng sẽ đến đúng cam kết. Cọc hai chiều khiến việc bỏ kèo trở nên đắt cho cả hai — nên gần như không ai muốn.</div>
+        </div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+          <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:10px;"><span class="ms" style="font-size:22px; color:#15803D; margin-top:1px;">help</span><div style="font-size:16.5px; font-weight:500; line-height:1.4;">Sổ cái "chỉ ghi thêm" nghĩa là gì, sao lại quan trọng?</div></div>
+          <div style="font-size:14px; color:#64748B; line-height:1.65;">Mọi bút toán được ghi nối tiếp, không có nút sửa hay xoá ở bất kỳ đâu. Muốn điều chỉnh thì phải ghi một bút toán mới, để lại dấu vết. Nhờ vậy không ai âm thầm thay đổi lịch sử tiền — số dư luôn tính lại được từ đầu.</div>
+        </div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+          <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:10px;"><span class="ms" style="font-size:22px; color:#15803D; margin-top:1px;">help</span><div style="font-size:16.5px; font-weight:500; line-height:1.4;">Giải ngân từng đợt khác gì thanh toán một lần cuối hợp đồng?</div></div>
+          <div style="font-size:14px; color:#64748B; line-height:1.65; margin-bottom:14px;">Bên bán nhận tiền cho từng đợt ngay khi giao xong, thay vì đợi đến cột mốc cuối. Vốn lưu động được giải phóng sớm hơn nhiều.</div>
+          <div style="display:flex; gap:8px; align-items:flex-start; background:#F6FDF9; border:0.5px solid #BBF7D0; border-radius:9px; padding:11px 13px;"><span class="ms" style="font-size:17px; color:#15803D; margin-top:1px;">insights</span><span style="font-size:12.5px; color:#475569; line-height:1.55;">Đối chiếu "tổng tiền đã khoá" với "tiền thực nhận" theo tháng cho thấy khoảng cách thu hẹp rõ rệt khi chia nhỏ đợt giao.</span></div>
+        </div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+          <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:10px;"><span class="ms" style="font-size:22px; color:#15803D; margin-top:1px;">help</span><div style="font-size:16.5px; font-weight:500; line-height:1.4;">Nếu có tranh chấp thì tiền xử lý ra sao?</div></div>
+          <div style="font-size:14px; color:#64748B; line-height:1.65;">Phần tiền đang tranh chấp bị giữ lại trong ký quỹ — không giải ngân cũng không hoàn — cho tới khi có kết luận. Giám định độc lập phân xử, rồi hệ thống giải ngân hoặc hoàn theo đúng phán quyết. Trong lúc chờ, con số hiển thị là tạm tính và ghi rõ có thể điều chỉnh.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div style="max-width:1160px; margin:0 auto; padding:64px 40px; text-align:center;">
+    <div style="font-size:28px; font-weight:500; margin-bottom:12px;">Đã rõ cơ chế giữ tiền?</div>
+    <div style="font-size:15px; color:#64748B; margin-bottom:28px;">Xem toàn bộ vòng đời hợp đồng, hoặc mở tài khoản để bắt đầu.</div>
+    <div style="display:flex; gap:12px; justify-content:center;">
+      <span style="padding:13px 26px; border-radius:9px; background:#15803D; color:#fff; font-size:15px; font-weight:500;">Đăng ký doanh nghiệp</span>
+      <a href="Cach hoat dong.dc.html" style="padding:13px 26px; border-radius:9px; border:0.5px solid #E2E8F0; background:#fff; color:#0F172A; font-size:15px; font-weight:500; display:inline-flex; align-items:center; gap:8px;">Xem cách hoạt động <span class="ms" style="font-size:18px; color:#15803D;">arrow_forward</span></a>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="background:#0F172A; color:#94A3B8;">
+    <div style="max-width:1160px; margin:0 auto; padding:40px 40px; display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:24px;">
+      <div>
+        <div style="font-size:16px; font-weight:500; color:#fff; margin-bottom:6px;">AgriContract</div>
+        <div style="font-size:13px; line-height:1.6; max-width:320px;">Hợp đồng nông sản minh bạch, thanh toán an toàn qua ký quỹ. Cà phê · gạo · cao su · điều.</div>
+      </div>
+      <div style="display:flex; gap:56px; font-size:13.5px;">
+        <div style="display:flex; flex-direction:column; gap:9px;"><span style="color:#E2E8F0;">Sản phẩm</span><span>Sàn nguồn hàng</span><span>Bảng giá tham khảo</span><span>Cách hoạt động</span></div>
+        <div style="display:flex; flex-direction:column; gap:9px;"><span style="color:#E2E8F0;">Tuân thủ</span><span>Ký quỹ &amp; giải ngân</span><span>Giải quyết tranh chấp</span><span>EUDR &amp; truy xuất</span></div>
+      </div>
+    </div>
+    <div style="border-top:0.5px solid rgba(255,255,255,0.08);"><div style="max-width:1160px; margin:0 auto; padding:16px 40px; font-size:12.5px;">© 2026 AgriContract. Giá hiển thị là giá tham khảo, không phải giá giao dịch trên nền tảng.</div></div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
