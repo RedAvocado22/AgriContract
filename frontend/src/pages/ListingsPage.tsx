@@ -1,22 +1,60 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { FilterSidebar } from '../components/listings/FilterSidebar'
 import { ListingCard } from '../components/listings/ListingCard'
 import { useListingsQuery } from '../hooks/useListingsQuery'
+import { useAuthStore } from '../stores/authStore'
 import type { ListingFilters } from '../types/listing'
 
-const initialFilters: ListingFilters = {
+const defaultFilters: ListingFilters = {
   categories: [],
-  maxPrice: 150000,
+  minPrice: undefined,
+  maxPrice: undefined,
+  deliveryWindow: 'all',
+  search: '',
+  sortBy: 'latest',
+}
+
+const catalogFilters: ListingFilters = {
+  categories: [],
+  minPrice: undefined,
+  maxPrice: undefined,
   deliveryWindow: 'all',
   search: '',
   sortBy: 'latest',
 }
 
 export function ListingsPage() {
-  const [filters, setFilters] = useState<ListingFilters>(initialFilters)
+  const userRole = useAuthStore((state) => state.user?.role)
+  const normalizedRole = userRole?.trim().toUpperCase()
+  const [filters, setFilters] = useState<ListingFilters>(defaultFilters)
   const { data, isLoading, isError } = useListingsQuery(filters)
+  const { data: catalogData } = useListingsQuery(catalogFilters)
+
+  const categoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set((catalogData ?? []).map((listing) => listing.category).filter(Boolean)),
+      ).sort((a, b) => a.localeCompare(b, 'vi')),
+    [catalogData],
+  )
+
+  const priceBounds = useMemo(() => {
+    const prices = (catalogData ?? []).map((listing) => listing.priceFloor)
+
+    if (prices.length === 0) {
+      return {
+        min: 0,
+        max: 0,
+      }
+    }
+
+    return {
+      min: Math.min(...prices),
+      max: Math.max(...prices),
+    }
+  }, [catalogData])
 
   return (
     <div className="page-stack">
@@ -26,14 +64,21 @@ export function ListingsPage() {
           <p>Khám phá các hợp đồng nông sản kỳ hạn trên nền tảng.</p>
         </div>
 
-        <Link className="primary-button" to="/listings/create">
-          <span className="material-symbols-outlined">add</span>
-          Tạo tin đăng
-        </Link>
+        {normalizedRole === 'SELLER' ? (
+          <Link className="primary-button" to="/listings/create">
+            <span className="material-symbols-outlined">add</span>
+            Tạo tin đăng
+          </Link>
+        ) : null}
       </section>
 
       <div className="workspace-grid">
-        <FilterSidebar filters={filters} onChange={setFilters} />
+        <FilterSidebar
+          filters={filters}
+          onChange={setFilters}
+          categories={categoryOptions}
+          priceBounds={priceBounds}
+        />
 
         <section className="content-panel">
           <div className="content-panel__toolbar">

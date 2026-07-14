@@ -1,46 +1,59 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '../../stores/authStore'
 
-const navItems = [
+const privateNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { to: '/listings', label: 'Listings', icon: 'list_alt' },
   { to: '/contracts', label: 'Contracts', icon: 'description' },
   { to: '/escrow', label: 'Escrow', icon: 'account_balance_wallet' },
 ]
 
-export function AppShell() {
+const publicNavItems = [{ to: '/listings', label: 'Listings', icon: 'list_alt' }]
+
+interface AppShellProps {
+  publicMode?: boolean
+}
+
+export function AppShell({ publicMode = false }: AppShellProps) {
   const { user, logout } = useAuthStore()
+  const navigate = useNavigate()
+  const normalizedRole = user?.role?.trim().toUpperCase()
   const handleLogout = () => {
     logout()
+    navigate('/login', { replace: true })
   }
 
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">
+        <Link className="brand" to="/listings" aria-label="AgriContract home">
           <div className="brand__mark">eco</div>
           <div>
             <strong>AgriContract</strong>
             <span>B2B Platform</span>
           </div>
-        </div>
+        </Link>
 
         <div className="topbar__actions">
-          <button className="icon-button" type="button" aria-label="Thông báo">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
-          <div className="user-pill">
-            <span className="material-symbols-outlined">account_circle</span>
-            <div>
-              <strong>{user?.name ?? 'Người dùng'}</strong>
-              <span>{user?.organization ?? 'AgriContract'}</span>
-            </div>
-          </div>
+          {publicMode ? null : (
+            <>
+              <button className="icon-button" type="button" aria-label="Thông báo">
+                <span className="material-symbols-outlined">notifications</span>
+              </button>
+              <div className="user-pill">
+                <span className="material-symbols-outlined">account_circle</span>
+                <div>
+                  <strong>{user?.name ?? 'Người dùng'}</strong>
+                  <span>{user?.organization ?? 'AgriContract'}</span>
+                </div>
+              </div>
 
-          <button className="ghost-button" type="button" onClick={handleLogout}>
-            Đăng xuất
-          </button>
+              <button className="ghost-button" type="button" onClick={handleLogout}>
+                Đăng xuất
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -54,7 +67,7 @@ export function AppShell() {
                 <span>B2B Platform</span>
               </div>
             </div>
-            {navItems.map((item) => (
+            {(publicMode ? publicNavItems : privateNavItems).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -66,6 +79,20 @@ export function AppShell() {
                 {item.label}
               </NavLink>
             ))}
+
+            {!publicMode && normalizedRole === 'SELLER' ? (
+              <NavLink to="/listings/create" className="sidebar-link">
+                <span className="material-symbols-outlined">add_circle</span>
+                Tạo tin đăng
+              </NavLink>
+            ) : null}
+
+            {publicMode ? (
+              <NavLink to="/login" className="sidebar-link">
+                <span className="material-symbols-outlined">login</span>
+                Đăng nhập
+              </NavLink>
+            ) : null}
           </div>
         </aside>
 

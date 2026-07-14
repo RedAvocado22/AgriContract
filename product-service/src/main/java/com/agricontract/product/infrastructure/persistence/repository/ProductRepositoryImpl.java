@@ -6,9 +6,11 @@ import com.agricontract.product.domain.repository.ProductRepository;
 import com.agricontract.product.infrastructure.persistence.entity.ProductJpaEntity;
 import com.agricontract.product.infrastructure.persistence.mapper.ProductMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -31,5 +33,18 @@ public class ProductRepositoryImpl implements ProductRepository {
     @Override
     public Optional<Product> findById(ProductId productId) {
         return productJpaRepository.findByProductId(productId.value()).map(productMapper::toDomain);
+    }
+
+    @Override
+    public List<Product> findAll(Pageable pageable) {
+        return productJpaRepository.findAll(pageable).getContent()
+                .stream()
+                .map(productMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countAll() {
+        return productJpaRepository.count();
     }
 }

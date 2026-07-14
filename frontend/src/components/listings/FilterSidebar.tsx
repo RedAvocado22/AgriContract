@@ -1,13 +1,22 @@
 import type { ListingFilters } from '../../types/listing'
+import { DualRangeSlider } from './DualRangeSlider'
 
 interface FilterSidebarProps {
   filters: ListingFilters
   onChange: (next: ListingFilters) => void
+  categories: string[]
+  priceBounds: {
+    min: number
+    max: number
+  }
 }
 
-const categories = ['Cà phê', 'Cao su', 'Lúa gạo', 'Điều']
+const PRICE_STEP = 1000
 
-export function FilterSidebar({ filters, onChange }: FilterSidebarProps) {
+export function FilterSidebar({ filters, onChange, categories, priceBounds }: FilterSidebarProps) {
+  const effectiveMin = filters.minPrice ?? priceBounds.min
+  const effectiveMax = filters.maxPrice ?? priceBounds.max
+
   const toggleCategory = (category: string) => {
     const nextCategories = filters.categories.includes(category)
       ? filters.categories.filter((item) => item !== category)
@@ -28,6 +37,9 @@ export function FilterSidebar({ filters, onChange }: FilterSidebarProps) {
 
         <div className="filter-group">
           <span className="filter-label">Danh mục</span>
+          {categories.length === 0 ? (
+            <p className="filter-empty-hint">Đang tải danh mục từ dữ liệu thật...</p>
+          ) : null}
           {categories.map((category) => (
             <label key={category} className="checkbox-row">
               <input
@@ -41,41 +53,38 @@ export function FilterSidebar({ filters, onChange }: FilterSidebarProps) {
         </div>
 
         <div className="filter-group">
-          <span className="filter-label">Mức giá</span>
-          <label className="price-input">
-            <span>Tối đa</span>
-            <input
-              type="number"
-              min="20000"
-              max="150000"
-              step="5000"
-              value={filters.maxPrice ?? 150000}
-              onChange={(event) =>
-                onChange({
-                  ...filters,
-                  maxPrice: Number(event.target.value),
-                })
-              }
-            />
-          </label>
-          <input
-            className="price-slider"
-            type="range"
-            min="20000"
-            max="150000"
-            step="5000"
-            value={filters.maxPrice ?? 150000}
-            onChange={(event) =>
+          <div className="filter-label-row">
+            <span className="filter-label">Mức giá</span>
+            {(effectiveMin !== priceBounds.min || effectiveMax !== priceBounds.max) && (
+              <button
+                className="filter-reset"
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...filters,
+                    minPrice: undefined,
+                    maxPrice: undefined,
+                  })
+                }
+              >
+                Đặt lại
+              </button>
+            )}
+          </div>
+          <DualRangeSlider
+            min={effectiveMin}
+            max={effectiveMax}
+            limitMin={priceBounds.min}
+            limitMax={priceBounds.max}
+            step={PRICE_STEP}
+            onChange={({ min, max }) =>
               onChange({
                 ...filters,
-                maxPrice: Number(event.target.value),
+                minPrice: min === priceBounds.min ? undefined : min,
+                maxPrice: max === priceBounds.max ? undefined : max,
               })
             }
           />
-          <div className="range-row">
-            <span>20.000 VND</span>
-            <span>{(filters.maxPrice ?? 150000).toLocaleString('vi-VN')} VND</span>
-          </div>
         </div>
 
         <div className="filter-group">
