@@ -1,0 +1,52 @@
+meta {
+  name: 6. Publish contract.cancelled (buyer + seller both notified)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{rabbitmq_management_url}}/api/exchanges/%2f/agricontract.contracts/publish
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{rabbitmq_username}}
+  password: {{rabbitmq_password}}
+}
+
+body:json {
+  {
+    "properties": {"content_type": "application/json", "delivery_mode": 2},
+    "routing_key": "contract.cancelled",
+    "payload": {{event_payload_string}},
+    "payload_encoding": "string"
+  }
+}
+
+script:pre-request {
+  const contractId = "notif-cancelled-" + Date.now();
+  const payload = {
+    eventId: "evt-cancelled-" + Date.now(),
+    eventType: "contract.cancelled",
+    occurredAt: new Date().toISOString(),
+    buyerEmail: bru.getEnvVar("buyer1_email"),
+    sellerEmail: bru.getEnvVar("seller1_email"),
+    contractId: contractId,
+    cancelledBy: "BUYER",
+    reason: "Buyer withdrew due to price change",
+    buyerPenaltyRate: 0.05
+  };
+  bru.setEnvVar("notif_cancelled_contract_id", contractId);
+  bru.setVar("event_payload_string", JSON.stringify(JSON.stringify(payload)));
+}
+
+tests {
+  test("should be routed to notification-svc.contract.cancelled", function() {
+    expect(res.getBody().routed).to.equal(true);
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 4500));
+}

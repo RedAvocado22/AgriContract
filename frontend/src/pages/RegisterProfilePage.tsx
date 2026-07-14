@@ -9,7 +9,7 @@ import { AuthHeader } from '../components/layout/AuthHeader'
 import { useAuthStore } from '../stores/authStore'
 
 const registerProfileSchema = z.object({
-  organizationName: z.string().min(2, 'Vui lòng nhập tên tổ chức'),
+  organizationName: z.string().min(2, 'Enter your organization name'),
   phone: z.string().optional(),
   address: z.string().optional(),
 })
@@ -61,42 +61,31 @@ export function RegisterProfilePage() {
         <div className="auth-card auth-card--wide">
           <div className="auth-card__hero">
             <div className="brand-brandmark">eco</div>
-            <h1>Hoàn tất hồ sơ</h1>
-            <p>Thông tin này sẽ được lưu vào cơ sở dữ liệu AgriContract.</p>
+            <h1>Complete profile</h1>
+            <p>This information is stored in the user service and shown on trading screens.</p>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
             <label>
-              <span>Tên tổ chức</span>
-              <input
-                {...register('organizationName')}
-                placeholder="VD: Hợp tác xã Cà phê Đắk Lắk"
-              />
-              {errors.organizationName ? (
-                <small>{errors.organizationName.message}</small>
-              ) : null}
+              <span>Organization name</span>
+              <input {...register('organizationName')} placeholder="Example: Dak Lak Coffee Cooperative" />
+              {errors.organizationName ? <small>{errors.organizationName.message}</small> : null}
             </label>
 
             <label>
-              <span>Số điện thoại</span>
-              <input {...register('phone')} placeholder="0901234567" />
+              <span>Phone</span>
+              <input {...register('phone')} placeholder="+84 901 234 567" />
             </label>
 
             <label>
-              <span>Địa chỉ</span>
-              <input {...register('address')} placeholder="Đắk Lắk, Việt Nam" />
+              <span>Address</span>
+              <input {...register('address')} placeholder="Dak Lak, Vietnam" />
             </label>
 
-            {registerMutation.isError ? (
-              <small>Không thể lưu hồ sơ. Vui lòng thử lại.</small>
-            ) : null}
+            {registerMutation.isError ? <small>Profile could not be saved. Please try again.</small> : null}
 
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={registerMutation.isPending}
-            >
-              {registerMutation.isPending ? 'Đang lưu...' : 'Lưu hồ sơ'}
+            <button className="primary-button" type="submit" disabled={registerMutation.isPending}>
+              {registerMutation.isPending ? 'Saving...' : 'Save profile'}
             </button>
           </form>
         </div>

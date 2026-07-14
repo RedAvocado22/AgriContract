@@ -6,10 +6,11 @@ import com.agricontract.product.domain.repository.ProductRepository;
 import com.agricontract.product.infrastructure.persistence.entity.ProductJpaEntity;
 import com.agricontract.product.infrastructure.persistence.mapper.ProductMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -19,8 +20,12 @@ public class ProductRepositoryImpl implements ProductRepository {
     private final ProductMapper productMapper;
 
     @Override
+    @Transactional
     public Product save(Product product) {
         ProductJpaEntity entity = productMapper.toJpaEntity(product);
+        productJpaRepository.findByProductId(product.getProductId().value())
+                .ifPresent(existing -> entity.setId(existing.getId()));
+
         ProductJpaEntity savedEntity = productJpaRepository.save(entity);
         return productMapper.toDomain(savedEntity);
     }
@@ -31,7 +36,15 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
-    public Page<Product> findAll(Pageable pageable) {
-        return productJpaRepository.findAll(pageable).map(productMapper::toDomain);
+    public List<Product> findAll(Pageable pageable) {
+        return productJpaRepository.findAll(pageable).getContent()
+                .stream()
+                .map(productMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countAll() {
+        return productJpaRepository.count();
     }
 }

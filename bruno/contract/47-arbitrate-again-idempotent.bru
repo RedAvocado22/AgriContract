@@ -1,0 +1,29 @@
+meta {
+  name: 47. [Edge] Arbitrate again on already-ARBITRATED — idempotent skip, no error
+  type: http
+  seq: 47
+}
+
+put {
+  url: {{base_url}}/api/v1/escrows/{{arbitrate_contract_id}}/arbitrate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{admin_token}}
+}
+
+body:json {
+  {
+    "buyerAmount": 5000000,
+    "sellerAmount": 15625000,
+    "justification": "retry with different split — should be ignored, already ARBITRATED"
+  }
+}
+
+tests {
+  test("should return 200 (idempotent skip, not an error)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

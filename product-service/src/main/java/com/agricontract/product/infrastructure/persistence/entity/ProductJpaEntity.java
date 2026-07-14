@@ -28,8 +28,11 @@ public class ProductJpaEntity {
     @Column(nullable = false, length = 50)
     private String unit;
 
-    @Column(length = 100)
-    private String category;
+    @Column(name = "category_id", length = 255)
+    private String categoryId;
+
+    @Column(columnDefinition = "JSON", nullable = false)
+    private String images;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

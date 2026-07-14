@@ -6,6 +6,7 @@ import com.agricontract.escrow.domain.model.EscrowAccount;
 import com.agricontract.escrow.domain.repository.EscrowAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -30,7 +31,11 @@ public class LockBuyerPaymentUseCase {
                 command.sellerDepositRate(), command.agreedPrice()
         );
 
-        escrowAccountRepository.save(account);
-        log.info("EscrowAccount created for contract {}, buyer payment locked", command.contractId());
+        try {
+            escrowAccountRepository.save(account);
+            log.info("EscrowAccount created for contract {}, buyer payment locked", command.contractId());
+        } catch (DataIntegrityViolationException ex) {
+            escrowAccountRepository.findByContractId(command.contractId()).orElseThrow(() -> ex);
+        }
     }
 }

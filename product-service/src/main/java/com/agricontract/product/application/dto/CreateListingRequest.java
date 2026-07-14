@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record CreateListingRequest(
+        String listingId,
         @NotBlank String productId,
         @NotNull @DecimalMin("0.001") BigDecimal quantity,
         @NotBlank String quantityUnit,

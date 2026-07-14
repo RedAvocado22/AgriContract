@@ -1,0 +1,34 @@
+meta {
+  name: 36. [Error] Negotiate from SIGNED — must be OFFERED/NEGOTIATING (expect 400, seed-ctr-signed)
+  type: http
+  seq: 36
+}
+
+put {
+  url: {{base_url}}/api/v1/contracts/{{negotiate_invalid_contract_id}}/negotiate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "newTerms": {
+      "quantity": { "value": 500, "unit": "kg" },
+      "agreedPrice": { "amount": 8300000, "currency": "VND" },
+      "deliveryDeadline": "2026-10-01",
+      "buyerPenaltyRate": 0.2,
+      "sellerDepositRate": 0.1,
+      "qualitySpec": "Độ ẩm ≤ 14%, tạp chất ≤ 0.5%"
+    }
+  }
+}
+
+tests {
+  test("negotiate from SIGNED should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

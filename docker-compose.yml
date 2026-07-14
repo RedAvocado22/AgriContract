@@ -182,7 +182,7 @@ services:
       CONTRACT_SERVICE_URL: http://contract-service:8083
       ESCROW_SERVICE_URL: http://escrow-service:8084
       NOTIFICATION_SERVICE_URL: http://notification-service:8085
-      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
     depends_on:
       keycloak:
         condition: service_healthy
@@ -194,8 +194,6 @@ services:
       context: .
       dockerfile: user-service/Dockerfile
     container_name: user-service
-    ports:
-      - "8081:8081"
     environment:
       DB_HOST: user-db
       DB_PORT: 3306
@@ -203,8 +201,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
-      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
-      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
     depends_on:
       user-db:
         condition: service_healthy
@@ -218,8 +216,6 @@ services:
       context: .
       dockerfile: product-service/Dockerfile
     container_name: product-service
-    ports:
-      - "8082:8082"
     environment:
       DB_HOST: product-db
       DB_PORT: 3306
@@ -227,8 +223,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
-      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
-      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
     depends_on:
       product-db:
         condition: service_healthy
@@ -242,8 +238,6 @@ services:
       context: .
       dockerfile: contract-service/Dockerfile
     container_name: contract-service
-    ports:
-      - "8083:8083"
     environment:
       DB_HOST: contract-db
       DB_NAME: contract_db
@@ -251,8 +245,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
       RABBITMQ_HOST: rabbitmq
-      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
-      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:-changeme-internal}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
       PRODUCT_SERVICE_URL: http://product-service:8082
       USER_SERVICE_URL: http://user-service:8081
     depends_on:
@@ -270,8 +264,6 @@ services:
       context: .
       dockerfile: escrow-service/Dockerfile
     container_name: escrow-service
-    ports:
-      - "8084:8084"
     environment:
       DB_HOST: escrow-db
       DB_NAME: escrow_db
@@ -279,7 +271,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
       RABBITMQ_HOST: rabbitmq
-      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:-changeme}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
     depends_on:
       escrow-db:
         condition: service_healthy
@@ -297,6 +289,7 @@ services:
       - "8085:8085"
     environment:
       DB_HOST: notification-db
+      DB_PORT: 3306
       DB_NAME: notification_db
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-password}

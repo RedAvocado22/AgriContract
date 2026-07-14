@@ -11,8 +11,10 @@ import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -25,6 +27,16 @@ public class CreateContractUseCase {
     private final UserPort userPort;
 
     public ContractResponse execute(CreateContractCommand command) {
+        ContractId contractId = (command.contractId() != null)
+                ? new ContractId(command.contractId())
+                : new ContractId(UUID.randomUUID().toString());
+
+        //idempotency
+        Optional<ContractResponse> matched = assertSameRequestOrConflict(contractId, command);
+        if (matched.isPresent()) {
+            return matched.get();
+        }
+
         //feign
         ListingResponse listing = listingPort.getListing(command.listingId());
 
@@ -34,11 +46,6 @@ public class CreateContractUseCase {
 
         UserInfo buyerInfo = userPort.getUser(command.buyerId());
         UserInfo sellerInfo = userPort.getUser(listing.sellerId());
-
-        //idempotency
-        ContractId contractId = (command.contractId() != null)
-                ? new ContractId(command.contractId())
-                : new ContractId(UUID.randomUUID().toString());
 
         Contract contract = Contract.offer(
                 contractId,
@@ -53,9 +60,30 @@ public class CreateContractUseCase {
                 command.terms()
         );
 
-        contractRepository.save(contract);
+        try {
+            contractRepository.save(contract);
+        } catch (DataIntegrityViolationException e) {
+            return assertSameRequestOrConflict(contractId, command)
+                    .orElseThrow(() -> e);
+        }
         log.info("Contract {} offered: buyer={} seller={} listing={}", contractId.value(), command.buyerId(), listing.sellerId(), command.listingId());
 
         return ContractResponse.from(contract);
+    }
+
+    //idempotency
+    private Optional<ContractResponse> assertSameRequestOrConflict(ContractId contractId, CreateContractCommand command) {
+        Contract existing = contractRepository.findById(contractId).orElse(null);
+        if (existing != null) {
+            if (existing.getBuyerId().equals(command.buyerId()) &&
+                    existing.getListingId().equals(command.listingId()) &&
+                    existing.getTerms().equals(command.terms())) {
+                return Optional.of(ContractResponse.from(existing));
+            } else {
+                throw new IllegalStateException(("Contract " + contractId.value() + " already exists with different buyer/listing/terms"));
+            }
+        } else {
+            return Optional.empty();
+        }
     }
 }

@@ -31,26 +31,31 @@ export function AppShell({ publicMode = false }: AppShellProps) {
           <div className="brand__mark">eco</div>
           <div>
             <strong>AgriContract</strong>
-            <span>B2B Platform</span>
+            <span>Escrow-backed B2B agriculture</span>
           </div>
         </Link>
 
         <div className="topbar__actions">
-          {publicMode ? null : (
+          {publicMode ? (
+            <Link className="primary-button" to="/login">
+              <span className="material-symbols-outlined">login</span>
+              Sign in
+            </Link>
+          ) : (
             <>
-              <button className="icon-button" type="button" aria-label="Thông báo">
+              <button className="icon-button" type="button" aria-label="Notifications">
                 <span className="material-symbols-outlined">notifications</span>
               </button>
               <div className="user-pill">
                 <span className="material-symbols-outlined">account_circle</span>
                 <div>
-                  <strong>{user?.name ?? 'Người dùng'}</strong>
+                  <strong>{user?.name ?? 'User'}</strong>
                   <span>{user?.organization ?? 'AgriContract'}</span>
                 </div>
               </div>
 
               <button className="ghost-button" type="button" onClick={handleLogout}>
-                Đăng xuất
+                Sign out
               </button>
             </>
           )}
@@ -83,14 +88,7 @@ export function AppShell({ publicMode = false }: AppShellProps) {
             {!publicMode && normalizedRole === 'SELLER' ? (
               <NavLink to="/listings/create" className="sidebar-link">
                 <span className="material-symbols-outlined">add_circle</span>
-                Tạo tin đăng
-              </NavLink>
-            ) : null}
-
-            {publicMode ? (
-              <NavLink to="/login" className="sidebar-link">
-                <span className="material-symbols-outlined">login</span>
-                Đăng nhập
+                Create listing
               </NavLink>
             ) : null}
           </div>

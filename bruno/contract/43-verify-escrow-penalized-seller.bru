@@ -1,0 +1,24 @@
+meta {
+  name: 43. Verify escrow PENALIZED_SELLER (contract.cancelled consumed by escrow-service)
+  type: http
+  seq: 43
+}
+
+get {
+  url: {{base_url}}/api/v1/escrows/contract/{{cancel_seller_contract_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{seller_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("escrow status should be PENALIZED_SELLER", function() {
+    expect(res.getBody().data.status).to.equal("PENALIZED_SELLER");
+  });
+}

@@ -1,0 +1,29 @@
+meta {
+  name: 45. Arbitrate as admin — seed-esc-disputed FULLY_LOCKED → ARBITRATED
+  type: http
+  seq: 45
+}
+
+put {
+  url: {{base_url}}/api/v1/escrows/{{arbitrate_contract_id}}/arbitrate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{admin_token}}
+}
+
+body:json {
+  {
+    "buyerAmount": 10000000,
+    "sellerAmount": 10625000,
+    "justification": "Hàng không đạt piperin như thoả thuận, chia đôi thiệt hại"
+  }
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

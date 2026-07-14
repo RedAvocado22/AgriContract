@@ -1,0 +1,50 @@
+meta {
+  name: 18. Publish category.rejected (proposer notified with reason)
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{rabbitmq_management_url}}/api/exchanges/%2f/agricontract.events/publish
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{rabbitmq_username}}
+  password: {{rabbitmq_password}}
+}
+
+body:json {
+  {
+    "properties": {"content_type": "application/json", "delivery_mode": 2},
+    "routing_key": "category.rejected",
+    "payload": {{event_payload_string}},
+    "payload_encoding": "string"
+  }
+}
+
+script:pre-request {
+  const categoryId = "notif-cat-rejected-" + Date.now();
+  const eventId = "evt-cat-rejected-" + Date.now();
+  const payload = {
+    eventId: eventId,
+    occurredAt: new Date().toISOString(),
+    categoryId: categoryId,
+    name: "Rau Cu " + Date.now(),
+    proposedByEmail: bru.getEnvVar("buyer1_email"),
+    rejectionReason: "Trung ten voi danh muc da co"
+  };
+  bru.setEnvVar("notif_category_rejected_id", categoryId);
+  bru.setVar("event_payload_string", JSON.stringify(JSON.stringify(payload)));
+}
+
+tests {
+  test("should be routed to notification-svc.category.rejected", function() {
+    expect(res.getBody().routed).to.equal(true);
+  });
+}
+
+script:post-response {
+  await new Promise((resolve) => setTimeout(resolve, 4500));
+}

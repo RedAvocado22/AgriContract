@@ -29,4 +29,11 @@ VALUES
   ('lst-seed-delivered', @seller1_id, 'prod-seed-coffee', 'Cà phê Robusta',          300.000, 'kg', 58000.00, 'VND', '2026-10-15', 'CLOSED', NOW(), NOW()),
   ('lst-seed-settled',   @seller1_id, 'prod-seed-rice',   'Gạo tẻ ST25',           1000.000, 'kg',  7800.00, 'VND', '2026-08-31', 'CLOSED', NOW(), NOW()),
   ('lst-seed-cancelled', @seller1_id, 'prod-seed-durian', 'Sầu riêng Musang King',  400.000, 'kg', 85000.00, 'VND', '2026-09-01', 'CLOSED', NOW(), NOW()),
-  ('lst-seed-disputed',  @seller1_id, 'prod-seed-pepper', 'Hồ tiêu đen',            150.000, 'kg',125000.00, 'VND', '2026-09-30', 'CLOSED', NOW(), NOW());
+  ('lst-seed-disputed',  @seller1_id, 'prod-seed-pepper', 'Hồ tiêu đen',            150.000, 'kg',125000.00, 'VND', '2026-09-30', 'CLOSED', NOW(), NOW()),
+  -- Dùng bởi ACTIVE contract thứ 2 (seller-cancel test — cancel là terminal, cần fixture riêng với buyer-cancel)
+  ('lst-seed-active-2',  @seller1_id, 'prod-seed-durian', 'Sầu riêng Musang King',  250.000, 'kg', 90000.00, 'VND', '2026-09-20', 'CLOSED', NOW(), NOW());
+
+-- Bruno e2e contract flow dùng listing này — reset ACTIVE mỗi lần seed vì bị CLOSED sau khi ký hợp đồng
+INSERT INTO listings (listing_id, seller_id, product_id, product_name, quantity, quantity_unit, price_floor, currency, delivery_deadline, status, created_at, updated_at)
+VALUES ('51ef2a70-95f6-4a53-bdb1-6c9ccc9becaf', @seller1_id, 'prod-seed-rice', 'Gao ST25', 500.000, 'kg', 15000.00, 'VND', '2026-09-30', 'ACTIVE', NOW(), NOW())
+ON DUPLICATE KEY UPDATE status = 'ACTIVE', updated_at = NOW();

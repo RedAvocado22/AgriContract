@@ -2,9 +2,10 @@ import apiClient from './client'
 import { env } from '../config/env'
 import { MOCK_LISTINGS } from '../mocks/listings'
 import { MOCK_PRODUCTS } from '../mocks/products'
-import { productApi } from './productApi'
 import type { CreateListingInput, Listing, ListingFilters } from '../types/listing'
-import { formatProductCategory } from '../utils/productCategory'
+import type { Product } from '../types/product'
+import { formatProductCategory, getCategoryImage } from '../utils/productCategory'
+import { productApi } from './productApi'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -22,15 +23,25 @@ type BackendListing = Pick<
   | 'status'
 >
 
-const toListing = (listing: BackendListing, category = ''): Listing => ({
-  ...listing,
-  sellerName: '',
-  category,
-  description: '',
-  location: '',
-  qualityNotes: '',
-  imageUrl: '',
-})
+const sellerNameFallback = (sellerId: string) =>
+  sellerId ? `Seller ${sellerId.slice(0, 8)}` : 'Verified seller'
+
+const toListing = (listing: BackendListing, products: Product[] = []): Listing => {
+  const product = products.find((item) => item.productId === listing.productId)
+  const category = formatProductCategory(product?.category)
+  const unit = listing.quantityUnit || product?.unit || 'unit'
+
+  return {
+    ...listing,
+    category,
+    quantityUnit: unit,
+    sellerName: sellerNameFallback(listing.sellerId),
+    description: `${listing.productName} available for contract negotiation with escrow-backed settlement.`,
+    location: 'To be confirmed',
+    qualityNotes: 'Quality specification can be finalized during contract negotiation.',
+    imageUrl: getCategoryImage(product?.category),
+  }
+}
 
 const toBackendSort = (sortBy: ListingFilters['sortBy']) => {
   if (sortBy === 'price-asc') {
@@ -58,7 +69,8 @@ const applyFilters = (
       (listing) =>
         listing.productName.toLowerCase().includes(query) ||
         listing.description.toLowerCase().includes(query) ||
-        listing.sellerName.toLowerCase().includes(query),
+        listing.sellerName.toLowerCase().includes(query) ||
+        listing.category.toLowerCase().includes(query),
     )
   }
 
@@ -76,19 +88,14 @@ const applyFilters = (
 
   if (filters.deliveryWindow && filters.deliveryWindow !== 'all') {
     const windowDays =
-      filters.deliveryWindow === '30d'
-        ? 30
-        : filters.deliveryWindow === '90d'
-          ? 90
-          : 365
+      filters.deliveryWindow === '30d' ? 30 : filters.deliveryWindow === '90d' ? 90 : 365
 
     const today = new Date()
     next = next.filter((listing) => {
       const deadline = new Date(listing.deliveryDeadline)
-      const diffDays =
-        (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      const diffDays = (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
 
-      return diffDays <= windowDays
+      return diffDays >= 0 && diffDays <= windowDays
     })
   }
 
@@ -122,13 +129,10 @@ export const listingApi = {
     ])
 
     const listingsContent = response.data.data.content as BackendListing[]
-    const categoryByProductId = new Map(
-      products.map((product) => [product.productId, formatProductCategory(product.category)]),
+    return applyFilters(
+      listingsContent.map((listing) => toListing(listing, products)),
+      filters,
     )
-    const listings = listingsContent.map((listing) =>
-      toListing(listing, categoryByProductId.get(listing.productId) ?? ''),
-    )
-    return applyFilters(listings, filters)
   },
 
   async getById(listingId: string) {
@@ -148,22 +152,7 @@ export const listingApi = {
       productApi.getAll(),
     ])
 
-    const backendListing = listingResponse.data.data as BackendListing
-    const category = products.find((product) => product.productId === backendListing.productId)
-      ? formatProductCategory(
-          products.find((product) => product.productId === backendListing.productId)!.category,
-        )
-      : ''
-
-    return {
-      ...toListing(backendListing, category),
-      sellerName: 'Chưa có tên bên bán',
-      description: 'Thông tin mô tả chi tiết chưa được cung cấp từ backend.',
-      location: 'Chưa cập nhật',
-      qualityNotes: 'Chưa có thông số chất lượng bổ sung.',
-      imageUrl:
-        'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
-    }
+    return toListing(listingResponse.data.data as BackendListing, products)
   },
 
   async create(input: CreateListingInput) {
@@ -174,20 +163,19 @@ export const listingApi = {
         listingId: `lst-${crypto.randomUUID().slice(0, 8)}`,
         productId: input.productId,
         sellerId: 'seller-me',
-        sellerName: 'Hợp tác xã Cà phê Đắk Lắk',
-        productName: product?.name ?? 'Sản phẩm mới',
-        category: product ? formatProductCategory(product.category) : '',
-        description: '',
+        sellerName: 'Dak Lak Coffee Cooperative',
+        productName: product?.name ?? 'New product',
+        category: formatProductCategory(product?.category),
+        description: 'Newly posted supply ready for buyer negotiation.',
         quantity: input.quantity,
         quantityUnit: input.quantityUnit,
         priceFloor: input.priceFloor,
-        currency: 'VND',
+        currency: input.currency ?? 'VND',
         deliveryDeadline: input.deliveryDeadline,
         status: 'ACTIVE',
-        location: '',
-        qualityNotes: '',
-        imageUrl:
-          'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
+        location: 'To be confirmed',
+        qualityNotes: 'Add exact quality terms in the contract proposal.',
+        imageUrl: getCategoryImage(product?.category),
       }
 
       mockListings = [listing, ...mockListings]
@@ -196,8 +184,8 @@ export const listingApi = {
 
     const response = await apiClient.post('/api/v1/listings', {
       ...input,
-      currency: 'VND',
+      currency: input.currency ?? 'VND',
     })
-    return response.data.data as Listing
+    return toListing(response.data.data as BackendListing, await productApi.getAll())
   },
 }

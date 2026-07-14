@@ -6,6 +6,7 @@ target/
 *.log
 .env
 .env.person2
+docker-compose.override.yml
 .DS_Store
 .idea/
 *.iml
@@ -16,8 +17,10 @@ target/
 memory/
 CLAUDE.md
 GEMINI.md
+.claude/
 scripts/
 !scripts/dev-seed.sh
+!scripts/run-e2e.sh
 !scripts/seed/
 !scripts/seed/**
 

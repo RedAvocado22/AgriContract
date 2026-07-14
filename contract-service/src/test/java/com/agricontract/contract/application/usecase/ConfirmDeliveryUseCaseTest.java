@@ -3,7 +3,7 @@ package com.agricontract.contract.application.usecase;
 import com.agricontract.contract.application.dto.ConfirmDeliveryCommand;
 import com.agricontract.contract.application.dto.ContractResponse;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
-import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
+import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.*;
 import com.agricontract.contract.domain.repository.ContractRepository;
@@ -67,7 +67,7 @@ class ConfirmDeliveryUseCaseTest {
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
         assertThatThrownBy(() -> useCase.execute(new ConfirmDeliveryCommand("contract-1", "seller-1")))
-                .isInstanceOf(UnauthorizedContractActionException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
 
         verify(contractRepository, never()).save(any());
     }

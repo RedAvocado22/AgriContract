@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import type { Listing } from '../../types/listing'
+import { formatDate, formatMoney } from '../../utils/formatters'
 
 interface ListingCardProps {
   listing: Listing
@@ -14,37 +15,36 @@ export function ListingCard({ listing }: ListingCardProps) {
       <div className="listing-card__image-wrap">
         <img src={listing.imageUrl} alt={listing.productName} />
         <span className={`status-badge status-badge--${listing.status.toLowerCase()}`}>
-          {isActive ? 'Đang mở' : 'Đã đóng'}
+          {isActive ? 'Open' : listing.status === 'CLOSED' ? 'Closed' : 'Expired'}
         </span>
       </div>
 
       <div className="listing-card__body">
-        <div>
+        <div className="listing-card__heading">
+          <span className="eyebrow">{listing.category}</span>
           <h3>{listing.productName}</h3>
           <p>{listing.description}</p>
         </div>
 
         <dl className="listing-meta">
           <div>
-            <dt>Khối lượng</dt>
+            <dt>Quantity</dt>
             <dd>
               {listing.quantity} {listing.quantityUnit}
             </dd>
           </div>
           <div>
-            <dt>Giá sàn</dt>
-            <dd className="price-accent">
-              {listing.priceFloor.toLocaleString('vi-VN')} {listing.currency}/kg
-            </dd>
+            <dt>Floor price</dt>
+            <dd className="price-accent">{formatMoney(listing.priceFloor, listing.currency)}</dd>
           </div>
           <div>
-            <dt>Giao hàng</dt>
-            <dd>{listing.deliveryDeadline}</dd>
+            <dt>Delivery</dt>
+            <dd>{formatDate(listing.deliveryDeadline)}</dd>
           </div>
         </dl>
 
         <Link className="secondary-button" to={`/listings/${listing.listingId}`}>
-          Xem chi tiết
+          View details
         </Link>
       </div>
     </article>

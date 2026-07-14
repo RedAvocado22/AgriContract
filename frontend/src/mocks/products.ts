@@ -3,26 +3,26 @@ import type { Product } from '../types/product'
 export const MOCK_PRODUCTS: Product[] = [
   {
     productId: 'prd-001',
-    name: 'Cà phê Robusta Đắk Lắk',
-    unit: 'kg',
+    name: 'Dak Lak Robusta coffee',
+    unit: 'ton',
     category: 'COFFEE',
   },
   {
     productId: 'prd-002',
-    name: 'Lúa gạo ST25 An Giang',
-    unit: 'kg',
-    category: 'GRAIN',
+    name: 'An Giang ST25 rice',
+    unit: 'ton',
+    category: 'RICE',
   },
   {
     productId: 'prd-003',
-    name: 'Hạt điều thô Bình Phước',
-    unit: 'kg',
-    category: 'SPICE',
+    name: 'Binh Phuoc raw cashew',
+    unit: 'ton',
+    category: 'CASHEW',
   },
   {
     productId: 'prd-004',
-    name: 'Mủ cao su thiên nhiên Tây Ninh',
-    unit: 'kg',
-    category: 'FRUIT',
+    name: 'Tay Ninh natural rubber latex',
+    unit: 'ton',
+    category: 'RUBBER',
   },
 ]

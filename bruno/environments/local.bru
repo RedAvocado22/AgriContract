@@ -14,18 +14,32 @@ vars {
   seller_password: pass123
   stranger_username: seller2
   stranger_password: pass123
+  admin_username: admin1
+  admin_password: pass123
   buyer1_sub: 1de004cd-8493-463c-8f32-6c7b75bcbf16
   seller1_sub: 1a5a2ddd-56b9-492a-b966-99f436e0fc85
   token:
   seller_token:
   buyer_token:
   stranger_token:
+  admin_token:
+  negotiate_contract_id: seed-ctr-offered
+  negotiate_invalid_contract_id: seed-ctr-signed
+  dispute_contract_id: seed-ctr-delivered
+  cancel_buyer_contract_id: seed-ctr-active
+  cancel_seller_contract_id: seed-ctr-active-2
+  arbitrate_contract_id: seed-ctr-disputed
   registered_user_id:
   gateway_secret: changeme
   seller_id:
   product_id:
   listing_id: 51ef2a70-95f6-4a53-bdb1-6c9ccc9becaf
-  contract_id:
+  contract_id: seed-ctr-active
   escrow_id:
   contract_service_url: http://localhost:8083
+  notification_service_url: http://localhost:8085
+  mailhog_url: http://localhost:8025
+  notification_admin_email: admin@agricontract.com
+  buyer1_email: buyer1@test.com
+  seller1_email: seller1@test.com
 }

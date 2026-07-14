@@ -7,9 +7,9 @@ import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.infrastructure.persistence.entity.ListingJpaEntity;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -22,6 +22,7 @@ public class ListingRepositoryImpl implements ListingRepository {
     private final ListingJpaRepository listingJpaRepository;
 
     @Override
+    @Transactional
     public Listing save(Listing listing) {
         ListingJpaEntity entity = listingJpaRepository
                 .findByListingId(listing.getListingId().value())
@@ -43,15 +44,25 @@ public class ListingRepositoryImpl implements ListingRepository {
     }
 
     @Override
-    public Page<Listing> findByStatus(ListingStatus status, Pageable pageable) {
+    public List<Listing> findByStatus(ListingStatus status, Pageable pageable) {
         return listingJpaRepository.findByStatus(status, pageable)
-                .map(listingMapper::toDomain);
+                .getContent().stream().map(listingMapper::toDomain).toList();
     }
 
     @Override
-    public Page<Listing> findBySellerId(String sellerId, Pageable pageable) {
+    public long countByStatus(ListingStatus status) {
+        return listingJpaRepository.countByStatus(status);
+    }
+
+    @Override
+    public List<Listing> findBySellerId(String sellerId, Pageable pageable) {
         return listingJpaRepository.findBySellerId(sellerId, pageable)
-                .map(listingMapper::toDomain);
+                .getContent().stream().map(listingMapper::toDomain).toList();
+    }
+
+    @Override
+    public long countBySellerId(String sellerId) {
+        return listingJpaRepository.countBySellerId(sellerId);
     }
 
     @Override
@@ -61,5 +72,4 @@ public class ListingRepositoryImpl implements ListingRepository {
                 .map(listingMapper::toDomain)
                 .toList();
     }
-
 }

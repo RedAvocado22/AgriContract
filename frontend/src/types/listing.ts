@@ -33,5 +33,6 @@ export interface CreateListingInput {
   quantity: number
   quantityUnit: string
   priceFloor: number
+  currency?: string
   deliveryDeadline: string
 }

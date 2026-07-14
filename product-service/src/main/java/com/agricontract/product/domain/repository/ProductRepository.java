@@ -2,9 +2,9 @@ package com.agricontract.product.domain.repository;
 
 import com.agricontract.product.domain.model.Product;
 import com.agricontract.product.domain.model.vo.ProductId;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository {
@@ -12,5 +12,7 @@ public interface ProductRepository {
 
     Optional<Product> findById(ProductId productId);
 
-    Page<Product> findAll(Pageable pageable);
+    List<Product> findAll(Pageable pageable);
+
+    long countAll();
 }

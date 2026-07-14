@@ -3,7 +3,7 @@ package com.agricontract.contract.application.usecase;
 import com.agricontract.contract.application.dto.ContractResponse;
 import com.agricontract.contract.application.dto.DisputeContractCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
-import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
+import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.*;
 import com.agricontract.contract.domain.repository.ContractRepository;
@@ -70,7 +70,7 @@ class DisputeContractUseCaseTest {
 
         assertThatThrownBy(() -> useCase.execute(
                 new DisputeContractCommand("contract-1", "seller-1", "reason")))
-                .isInstanceOf(UnauthorizedContractActionException.class);
+                .isInstanceOf(UnauthorizedContractAccessException.class);
 
         verify(contractRepository, never()).save(any());
     }

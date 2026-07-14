@@ -1,0 +1,3 @@
+ALTER TABLE listings
+    ADD COLUMN product_name VARCHAR(255) NOT NULL DEFAULT '' AFTER product_id,
+    MODIFY COLUMN status VARCHAR(20) NOT NULL;

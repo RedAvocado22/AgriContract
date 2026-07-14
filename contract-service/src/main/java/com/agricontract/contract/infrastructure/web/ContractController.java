@@ -3,15 +3,16 @@ package com.agricontract.contract.infrastructure.web;
 import com.agricontract.contract.application.dto.*;
 import com.agricontract.contract.application.usecase.*;
 import com.agricontract.contract.common.ApiResponse;
+import com.agricontract.contract.common.PaginatedResponse;
 import com.agricontract.contract.infrastructure.web.dto.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/contracts")
@@ -29,7 +30,7 @@ public class ContractController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<ContractResponse>> offerContract(
-            @RequestBody CreateContractRequest request,
+            @Valid @RequestBody CreateContractRequest request,
             Authentication auth) {
         String buyerId = auth.getName();
         ContractResponse response = createContractUseCase.execute(new CreateContractCommand(
@@ -41,7 +42,7 @@ public class ContractController {
     @PutMapping("/{contractId}/negotiate")
     public ResponseEntity<ApiResponse<ContractResponse>> negotiate(
             @PathVariable String contractId,
-            @RequestBody NegotiateContractRequest request,
+            @Valid @RequestBody NegotiateContractRequest request,
             Authentication auth) {
         String userId = auth.getName();
         ContractResponse response = negotiateContractUseCase.execute(
@@ -102,13 +103,16 @@ public class ContractController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<ContractResponse>>> listContracts(
-            @RequestParam(required = false) String role,
+    @Operation(summary = "List contracts for the authenticated user with optional status filter and pagination")
+    public ResponseEntity<ApiResponse<PaginatedResponse<ContractResponse>>> listContracts(
+            @Parameter(description = "BUYER (default) or SELLER")
+            @ModelAttribute @Valid ListContractsRequest request,
             Authentication auth) {
         String userId = auth.getName();
-        List<ContractResponse> contracts = "SELLER".equalsIgnoreCase(role)
-                ? listContractsUseCase.executeBySeller(userId)
-                : listContractsUseCase.executeByBuyer(userId);
-        return ResponseEntity.ok(ApiResponse.ok(contracts));
+        PagedResult<ContractResponse> result = "SELLER".equalsIgnoreCase(request.getRole())
+                ? listContractsUseCase.executeBySeller(userId, request.getStatus(), request.toPageable())
+                : listContractsUseCase.executeByBuyer(userId, request.getStatus(), request.toPageable());
+        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result)));
     }
+
 }

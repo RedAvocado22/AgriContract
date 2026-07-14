@@ -3,12 +3,13 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AuthBootstrap } from './auth/AuthBootstrap'
 import { AppShell } from './components/layout/AppShell'
+import { ContractsPage } from './pages/ContractsPage'
 import { CreateListingPage } from './pages/CreateListingPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { EscrowPage } from './pages/EscrowPage'
 import { ListingDetailPage } from './pages/ListingDetailPage'
 import { ListingsPage } from './pages/ListingsPage'
 import { LoginPage } from './pages/LoginPage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
 import { RegisterProfilePage } from './pages/RegisterProfilePage'
 import { useAuthStore } from './stores/authStore'
 
@@ -70,24 +71,8 @@ export function AppRouter() {
                   </SellerOnlyRoute>
                 }
               />
-              <Route
-                path="/contracts"
-                element={
-                  <PlaceholderPage
-                    title="Quản lý Hợp đồng"
-                    body="Danh sách hợp đồng sẽ hiển thị tại đây sau khi có giao dịch phát sinh."
-                  />
-                }
-              />
-              <Route
-                path="/escrow"
-                element={
-                  <PlaceholderPage
-                    title="Quản lý Ký quỹ"
-                    body="Theo dõi số dư ký quỹ, giao dịch khóa tiền và giải ngân Escrow."
-                  />
-                }
-              />
+              <Route path="/contracts" element={<ContractsPage />} />
+              <Route path="/escrow" element={<EscrowPage />} />
             </Route>
           </Routes>
         </AuthBootstrap>

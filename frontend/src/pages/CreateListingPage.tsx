@@ -8,14 +8,16 @@ import { listingApi } from '../api/listingApi'
 import { productApi } from '../api/productApi'
 import type { CreateListingInput } from '../types/listing'
 import type { CreateProductInput } from '../types/product'
+import { PRODUCT_CATEGORIES } from '../utils/productCategory'
 
 const createListingSchema = z.object({
-  productName: z.string().min(3, 'Vui lòng nhập tên sản phẩm'),
-  category: z.string().min(2, 'Vui lòng nhập danh mục'),
-  unit: z.string().min(1, 'Vui lòng nhập đơn vị'),
-  quantity: z.coerce.number().positive('Số lượng phải lớn hơn 0'),
-  priceFloor: z.coerce.number().positive('Giá sàn phải lớn hơn 0'),
-  deliveryDeadline: z.string().min(1, 'Vui lòng chọn thời hạn giao hàng'),
+  productName: z.string().min(3, 'Enter a product name'),
+  category: z.string().min(2, 'Choose a category'),
+  unit: z.string().min(1, 'Enter a unit'),
+  quantity: z.coerce.number().positive('Quantity must be greater than 0'),
+  priceFloor: z.coerce.number().positive('Floor price must be greater than 0'),
+  currency: z.string().min(3, 'Currency is required'),
+  deliveryDeadline: z.string().min(1, 'Choose a delivery deadline'),
 })
 
 type CreateListingFormInput = z.input<typeof createListingSchema>
@@ -32,16 +34,18 @@ export function CreateListingPage() {
   } = useForm<CreateListingFormInput, undefined, CreateListingFormValues>({
     resolver: zodResolver(createListingSchema),
     defaultValues: {
-      productName: 'Gạo ST25 xuất khẩu',
-      category: 'Lúa gạo',
-      unit: 'kg',
+      productName: 'Dak Lak Robusta coffee',
+      category: 'COFFEE',
+      unit: 'ton',
       quantity: 50,
-      priceFloor: 25000,
+      priceFloor: 65000,
+      currency: 'VND',
       deliveryDeadline: '2026-10-30',
     },
   })
 
   const unit = watch('unit')
+  const currency = watch('currency')
 
   const createProductMutation = useMutation({
     mutationFn: (input: CreateProductInput) => productApi.create(input),
@@ -49,10 +53,10 @@ export function CreateListingPage() {
 
   const createListingMutation = useMutation({
     mutationFn: (input: CreateListingInput) => listingApi.create(input),
-    onSuccess: async () => {
+    onSuccess: async (listing) => {
       await queryClient.invalidateQueries({ queryKey: ['listings'] })
       await queryClient.invalidateQueries({ queryKey: ['products'] })
-      navigate('/listings')
+      navigate(`/listings/${listing.listingId}`)
     },
   })
 
@@ -68,6 +72,7 @@ export function CreateListingPage() {
       quantity: values.quantity,
       quantityUnit: values.unit,
       priceFloor: values.priceFloor,
+      currency: values.currency,
       deliveryDeadline: values.deliveryDeadline,
     })
   }
@@ -77,65 +82,70 @@ export function CreateListingPage() {
   return (
     <div className="form-page">
       <section className="page-header">
-        <h1>Tạo tin đăng mới</h1>
-        <p>Nhập sản phẩm mới theo cách tự nhiên, rồi chúng ta sẽ đăng tin từ chính sản phẩm đó.</p>
+        <h1>Create listing</h1>
+        <p>Add the product first, then publish a contract-ready listing from the same form.</p>
       </section>
 
       <form className="listing-form" onSubmit={handleSubmit(onSubmit)}>
         <div className="form-grid">
           <label>
-            <span>Tên sản phẩm</span>
+            <span>Product name</span>
             <input {...register('productName')} />
             {errors.productName ? <small>{errors.productName.message}</small> : null}
           </label>
 
           <label>
-            <span>Danh mục</span>
-            <input {...register('category')} list="product-categories" />
-            <datalist id="product-categories">
-              <option value="Lúa gạo" />
-              <option value="Cà phê" />
-              <option value="Điều" />
-              <option value="Cao su" />
-            </datalist>
+            <span>Category</span>
+            <select {...register('category')}>
+              {PRODUCT_CATEGORIES.map((category) => (
+                <option key={category.value} value={category.value}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
             {errors.category ? <small>{errors.category.message}</small> : null}
           </label>
 
           <label>
-            <span>Đơn vị</span>
-            <input {...register('unit')} />
+            <span>Unit</span>
+            <input {...register('unit')} placeholder="ton, kg, bag" />
             {errors.unit ? <small>{errors.unit.message}</small> : null}
           </label>
 
           <label>
-            <span>Số lượng</span>
-            <input {...register('quantity')} type="number" />
+            <span>Quantity</span>
+            <input {...register('quantity')} type="number" min="0.001" step="0.001" />
             {errors.quantity ? <small>{errors.quantity.message}</small> : null}
           </label>
 
           <label>
-            <span>Giá sàn (VND/{unit || 'đơn vị'})</span>
-            <input {...register('priceFloor')} type="number" />
+            <span>Floor price ({currency || 'currency'}/{unit || 'unit'})</span>
+            <input {...register('priceFloor')} type="number" min="0.01" step="1000" />
             {errors.priceFloor ? <small>{errors.priceFloor.message}</small> : null}
           </label>
 
           <label>
-            <span>Thời hạn giao hàng</span>
+            <span>Currency</span>
+            <select {...register('currency')}>
+              <option value="VND">VND</option>
+              <option value="USD">USD</option>
+            </select>
+            {errors.currency ? <small>{errors.currency.message}</small> : null}
+          </label>
+
+          <label>
+            <span>Delivery deadline</span>
             <input {...register('deliveryDeadline')} type="date" />
             {errors.deliveryDeadline ? <small>{errors.deliveryDeadline.message}</small> : null}
           </label>
         </div>
 
         <div className="form-actions">
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() => navigate('/listings')}
-          >
-            Hủy bỏ
+          <button className="ghost-button" type="button" onClick={() => navigate('/listings')}>
+            Cancel
           </button>
           <button className="primary-button" type="submit" disabled={isPending}>
-            {isPending ? 'Đang đăng tin...' : 'Đăng tin'}
+            {isPending ? 'Publishing...' : 'Publish listing'}
           </button>
         </div>
       </form>

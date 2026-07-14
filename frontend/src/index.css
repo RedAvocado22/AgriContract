@@ -669,9 +669,39 @@ img {
 }
 
 .status-badge--closed,
-.status-badge--expired {
+.status-badge--expired,
+.status-badge--cancelled {
   background: var(--surface-muted);
   color: var(--text-muted);
+}
+
+.status-badge--offered,
+.status-badge--negotiating,
+.status-badge--signed,
+.status-badge--buyer_locked {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge--active,
+.status-badge--fully_locked,
+.status-badge--settled,
+.status-badge--released {
+  background: #dcfce7;
+  color: var(--brand-dark);
+}
+
+.status-badge--delivered {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge--disputed,
+.status-badge--penalized_buyer,
+.status-badge--penalized_seller,
+.status-badge--arbitrated {
+  background: #fee2e2;
+  color: var(--danger);
 }
 
 .listing-card__body {
@@ -746,7 +776,8 @@ img {
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.danger-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -777,6 +808,17 @@ img {
 
 .secondary-button:hover {
   background: var(--surface-muted);
+}
+
+.danger-button {
+  width: 100%;
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: var(--danger);
+}
+
+.danger-button:hover {
+  background: #fee2e2;
 }
 
 .secondary-button--full {
@@ -1110,6 +1152,117 @@ img {
   border-top: 1px solid #f1f5f9;
 }
 
+.page-select {
+  min-height: 38px;
+  min-width: min(420px, 100%);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+  outline: none;
+}
+
+.segmented-control {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.segmented-control__item {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.segmented-control__item.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+}
+
+.contract-list {
+  display: grid;
+  gap: 16px;
+}
+
+.contract-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.contract-card h3 {
+  margin: 10px 0 4px;
+  color: var(--text);
+  font-size: 18px;
+}
+
+.contract-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.contract-card__main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.contract-card__quality {
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.contract-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compact-field {
+  display: grid;
+  gap: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.compact-field textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 10px;
+  color: var(--text);
+  outline: none;
+}
+
+.compact-field textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.offer-panel {
+  width: 100%;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1180,7 +1333,8 @@ img {
   .workspace-grid,
   .detail-hero,
   .detail-grid,
-  .stat-grid {
+  .stat-grid,
+  .contract-card {
     grid-template-columns: 1fr;
   }
 

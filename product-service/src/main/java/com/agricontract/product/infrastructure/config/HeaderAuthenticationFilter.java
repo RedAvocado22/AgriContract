@@ -11,6 +11,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,14 +53,16 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String internalSecret = request.getHeader("X-Internal-Secret");
-        if (serviceInternalSecret.equals(internalSecret)) {
+        if (internalSecret != null && MessageDigest.isEqual(
+                serviceInternalSecret.getBytes(StandardCharsets.UTF_8), internalSecret.getBytes(StandardCharsets.UTF_8))) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String headerSecret = request.getHeader("X-Gateway-Secret");
 
-        if (headerSecret == null || !headerSecret.equals(gatewaySecret)) {
+        if (headerSecret == null || !MessageDigest.isEqual(
+                headerSecret.getBytes(StandardCharsets.UTF_8), gatewaySecret.getBytes(StandardCharsets.UTF_8))) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
             response.getWriter().write(
