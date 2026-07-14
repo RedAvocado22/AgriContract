@@ -2,6 +2,7 @@ package com.agricontract.product.infrastructure.persistence.mapper;
 
 import com.agricontract.product.domain.model.Product;
 import com.agricontract.product.domain.model.vo.ProductId;
+import com.agricontract.product.application.dto.ProductResponse;
 import com.agricontract.product.infrastructure.persistence.entity.ProductJpaEntity;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -35,6 +36,16 @@ public class ProductMapper {
                 entity.getCategoryId(),
                 deserializeImages(entity.getImages())
         );
+    }
+
+    public ProductResponse toResponse(Product product) {
+        return ProductResponse.builder()
+                .productId(product.getProductId().value())
+                .name(product.getName())
+                .unit(product.getUnit())
+                .categoryId(product.getCategoryId())
+                .images(product.getImages())
+                .build();
     }
 
     private String serializeImages(List<String> images) {

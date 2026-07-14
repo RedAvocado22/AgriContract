@@ -21,6 +21,7 @@ export interface Listing {
 
 export interface ListingFilters {
   categories: string[]
+  minPrice?: number
   maxPrice?: number
   deliveryWindow?: string
   search?: string
@@ -28,13 +29,9 @@ export interface ListingFilters {
 }
 
 export interface CreateListingInput {
-  productName: string
-  category: string
+  productId: string
   quantity: number
   quantityUnit: string
   priceFloor: number
   deliveryDeadline: string
-  description: string
-  qualityNotes: string
-  location: string
 }

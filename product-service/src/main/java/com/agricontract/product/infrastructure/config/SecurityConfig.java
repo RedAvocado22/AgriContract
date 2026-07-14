@@ -30,6 +30,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/listings",
                                 "/api/v1/listings/{listingId}",
+                                "/api/v1/products",
                                 "/api/v1/products/{productId}").permitAll()
                         .requestMatchers(HttpMethod.PUT,
                                 "/api/v1/listings/{listingId}/close").permitAll()

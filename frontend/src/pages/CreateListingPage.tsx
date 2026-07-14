@@ -5,17 +5,17 @@ import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { listingApi } from '../api/listingApi'
+import { productApi } from '../api/productApi'
+import type { CreateListingInput } from '../types/listing'
+import type { CreateProductInput } from '../types/product'
 
 const createListingSchema = z.object({
   productName: z.string().min(3, 'Vui lòng nhập tên sản phẩm'),
-  category: z.string().min(2, 'Vui lòng chọn danh mục'),
+  category: z.string().min(2, 'Vui lòng nhập danh mục'),
+  unit: z.string().min(1, 'Vui lòng nhập đơn vị'),
   quantity: z.coerce.number().positive('Số lượng phải lớn hơn 0'),
-  quantityUnit: z.string().min(1, 'Vui lòng chọn đơn vị'),
   priceFloor: z.coerce.number().positive('Giá sàn phải lớn hơn 0'),
   deliveryDeadline: z.string().min(1, 'Vui lòng chọn thời hạn giao hàng'),
-  description: z.string().min(20, 'Vui lòng mô tả chi tiết hơn'),
-  qualityNotes: z.string().min(12, 'Vui lòng nhập tiêu chuẩn chất lượng'),
-  location: z.string().min(2, 'Vui lòng nhập khu vực'),
 })
 
 type CreateListingFormInput = z.input<typeof createListingSchema>
@@ -27,40 +27,58 @@ export function CreateListingPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<CreateListingFormInput, undefined, CreateListingFormValues>({
     resolver: zodResolver(createListingSchema),
     defaultValues: {
       productName: 'Gạo ST25 xuất khẩu',
       category: 'Lúa gạo',
+      unit: 'kg',
       quantity: 50,
-      quantityUnit: 'Tấn',
       priceFloor: 25000,
       deliveryDeadline: '2026-10-30',
-      description:
-        'Lô gạo đồng đều cho nhà mua sỉ, thích hợp đơn hàng xuất khẩu và phân phối nội địa.',
-      qualityNotes: 'Hạt đồng đều, tỷ lệ tấm thấp, có chứng nhận VietGAP.',
-      location: 'An Giang',
     },
+  })
+
+  const unit = watch('unit')
+
+  const createProductMutation = useMutation({
+    mutationFn: (input: CreateProductInput) => productApi.create(input),
   })
 
   const createListingMutation = useMutation({
-    mutationFn: listingApi.create,
-    onSuccess: async (listing) => {
+    mutationFn: (input: CreateListingInput) => listingApi.create(input),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['listings'] })
-      navigate(`/listings/${listing.listingId}`)
+      await queryClient.invalidateQueries({ queryKey: ['products'] })
+      navigate('/listings')
     },
   })
 
-  const onSubmit = (values: CreateListingFormValues) => {
-    createListingMutation.mutate(values)
+  const onSubmit = async (values: CreateListingFormValues) => {
+    const product = await createProductMutation.mutateAsync({
+      name: values.productName,
+      category: values.category,
+      unit: values.unit,
+    })
+
+    await createListingMutation.mutateAsync({
+      productId: product.productId,
+      quantity: values.quantity,
+      quantityUnit: values.unit,
+      priceFloor: values.priceFloor,
+      deliveryDeadline: values.deliveryDeadline,
+    })
   }
+
+  const isPending = createProductMutation.isPending || createListingMutation.isPending
 
   return (
     <div className="form-page">
       <section className="page-header">
-        <h1>Tạo Tin Đăng Mới</h1>
-        <p>Vui lòng điền thông tin chi tiết về sản phẩm nông nghiệp bạn muốn chào bán.</p>
+        <h1>Tạo tin đăng mới</h1>
+        <p>Nhập sản phẩm mới theo cách tự nhiên, rồi chúng ta sẽ đăng tin từ chính sản phẩm đó.</p>
       </section>
 
       <form className="listing-form" onSubmit={handleSubmit(onSubmit)}>
@@ -73,13 +91,20 @@ export function CreateListingPage() {
 
           <label>
             <span>Danh mục</span>
-            <select {...register('category')}>
-              <option value="Lúa gạo">Lúa gạo</option>
-              <option value="Cà phê">Cà phê</option>
-              <option value="Điều">Điều</option>
-              <option value="Cao su">Cao su</option>
-            </select>
+            <input {...register('category')} list="product-categories" />
+            <datalist id="product-categories">
+              <option value="Lúa gạo" />
+              <option value="Cà phê" />
+              <option value="Điều" />
+              <option value="Cao su" />
+            </datalist>
             {errors.category ? <small>{errors.category.message}</small> : null}
+          </label>
+
+          <label>
+            <span>Đơn vị</span>
+            <input {...register('unit')} />
+            {errors.unit ? <small>{errors.unit.message}</small> : null}
           </label>
 
           <label>
@@ -89,16 +114,7 @@ export function CreateListingPage() {
           </label>
 
           <label>
-            <span>Đơn vị</span>
-            <select {...register('quantityUnit')}>
-              <option value="Tấn">Tấn</option>
-              <option value="Kg">Kg</option>
-              <option value="Container 20ft">Container 20ft</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Giá sàn (VND/kg)</span>
+            <span>Giá sàn (VND/{unit || 'đơn vị'})</span>
             <input {...register('priceFloor')} type="number" />
             {errors.priceFloor ? <small>{errors.priceFloor.message}</small> : null}
           </label>
@@ -106,27 +122,7 @@ export function CreateListingPage() {
           <label>
             <span>Thời hạn giao hàng</span>
             <input {...register('deliveryDeadline')} type="date" />
-            {errors.deliveryDeadline ? (
-              <small>{errors.deliveryDeadline.message}</small>
-            ) : null}
-          </label>
-
-          <label>
-            <span>Khu vực</span>
-            <input {...register('location')} />
-            {errors.location ? <small>{errors.location.message}</small> : null}
-          </label>
-
-          <label className="form-grid__full">
-            <span>Mô tả chi tiết</span>
-            <textarea {...register('description')} rows={4} />
-            {errors.description ? <small>{errors.description.message}</small> : null}
-          </label>
-
-          <label className="form-grid__full">
-            <span>Tiêu chuẩn chất lượng</span>
-            <textarea {...register('qualityNotes')} rows={3} />
-            {errors.qualityNotes ? <small>{errors.qualityNotes.message}</small> : null}
+            {errors.deliveryDeadline ? <small>{errors.deliveryDeadline.message}</small> : null}
           </label>
         </div>
 
@@ -138,12 +134,8 @@ export function CreateListingPage() {
           >
             Hủy bỏ
           </button>
-          <button
-            className="primary-button"
-            type="submit"
-            disabled={createListingMutation.isPending}
-          >
-            {createListingMutation.isPending ? 'Đang đăng tin...' : 'Đăng tin'}
+          <button className="primary-button" type="submit" disabled={isPending}>
+            {isPending ? 'Đang đăng tin...' : 'Đăng tin'}
           </button>
         </div>
       </form>
