@@ -10,7 +10,6 @@ import { ListingsPage } from './pages/ListingsPage'
 import { LoginPage } from './pages/LoginPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { RegisterProfilePage } from './pages/RegisterProfilePage'
-import { SignUpPage } from './pages/SignUpPage'
 import { useAuthStore } from './stores/authStore'
 
 const queryClient = new QueryClient()
@@ -31,6 +30,23 @@ function ProtectedLayout() {
   return <AppShell />
 }
 
+function SellerOnlyRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((state) => state.user)
+  const normalizedRole = user?.role?.trim().toUpperCase()
+
+  if (normalizedRole !== 'SELLER') {
+    return <Navigate to="/listings" replace />
+  }
+
+  return children
+}
+
+function PublicListingsLayout() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
+  return <AppShell publicMode={!isAuthenticated} />
+}
+
 export function AppRouter() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -38,14 +54,22 @@ export function AppRouter() {
         <AuthBootstrap>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
             <Route path="/register-profile" element={<RegisterProfilePage />} />
-            <Route element={<ProtectedLayout />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/" element={<Navigate to="/listings" replace />} />
+            <Route element={<PublicListingsLayout />}>
               <Route path="/listings" element={<ListingsPage />} />
-              <Route path="/listings/create" element={<CreateListingPage />} />
               <Route path="/listings/:listingId" element={<ListingDetailPage />} />
+            </Route>
+            <Route element={<ProtectedLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route
+                path="/listings/create"
+                element={
+                  <SellerOnlyRoute>
+                    <CreateListingPage />
+                  </SellerOnlyRoute>
+                }
+              />
               <Route
                 path="/contracts"
                 element={

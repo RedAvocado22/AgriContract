@@ -2,6 +2,7 @@ package com.agricontract.product.infrastructure.persistence.mapper;
 
 import com.agricontract.product.domain.model.Product;
 import com.agricontract.product.domain.model.vo.ProductId;
+import com.agricontract.product.application.dto.ProductResponse;
 import com.agricontract.product.infrastructure.persistence.entity.ProductJpaEntity;
 import org.mapstruct.Mapper;
 
@@ -23,5 +24,14 @@ public interface ProductMapper {
                 entity.getUnit(),
                 entity.getCategory()
         );
+    }
+
+    default ProductResponse toResponse(Product product) {
+        return ProductResponse.builder()
+                .productId(product.getProductId().value())
+                .name(product.getName())
+                .unit(product.getUnit())
+                .category(product.getCategory())
+                .build();
     }
 }

@@ -18,7 +18,7 @@ export const authApi = {
     const form = new URLSearchParams()
     form.set('grant_type', 'password')
     form.set('client_id', env.keycloakClientId)
-    form.set('username', input.email)
+    form.set('username', input.identifier)
     form.set('password', input.password)
 
     const response = await axios.post<KeycloakTokenResponse>(

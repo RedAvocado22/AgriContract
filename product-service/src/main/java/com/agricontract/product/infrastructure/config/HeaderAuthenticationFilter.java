@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,10 +31,24 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         return path.equals("/actuator/health") || path.equals("/actuator/info");
     }
 
+    private boolean isPublicRead(HttpServletRequest request) {
+        if (!HttpMethod.GET.matches(request.getMethod())) {
+            return false;
+        }
+
+        String path = request.getRequestURI();
+        return path.startsWith("/api/v1/listings") || path.startsWith("/api/v1/products");
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+
+        if (isPublicRead(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String internalSecret = request.getHeader("X-Internal-Secret");
         if (serviceInternalSecret.equals(internalSecret)) {

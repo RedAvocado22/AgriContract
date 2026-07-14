@@ -5,6 +5,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { userApi } from '../api/userApi'
+import { AuthHeader } from '../components/layout/AuthHeader'
 import { useAuthStore } from '../stores/authStore'
 
 const registerProfileSchema = z.object({
@@ -54,49 +55,52 @@ export function RegisterProfilePage() {
   }
 
   return (
-    <section className="auth-page">
-      <div className="auth-card auth-card--wide">
-        <div className="auth-card__hero">
-          <div className="brand-brandmark">eco</div>
-          <h1>Hoàn tất hồ sơ</h1>
-          <p>Thông tin này sẽ được lưu vào cơ sở dữ liệu AgriContract.</p>
-        </div>
+    <>
+      <AuthHeader />
+      <section className="auth-page">
+        <div className="auth-card auth-card--wide">
+          <div className="auth-card__hero">
+            <div className="brand-brandmark">eco</div>
+            <h1>Hoàn tất hồ sơ</h1>
+            <p>Thông tin này sẽ được lưu vào cơ sở dữ liệu AgriContract.</p>
+          </div>
 
-        <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
-          <label>
-            <span>Tên tổ chức</span>
-            <input
-              {...register('organizationName')}
-              placeholder="VD: Hợp tác xã Cà phê Đắk Lắk"
-            />
-            {errors.organizationName ? (
-              <small>{errors.organizationName.message}</small>
+          <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
+            <label>
+              <span>Tên tổ chức</span>
+              <input
+                {...register('organizationName')}
+                placeholder="VD: Hợp tác xã Cà phê Đắk Lắk"
+              />
+              {errors.organizationName ? (
+                <small>{errors.organizationName.message}</small>
+              ) : null}
+            </label>
+
+            <label>
+              <span>Số điện thoại</span>
+              <input {...register('phone')} placeholder="0901234567" />
+            </label>
+
+            <label>
+              <span>Địa chỉ</span>
+              <input {...register('address')} placeholder="Đắk Lắk, Việt Nam" />
+            </label>
+
+            {registerMutation.isError ? (
+              <small>Không thể lưu hồ sơ. Vui lòng thử lại.</small>
             ) : null}
-          </label>
 
-          <label>
-            <span>Số điện thoại</span>
-            <input {...register('phone')} placeholder="0901234567" />
-          </label>
-
-          <label>
-            <span>Địa chỉ</span>
-            <input {...register('address')} placeholder="Đắk Lắk, Việt Nam" />
-          </label>
-
-          {registerMutation.isError ? (
-            <small>Không thể lưu hồ sơ. Vui lòng thử lại.</small>
-          ) : null}
-
-          <button
-            className="primary-button"
-            type="submit"
-            disabled={registerMutation.isPending}
-          >
-            {registerMutation.isPending ? 'Đang lưu...' : 'Lưu hồ sơ'}
-          </button>
-        </form>
-      </div>
-    </section>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={registerMutation.isPending}
+            >
+              {registerMutation.isPending ? 'Đang lưu...' : 'Lưu hồ sơ'}
+            </button>
+          </form>
+        </div>
+      </section>
+    </>
   )
 }
