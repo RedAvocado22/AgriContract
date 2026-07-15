@@ -17,6 +17,7 @@ export interface Listing {
   location: string
   qualityNotes: string
   imageUrl: string
+  imageUrls?: string[]
 }
 
 export interface ListingFilters {
@@ -33,5 +34,6 @@ export interface CreateListingInput {
   quantity: number
   quantityUnit: string
   priceFloor: number
+  currency?: string
   deliveryDeadline: string
 }

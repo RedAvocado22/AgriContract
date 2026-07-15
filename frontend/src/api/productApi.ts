@@ -2,9 +2,24 @@ import apiClient from './client'
 import { env } from '../config/env'
 import { MOCK_PRODUCTS } from '../mocks/products'
 import type { CreateProductInput, Product } from '../types/product'
+import {
+  GENERIC_PRODUCT_IMAGE,
+  getGenericProductImageUrlForApi,
+  normalizeProductCategory,
+} from '../utils/productCategory'
+import { repairMojibake } from '../utils/textEncoding'
 
 type BackendProduct = Product
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const MARKETPLACE_TIMEOUT_MS = 2500
+
+const toProduct = (product: BackendProduct): Product => ({
+  ...product,
+  name: repairMojibake(product.name),
+  categoryId: product.categoryId ?? product.category ?? 'OTHER',
+  category: product.category ?? product.categoryId ?? 'OTHER',
+  images: product.images?.length ? product.images : [GENERIC_PRODUCT_IMAGE],
+})
 
 export const productApi = {
   async getAll() {
@@ -13,14 +28,19 @@ export const productApi = {
       return MOCK_PRODUCTS
     }
 
-    const response = await apiClient.get('/api/v1/products', {
-      params: {
-        page: 0,
-        size: 100,
-      },
-    })
+    try {
+      const response = await apiClient.get('/api/v1/products', {
+        params: {
+          page: 0,
+          size: 100,
+        },
+        timeout: MARKETPLACE_TIMEOUT_MS,
+      })
 
-    return response.data.data.content as BackendProduct[]
+      return (response.data.data.content as BackendProduct[]).map(toProduct)
+    } catch {
+      return MOCK_PRODUCTS
+    }
   },
 
   async create(input: CreateProductInput) {
@@ -30,14 +50,22 @@ export const productApi = {
         productId: `prd-${crypto.randomUUID().slice(0, 8)}`,
         name: input.name,
         unit: input.unit,
-        category: input.category,
+        categoryId: normalizeProductCategory(input.category),
+        category: normalizeProductCategory(input.category),
+        images: input.imageUrls ?? [GENERIC_PRODUCT_IMAGE],
       }
 
       MOCK_PRODUCTS.unshift(product)
       return product
     }
 
-    const response = await apiClient.post('/api/v1/products', input)
-    return response.data.data as Product
+    const categoryId = normalizeProductCategory(input.category)
+    const response = await apiClient.post('/api/v1/products', {
+      name: input.name,
+      unit: input.unit,
+      categoryId,
+      imageUrls: input.imageUrls ?? [getGenericProductImageUrlForApi()],
+    })
+    return toProduct(response.data.data as BackendProduct)
   },
 }

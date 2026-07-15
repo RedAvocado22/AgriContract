@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import type { Listing } from '../../types/listing'
+import { formatDate, formatMoney } from '../../utils/formatters'
 
 interface ListingCardProps {
   listing: Listing
@@ -8,38 +9,38 @@ interface ListingCardProps {
 
 export function ListingCard({ listing }: ListingCardProps) {
   const isActive = listing.status === 'ACTIVE'
+  const displayQuantity = Math.max(1, Math.round(listing.quantity))
 
   return (
     <article className={`listing-card ${isActive ? '' : 'listing-card--muted'}`}>
       <div className="listing-card__image-wrap">
         <img src={listing.imageUrl} alt={listing.productName} />
         <span className={`status-badge status-badge--${listing.status.toLowerCase()}`}>
-          {isActive ? 'Đang mở' : 'Đã đóng'}
+          {isActive ? 'Đang mở' : listing.status === 'CLOSED' ? 'Đã đóng' : 'Hết hạn'}
         </span>
       </div>
 
       <div className="listing-card__body">
-        <div>
+        <div className="listing-card__heading">
+          <span className="eyebrow">{listing.category}</span>
           <h3>{listing.productName}</h3>
           <p>{listing.description}</p>
         </div>
 
         <dl className="listing-meta">
           <div>
-            <dt>Khối lượng</dt>
+            <dt>Số lượng</dt>
             <dd>
-              {listing.quantity} {listing.quantityUnit}
+              {displayQuantity} {listing.quantityUnit}
             </dd>
           </div>
           <div>
             <dt>Giá sàn</dt>
-            <dd className="price-accent">
-              {listing.priceFloor.toLocaleString('vi-VN')} {listing.currency}/kg
-            </dd>
+            <dd className="price-accent">{formatMoney(listing.priceFloor, listing.currency)}</dd>
           </div>
           <div>
             <dt>Giao hàng</dt>
-            <dd>{listing.deliveryDeadline}</dd>
+            <dd>{formatDate(listing.deliveryDeadline)}</dd>
           </div>
         </dl>
 

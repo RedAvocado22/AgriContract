@@ -3,13 +3,13 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 
 const privateNavItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/listings', label: 'Listings', icon: 'list_alt' },
-  { to: '/contracts', label: 'Contracts', icon: 'description' },
-  { to: '/escrow', label: 'Escrow', icon: 'account_balance_wallet' },
+  { to: '/dashboard', label: 'Tổng quan', icon: 'dashboard' },
+  { to: '/listings', label: 'Tin hàng', icon: 'list_alt' },
+  { to: '/contracts', label: 'Hợp đồng', icon: 'description' },
+  { to: '/escrow', label: 'Ký quỹ', icon: 'account_balance_wallet' },
 ]
 
-const publicNavItems = [{ to: '/listings', label: 'Listings', icon: 'list_alt' }]
+const publicNavItems = [{ to: '/listings', label: 'Tin hàng', icon: 'list_alt' }]
 
 interface AppShellProps {
   publicMode?: boolean
@@ -27,16 +27,21 @@ export function AppShell({ publicMode = false }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <Link className="brand" to="/listings" aria-label="AgriContract home">
+        <Link className="brand" to="/listings" aria-label="Trang chủ AgriContract">
           <div className="brand__mark">eco</div>
           <div>
             <strong>AgriContract</strong>
-            <span>B2B Platform</span>
+            <span>Nông sản B2B có ký quỹ bảo chứng</span>
           </div>
         </Link>
 
         <div className="topbar__actions">
-          {publicMode ? null : (
+          {publicMode ? (
+            <Link className="primary-button" to="/login">
+              <span className="material-symbols-outlined">login</span>
+              Đăng nhập
+            </Link>
+          ) : (
             <>
               <button className="icon-button" type="button" aria-label="Thông báo">
                 <span className="material-symbols-outlined">notifications</span>
@@ -60,13 +65,6 @@ export function AppShell({ publicMode = false }: AppShellProps) {
       <div className="shell-grid">
         <aside className="sidebar">
           <div className="sidebar__group">
-            <div className="sidebar-brand">
-              <div className="brand__mark brand__mark--small">eco</div>
-              <div>
-                <strong>AgriContract</strong>
-                <span>B2B Platform</span>
-              </div>
-            </div>
             {(publicMode ? publicNavItems : privateNavItems).map((item) => (
               <NavLink
                 key={item.to}
@@ -83,14 +81,7 @@ export function AppShell({ publicMode = false }: AppShellProps) {
             {!publicMode && normalizedRole === 'SELLER' ? (
               <NavLink to="/listings/create" className="sidebar-link">
                 <span className="material-symbols-outlined">add_circle</span>
-                Tạo tin đăng
-              </NavLink>
-            ) : null}
-
-            {publicMode ? (
-              <NavLink to="/login" className="sidebar-link">
-                <span className="material-symbols-outlined">login</span>
-                Đăng nhập
+                Đăng tin hàng
               </NavLink>
             ) : null}
           </div>

@@ -6,6 +6,7 @@ import type {
   UserProfile,
   UserProfileResponse,
 } from '../types/auth'
+import { repairMojibake } from '../utils/textEncoding'
 
 interface ApiResponse<T> {
   success: boolean
@@ -15,12 +16,12 @@ interface ApiResponse<T> {
 
 export const toUserProfile = (profile: UserProfileResponse): UserProfile => ({
   id: profile.userId,
-  name: profile.organizationName,
+  name: repairMojibake(profile.organizationName),
   email: profile.email,
-  organization: profile.organizationName,
+  organization: repairMojibake(profile.organizationName),
   role: profile.role,
   phone: profile.phone,
-  address: profile.address,
+  address: repairMojibake(profile.address),
   verificationStatus: profile.verificationStatus,
 })
 
