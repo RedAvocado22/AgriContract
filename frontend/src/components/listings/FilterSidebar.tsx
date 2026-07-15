@@ -34,14 +34,14 @@ export function FilterSidebar({ filters, onChange, categories, priceBounds }: Fi
     <aside className="filter-panel">
       <div className="panel-card">
         <div className="panel-card__header">
-          <h3>Filters</h3>
-          <p>Narrow listings by product, price, and delivery timing.</p>
+          <h3>Bộ lọc</h3>
+          <p>Lọc tin theo loại hàng, giá sàn và thời gian giao.</p>
         </div>
 
         <div className="filter-group">
-          <span className="filter-label">Category</span>
+          <span className="filter-label">Loại hàng</span>
           {categories.length === 0 ? (
-            <p className="filter-empty-hint">Categories appear when listings load.</p>
+            <p className="filter-empty-hint">Loại hàng sẽ hiện sau khi tải danh sách.</p>
           ) : null}
           {categories.map((category) => (
             <label key={category} className="checkbox-row">
@@ -57,7 +57,7 @@ export function FilterSidebar({ filters, onChange, categories, priceBounds }: Fi
 
         <div className="filter-group">
           <div className="filter-label-row">
-            <span className="filter-label">Floor price</span>
+            <span className="filter-label">Giá sàn</span>
             {(filters.minPrice !== undefined || filters.maxPrice !== undefined) && (
               <button
                 className="filter-reset"
@@ -70,7 +70,7 @@ export function FilterSidebar({ filters, onChange, categories, priceBounds }: Fi
                   })
                 }
               >
-                Reset
+                Đặt lại
               </button>
             )}
           </div>
@@ -90,7 +90,7 @@ export function FilterSidebar({ filters, onChange, categories, priceBounds }: Fi
               }
             />
           ) : (
-            <p className="filter-empty-hint">Price range needs at least two listings.</p>
+            <p className="filter-empty-hint">Cần ít nhất hai tin để lọc theo khoảng giá.</p>
           )}
           <div className="range-row">
             <span>{formatMoney(effectiveMin || 0)}</span>
@@ -99,7 +99,7 @@ export function FilterSidebar({ filters, onChange, categories, priceBounds }: Fi
         </div>
 
         <div className="filter-group">
-          <span className="filter-label">Delivery window</span>
+          <span className="filter-label">Thời hạn giao</span>
           <select
             value={filters.deliveryWindow ?? 'all'}
             onChange={(event) =>
@@ -109,10 +109,10 @@ export function FilterSidebar({ filters, onChange, categories, priceBounds }: Fi
               })
             }
           >
-            <option value="all">All deadlines</option>
-            <option value="30d">Within 30 days</option>
-            <option value="90d">1 to 3 months</option>
-            <option value="365d">Within 12 months</option>
+            <option value="all">Tất cả thời hạn</option>
+            <option value="30d">Trong 30 ngày</option>
+            <option value="90d">Từ 1 đến 3 tháng</option>
+            <option value="365d">Trong 12 tháng</option>
           </select>
         </div>
       </div>

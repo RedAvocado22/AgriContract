@@ -6,27 +6,42 @@ import { escrowApi } from '../api/escrowApi'
 import { useContractsQuery } from '../hooks/useContractsQuery'
 import { useEscrowByContractQuery, useEscrowTransactionsQuery } from '../hooks/useEscrowQuery'
 import { useAuthStore } from '../stores/authStore'
+import type { ContractStatus } from '../types/contract'
 import { formatDate, formatMoney } from '../utils/formatters'
 
+const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
+  OFFERED: 'Đang đề nghị',
+  NEGOTIATING: 'Đang thương lượng',
+  SIGNED: 'Đã ký',
+  ACTIVE: 'Đang thực hiện',
+  DELIVERED: 'Đã giao hàng',
+  SETTLED: 'Đã tất toán',
+  CANCELLED: 'Đã hủy',
+  DISPUTED: 'Đang tranh chấp',
+}
+
 const ESCROW_STATUS_LABELS: Record<string, string> = {
-  BUYER_LOCKED: 'Buyer locked',
-  FULLY_LOCKED: 'Fully locked',
-  RELEASED: 'Released',
-  PENALIZED_BUYER: 'Buyer penalized',
-  PENALIZED_SELLER: 'Seller penalized',
-  ARBITRATED: 'Arbitrated',
+  BUYER_LOCKED: 'Bên mua đã khóa tiền',
+  FULLY_LOCKED: 'Đã khóa đủ ký quỹ',
+  RELEASED: 'Đã giải ngân',
+  PENALIZED_BUYER: 'Phạt bên mua',
+  PENALIZED_SELLER: 'Phạt bên bán',
+  ARBITRATED: 'Đã phân xử',
 }
 
 const TRANSACTION_LABELS: Record<string, string> = {
-  LOCK: 'Lock',
-  REFUND_TO_BUYER: 'Refund to buyer',
-  REFUND_TO_SELLER: 'Refund to seller',
-  RELEASE: 'Release',
-  PENALIZE_BUYER: 'Buyer penalty',
-  PENALIZE_SELLER: 'Seller penalty',
-  ARBITRATION_BUYER: 'Arbitration buyer',
-  ARBITRATION_SELLER: 'Arbitration seller',
+  LOCK: 'Khóa tiền',
+  REFUND_TO_BUYER: 'Hoàn tiền bên mua',
+  REFUND_TO_SELLER: 'Hoàn cọc bên bán',
+  RELEASE: 'Giải ngân',
+  PENALIZE_BUYER: 'Phạt bên mua',
+  PENALIZE_SELLER: 'Phạt bên bán',
+  ARBITRATION_BUYER: 'Phân xử cho bên mua',
+  ARBITRATION_SELLER: 'Phân xử cho bên bán',
 }
+
+const getContractOptionLabel = (productName: string, status: ContractStatus) =>
+  `${productName} - ${CONTRACT_STATUS_LABELS[status] ?? status}`
 
 export function EscrowPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -61,8 +76,8 @@ export function EscrowPage() {
     <div className="page-stack">
       <section className="page-title-row">
         <div>
-          <h1>Escrow</h1>
-          <p>Track locked buyer funds, seller deposits, and ledger activity by contract.</p>
+          <h1>Ký quỹ</h1>
+          <p>Theo dõi tiền bên mua, cọc bên bán và sổ giao dịch theo từng hợp đồng.</p>
         </div>
         <select
           className="page-select"
@@ -71,48 +86,48 @@ export function EscrowPage() {
         >
           {(contracts ?? []).map((contract) => (
             <option key={contract.contractId} value={contract.contractId}>
-              {contract.productName} - {contract.contractId}
+              {getContractOptionLabel(contract.productName, contract.status)}
             </option>
           ))}
         </select>
       </section>
 
-      {!effectiveContractId ? <div className="empty-state">No contracts available for escrow lookup.</div> : null}
+      {!effectiveContractId ? <div className="empty-state">Chưa có hợp đồng để tra cứu ký quỹ.</div> : null}
 
       {effectiveContractId ? (
         <section className="detail-grid">
           <div className="panel-card">
             <div className="panel-card__header">
-              <span className="eyebrow">Contract</span>
+              <span className="eyebrow">Hợp đồng</span>
               <h3>{selectedContract?.productName ?? effectiveContractId}</h3>
-              <p>{selectedContract?.terms.qualitySpec ?? 'Escrow account lookup by contract ID.'}</p>
+              <p>{selectedContract?.terms.qualitySpec ?? 'Tra cứu tài khoản ký quỹ theo mã hợp đồng.'}</p>
             </div>
 
-            {escrowQuery.isLoading ? <div className="empty-state">Loading escrow account...</div> : null}
+            {escrowQuery.isLoading ? <div className="empty-state">Đang tải tài khoản ký quỹ...</div> : null}
             {escrowQuery.isError ? (
-              <div className="empty-state">No escrow account has been created for this contract yet.</div>
+              <div className="empty-state">Hợp đồng này chưa có tài khoản ký quỹ.</div>
             ) : null}
 
             {escrowQuery.data ? (
               <dl className="detail-list">
                 <div>
-                  <dt>Status</dt>
+                  <dt>Trạng thái</dt>
                   <dd>
                     <span className={`status-badge status-badge--${escrowQuery.data.status.toLowerCase()}`}>
-                      {ESCROW_STATUS_LABELS[escrowQuery.data.status]}
+                      {ESCROW_STATUS_LABELS[escrowQuery.data.status] ?? escrowQuery.data.status}
                     </span>
                   </dd>
                 </div>
                 <div>
-                  <dt>Total amount</dt>
+                  <dt>Tổng tiền</dt>
                   <dd>{formatMoney(escrowQuery.data.totalAmount, escrowQuery.data.currency)}</dd>
                 </div>
                 <div>
-                  <dt>Seller deposit</dt>
+                  <dt>Cọc bên bán</dt>
                   <dd>{formatMoney(escrowQuery.data.sellerDeposit, escrowQuery.data.currency)}</dd>
                 </div>
                 <div>
-                  <dt>Escrow ID</dt>
+                  <dt>Mã ký quỹ</dt>
                   <dd>{escrowQuery.data.escrowId}</dd>
                 </div>
               </dl>
@@ -125,20 +140,20 @@ export function EscrowPage() {
                 disabled={confirmDepositMutation.isPending}
                 onClick={() => confirmDepositMutation.mutate(effectiveContractId)}
               >
-                Confirm seller deposit
+                Xác nhận cọc bên bán
               </button>
             ) : null}
           </div>
 
           <div className="panel-card">
             <div className="panel-card__header">
-              <span className="eyebrow">Ledger</span>
-              <h3>Transactions</h3>
+              <span className="eyebrow">Sổ giao dịch</span>
+              <h3>Lịch sử giao dịch</h3>
             </div>
 
-            {transactionQuery.isLoading ? <div className="empty-state">Loading ledger...</div> : null}
+            {transactionQuery.isLoading ? <div className="empty-state">Đang tải sổ giao dịch...</div> : null}
             {!transactionQuery.isLoading && transactionQuery.data?.length === 0 ? (
-              <div className="empty-state">No escrow transactions recorded yet.</div>
+              <div className="empty-state">Chưa có giao dịch ký quỹ nào.</div>
             ) : null}
 
             <div className="activity-list">
@@ -146,7 +161,7 @@ export function EscrowPage() {
                 <div key={transaction.transactionId}>
                   <span className="material-symbols-outlined">receipt_long</span>
                   <p>
-                    {TRANSACTION_LABELS[transaction.type]} -{' '}
+                    {TRANSACTION_LABELS[transaction.type] ?? transaction.type} -{' '}
                     {formatMoney(transaction.amount, transaction.currency)}
                     <small>{transaction.note}</small>
                   </p>

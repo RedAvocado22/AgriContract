@@ -8,11 +8,11 @@ interface AuthHeaderProps {
 export function AuthHeader({ action }: AuthHeaderProps) {
   return (
     <header className="topbar">
-      <Link className="brand" to="/listings" aria-label="AgriContract home">
+      <Link className="brand" to="/listings" aria-label="Trang chủ AgriContract">
         <div className="brand__mark">eco</div>
         <div>
           <strong>AgriContract</strong>
-          <span>B2B Platform</span>
+          <span>Nền tảng B2B nông sản</span>
         </div>
       </Link>
 

@@ -1,8 +1,25 @@
 import apiClient from './client'
 import { env } from '../config/env'
 import type { Contract, CreateContractInput } from '../types/contract'
+import { repairMojibake } from '../utils/textEncoding'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+interface PaginatedContractResponse {
+  content: Contract[]
+}
+
+const toContract = (contract: Contract): Contract => ({
+  ...contract,
+  productName: repairMojibake(contract.productName),
+  buyerOrgName: repairMojibake(contract.buyerOrgName),
+  sellerOrgName: repairMojibake(contract.sellerOrgName),
+  cancelReason: repairMojibake(contract.cancelReason),
+  terms: {
+    ...contract.terms,
+    qualitySpec: repairMojibake(contract.terms?.qualitySpec),
+  },
+})
 
 let mockContracts: Contract[] = [
   {
@@ -10,19 +27,19 @@ let mockContracts: Contract[] = [
     listingId: 'lst-robusta-daklak',
     buyerId: 'mock-buyer',
     sellerId: 'seller-001',
-    productName: 'Dak Lak Robusta coffee',
-    buyerOrgName: 'Saigon Agricultural Trading',
-    sellerOrgName: 'Dak Lak Coffee Cooperative',
+    productName: 'Cà phê Robusta Đắk Lắk',
+    buyerOrgName: 'Công ty Thương mại Nông sản Sài Gòn',
+    sellerOrgName: 'HTX Cà phê Đắk Lắk',
     buyerEmail: 'buyer@example.com',
     sellerEmail: 'seller@example.com',
     status: 'SIGNED',
     terms: {
-      quantity: { value: 25, unit: 'ton' },
+      quantity: { value: 25, unit: 'tấn' },
       agreedPrice: { amount: 68000, currency: 'VND' },
       deliveryDeadline: '2026-11-20',
       buyerPenaltyRate: 0.03,
       sellerDepositRate: 0.1,
-      qualitySpec: 'Moisture below 12.5%, grade 1, export packing.',
+      qualitySpec: 'Độ ẩm dưới 12,5%, loại 1, có thể đóng gói xuất khẩu.',
     },
   },
   {
@@ -30,19 +47,19 @@ let mockContracts: Contract[] = [
     listingId: 'lst-st25-angiang',
     buyerId: 'mock-buyer',
     sellerId: 'seller-002',
-    productName: 'An Giang ST25 rice',
-    buyerOrgName: 'Mekong Retail Supply',
-    sellerOrgName: 'An Giang Rice Union',
+    productName: 'Gạo ST25 An Giang',
+    buyerOrgName: 'Chuỗi bán lẻ Mekong',
+    sellerOrgName: 'Liên hiệp Lúa gạo An Giang',
     buyerEmail: 'buyer@example.com',
     sellerEmail: 'rice@example.com',
     status: 'ACTIVE',
     terms: {
-      quantity: { value: 80, unit: 'ton' },
+      quantity: { value: 80, unit: 'tấn' },
       agreedPrice: { amount: 27000, currency: 'VND' },
       deliveryDeadline: '2026-12-05',
       buyerPenaltyRate: 0.02,
       sellerDepositRate: 0.08,
-      qualitySpec: 'VietGAP certificate, low broken rate, 50kg bags.',
+      qualitySpec: 'Có chứng nhận VietGAP, tỷ lệ tấm thấp, bao 50kg.',
     },
   },
 ]
@@ -55,9 +72,14 @@ export const contractApi = {
     }
 
     const response = await apiClient.get('/api/v1/contracts', {
-      params: role ? { role } : undefined,
+      params: {
+        ...(role ? { role } : {}),
+        page: 0,
+        size: 100,
+      },
     })
-    return response.data.data as Contract[]
+    const data = response.data.data as Contract[] | PaginatedContractResponse
+    return (Array.isArray(data) ? data : data.content).map(toContract)
   },
 
   async getById(contractId: string) {
@@ -65,13 +87,13 @@ export const contractApi = {
       await wait(180)
       const contract = mockContracts.find((item) => item.contractId === contractId)
       if (!contract) {
-        throw new Error('Contract not found')
+        throw new Error('Không tìm thấy hợp đồng')
       }
       return contract
     }
 
     const response = await apiClient.get(`/api/v1/contracts/${contractId}`)
-    return response.data.data as Contract
+    return toContract(response.data.data as Contract)
   },
 
   async create(input: CreateContractInput) {
@@ -82,9 +104,9 @@ export const contractApi = {
         listingId: input.listingId,
         buyerId: 'mock-buyer',
         sellerId: 'seller-pending',
-        productName: 'New contract offer',
-        buyerOrgName: 'Current buyer',
-        sellerOrgName: 'Listing seller',
+        productName: 'Đề nghị hợp đồng mới',
+        buyerOrgName: 'Bên mua hiện tại',
+        sellerOrgName: 'Bên bán của tin hàng',
         buyerEmail: 'buyer@example.com',
         sellerEmail: 'seller@example.com',
         terms: input.terms,
@@ -99,7 +121,7 @@ export const contractApi = {
       listingId: input.listingId,
       terms: input.terms,
     })
-    return response.data.data as Contract
+    return toContract(response.data.data as Contract)
   },
 
   async sign(contractId: string) {
@@ -124,7 +146,7 @@ export const contractApi = {
     }
 
     const response = await apiClient.put(`/api/v1/contracts/${contractId}/confirm-delivery`)
-    return response.data.data as Contract
+    return toContract(response.data.data as Contract)
   },
 
   async cancel(contractId: string, reason: string) {
@@ -139,7 +161,7 @@ export const contractApi = {
     }
 
     const response = await apiClient.put(`/api/v1/contracts/${contractId}/cancel`, { reason })
-    return response.data.data as Contract
+    return toContract(response.data.data as Contract)
   },
 
   async dispute(contractId: string, reason: string) {
@@ -152,6 +174,6 @@ export const contractApi = {
     }
 
     const response = await apiClient.put(`/api/v1/contracts/${contractId}/dispute`, { reason })
-    return response.data.data as Contract
+    return toContract(response.data.data as Contract)
   },
 }

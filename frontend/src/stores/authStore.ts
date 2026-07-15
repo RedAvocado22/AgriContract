@@ -20,13 +20,13 @@ const buildMockUser = (email: string, role: UserRole): UserProfile => ({
   id: `mock-${role.toLowerCase()}`,
   email,
   role,
-  name: role === 'SELLER' ? 'Mai Nguyen' : role === 'BUYER' ? 'Tuan Tran' : 'Minh Anh Le',
+  name: role === 'SELLER' ? 'Mai Nguyễn' : role === 'BUYER' ? 'Tuấn Trần' : 'Minh Anh Lê',
   organization:
     role === 'SELLER'
-      ? 'Dak Lak Coffee Cooperative'
+      ? 'HTX Cà phê Đắk Lắk'
       : role === 'BUYER'
-        ? 'Saigon Agricultural Trading'
-        : 'AgriContract Operations Center',
+        ? 'Công ty Thương mại Nông sản Sài Gòn'
+        : 'Trung tâm vận hành AgriContract',
 })
 
 export const useAuthStore = create<AuthState>((set) => ({

@@ -1,13 +1,16 @@
 export const PRODUCT_CATEGORIES = [
-  { value: 'RICE', label: 'Rice and grains', icon: 'rice_bowl' },
-  { value: 'COFFEE', label: 'Coffee', icon: 'local_cafe' },
-  { value: 'CASHEW', label: 'Cashew', icon: 'nutrition' },
-  { value: 'RUBBER', label: 'Rubber', icon: 'forest' },
-  { value: 'FRUIT', label: 'Fruit', icon: 'psychiatry' },
-  { value: 'VEGETABLE', label: 'Vegetables', icon: 'eco' },
-  { value: 'SPICE', label: 'Spices', icon: 'spa' },
-  { value: 'OTHER', label: 'Other', icon: 'inventory_2' },
+  { value: 'RICE', label: 'Lúa gạo và ngũ cốc', icon: 'rice_bowl' },
+  { value: 'COFFEE', label: 'Cà phê', icon: 'local_cafe' },
+  { value: 'CASHEW', label: 'Hạt điều', icon: 'nutrition' },
+  { value: 'RUBBER', label: 'Cao su', icon: 'forest' },
+  { value: 'FRUIT', label: 'Trái cây', icon: 'psychiatry' },
+  { value: 'VEGETABLE', label: 'Rau củ', icon: 'eco' },
+  { value: 'SPICE', label: 'Gia vị', icon: 'spa' },
+  { value: 'OTHER', label: 'Khác', icon: 'inventory_2' },
 ] as const
+
+export const GENERIC_PRODUCT_IMAGE =
+  'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80'
 
 const CATEGORY_LABELS = PRODUCT_CATEGORIES.reduce<Record<string, string>>((acc, category) => {
   acc[category.value] = category.label
@@ -42,7 +45,7 @@ export const normalizeProductCategory = (category: string | undefined) => {
 
 export const formatProductCategory = (category: string | undefined) => {
   const normalized = normalizeProductCategory(category)
-  return CATEGORY_LABELS[normalized] ?? category ?? 'Other'
+  return CATEGORY_LABELS[normalized] ?? category ?? 'Khác'
 }
 
 export const getCategoryImage = (category: string | undefined) => {
@@ -62,9 +65,8 @@ export const getCategoryImage = (category: string | undefined) => {
       'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80',
     SPICE:
       'https://images.unsplash.com/photo-1532336414038-cf19250c5757?auto=format&fit=crop&w=1200&q=80',
-    OTHER:
-      'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
+    OTHER: GENERIC_PRODUCT_IMAGE,
   }
 
-  return images[normalized] ?? images.OTHER
+  return images[normalized] ?? GENERIC_PRODUCT_IMAGE
 }

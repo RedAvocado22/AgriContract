@@ -34,7 +34,7 @@ const mockTransactions: Record<string, EscrowTransaction[]> = {
       type: 'LOCK',
       amount: 1700000000,
       currency: 'VND',
-      note: 'Buyer payment locked',
+      note: 'Đã khóa tiền thanh toán của bên mua',
       createdAt: '2026-07-12T09:30:00',
     },
     {
@@ -42,7 +42,7 @@ const mockTransactions: Record<string, EscrowTransaction[]> = {
       type: 'LOCK',
       amount: 170000000,
       currency: 'VND',
-      note: 'Seller deposit confirmed',
+      note: 'Đã xác nhận cọc của bên bán',
       createdAt: '2026-07-12T13:15:00',
     },
   ],
@@ -54,7 +54,7 @@ export const escrowApi = {
       await wait(180)
       const escrow = mockEscrows.find((item) => item.contractId === contractId)
       if (!escrow) {
-        throw new Error('Escrow not found')
+        throw new Error('Không tìm thấy ký quỹ')
       }
       return escrow
     }

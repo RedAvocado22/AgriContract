@@ -12,8 +12,8 @@ import { useAuthStore } from '../stores/authStore'
 import type { UserRole } from '../types/auth'
 
 const loginSchema = z.object({
-  identifier: z.string().trim().min(1, 'Enter your email or username'),
-  password: z.string().nonempty('Enter your password'),
+  identifier: z.string().trim().min(1, 'Nhập email hoặc tên đăng nhập'),
+  password: z.string().nonempty('Nhập mật khẩu'),
   role: z.enum(['BUYER', 'SELLER', 'ADMIN']).optional(),
 })
 
@@ -80,74 +80,64 @@ export function LoginPage() {
 
   return (
     <>
-      <AuthHeader
-        action={
-          <Link className="ghost-button" to="/listings">
-            Browse marketplace
-          </Link>
-        }
-      />
-      <section className="auth-page auth-page--split">
-        <aside className="auth-rail">
-          <div className="auth-rail__brand">
-            <div className="brand__mark">eco</div>
-            <div>
-              <strong>AgriContract</strong>
-              <span>Trade, escrow, settle</span>
-            </div>
-          </div>
-          <nav className="auth-rail__nav" aria-label="Public navigation">
+      <AuthHeader />
+      <div className="shell-grid auth-shell">
+        <aside className="sidebar">
+          <div className="sidebar__group">
+          <nav className="auth-rail__nav" aria-label="Điều hướng công khai">
             <Link className="sidebar-link" to="/listings">
               <span className="material-symbols-outlined">list_alt</span>
-              Listings
+              Tin hàng
             </Link>
           </nav>
+          </div>
         </aside>
 
+        <main className="shell-content auth-main">
         <div className="auth-card">
           <div className="auth-card__hero">
             <div className="brand-brandmark">eco</div>
             <h1>AgriContract</h1>
-            <p>Contract-ready agricultural trade with escrow-backed settlement.</p>
+            <p>Giao dịch nông sản có hợp đồng và ký quỹ bảo chứng.</p>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
             <label>
-              <span>Email or username</span>
+              <span>Email hoặc tên đăng nhập</span>
               <input
                 {...register('identifier')}
                 type="text"
                 autoComplete="username"
-                placeholder="buyer1 or buyer1@example.com"
+                placeholder="seller1 hoặc seller1@test.com"
               />
               {errors.identifier ? <small>{errors.identifier.message}</small> : null}
             </label>
 
             <label>
-              <span>Password</span>
+              <span>Mật khẩu</span>
               <input {...register('password')} type="password" />
               {errors.password ? <small>{errors.password.message}</small> : null}
             </label>
 
             {env.useMocks ? (
               <label>
-                <span>Mock role</span>
+                <span>Vai trò giả lập</span>
                 <select {...register('role')}>
-                  <option value="BUYER">Buyer</option>
-                  <option value="SELLER">Seller</option>
-                  <option value="ADMIN">Admin</option>
+                  <option value="BUYER">Bên mua</option>
+                  <option value="SELLER">Bên bán</option>
+                  <option value="ADMIN">Quản trị</option>
                 </select>
               </label>
             ) : null}
 
-            {loginMutation.isError ? <small>Email or password is incorrect.</small> : null}
+            {loginMutation.isError ? <small>Email hoặc mật khẩu không đúng.</small> : null}
 
             <button
               className="primary-button primary-button--full"
               type="submit"
               disabled={loginMutation.isPending}
             >
-              {loginMutation.isPending ? 'Signing in...' : 'Sign in'}
+              {loginMutation.isPending ? 'Đang đăng nhập...' : 'Đăng nhập'}
               <span className="material-symbols-outlined">arrow_forward</span>
             </button>
           </form>
@@ -155,19 +145,20 @@ export function LoginPage() {
           <div className="auth-trust">
             <div>
               <span className="material-symbols-outlined">verified_user</span>
-              <span>Verified profiles</span>
+              <span>Hồ sơ xác minh</span>
             </div>
             <div>
               <span className="material-symbols-outlined">lock</span>
-              <span>Escrow protection</span>
+              <span>Bảo chứng ký quỹ</span>
             </div>
             <div>
               <span className="material-symbols-outlined">gavel</span>
-              <span>Dispute workflow</span>
+              <span>Quy trình tranh chấp</span>
             </div>
           </div>
         </div>
-      </section>
+        </main>
+      </div>
     </>
   )
 }

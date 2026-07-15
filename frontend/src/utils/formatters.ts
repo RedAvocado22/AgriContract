@@ -1,5 +1,5 @@
 export const formatMoney = (amount: number, currency = 'VND') =>
-  new Intl.NumberFormat('en-US', {
+  new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency,
     maximumFractionDigits: currency === 'VND' ? 0 : 2,
@@ -7,10 +7,10 @@ export const formatMoney = (amount: number, currency = 'VND') =>
 
 export const formatDate = (value: string | undefined) => {
   if (!value) {
-    return 'Not set'
+    return 'Chưa đặt'
   }
 
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('vi-VN', {
     year: 'numeric',
     month: 'short',
     day: '2-digit',
@@ -18,7 +18,7 @@ export const formatDate = (value: string | undefined) => {
 }
 
 export const formatPercent = (value: number) =>
-  new Intl.NumberFormat('en-US', {
+  new Intl.NumberFormat('vi-VN', {
     style: 'percent',
     maximumFractionDigits: 1,
   }).format(value)

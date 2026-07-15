@@ -19,7 +19,7 @@ type RangeStyle = CSSProperties & {
   '--range-end': string
 }
 
-const formatPrice = (value: number) => value.toLocaleString('en-US')
+const formatPrice = (value: number) => value.toLocaleString('vi-VN')
 const parsePrice = (value: string) => Number(value.replace(/\D/g, ''))
 
 export function DualRangeSlider({
@@ -66,10 +66,10 @@ export function DualRangeSlider({
     <div className="dual-range">
       <div className="price-input-grid">
         <label className="price-input">
-          <span>From</span>
+          <span>Từ</span>
           <span className="price-input__control">
             <input
-              aria-label="Minimum price"
+              aria-label="Giá tối thiểu"
               inputMode="numeric"
               value={draftMin}
               onChange={(event) => setDraftMin(event.target.value)}
@@ -82,10 +82,10 @@ export function DualRangeSlider({
         </label>
 
         <label className="price-input">
-          <span>To</span>
+          <span>Đến</span>
           <span className="price-input__control">
             <input
-              aria-label="Maximum price"
+              aria-label="Giá tối đa"
               inputMode="numeric"
               value={draftMax}
               onChange={(event) => setDraftMax(event.target.value)}
@@ -103,7 +103,7 @@ export function DualRangeSlider({
         <input
           className="dual-range__input dual-range__input--min"
           type="range"
-          aria-label="Minimum price"
+          aria-label="Giá tối thiểu"
           min={limitMin}
           max={limitMax}
           step={step}
@@ -113,7 +113,7 @@ export function DualRangeSlider({
         <input
           className="dual-range__input dual-range__input--max"
           type="range"
-          aria-label="Maximum price"
+          aria-label="Giá tối đa"
           min={limitMin}
           max={limitMax}
           step={step}

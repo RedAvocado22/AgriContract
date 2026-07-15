@@ -9,14 +9,14 @@ import type { Contract, ContractStatus } from '../types/contract'
 import { formatDate, formatMoney, formatPercent } from '../utils/formatters'
 
 const STATUS_LABELS: Record<ContractStatus, string> = {
-  OFFERED: 'Offered',
-  NEGOTIATING: 'Negotiating',
-  SIGNED: 'Signed',
-  ACTIVE: 'Active',
-  DELIVERED: 'Delivered',
-  SETTLED: 'Settled',
-  CANCELLED: 'Cancelled',
-  DISPUTED: 'Disputed',
+  OFFERED: 'Đã gửi đề nghị',
+  NEGOTIATING: 'Đang thương lượng',
+  SIGNED: 'Đã ký',
+  ACTIVE: 'Đang thực hiện',
+  DELIVERED: 'Đã giao hàng',
+  SETTLED: 'Đã tất toán',
+  CANCELLED: 'Đã hủy',
+  DISPUTED: 'Đang tranh chấp',
 }
 
 const canSign = (contract: Contract) => ['OFFERED', 'NEGOTIATING'].includes(contract.status)
@@ -49,9 +49,9 @@ export function ContractsPage() {
         return contractApi.confirmDelivery(contractId)
       }
       if (action === 'cancel') {
-        return contractApi.cancel(contractId, reason || 'Cancelled from frontend')
+        return contractApi.cancel(contractId, reason || 'Hủy từ giao diện')
       }
-      return contractApi.dispute(contractId, reason || 'Dispute raised from frontend')
+      return contractApi.dispute(contractId, reason || 'Báo tranh chấp từ giao diện')
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['contracts'] })
@@ -70,18 +70,18 @@ export function ContractsPage() {
     <div className="page-stack">
       <section className="page-title-row">
         <div>
-          <h1>Contracts</h1>
-          <p>Review offers, signatures, delivery confirmation, cancellation, and disputes.</p>
+          <h1>Hợp đồng</h1>
+          <p>Theo dõi đề nghị, chữ ký, xác nhận giao hàng, hủy hợp đồng và tranh chấp.</p>
         </div>
         <Link className="secondary-button" to="/listings">
           <span className="material-symbols-outlined">add</span>
-          Start from listing
+          Bắt đầu từ tin hàng
         </Link>
       </section>
 
       <section className="content-panel">
         <div className="content-panel__toolbar">
-          <div className="segmented-control" aria-label="Contract status filter">
+          <div className="segmented-control" aria-label="Lọc trạng thái hợp đồng">
             {(['ALL', 'OFFERED', 'SIGNED', 'ACTIVE', 'DELIVERED', 'DISPUTED'] as const).map(
               (item) => (
                 <button
@@ -90,17 +90,17 @@ export function ContractsPage() {
                   type="button"
                   onClick={() => setStatus(item)}
                 >
-                  {item === 'ALL' ? 'All' : STATUS_LABELS[item]}
+                  {item === 'ALL' ? 'Tất cả' : STATUS_LABELS[item]}
                 </button>
               ),
             )}
           </div>
         </div>
 
-        {isLoading ? <div className="empty-state">Loading contracts...</div> : null}
-        {isError ? <div className="empty-state">Contracts could not be loaded.</div> : null}
+        {isLoading ? <div className="empty-state">Đang tải hợp đồng...</div> : null}
+        {isError ? <div className="empty-state">Không tải được hợp đồng.</div> : null}
         {!isLoading && !isError && contracts.length === 0 ? (
-          <div className="empty-state">No contracts match this view.</div>
+          <div className="empty-state">Không có hợp đồng phù hợp với bộ lọc này.</div>
         ) : null}
 
         <div className="contract-list">
@@ -113,27 +113,27 @@ export function ContractsPage() {
                   </span>
                   <h3>{contract.productName}</h3>
                   <p>
-                    {contract.buyerOrgName} with {contract.sellerOrgName}
+                    {contract.buyerOrgName} với {contract.sellerOrgName}
                   </p>
                 </div>
 
                 <dl className="detail-list">
                   <div>
-                    <dt>Quantity</dt>
+                    <dt>Số lượng</dt>
                     <dd>
                       {contract.terms.quantity.value} {contract.terms.quantity.unit}
                     </dd>
                   </div>
                   <div>
-                    <dt>Agreed price</dt>
+                    <dt>Giá đã thỏa thuận</dt>
                     <dd>{formatMoney(contract.terms.agreedPrice.amount, contract.terms.agreedPrice.currency)}</dd>
                   </div>
                   <div>
-                    <dt>Delivery</dt>
+                    <dt>Giao hàng</dt>
                     <dd>{formatDate(contract.terms.deliveryDeadline)}</dd>
                   </div>
                   <div>
-                    <dt>Seller deposit</dt>
+                    <dt>Cọc bên bán</dt>
                     <dd>{formatPercent(contract.terms.sellerDepositRate)}</dd>
                   </div>
                 </dl>
@@ -144,7 +144,7 @@ export function ContractsPage() {
               <div className="contract-card__actions">
                 <Link className="secondary-button secondary-button--full" to={`/escrow?contractId=${contract.contractId}`}>
                   <span className="material-symbols-outlined">account_balance_wallet</span>
-                  Escrow
+                  Ký quỹ
                 </Link>
                 {canSign(contract) ? (
                   <button
@@ -153,7 +153,7 @@ export function ContractsPage() {
                     disabled={actionMutation.isPending}
                     onClick={() => actionMutation.mutate({ contractId: contract.contractId, action: 'sign' })}
                   >
-                    Sign
+                    Ký
                   </button>
                 ) : null}
                 {canConfirmDelivery(contract) ? (
@@ -163,12 +163,12 @@ export function ContractsPage() {
                     disabled={actionMutation.isPending}
                     onClick={() => actionMutation.mutate({ contractId: contract.contractId, action: 'confirm' })}
                   >
-                    Confirm delivery
+                    Xác nhận giao hàng
                   </button>
                 ) : null}
                 {(canCancel(contract) || canDispute(contract)) && (
                   <label className="compact-field">
-                    <span>Reason</span>
+                    <span>Lý do</span>
                     <textarea
                       value={reasonById[contract.contractId] ?? ''}
                       onChange={(event) =>
@@ -177,7 +177,7 @@ export function ContractsPage() {
                           [contract.contractId]: event.target.value,
                         }))
                       }
-                      placeholder="Add context for cancel or dispute"
+                      placeholder="Nhập lý do hủy hoặc tranh chấp"
                     />
                   </label>
                 )}
@@ -194,7 +194,7 @@ export function ContractsPage() {
                       })
                     }
                   >
-                    Cancel
+                    Hủy
                   </button>
                 ) : null}
                 {canDispute(contract) ? (
@@ -210,7 +210,7 @@ export function ContractsPage() {
                       })
                     }
                   >
-                    Raise dispute
+                    Báo tranh chấp
                   </button>
                 ) : null}
               </div>

@@ -9,7 +9,7 @@ import { AuthHeader } from '../components/layout/AuthHeader'
 import { useAuthStore } from '../stores/authStore'
 
 const registerProfileSchema = z.object({
-  organizationName: z.string().min(2, 'Enter your organization name'),
+  organizationName: z.string().min(2, 'Nhập tên hợp tác xã hoặc doanh nghiệp'),
   phone: z.string().optional(),
   address: z.string().optional(),
 })
@@ -61,31 +61,31 @@ export function RegisterProfilePage() {
         <div className="auth-card auth-card--wide">
           <div className="auth-card__hero">
             <div className="brand-brandmark">eco</div>
-            <h1>Complete profile</h1>
-            <p>This information is stored in the user service and shown on trading screens.</p>
+            <h1>Hoàn tất hồ sơ</h1>
+            <p>Thông tin này dùng để hiển thị trên các màn hình giao dịch.</p>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
             <label>
-              <span>Organization name</span>
-              <input {...register('organizationName')} placeholder="Example: Dak Lak Coffee Cooperative" />
+              <span>Tên đơn vị</span>
+              <input {...register('organizationName')} placeholder="Ví dụ: HTX Cà phê Đắk Lắk" />
               {errors.organizationName ? <small>{errors.organizationName.message}</small> : null}
             </label>
 
             <label>
-              <span>Phone</span>
+              <span>Số điện thoại</span>
               <input {...register('phone')} placeholder="+84 901 234 567" />
             </label>
 
             <label>
-              <span>Address</span>
-              <input {...register('address')} placeholder="Dak Lak, Vietnam" />
+              <span>Địa chỉ</span>
+              <input {...register('address')} placeholder="Đắk Lắk, Việt Nam" />
             </label>
 
-            {registerMutation.isError ? <small>Profile could not be saved. Please try again.</small> : null}
+            {registerMutation.isError ? <small>Không lưu được hồ sơ. Vui lòng thử lại.</small> : null}
 
             <button className="primary-button" type="submit" disabled={registerMutation.isPending}>
-              {registerMutation.isPending ? 'Saving...' : 'Save profile'}
+              {registerMutation.isPending ? 'Đang lưu...' : 'Lưu hồ sơ'}
             </button>
           </form>
         </div>

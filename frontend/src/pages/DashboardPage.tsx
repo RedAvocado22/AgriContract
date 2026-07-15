@@ -18,66 +18,68 @@ export function DashboardPage() {
   const { data: listings } = useListingsQuery(listingFilters)
   const { data: contracts } = useContractsQuery(role === 'SELLER' ? 'SELLER' : 'BUYER')
   const openListings = listings?.filter((listing) => listing.status === 'ACTIVE').length ?? 0
+  const contractItems = contracts ?? []
   const pendingContracts =
-    contracts?.filter((contract) => ['OFFERED', 'NEGOTIATING', 'SIGNED'].includes(contract.status)).length ?? 0
-  const escrowEstimate =
-    contracts?.reduce(
-      (total, contract) =>
-        contract.status === 'ACTIVE' || contract.status === 'SIGNED'
-          ? total + contract.terms.quantity.value * contract.terms.agreedPrice.amount
-          : total,
-      0,
-    ) ?? 0
+    contractItems.filter((contract) => ['OFFERED', 'NEGOTIATING', 'SIGNED'].includes(contract.status)).length
+  const escrowEstimate = contractItems.reduce((total, contract) => {
+    if (contract.status !== 'ACTIVE' && contract.status !== 'SIGNED') {
+      return total
+    }
+
+    const quantity = Number(contract.terms?.quantity?.value ?? 0)
+    const price = Number(contract.terms?.agreedPrice?.amount ?? 0)
+    return total + quantity * price
+  }, 0)
 
   return (
     <div className="dashboard-page">
       <section className="page-title-row">
         <div>
-          <h1>Overview</h1>
-          <p>Hello {user?.name ?? 'there'}, here is the fastest read on today&apos;s trading work.</p>
+          <h1>Tổng quan</h1>
+          <p>Xin chào {user?.name ?? 'bạn'}, đây là tình hình giao dịch hôm nay.</p>
         </div>
 
         <Link className="primary-button" to="/listings">
           <span className="material-symbols-outlined">list_alt</span>
-          Browse listings
+          Xem tin hàng
         </Link>
       </section>
 
       <section className="stat-grid">
         <article className="stat-card">
-          <span>Open listings</span>
+          <span>Tin hàng đang mở</span>
           <strong>{openListings}</strong>
-          <small>Available for contract offers</small>
+          <small>Có thể tạo đề nghị hợp đồng</small>
         </article>
         <article className="stat-card">
-          <span>Contracts needing attention</span>
+          <span>Hợp đồng cần xử lý</span>
           <strong>{pendingContracts}</strong>
-          <small>Offers, signatures, or deposits</small>
+          <small>Đề nghị, chữ ký hoặc ký quỹ</small>
         </article>
         <article className="stat-card">
-          <span>Estimated escrow exposure</span>
+          <span>Giá trị ký quỹ ước tính</span>
           <strong>{formatMoney(escrowEstimate)}</strong>
-          <small>Based on signed and active contracts</small>
+          <small>Dựa trên hợp đồng đã ký và đang thực hiện</small>
         </article>
       </section>
 
       <section className="panel-card">
-        <h3>Workflow</h3>
+        <h3>Quy trình</h3>
         <div className="activity-list">
           <div>
             <span className="material-symbols-outlined">storefront</span>
-            <p>Review active supply and create a contract offer from a listing detail page.</p>
-            <small>Marketplace</small>
+            <p>Xem nguồn hàng đang mở và tạo đề nghị hợp đồng từ trang chi tiết tin hàng.</p>
+            <small>Chợ nông sản</small>
           </div>
           <div>
             <span className="material-symbols-outlined">description</span>
-            <p>Sign, cancel, confirm delivery, or raise a dispute from the contracts screen.</p>
-            <small>Contracts</small>
+            <p>Ký, hủy, xác nhận giao hàng hoặc báo tranh chấp trên màn hình hợp đồng.</p>
+            <small>Hợp đồng</small>
           </div>
           <div>
             <span className="material-symbols-outlined">account_balance_wallet</span>
-            <p>Track locked funds and seller deposits in escrow by contract.</p>
-            <small>Escrow</small>
+            <p>Theo dõi tiền bên mua và cọc bên bán đang được giữ theo từng hợp đồng.</p>
+            <small>Ký quỹ</small>
           </div>
         </div>
       </section>

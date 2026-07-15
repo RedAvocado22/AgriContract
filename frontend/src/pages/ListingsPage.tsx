@@ -51,14 +51,14 @@ export function ListingsPage() {
     <div className="page-stack">
       <section className="page-title-row">
         <div>
-          <h1>Marketplace listings</h1>
-          <p>Find contract-ready agricultural supply with escrow-backed settlement.</p>
+          <h1>Chợ nông sản</h1>
+          <p>Tìm nguồn hàng nông sản sẵn sàng ký hợp đồng, có ký quỹ bảo chứng.</p>
         </div>
 
         {normalizedRole === 'SELLER' ? (
           <Link className="primary-button" to="/listings/create">
             <span className="material-symbols-outlined">add</span>
-            Create listing
+            Đăng tin hàng
           </Link>
         ) : null}
       </section>
@@ -83,7 +83,7 @@ export function ListingsPage() {
                     search: event.target.value,
                   }))
                 }
-                placeholder="Search product, seller, or category"
+                placeholder="Tìm sản phẩm, bên bán hoặc loại hàng"
               />
             </label>
 
@@ -97,16 +97,16 @@ export function ListingsPage() {
                 }))
               }
             >
-              <option value="latest">Newest first</option>
-              <option value="price-asc">Price: low to high</option>
-              <option value="price-desc">Price: high to low</option>
+              <option value="latest">Mới nhất trước</option>
+              <option value="price-asc">Giá: thấp đến cao</option>
+              <option value="price-desc">Giá: cao đến thấp</option>
             </select>
           </div>
 
-          {isLoading ? <div className="empty-state">Loading listings...</div> : null}
-          {isError ? <div className="empty-state">Listings could not be loaded.</div> : null}
+          {isLoading ? <div className="empty-state">Đang tải tin hàng...</div> : null}
+          {isError ? <div className="empty-state">Không tải được danh sách tin hàng.</div> : null}
           {!isLoading && !isError && data?.length === 0 ? (
-            <div className="empty-state">No listing matches the current filters.</div>
+            <div className="empty-state">Không có tin hàng phù hợp với bộ lọc hiện tại.</div>
           ) : null}
 
           <div className="listing-grid">
