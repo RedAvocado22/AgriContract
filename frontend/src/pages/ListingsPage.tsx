@@ -16,27 +16,18 @@ const defaultFilters: ListingFilters = {
   sortBy: 'latest',
 }
 
-const catalogFilters: ListingFilters = {
-  categories: [],
-  minPrice: undefined,
-  maxPrice: undefined,
-  deliveryWindow: 'all',
-  search: '',
-  sortBy: 'latest',
-}
-
 export function ListingsPage() {
   const userRole = useAuthStore((state) => state.user?.role)
   const normalizedRole = userRole?.trim().toUpperCase()
   const [filters, setFilters] = useState<ListingFilters>(defaultFilters)
   const { data, isLoading, isError } = useListingsQuery(filters)
-  const { data: catalogData } = useListingsQuery(catalogFilters)
+  const { data: catalogData } = useListingsQuery({ ...defaultFilters, search: '' })
 
   const categoryOptions = useMemo(
     () =>
-      Array.from(
-        new Set((catalogData ?? []).map((listing) => listing.category).filter(Boolean)),
-      ).sort((a, b) => a.localeCompare(b, 'vi')),
+      Array.from(new Set((catalogData ?? []).map((listing) => listing.category).filter(Boolean))).sort(
+        (a, b) => a.localeCompare(b),
+      ),
     [catalogData],
   )
 
@@ -60,14 +51,14 @@ export function ListingsPage() {
     <div className="page-stack">
       <section className="page-title-row">
         <div>
-          <h1>Danh sách chào giá</h1>
-          <p>Khám phá các hợp đồng nông sản kỳ hạn trên nền tảng.</p>
+          <h1>Chợ nông sản</h1>
+          <p>Tìm nguồn hàng nông sản sẵn sàng ký hợp đồng, có ký quỹ bảo chứng.</p>
         </div>
 
         {normalizedRole === 'SELLER' ? (
           <Link className="primary-button" to="/listings/create">
             <span className="material-symbols-outlined">add</span>
-            Tạo tin đăng
+            Đăng tin hàng
           </Link>
         ) : null}
       </section>
@@ -92,7 +83,7 @@ export function ListingsPage() {
                     search: event.target.value,
                   }))
                 }
-                placeholder="Tìm kiếm hợp đồng..."
+                placeholder="Tìm sản phẩm, bên bán hoặc loại hàng"
               />
             </label>
 
@@ -106,18 +97,16 @@ export function ListingsPage() {
                 }))
               }
             >
-              <option value="latest">Mới nhất</option>
-              <option value="price-asc">Giá: Thấp đến cao</option>
-              <option value="price-desc">Giá: Cao đến thấp</option>
+              <option value="latest">Mới nhất trước</option>
+              <option value="price-asc">Giá: thấp đến cao</option>
+              <option value="price-desc">Giá: cao đến thấp</option>
             </select>
           </div>
 
-          {isLoading ? <div className="empty-state">Đang tải danh sách...</div> : null}
-          {isError ? (
-            <div className="empty-state">Không thể tải danh sách chào giá.</div>
-          ) : null}
+          {isLoading ? <div className="empty-state">Đang tải tin hàng...</div> : null}
+          {isError ? <div className="empty-state">Không tải được danh sách tin hàng.</div> : null}
           {!isLoading && !isError && data?.length === 0 ? (
-            <div className="empty-state">Không có tin đăng phù hợp bộ lọc.</div>
+            <div className="empty-state">Không có tin hàng phù hợp với bộ lọc hiện tại.</div>
           ) : null}
 
           <div className="listing-grid">

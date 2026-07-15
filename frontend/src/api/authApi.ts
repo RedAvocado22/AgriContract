@@ -15,6 +15,15 @@ interface KeycloakTokenResponse {
 
 export const authApi = {
   async login(input: LoginInput) {
+    if (env.useMocks) {
+      return {
+        accessToken: `mock-token-${input.identifier || 'buyer'}`,
+        refreshToken: undefined,
+        expiresIn: 3600,
+        tokenType: 'Bearer',
+      }
+    }
+
     const form = new URLSearchParams()
     form.set('grant_type', 'password')
     form.set('client_id', env.keycloakClientId)

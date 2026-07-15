@@ -20,15 +20,10 @@ const buildMockUser = (email: string, role: UserRole): UserProfile => ({
   id: `mock-${role.toLowerCase()}`,
   email,
   role,
-  name:
-    role === 'SELLER'
-      ? 'Mai Nguyễn'
-      : role === 'BUYER'
-        ? 'Tuấn Trần'
-        : 'Lê Minh Anh',
+  name: role === 'SELLER' ? 'Mai Nguyễn' : role === 'BUYER' ? 'Tuấn Trần' : 'Minh Anh Lê',
   organization:
     role === 'SELLER'
-      ? 'Hợp tác xã Cà phê Đắk Lắk'
+      ? 'HTX Cà phê Đắk Lắk'
       : role === 'BUYER'
         ? 'Công ty Thương mại Nông sản Sài Gòn'
         : 'Trung tâm vận hành AgriContract',

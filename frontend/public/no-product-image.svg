@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Chưa có ảnh sản phẩm</title>
+  <desc id="desc">Ảnh giữ chỗ cho tin hàng chưa có ảnh sản phẩm.</desc>
+  <rect width="1200" height="800" fill="#f8fafc"/>
+  <rect x="72" y="72" width="1056" height="656" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="4" stroke-dasharray="18 18"/>
+  <circle cx="600" cy="322" r="88" fill="#ecfdf5" stroke="#86efac" stroke-width="4"/>
+  <path d="M552 346l36-42 44 52 22-26 46 56H500l52-40z" fill="#16a34a"/>
+  <circle cx="655" cy="292" r="18" fill="#22c55e"/>
+  <text x="600" y="470" text-anchor="middle" fill="#0f172a" font-family="Arial, sans-serif" font-size="48" font-weight="700">Chưa có ảnh sản phẩm</text>
+  <text x="600" y="532" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="28">Người bán chưa thêm ảnh cho tin hàng này</text>
+</svg>

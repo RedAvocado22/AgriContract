@@ -2,11 +2,14 @@ import apiClient from './client'
 import { env } from '../config/env'
 import { MOCK_LISTINGS } from '../mocks/listings'
 import { MOCK_PRODUCTS } from '../mocks/products'
-import { productApi } from './productApi'
 import type { CreateListingInput, Listing, ListingFilters } from '../types/listing'
-import { formatProductCategory } from '../utils/productCategory'
+import type { Product } from '../types/product'
+import { formatProductCategory, GENERIC_PRODUCT_IMAGE, getCategoryImage } from '../utils/productCategory'
+import { repairMojibake } from '../utils/textEncoding'
+import { productApi } from './productApi'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const MARKETPLACE_TIMEOUT_MS = 2500
 
 type BackendListing = Pick<
   Listing,
@@ -20,17 +23,35 @@ type BackendListing = Pick<
   | 'currency'
   | 'deliveryDeadline'
   | 'status'
->
+> & {
+  coverImageUrl?: string
+}
 
-const toListing = (listing: BackendListing, category = ''): Listing => ({
-  ...listing,
-  sellerName: '',
-  category,
-  description: '',
-  location: '',
-  qualityNotes: '',
-  imageUrl: '',
-})
+const sellerNameFallback = (sellerId: string) =>
+  sellerId ? `Bên bán ${sellerId.slice(0, 8)}` : 'Bên bán đã xác minh'
+
+const toListing = (listing: BackendListing, products: Product[] = []): Listing => {
+  const product = products.find((item) => item.productId === listing.productId)
+  const productName = repairMojibake(listing.productName)
+  const productCategory = product?.categoryId ?? product?.category
+  const category = formatProductCategory(productCategory)
+  const unit = listing.quantityUnit || product?.unit || 'đơn vị'
+  const backendImages = product?.images?.length ? product.images : []
+  const coverImage = listing.coverImageUrl || backendImages[0] || GENERIC_PRODUCT_IMAGE
+
+  return {
+    ...listing,
+    productName,
+    category,
+    quantityUnit: unit,
+    sellerName: sellerNameFallback(listing.sellerId),
+    description: `${productName} sẵn sàng thương lượng hợp đồng với thanh toán ký quỹ bảo chứng.`,
+    location: 'Chưa xác nhận',
+    qualityNotes: 'Hai bên có thể chốt quy cách chất lượng khi thương lượng hợp đồng.',
+    imageUrl: coverImage,
+    imageUrls: listing.coverImageUrl ? [listing.coverImageUrl, ...backendImages.slice(1)] : backendImages,
+  }
+}
 
 const toBackendSort = (sortBy: ListingFilters['sortBy']) => {
   if (sortBy === 'price-asc') {
@@ -58,7 +79,8 @@ const applyFilters = (
       (listing) =>
         listing.productName.toLowerCase().includes(query) ||
         listing.description.toLowerCase().includes(query) ||
-        listing.sellerName.toLowerCase().includes(query),
+        listing.sellerName.toLowerCase().includes(query) ||
+        listing.category.toLowerCase().includes(query),
     )
   }
 
@@ -76,19 +98,14 @@ const applyFilters = (
 
   if (filters.deliveryWindow && filters.deliveryWindow !== 'all') {
     const windowDays =
-      filters.deliveryWindow === '30d'
-        ? 30
-        : filters.deliveryWindow === '90d'
-          ? 90
-          : 365
+      filters.deliveryWindow === '30d' ? 30 : filters.deliveryWindow === '90d' ? 90 : 365
 
     const today = new Date()
     next = next.filter((listing) => {
       const deadline = new Date(listing.deliveryDeadline)
-      const diffDays =
-        (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      const diffDays = (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
 
-      return diffDays <= windowDays
+      return diffDays >= 0 && diffDays <= windowDays
     })
   }
 
@@ -110,25 +127,27 @@ export const listingApi = {
       return applyFilters(mockListings, filters)
     }
 
-    const [response, products] = await Promise.all([
-      apiClient.get('/api/v1/listings', {
-        params: {
-          page: 0,
-          size: 100,
-          ...toBackendSort(filters.sortBy),
-        },
-      }),
-      productApi.getAll(),
-    ])
+    try {
+      const [response, products] = await Promise.all([
+        apiClient.get('/api/v1/listings', {
+          params: {
+            page: 0,
+            size: 100,
+            ...toBackendSort(filters.sortBy),
+          },
+          timeout: MARKETPLACE_TIMEOUT_MS,
+        }),
+        productApi.getAll(),
+      ])
 
-    const listingsContent = response.data.data.content as BackendListing[]
-    const categoryByProductId = new Map(
-      products.map((product) => [product.productId, formatProductCategory(product.category)]),
-    )
-    const listings = listingsContent.map((listing) =>
-      toListing(listing, categoryByProductId.get(listing.productId) ?? ''),
-    )
-    return applyFilters(listings, filters)
+      const listingsContent = response.data.data.content as BackendListing[]
+      return applyFilters(
+        listingsContent.map((listing) => toListing(listing, products)),
+        filters,
+      )
+    } catch {
+      return applyFilters(mockListings, filters)
+    }
   },
 
   async getById(listingId: string) {
@@ -137,32 +156,29 @@ export const listingApi = {
       const listing = mockListings.find((item) => item.listingId === listingId)
 
       if (!listing) {
-        throw new Error('Listing not found')
+        throw new Error('Không tìm thấy tin hàng')
       }
 
       return listing
     }
 
-    const [listingResponse, products] = await Promise.all([
-      apiClient.get(`/api/v1/listings/${listingId}`),
-      productApi.getAll(),
-    ])
+    try {
+      const [listingResponse, products] = await Promise.all([
+        apiClient.get(`/api/v1/listings/${listingId}`, {
+          timeout: MARKETPLACE_TIMEOUT_MS,
+        }),
+        productApi.getAll(),
+      ])
 
-    const backendListing = listingResponse.data.data as BackendListing
-    const category = products.find((product) => product.productId === backendListing.productId)
-      ? formatProductCategory(
-          products.find((product) => product.productId === backendListing.productId)!.category,
-        )
-      : ''
+      return toListing(listingResponse.data.data as BackendListing, products)
+    } catch {
+      const listing = mockListings.find((item) => item.listingId === listingId)
 
-    return {
-      ...toListing(backendListing, category),
-      sellerName: 'Chưa có tên bên bán',
-      description: 'Thông tin mô tả chi tiết chưa được cung cấp từ backend.',
-      location: 'Chưa cập nhật',
-      qualityNotes: 'Chưa có thông số chất lượng bổ sung.',
-      imageUrl:
-        'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
+      if (!listing) {
+        throw new Error('Không tìm thấy tin hàng')
+      }
+
+      return listing
     }
   },
 
@@ -170,24 +186,27 @@ export const listingApi = {
     if (env.useMocks) {
       await wait(400)
       const product = MOCK_PRODUCTS.find((item) => item.productId === input.productId)
+      const imageUrls = product?.images?.length
+        ? product.images
+        : [getCategoryImage(product?.categoryId ?? product?.category)]
       const listing: Listing = {
         listingId: `lst-${crypto.randomUUID().slice(0, 8)}`,
         productId: input.productId,
         sellerId: 'seller-me',
-        sellerName: 'Hợp tác xã Cà phê Đắk Lắk',
+        sellerName: 'HTX Cà phê Đắk Lắk',
         productName: product?.name ?? 'Sản phẩm mới',
-        category: product ? formatProductCategory(product.category) : '',
-        description: '',
+        category: formatProductCategory(product?.categoryId ?? product?.category),
+        description: 'Nguồn hàng mới đăng, sẵn sàng thương lượng với bên mua.',
         quantity: input.quantity,
         quantityUnit: input.quantityUnit,
         priceFloor: input.priceFloor,
-        currency: 'VND',
+        currency: input.currency ?? 'VND',
         deliveryDeadline: input.deliveryDeadline,
         status: 'ACTIVE',
-        location: '',
-        qualityNotes: '',
-        imageUrl:
-          'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
+        location: 'Chưa xác nhận',
+        qualityNotes: 'Bổ sung quy cách chất lượng cụ thể trong đề nghị hợp đồng.',
+        imageUrl: imageUrls[0],
+        imageUrls,
       }
 
       mockListings = [listing, ...mockListings]
@@ -196,8 +215,8 @@ export const listingApi = {
 
     const response = await apiClient.post('/api/v1/listings', {
       ...input,
-      currency: 'VND',
+      currency: input.currency ?? 'VND',
     })
-    return response.data.data as Listing
+    return toListing(response.data.data as BackendListing, await productApi.getAll())
   },
 }

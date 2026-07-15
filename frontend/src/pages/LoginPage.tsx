@@ -5,13 +5,16 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { authApi, TOKEN_STORAGE_KEY } from '../api/authApi'
-import { AuthHeader } from '../components/layout/AuthHeader'
 import { isNotFoundError, userApi } from '../api/userApi'
+import { AuthHeader } from '../components/layout/AuthHeader'
+import { env } from '../config/env'
 import { useAuthStore } from '../stores/authStore'
+import type { UserRole } from '../types/auth'
 
 const loginSchema = z.object({
-  identifier: z.string().trim().min(1, 'Vui lòng nhập email hoặc tên đăng nhập'),
-  password: z.string().nonempty('Vui lòng điền thông tin đăng nhập'),
+  identifier: z.string().trim().min(1, 'Nhập email hoặc tên đăng nhập'),
+  password: z.string().nonempty('Nhập mật khẩu'),
+  role: z.enum(['BUYER', 'SELLER', 'ADMIN']).optional(),
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
@@ -21,6 +24,7 @@ export function LoginPage() {
   const user = useAuthStore((state) => state.user)
   const setSession = useAuthStore((state) => state.setSession)
   const setUser = useAuthStore((state) => state.setUser)
+  const loginWithMock = useAuthStore((state) => state.loginWithMock)
   const markProfileMissing = useAuthStore((state) => state.markProfileMissing)
   const {
     register,
@@ -31,13 +35,24 @@ export function LoginPage() {
     defaultValues: {
       identifier: '',
       password: '',
+      role: 'BUYER',
     },
   })
 
   const loginMutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: async (result) => {
+    onSuccess: async (result, values) => {
       window.localStorage.setItem(TOKEN_STORAGE_KEY, result.accessToken)
+
+      if (env.useMocks) {
+        loginWithMock({
+          email: values.identifier.includes('@') ? values.identifier : `${values.identifier}@example.com`,
+          role: (values.role ?? 'BUYER') as UserRole,
+        })
+        navigate('/dashboard')
+        return
+      }
+
       setSession(result.accessToken)
 
       try {
@@ -65,33 +80,30 @@ export function LoginPage() {
 
   return (
     <>
-      <AuthHeader
-        action={
-          <Link className="ghost-button" to="/login" aria-current="page">
-            Đăng nhập
-          </Link>
-        }
-      />
-      <section className="auth-page auth-page--split">
-        <aside className="auth-rail">
-          <nav className="auth-rail__nav" aria-label="Public navigation">
+      <AuthHeader />
+      <div className="shell-grid auth-shell">
+        <aside className="sidebar">
+          <div className="sidebar__group">
+          <nav className="auth-rail__nav" aria-label="Điều hướng công khai">
             <Link className="sidebar-link" to="/listings">
               <span className="material-symbols-outlined">list_alt</span>
-              Listings
+              Tin hàng
             </Link>
           </nav>
+          </div>
         </aside>
 
+        <main className="shell-content auth-main">
         <div className="auth-card">
           <div className="auth-card__hero">
             <div className="brand-brandmark">eco</div>
             <h1>AgriContract</h1>
-            <p>Nền tảng số cho nông nghiệp Việt Nam</p>
+            <p>Giao dịch nông sản có hợp đồng và ký quỹ bảo chứng.</p>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
             <label>
-              <span>Email / Tên đăng nhập</span>
+              <span>Email hoặc tên đăng nhập</span>
               <input
                 {...register('identifier')}
                 type="text"
@@ -106,6 +118,17 @@ export function LoginPage() {
               <input {...register('password')} type="password" />
               {errors.password ? <small>{errors.password.message}</small> : null}
             </label>
+
+            {env.useMocks ? (
+              <label>
+                <span>Vai trò giả lập</span>
+                <select {...register('role')}>
+                  <option value="BUYER">Bên mua</option>
+                  <option value="SELLER">Bên bán</option>
+                  <option value="ADMIN">Quản trị</option>
+                </select>
+              </label>
+            ) : null}
 
             {loginMutation.isError ? <small>Email hoặc mật khẩu không đúng.</small> : null}
 
@@ -122,19 +145,20 @@ export function LoginPage() {
           <div className="auth-trust">
             <div>
               <span className="material-symbols-outlined">verified_user</span>
-              <span>Hợp đồng thông minh</span>
+              <span>Hồ sơ xác minh</span>
             </div>
             <div>
               <span className="material-symbols-outlined">lock</span>
-              <span>Escrow an toàn</span>
+              <span>Bảo chứng ký quỹ</span>
             </div>
             <div>
               <span className="material-symbols-outlined">gavel</span>
-              <span>Trọng tài minh bạch</span>
+              <span>Quy trình tranh chấp</span>
             </div>
           </div>
         </div>
-      </section>
+        </main>
+      </div>
     </>
   )
 }
