@@ -4,7 +4,6 @@ import { MOCK_LISTINGS } from '../mocks/listings'
 import { MOCK_PRODUCTS } from '../mocks/products'
 import type { CreateListingInput, Listing, ListingFilters } from '../types/listing'
 import type { Product } from '../types/product'
-import { getLocalListingImages } from '../utils/localListingImages'
 import { formatProductCategory, GENERIC_PRODUCT_IMAGE, getCategoryImage } from '../utils/productCategory'
 import { repairMojibake } from '../utils/textEncoding'
 import { productApi } from './productApi'
@@ -31,20 +30,6 @@ type BackendListing = Pick<
 const sellerNameFallback = (sellerId: string) =>
   sellerId ? `Bên bán ${sellerId.slice(0, 8)}` : 'Bên bán đã xác minh'
 
-const withLocalImages = (listing: Listing): Listing => {
-  const localImages = getLocalListingImages(listing.listingId)
-
-  if (localImages.length === 0) {
-    return listing
-  }
-
-  return {
-    ...listing,
-    imageUrl: localImages[0],
-    imageUrls: localImages,
-  }
-}
-
 const toListing = (listing: BackendListing, products: Product[] = []): Listing => {
   const product = products.find((item) => item.productId === listing.productId)
   const productName = repairMojibake(listing.productName)
@@ -54,7 +39,7 @@ const toListing = (listing: BackendListing, products: Product[] = []): Listing =
   const backendImages = product?.images?.length ? product.images : []
   const coverImage = listing.coverImageUrl || backendImages[0] || GENERIC_PRODUCT_IMAGE
 
-  return withLocalImages({
+  return {
     ...listing,
     productName,
     category,
@@ -65,7 +50,7 @@ const toListing = (listing: BackendListing, products: Product[] = []): Listing =
     qualityNotes: 'Hai bên có thể chốt quy cách chất lượng khi thương lượng hợp đồng.',
     imageUrl: coverImage,
     imageUrls: listing.coverImageUrl ? [listing.coverImageUrl, ...backendImages.slice(1)] : backendImages,
-  })
+  }
 }
 
 const toBackendSort = (sortBy: ListingFilters['sortBy']) => {
@@ -139,7 +124,7 @@ export const listingApi = {
   async getAll(filters: ListingFilters) {
     if (env.useMocks) {
       await wait(300)
-      return applyFilters(mockListings.map(withLocalImages), filters)
+      return applyFilters(mockListings, filters)
     }
 
     try {
@@ -161,7 +146,7 @@ export const listingApi = {
         filters,
       )
     } catch {
-      return applyFilters(mockListings.map(withLocalImages), filters)
+      return applyFilters(mockListings, filters)
     }
   },
 
@@ -174,7 +159,7 @@ export const listingApi = {
         throw new Error('Không tìm thấy tin hàng')
       }
 
-      return withLocalImages(listing)
+      return listing
     }
 
     try {
@@ -193,7 +178,7 @@ export const listingApi = {
         throw new Error('Không tìm thấy tin hàng')
       }
 
-      return withLocalImages(listing)
+      return listing
     }
   },
 
@@ -225,7 +210,7 @@ export const listingApi = {
       }
 
       mockListings = [listing, ...mockListings]
-      return withLocalImages(listing)
+      return listing
     }
 
     const response = await apiClient.post('/api/v1/listings', {

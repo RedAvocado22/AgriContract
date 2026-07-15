@@ -21,6 +21,7 @@ type RangeStyle = CSSProperties & {
 
 const formatPrice = (value: number) => value.toLocaleString('vi-VN')
 const parsePrice = (value: string) => Number(value.replace(/\D/g, ''))
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 export function DualRangeSlider({
   min,
@@ -56,10 +57,21 @@ export function DualRangeSlider({
     if (event.key === 'Enter') event.currentTarget.blur()
   }
 
-  const span = Math.max(limitMax - limitMin, step)
+  const sliderLimitMin = Math.floor(limitMin / step) * step
+  const sliderLimitMax = Math.ceil(limitMax / step) * step
+  const snapToSliderStep = (value: number) =>
+    clamp(
+      Math.round((value - sliderLimitMin) / step) * step + sliderLimitMin,
+      sliderLimitMin,
+      sliderLimitMax,
+    )
+  const toFilterValue = (value: number) => clamp(value, limitMin, limitMax)
+  const sliderMinValue = snapToSliderStep(min)
+  const sliderMaxValue = snapToSliderStep(max)
+  const span = Math.max(sliderLimitMax - sliderLimitMin, step)
   const rangeStyle: RangeStyle = {
-    '--range-start': `${((min - limitMin) / span) * 100}%`,
-    '--range-end': `${((max - limitMin) / span) * 100}%`,
+    '--range-start': `${((sliderMinValue - sliderLimitMin) / span) * 100}%`,
+    '--range-end': `${((sliderMaxValue - sliderLimitMin) / span) * 100}%`,
   }
 
   return (
@@ -77,7 +89,7 @@ export function DualRangeSlider({
               onFocus={(event) => event.currentTarget.select()}
               onKeyDown={commitOnEnter}
             />
-            <span>VND</span>
+            <span>đ</span>
           </span>
         </label>
 
@@ -93,7 +105,7 @@ export function DualRangeSlider({
               onFocus={(event) => event.currentTarget.select()}
               onKeyDown={commitOnEnter}
             />
-            <span>VND</span>
+            <span>đ</span>
           </span>
         </label>
       </div>
@@ -104,28 +116,28 @@ export function DualRangeSlider({
           className="dual-range__input dual-range__input--min"
           type="range"
           aria-label="Giá tối thiểu"
-          min={limitMin}
-          max={limitMax}
+          min={sliderLimitMin}
+          max={sliderLimitMax}
           step={step}
-          value={min}
-          onChange={(event) => onChange({ min: Math.min(Number(event.target.value), max), max })}
+          value={sliderMinValue}
+          onChange={(event) =>
+            onChange({ min: Math.min(toFilterValue(Number(event.target.value)), max), max })
+          }
         />
         <input
           className="dual-range__input dual-range__input--max"
           type="range"
           aria-label="Giá tối đa"
-          min={limitMin}
-          max={limitMax}
+          min={sliderLimitMin}
+          max={sliderLimitMax}
           step={step}
-          value={max}
-          onChange={(event) => onChange({ min, max: Math.max(Number(event.target.value), min) })}
+          value={sliderMaxValue}
+          onChange={(event) =>
+            onChange({ min, max: Math.max(toFilterValue(Number(event.target.value)), min) })
+          }
         />
       </div>
 
-      <div className="range-row" aria-live="polite">
-        <span>{formatPrice(min)} VND</span>
-        <span>{formatPrice(max)} VND</span>
-      </div>
     </div>
   )
 }

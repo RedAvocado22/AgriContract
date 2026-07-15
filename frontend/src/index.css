@@ -297,6 +297,22 @@ img {
 .filter-panel {
   position: sticky;
   top: 84px;
+  max-height: calc(100vh - 108px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.filter-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.filter-panel::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--line-strong);
+  background-clip: padding-box;
 }
 
 .panel-card,
@@ -376,15 +392,6 @@ img {
   font-size: 13px;
 }
 
-.range-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
 .price-input {
   display: grid;
   gap: 6px;
@@ -394,19 +401,20 @@ img {
 
 .price-input-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .price-input input {
   width: 100%;
-  min-height: 38px;
+  min-height: 42px;
   min-width: 0;
   border: 0;
-  padding: 0 30px 0 10px;
+  padding: 0 42px 0 12px;
   background: transparent;
   color: var(--text);
   outline: none;
+  font-weight: 600;
 }
 
 .price-input__control {
@@ -420,9 +428,10 @@ img {
 .price-input__control > span {
   position: absolute;
   top: 50%;
-  right: 10px;
+  right: 12px;
   color: var(--text-soft);
   font-size: 12px;
+  font-weight: 600;
   transform: translateY(-50%);
   pointer-events: none;
 }
@@ -456,12 +465,13 @@ img {
 
 .dual-range {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .dual-range__control {
   position: relative;
-  height: 24px;
+  height: 30px;
+  margin-top: 2px;
 }
 
 .dual-range__track {
@@ -484,7 +494,7 @@ img {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 24px;
+  height: 30px;
   margin: 0;
   appearance: none;
   background: transparent;
@@ -965,6 +975,10 @@ img {
   font-weight: 400;
 }
 
+.listing-form .field-help {
+  color: var(--text-muted);
+}
+
 .auth-divider {
   width: 100%;
   display: flex;
@@ -1410,68 +1424,17 @@ img {
   font-weight: 700;
 }
 
-.image-upload-field {
+.image-url-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, 320px);
   gap: 16px;
   align-items: start;
 }
 
-.image-upload-action {
-  position: relative;
-  width: fit-content;
-}
-
-.image-upload-action[data-tooltip]::after {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  z-index: 3;
-  width: max-content;
-  max-width: min(280px, 80vw);
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: #111827;
-  color: #fff;
-  content: attr(data-tooltip);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.35;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(4px);
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-
-.image-upload-action[data-tooltip]::before {
-  position: absolute;
-  bottom: calc(100% + 3px);
-  left: 20px;
-  z-index: 3;
-  width: 10px;
-  height: 10px;
-  background: #111827;
-  content: '';
-  opacity: 0;
-  pointer-events: none;
-  transform: rotate(45deg);
-  transition: opacity 0.16s ease;
-}
-
-.image-upload-action[data-tooltip]:hover::before,
-.image-upload-action[data-tooltip]:hover::after,
-.image-upload-action[data-tooltip]:focus::before,
-.image-upload-action[data-tooltip]:focus::after,
-.image-upload-action[data-tooltip]:focus-within::before,
-.image-upload-action[data-tooltip]:focus-within::after {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.image-upload-action[data-tooltip]:hover::before,
-.image-upload-action[data-tooltip]:focus::before,
-.image-upload-action[data-tooltip]:focus-within::before {
-  transform: rotate(45deg);
+.image-url-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .image-upload-button {
@@ -1498,7 +1461,7 @@ img {
   opacity: 0.56;
 }
 
-.image-upload-field small {
+.image-url-field small {
   display: block;
   margin-top: 8px;
 }
@@ -1764,6 +1727,9 @@ img {
 
   .filter-panel {
     position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .detail-price-strip,
@@ -1773,7 +1739,7 @@ img {
     grid-template-columns: 1fr;
   }
 
-  .image-upload-field {
+  .image-url-field {
     grid-template-columns: 1fr;
   }
 
@@ -1806,6 +1772,10 @@ img {
   .auth-trust,
   .detail-price-strip,
   .offer-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .image-url-controls {
     grid-template-columns: 1fr;
   }
 

@@ -1,7 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { ChangeEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
@@ -11,10 +10,9 @@ import { productApi } from '../api/productApi'
 import { env } from '../config/env'
 import type { CreateListingInput } from '../types/listing'
 import type { CreateProductInput } from '../types/product'
-import { saveLocalListingImages } from '../utils/localListingImages'
 import { PRODUCT_CATEGORIES } from '../utils/productCategory'
 
-const MAX_IMAGE_FILES = 5
+const MAX_IMAGE_URLS = 5
 const LISTING_CURRENCY = 'VND'
 
 const getTodayInputDate = () => {
@@ -37,6 +35,15 @@ const sanitizeIntegerInput = (input: HTMLInputElement) => {
   input.value = input.value.split(/[.,]/)[0].replace(/[^\d]/g, '')
 }
 
+const isValidImageUrl = (value: string) => {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 const translateCreateListingMessage = (message: string | undefined) => {
   if (!message) {
     return undefined
@@ -57,13 +64,11 @@ const translateCreateListingMessage = (message: string | undefined) => {
     return 'Số lượng phải là số nguyên.'
   }
 
-  return message
-}
+  if (message.includes('Invalid image URL')) {
+    return 'Đường dẫn ảnh không hợp lệ. Vui lòng dùng đường dẫn bắt đầu bằng http hoặc https.'
+  }
 
-interface SelectedImage {
-  id: string
-  file: File
-  previewUrl: string
+  return message
 }
 
 const getCreateListingError = (error: unknown) => {
@@ -113,7 +118,10 @@ const createListingSchema = z.object({
   deliveryDeadline: z
     .string()
     .min(1, 'Chọn hạn giao hàng')
-    .refine((value) => value >= getTodayInputDate(), 'Hạn giao hàng phải là hôm nay hoặc một ngày trong tương lai'),
+    .refine(
+      (value) => value >= getTodayInputDate(),
+      'Hạn giao hàng phải là hôm nay hoặc một ngày trong tương lai',
+    ),
 })
 
 type CreateListingFormInput = z.input<typeof createListingSchema>
@@ -122,9 +130,9 @@ type CreateListingFormValues = z.output<typeof createListingSchema>
 export function CreateListingPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([])
-  const selectedImagesRef = useRef<SelectedImage[]>([])
+  const [imageUrlInput, setImageUrlInput] = useState('')
+  const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [imageUrlError, setImageUrlError] = useState('')
   const {
     register,
     handleSubmit,
@@ -142,21 +150,9 @@ export function CreateListingPage() {
     },
   })
 
-  useEffect(() => {
-    selectedImagesRef.current = selectedImages
-  }, [selectedImages])
-
-  useEffect(
-    () => () => {
-      selectedImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl))
-    },
-    [],
-  )
-
   const unit = watch('unit')
   const todayInputDate = getTodayInputDate()
-  const remainingImageSlots = MAX_IMAGE_FILES - selectedImages.length
-  const imageLimitReached = remainingImageSlots === 0
+  const imageLimitReached = imageUrls.length >= MAX_IMAGE_URLS
 
   const createProductMutation = useMutation({
     mutationFn: (input: CreateProductInput) => productApi.create(input),
@@ -165,49 +161,87 @@ export function CreateListingPage() {
   const createListingMutation = useMutation({
     mutationFn: (input: CreateListingInput) => listingApi.create(input),
     onSuccess: async (listing) => {
-      await saveLocalListingImages(
-        listing.listingId,
-        selectedImages.map((image) => image.file),
-      )
       await queryClient.invalidateQueries({ queryKey: ['listings'] })
       await queryClient.invalidateQueries({ queryKey: ['products'] })
       navigate(`/listings/${listing.listingId}`)
     },
   })
 
-  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? [])
-      .filter((file) => file.type.startsWith('image/'))
-      .slice(0, remainingImageSlots)
-      .map((file) => ({
-        id: `${file.name}-${file.size}-${crypto.randomUUID()}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-      }))
+  const addImageUrl = () => {
+    const nextUrl = imageUrlInput.trim()
 
-    if (files.length > 0) {
-      setSelectedImages((current) => [...current, ...files].slice(0, MAX_IMAGE_FILES))
+    if (imageLimitReached) {
+      setImageUrlError('Đã đủ 5 ảnh. Xóa bớt ảnh để thêm ảnh mới.')
+      return
     }
 
-    event.target.value = ''
+    if (!nextUrl) {
+      setImageUrlError('Dán đường dẫn ảnh trước khi thêm.')
+      return
+    }
+
+    if (!isValidImageUrl(nextUrl)) {
+      setImageUrlError('Đường dẫn ảnh phải bắt đầu bằng http hoặc https.')
+      return
+    }
+
+    if (imageUrls.includes(nextUrl)) {
+      setImageUrlError('Ảnh này đã được thêm.')
+      return
+    }
+
+    setImageUrls((current) => [...current, nextUrl])
+    setImageUrlInput('')
+    setImageUrlError('')
   }
 
-  const removeImage = (imageId: string) => {
-    setSelectedImages((current) => {
-      const image = current.find((item) => item.id === imageId)
-      if (image) {
-        URL.revokeObjectURL(image.previewUrl)
-      }
+  const removeImageUrl = (url: string) => {
+    setImageUrls((current) => current.filter((item) => item !== url))
+    setImageUrlError('')
+  }
 
-      return current.filter((item) => item.id !== imageId)
-    })
+  const getProductImageUrlsForSubmit = () => {
+    const pendingUrl = imageUrlInput.trim()
+
+    if (!pendingUrl) {
+      return imageUrls
+    }
+
+    if (imageLimitReached) {
+      setImageUrlError('Đã đủ 5 ảnh. Xóa bớt ảnh để thêm ảnh mới.')
+      return null
+    }
+
+    if (!isValidImageUrl(pendingUrl)) {
+      setImageUrlError('Đường dẫn ảnh phải bắt đầu bằng http hoặc https.')
+      return null
+    }
+
+    if (imageUrls.includes(pendingUrl)) {
+      setImageUrlInput('')
+      setImageUrlError('')
+      return imageUrls
+    }
+
+    const nextImageUrls = [...imageUrls, pendingUrl]
+    setImageUrls(nextImageUrls)
+    setImageUrlInput('')
+    setImageUrlError('')
+    return nextImageUrls
   }
 
   const onSubmit = async (values: CreateListingFormValues) => {
+    const productImageUrls = getProductImageUrlsForSubmit()
+
+    if (!productImageUrls) {
+      return
+    }
+
     const product = await createProductMutation.mutateAsync({
       name: values.productName,
       category: values.category,
       unit: values.unit,
+      imageUrls: productImageUrls.length > 0 ? productImageUrls : undefined,
     })
 
     await createListingMutation.mutateAsync({
@@ -272,12 +306,7 @@ export function CreateListingPage() {
 
           <label>
             <span>Giá sàn ({LISTING_CURRENCY}/{unit || 'đơn vị'})</span>
-            <input
-              {...register('priceFloor')}
-              type="number"
-              min="1"
-              step="1"
-            />
+            <input {...register('priceFloor')} type="number" min="1" step="1" />
             {errors.priceFloor ? <small>{errors.priceFloor.message}</small> : null}
           </label>
 
@@ -292,44 +321,52 @@ export function CreateListingPage() {
             {errors.deliveryDeadline ? <small>{errors.deliveryDeadline.message}</small> : null}
           </label>
 
-          <div className="form-grid__full image-upload-field">
+          <div className="form-grid__full image-url-field">
             <div>
               <span className="field-label">Ảnh sản phẩm</span>
-              <input
-                ref={fileInputRef}
-                accept="image/*"
-                className="visually-hidden"
-                multiple
-                type="file"
-                onChange={handleImageChange}
-              />
-              <div
-                className="image-upload-action"
-                data-tooltip={imageLimitReached ? 'Đã đủ 5 ảnh. Xóa bớt ảnh để thêm ảnh mới.' : undefined}
-                tabIndex={imageLimitReached ? 0 : undefined}
-              >
+              <div className="image-url-controls">
+                <input
+                  type="url"
+                  value={imageUrlInput}
+                  placeholder="Dán đường dẫn ảnh từ internet"
+                  disabled={imageLimitReached}
+                  onChange={(event) => {
+                    setImageUrlInput(event.target.value)
+                    setImageUrlError('')
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      addImageUrl()
+                    }
+                  }}
+                />
                 <button
                   className="image-upload-button"
                   type="button"
                   disabled={imageLimitReached}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={addImageUrl}
                 >
                   <span className="material-symbols-outlined">add_photo_alternate</span>
-                  {selectedImages.length > 0 ? 'Thêm ảnh' : 'Chọn ảnh từ máy/điện thoại'}
+                  Thêm ảnh
                 </button>
               </div>
-              <small>Tối đa 5 ảnh.</small>
+              <small className="field-help">
+                Tối đa 5 ảnh. Dùng đường dẫn bắt đầu bằng http hoặc https. Nếu bỏ trống,
+                tin hàng sẽ hiển thị ảnh giữ chỗ “Chưa có ảnh sản phẩm”.
+              </small>
+              {imageUrlError ? <small>{imageUrlError}</small> : null}
             </div>
 
-            {selectedImages.length > 0 ? (
+            {imageUrls.length > 0 ? (
               <div className="image-upload-preview" aria-label="Ảnh sản phẩm đã chọn">
-                {selectedImages.map((image, index) => (
-                  <div className="image-upload-preview__item" key={image.id}>
-                    <img src={image.previewUrl} alt={`Ảnh sản phẩm ${index + 1}`} />
+                {imageUrls.map((imageUrl, index) => (
+                  <div className="image-upload-preview__item" key={imageUrl}>
+                    <img src={imageUrl} alt={`Ảnh sản phẩm ${index + 1}`} />
                     <button
                       aria-label={`Xóa ảnh ${index + 1}`}
                       type="button"
-                      onClick={() => removeImage(image.id)}
+                      onClick={() => removeImageUrl(imageUrl)}
                     >
                       <span className="material-symbols-outlined">close</span>
                     </button>

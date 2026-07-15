@@ -1,5 +1,4 @@
 import type { ListingFilters } from '../../types/listing'
-import { formatMoney } from '../../utils/formatters'
 import { DualRangeSlider } from './DualRangeSlider'
 
 interface FilterSidebarProps {
@@ -92,10 +91,6 @@ export function FilterSidebar({ filters, onChange, categories, priceBounds }: Fi
           ) : (
             <p className="filter-empty-hint">Cần ít nhất hai tin để lọc theo khoảng giá.</p>
           )}
-          <div className="range-row">
-            <span>{formatMoney(effectiveMin || 0)}</span>
-            <span>{formatMoney(effectiveMax || 0)}</span>
-          </div>
         </div>
 
         <div className="filter-group">

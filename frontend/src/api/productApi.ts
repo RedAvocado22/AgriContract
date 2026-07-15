@@ -2,7 +2,11 @@ import apiClient from './client'
 import { env } from '../config/env'
 import { MOCK_PRODUCTS } from '../mocks/products'
 import type { CreateProductInput, Product } from '../types/product'
-import { GENERIC_PRODUCT_IMAGE, normalizeProductCategory } from '../utils/productCategory'
+import {
+  GENERIC_PRODUCT_IMAGE,
+  getGenericProductImageUrlForApi,
+  normalizeProductCategory,
+} from '../utils/productCategory'
 import { repairMojibake } from '../utils/textEncoding'
 
 type BackendProduct = Product
@@ -60,7 +64,7 @@ export const productApi = {
       name: input.name,
       unit: input.unit,
       categoryId,
-      imageUrls: input.imageUrls ?? [GENERIC_PRODUCT_IMAGE],
+      imageUrls: input.imageUrls ?? [getGenericProductImageUrlForApi()],
     })
     return toProduct(response.data.data as BackendProduct)
   },

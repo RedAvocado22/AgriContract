@@ -10,7 +10,15 @@ export const PRODUCT_CATEGORIES = [
 ] as const
 
 export const GENERIC_PRODUCT_IMAGE =
-  'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80'
+  '/no-product-image.svg'
+
+export const getGenericProductImageUrlForApi = () => {
+  if (typeof window === 'undefined') {
+    return GENERIC_PRODUCT_IMAGE
+  }
+
+  return new URL(GENERIC_PRODUCT_IMAGE, window.location.origin).href
+}
 
 const CATEGORY_LABELS = PRODUCT_CATEGORIES.reduce<Record<string, string>>((acc, category) => {
   acc[category.value] = category.label
