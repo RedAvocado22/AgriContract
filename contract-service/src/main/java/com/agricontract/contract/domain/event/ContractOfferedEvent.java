@@ -8,6 +8,7 @@ public class ContractOfferedEvent extends DomainEvent {
     private String buyerId;
     private String sellerId;
     private String listingId;
+    private int termsRevision;
     private ContractTerms terms;
 
     public ContractOfferedEvent(String contractId, String buyerEmail, String sellerEmail,
@@ -16,6 +17,7 @@ public class ContractOfferedEvent extends DomainEvent {
         this.buyerId = buyerId;
         this.sellerId = sellerId;
         this.listingId = listingId;
+        this.termsRevision = 1;
         this.terms = terms;
     }
 

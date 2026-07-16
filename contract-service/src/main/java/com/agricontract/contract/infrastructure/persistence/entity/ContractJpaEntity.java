@@ -91,6 +91,9 @@ public class ContractJpaEntity {
     @Column(columnDefinition = "TEXT")
     private String signatories;
 
+    @Column(name = "terms_revision", nullable = false)
+    private Integer termsRevision;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

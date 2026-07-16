@@ -24,9 +24,8 @@ public class UserContextInjectionFilter implements GlobalFilter {
     @Value("${gateway.internal-secret}")
     private String internalSecret;
 
-    List<String> PUBLIC_PATHS = List.of(
-            "/api/v1/listings",
-            "/api/v1/products");
+    private static final String LISTINGS_PATH = "/api/v1/listings";
+    private static final String PRODUCTS_PATH = "/api/v1/products";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -37,7 +36,7 @@ public class UserContextInjectionFilter implements GlobalFilter {
             return chain.filter(exchange);
         }
 
-        boolean isPublic = HttpMethod.GET.equals(method) && PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        boolean isPublic = HttpMethod.GET.equals(method) && isPublicMarketplaceRead(path);
 
         if (isPublic) {
             return chain.filter(exchange);
@@ -79,6 +78,25 @@ public class UserContextInjectionFilter implements GlobalFilter {
                             exchange.getRequest(), id, email, roles, internalSecret);
                     return chain.filter(exchange.mutate().request(decorated).build());
                 });
+    }
+
+    private boolean isPublicMarketplaceRead(String path) {
+        return isPublicCollectionOrItem(path, LISTINGS_PATH, "seller")
+                || isPublicCollectionOrItem(path, PRODUCTS_PATH, null);
+    }
+
+    private boolean isPublicCollectionOrItem(String path, String collectionPath, String protectedItem) {
+        if (path.equals(collectionPath)) {
+            return true;
+        }
+        if (!path.startsWith(collectionPath + "/")) {
+            return false;
+        }
+
+        String item = path.substring(collectionPath.length() + 1);
+        return !item.isBlank()
+                && !item.contains("/")
+                && (protectedItem == null || !protectedItem.equals(item));
     }
 
     /**

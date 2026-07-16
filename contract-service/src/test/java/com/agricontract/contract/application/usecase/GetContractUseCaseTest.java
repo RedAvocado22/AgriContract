@@ -63,6 +63,8 @@ class GetContractUseCaseTest {
 
         assertThat(response.contractId()).isEqualTo("contract-1");
         assertThat(response.buyerId()).isEqualTo("buyer-1");
+        assertThat(response.termsRevision()).isEqualTo(1);
+        assertThat(response.signatories()).isEmpty();
     }
 
     @Test

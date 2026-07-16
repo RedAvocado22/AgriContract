@@ -91,6 +91,22 @@ class ContractTest {
     }
 
     @Test
+    void counterOffer_afterPartialSignature_incrementsRevisionAndClearsSignatures() {
+        Contract contract = offered();
+        contract.sign(BUYER_ID);
+
+        contract.counterOffer(SELLER_ID, newTerms());
+
+        assertThat(contract.getTermsRevision()).isEqualTo(2);
+        assertThat(contract.getSignatories()).isEmpty();
+
+        contract.sign(SELLER_ID);
+
+        assertThat(contract.getStatus()).isEqualTo(ContractStatus.NEGOTIATING);
+        assertThat(contract.getSignatories()).containsExactly(SELLER_ID);
+    }
+
+    @Test
     void counterOffer_invalidStatus_throws() {
         Contract contract = signedContract();
 
@@ -119,6 +135,7 @@ class ContractTest {
         List<DomainEvent> events = contract.pullDomainEvents();
         assertThat(events).hasSize(1);
         assertThat(events.get(0)).isInstanceOf(ContractPartiallySignedEvent.class);
+        assertThat(contract.getTermsRevision()).isEqualTo(1);
     }
 
     @Test
@@ -324,6 +341,28 @@ class ContractTest {
 
         assertThatThrownBy(() -> contract.dispute(SELLER_ID, "reason"))
                 .isInstanceOf(UnauthorizedContractAccessException.class);
+    }
+
+    @Test
+    void resolveDispute_fromDisputed_transitionsToSettledAndEmitsEvent() {
+        Contract contract = deliveredContract();
+        contract.dispute(BUYER_ID, "Goods damaged");
+        contract.pullDomainEvents();
+
+        contract.resolveDispute();
+
+        assertThat(contract.getStatus()).isEqualTo(ContractStatus.SETTLED);
+        assertThat(contract.pullDomainEvents())
+                .singleElement()
+                .isInstanceOf(ContractSettledEvent.class);
+    }
+
+    @Test
+    void resolveDispute_fromDelivered_throws() {
+        Contract contract = deliveredContract();
+
+        assertThatThrownBy(contract::resolveDispute)
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ─── pullDomainEvents ─────────────────────────────────────────────────────

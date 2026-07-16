@@ -1,12 +1,16 @@
 package com.agricontract.contract.infrastructure.persistence.repository;
 
 import com.agricontract.contract.domain.event.DomainEvent;
+import com.agricontract.contract.domain.event.ContractNegotiatingEvent;
+import com.agricontract.contract.domain.event.ContractOfferedEvent;
 import com.agricontract.contract.domain.model.Contract;
+import com.agricontract.contract.domain.model.vo.ContractTerms;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.repository.ContractRepository;
 import com.agricontract.contract.infrastructure.persistence.entity.ContractDomainEventJpaEntity;
 import com.agricontract.contract.infrastructure.persistence.entity.ContractJpaEntity;
+import com.agricontract.contract.infrastructure.persistence.entity.ContractNegotiationJpaEntity;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +29,7 @@ public class ContractRepositoryImpl implements ContractRepository {
 
     private final ContractJpaRepository jpaRepo;
     private final ContractDomainEventJpaRepository eventRepo;
+    private final ContractNegotiationJpaRepository negotiationRepo;
     private final ContractMapper mapper;
     private final ObjectMapper objectMapper;
 
@@ -37,12 +42,13 @@ public class ContractRepositoryImpl implements ContractRepository {
                    entity.setId(existing.getId());
                    entity.setVersion(existing.getVersion());
                });
-        jpaRepo.save(entity);
+        jpaRepo.saveAndFlush(entity);
 
         List<DomainEvent> events = contract.pullDomainEvents();
-        events.stream()
-              .map(this::toOutboxEntity)
-              .forEach(eventRepo::save);
+        for (DomainEvent event : events) {
+            appendNegotiationRevision(event);
+            eventRepo.save(toOutboxEntity(event));
+        }
 
         return contract;
     }
@@ -125,5 +131,36 @@ public class ContractRepositoryImpl implements ContractRepository {
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("Failed to serialize domain event: " + event.getEventType(), ex);
         }
+    }
+
+    private void appendNegotiationRevision(DomainEvent event) {
+        if (event instanceof ContractOfferedEvent offered) {
+            negotiationRepo.save(toNegotiationEntity(
+                    offered.getContractId(), offered.getTermsRevision(), offered.getBuyerId(),
+                    offered.getOccurredAt(), offered.getTerms()));
+        } else if (event instanceof ContractNegotiatingEvent negotiating) {
+            negotiationRepo.save(toNegotiationEntity(
+                    negotiating.getContractId(), negotiating.getTermsRevision(), negotiating.getProposedBy(),
+                    negotiating.getOccurredAt(), negotiating.getProposedTerms()));
+        }
+    }
+
+    private ContractNegotiationJpaEntity toNegotiationEntity(
+            String contractId, int termsRevision, String proposedBy,
+            java.time.Instant proposedAt, ContractTerms terms) {
+        return ContractNegotiationJpaEntity.builder()
+                .contractId(contractId)
+                .termsRevision(termsRevision)
+                .proposedBy(proposedBy)
+                .proposedAt(proposedAt)
+                .quantity(terms.quantity().value())
+                .quantityUnit(terms.quantity().unit())
+                .agreedPrice(terms.agreedPrice().amount())
+                .currency(terms.agreedPrice().currency())
+                .deliveryDeadline(terms.deliveryDeadline())
+                .buyerPenaltyRate(terms.buyerPenaltyRate())
+                .sellerDepositRate(terms.sellerDepositRate())
+                .qualitySpec(terms.qualitySpec())
+                .build();
     }
 }

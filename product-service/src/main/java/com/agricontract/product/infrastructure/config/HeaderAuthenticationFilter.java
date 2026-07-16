@@ -39,7 +39,22 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-        return path.startsWith("/api/v1/listings") || path.startsWith("/api/v1/products");
+        return isPublicCollectionOrItem(path, "/api/v1/listings", "seller")
+                || isPublicCollectionOrItem(path, "/api/v1/products", null);
+    }
+
+    private boolean isPublicCollectionOrItem(String path, String collectionPath, String protectedItem) {
+        if (path.equals(collectionPath)) {
+            return true;
+        }
+        if (!path.startsWith(collectionPath + "/")) {
+            return false;
+        }
+
+        String item = path.substring(collectionPath.length() + 1);
+        return !item.isBlank()
+                && !item.contains("/")
+                && (protectedItem == null || !protectedItem.equals(item));
     }
 
     @Override

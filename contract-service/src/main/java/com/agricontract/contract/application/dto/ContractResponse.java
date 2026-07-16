@@ -3,6 +3,8 @@ package com.agricontract.contract.application.dto;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
 
+import java.util.Set;
+
 public record ContractResponse(
         String contractId,
         String listingId,
@@ -16,7 +18,9 @@ public record ContractResponse(
         ContractTerms terms,
         String status,
         String cancelReason,
-        String cancelledBy
+        String cancelledBy,
+        int termsRevision,
+        Set<String> signatories
 ) {
     public static ContractResponse from(Contract contract) {
         return new ContractResponse(
@@ -32,7 +36,9 @@ public record ContractResponse(
                 contract.getTerms(),
                 contract.getStatus().name(),
                 contract.getCancelReason(),
-                contract.getCancelledBy() != null ? contract.getCancelledBy().name() : null
+                contract.getCancelledBy() != null ? contract.getCancelledBy().name() : null,
+                contract.getTermsRevision(),
+                contract.getSignatories()
         );
     }
 }

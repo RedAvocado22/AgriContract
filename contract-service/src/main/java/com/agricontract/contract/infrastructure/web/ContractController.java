@@ -26,6 +26,7 @@ public class ContractController {
     private final ConfirmDeliveryUseCase confirmDeliveryUseCase;
     private final DisputeContractUseCase disputeContractUseCase;
     private final GetContractUseCase getContractUseCase;
+    private final GetNegotiationHistoryUseCase getNegotiationHistoryUseCase;
     private final ListContractsUseCase listContractsUseCase;
 
     @PostMapping
@@ -99,6 +100,17 @@ public class ContractController {
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch("ROLE_ADMIN"::equals);
         ContractResponse response = getContractUseCase.execute(contractId, auth.getName(), isAdmin);
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @GetMapping("/{contractId}/negotiations")
+    public ResponseEntity<ApiResponse<java.util.List<NegotiationHistoryResponse>>> getNegotiationHistory(
+            @PathVariable String contractId,
+            Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_ADMIN"::equals);
+        var response = getNegotiationHistoryUseCase.execute(contractId, auth.getName(), isAdmin);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
