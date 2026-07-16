@@ -14,6 +14,10 @@ auth:bearer {
   token: {{buyer_token}}
 }
 
+script:pre-request {
+  await new Promise((resolve) => setTimeout(resolve, 32000));
+}
+
 tests {
   test("should return 200", function() {
     expect(res.getStatus()).to.equal(200);

@@ -41,3 +41,12 @@ test('public marketplace and buyer Keycloak login work against the real stack', 
   await expect(page.getByRole('link', { name: 'Hợp đồng' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Ký quỹ' })).toBeVisible()
 })
+
+test('seller can load the authenticated seller-listings route', async ({ page }) => {
+  await login(page, 'seller1', 'Seller E2E')
+
+  await page.goto('/listings/mine')
+
+  await expect(page.getByRole('heading', { name: 'Tin hàng của tôi' })).toBeVisible()
+  await expect(page.locator('.listing-card').first()).toBeVisible({ timeout: 15_000 })
+})
