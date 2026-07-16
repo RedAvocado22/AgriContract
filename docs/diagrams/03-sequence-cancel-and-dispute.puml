@@ -1,90 +1,82 @@
-@startuml Cancel Flow & Dispute Flow
+@startuml Phase 1 Cancel and Dispute
 !theme plain
 skinparam backgroundColor #FAFAFA
 skinparam defaultFontName Arial
 
-title Cancel Flow & Dispute Flow\n(chỉ áp dụng từ ACTIVE trở đi — escrow đã LOCKED)
+title Phase 1 Cancel, Dispute & Arbitration
 
 actor Seller
 actor Buyer
 actor Admin
 participant "API Gateway" as GW
 participant "contract-service" as CS
-database "contract_db" as CDB
-participant "Outbox Poller" as OP
+database "contract_db + outbox" as CDB
 queue "RabbitMQ" as MQ
 participant "escrow-service" as ES
+database "escrow_db + ledger + outbox" as EDB
 participant "notification-service" as NS
 
+== Case A: Buyer cancels while ACTIVE ==
+Buyer -> GW : PUT /api/v1/contracts/{id}/cancel\n{reason}
+GW -> CS : buyer principal
+CS -> CS : ACTIVE → CANCELLED\ncancelledBy = BUYER
+CS -> CDB : save + contract.cancelled outbox
+CDB -> MQ : publish contract.cancelled
+MQ -> ES : cancelledBy=BUYER + buyerPenaltyRate
+ES -> ES : FULLY_LOCKED → PENALIZED_BUYER
+ES -> EDB : PENALIZE_BUYER\nREFUND_TO_BUYER\nREFUND_TO_SELLER
+ES -> EDB : save escrow.penalized/refunded outbox
+EDB -> MQ : publish events
+MQ -> NS : escrow.penalized
+NS -> NS : email penalized Buyer
+
+== Case B: Seller cancels while ACTIVE ==
+Seller -> GW : PUT /api/v1/contracts/{id}/cancel\n{reason}
+GW -> CS : seller principal
+CS -> CS : ACTIVE → CANCELLED\ncancelledBy = SELLER
+CS -> CDB : save + contract.cancelled outbox
+CDB -> MQ : publish contract.cancelled
+MQ -> ES : cancelledBy=SELLER
+ES -> ES : FULLY_LOCKED → PENALIZED_SELLER
+ES -> EDB : PENALIZE_SELLER deposit to Buyer\nREFUND_TO_BUYER full payment
+ES -> EDB : save escrow.penalized/refunded outbox
+EDB -> MQ : publish events
+MQ -> NS : escrow.penalized
+NS -> NS : email penalized Seller
+
+== Case C: Buyer disputes during delivery window ==
 note over Buyer, ES
-  Pre-condition cho tất cả flows dưới:
-  Contract đang ACTIVE — Escrow đang LOCKED
-  (Cancel trước SIGNED không cần business logic — bỏ qua offer là đủ)
+  Precondition:
+  Contract DELIVERED
+  Escrow DELIVERY_PENDING
+  releaseEligibleAt has not been processed
 end note
 
-== CASE A: Buyer cancel sau ACTIVE ==
-
-Buyer -> GW : PUT /api/contracts/{id}/cancel\n{reason: "..."}
-GW -> CS : forward (X-User-Id: buyerId)
-CS -> CS : Contract.cancel(buyerId)\ncancelledBy = BUYER → CANCELLED
-CS -> CDB : save + ContractCancelledEvent\n{cancelledBy: "BUYER"} (PENDING)
-CS --> Buyer : 200 OK
-
-OP -> MQ : publish contract.cancelled {cancelledBy: BUYER}
-
-MQ -> ES : contract.cancelled
-ES -> ES : cancelledBy == BUYER\n→ PENALIZED_BUYER\npenaltyAmount → seller\nphần còn lại refund → buyer
-ES -> MQ : publish escrow.penalized {penalizedParty: BUYER}
-
-MQ -> NS : escrow.penalized
-NS -> NS : notify both parties
-note right of NS : Buyer: "Bạn đã bị phạt {amount}\ndo hủy hợp đồng"
-
-== CASE B: Seller cancel sau ACTIVE ==
-
-Seller -> GW : PUT /api/contracts/{id}/cancel\n{reason: "..."}
-GW -> CS : forward (X-User-Id: sellerId)
-CS -> CS : Contract.cancel(sellerId)\ncancelledBy = SELLER → CANCELLED
-CS -> CDB : save + ContractCancelledEvent\n{cancelledBy: "SELLER"} (PENDING)
-CS --> Seller : 200 OK
-
-OP -> MQ : publish contract.cancelled {cancelledBy: SELLER}
-
-MQ -> ES : contract.cancelled
-ES -> ES : cancelledBy == SELLER\n→ PENALIZED_SELLER\nFull refund → buyer\nMark seller penalty (Phase 1: log only)
-ES -> MQ : publish escrow.penalized {penalizedParty: SELLER}
-
-MQ -> NS : escrow.penalized
-NS -> NS : notify both parties
-note right of NS : Seller: "Bạn bị phạt do hủy hợp đồng\nBuyer được hoàn tiền đầy đủ"
-
-== CASE C: Buyer dispute sau DELIVERED ==
-
-note over Buyer, ES
-  Pre-condition: Contract đang DELIVERED
-  Buyer không hài lòng với chất lượng hàng
-end note
-
-Buyer -> GW : PUT /api/contracts/{id}/dispute\n{reason: "Hang khong dung chat luong"}
-GW -> CS : forward (X-User-Id: buyerId)
-CS -> CS : Contract.dispute(buyerId)\nDELIVERED → DISPUTED
-CS -> CDB : save + ContractDisputedEvent (PENDING)
-CS --> Buyer : 200 OK
-
-OP -> MQ : publish contract.disputed
-
+Buyer -> GW : PUT /api/v1/contracts/{id}/dispute\n{reason}
+GW -> CS : buyer principal
+CS -> CS : DELIVERED → DISPUTED
+CS -> CDB : save + contract.disputed outbox
+CDB -> MQ : publish contract.disputed
+MQ -> ES : contract.disputed
+ES -> ES : DELIVERY_PENDING → DISPUTED\nclear releaseEligibleAt
+ES -> EDB : save held state [optimistic version]
 MQ -> NS : contract.disputed
-NS -> NS : notify admin + both parties
-note right of NS : "[ADMIN] Tranh chap moi\nContractId: {id}\nCan xu ly"
+NS -> NS : email Admin + Buyer + Seller
 
-== Admin phân xử ==
+... release scheduler polls ...
+ES -> EDB : DISPUTED is not release eligible
 
-Admin -> GW : PUT /api/escrow/{contractId}/arbitrate\n{buyerAmount: X, sellerAmount: Y}
-GW -> ES : forward (X-User-Id: adminId)
-ES -> ES : validate buyerAmount + sellerAmount == totalAmount
-ES -> ES : ARBITRATED — phan chia theo admin decision
-ES -> MQ : publish escrow.penalized\n{penalizedParty: loser, amount: penalty}
-
-MQ -> NS : notify both parties ve ket qua phan xu
+== Admin arbitration ==
+Admin -> GW : PUT /api/v1/escrows/{contractId}/arbitrate\n{buyerAmount, sellerAmount, justification}
+GW -> ES : ADMIN principal
+ES -> ES : require DISPUTED\nrequire buyer + seller = payment + deposit\nrequire non-blank justification
+ES -> ES : DISPUTED → ARBITRATED
+ES -> EDB : append ARBITRATION_BUYER\n+ ARBITRATION_SELLER\n+ escrow.arbitrated outbox
+EDB -> MQ : publish escrow.arbitrated
+MQ -> CS : escrow.arbitrated
+CS -> CS : DISPUTED → SETTLED
+CS -> CDB : save + contract.settled outbox
+MQ -> NS : escrow.arbitrated
+NS -> NS : email Buyer + Seller\nwith justification
 
 @enduml

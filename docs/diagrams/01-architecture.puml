@@ -1,77 +1,82 @@
-@startuml AgriContract - System Architecture
+@startuml AgriContract - Phase 1 Architecture
 !theme plain
 skinparam backgroundColor #FAFAFA
 skinparam componentStyle rectangle
 skinparam defaultFontName Arial
 
-title AgriContract — System Architecture (Phase 1 MVP)
+title AgriContract — System Architecture (Phase 1, main baseline 17/07/2026)
 
-actor "Seller (HTX)" as Seller
-actor "Buyer (Doanh nghiệp)" as Buyer
+actor "Seller / Buyer / Admin" as User
 
-rectangle "AgriContract Platform" {
-    rectangle "Frontend\n[React + Vite + TypeScript]" as FE
-
-    rectangle "API Gateway\n[Spring Cloud Gateway :8080]\n• JWT validate via Keycloak JWKS\n• Inject X-User-Id header\n• Route to services" as GW
-
-    database "Keycloak\n[:8180]\nRealm: agricontract\nRoles: SELLER / BUYER / ADMIN" as KC
-
-    rectangle "RabbitMQ\n[:5672]\nTopic Exchange: agricontract.contracts\nTopic Exchange: agricontract.escrow\nRouting: <domain>.<entity>.<event>" as MQ
-
-    rectangle "user-service\n[:8081]" as US
-    rectangle "product-service\n[:8082]" as PS
-    rectangle "contract-service\n[:8083]\n⭐ Outbox Pattern" as CS
-    rectangle "escrow-service\n[:8084]\n⭐ Idempotency" as ES
-    rectangle "notification-service\n[:8085]\n⭐ Retry 3x" as NS
-
-    database "user_db\n[MySQL]" as UDB
-    database "product_db\n[MySQL]" as PDB
-    database "contract_db\n[MySQL]\n+ contract_domain_events\n(outbox table)" as CDB
-    database "escrow_db\n[MySQL]" as ESDB
-    database "notification_db\n[MySQL]" as NDB
-
-    rectangle "MailHog\n[:8025]\nSMTP Mock" as MAIL
+rectangle "Browser" {
+    rectangle "React SPA :5173\nKeycloak JS + PKCE\nReact Query + Zustand" as FE
 }
 
-Seller --> FE
-Buyer --> FE
-FE --> GW : HTTPS + JWT
-GW --> KC : validate JWKS
-GW --> US : REST
-GW --> PS : REST
-GW --> CS : REST
-GW --> ES : REST
+rectangle "Phase 1 Platform" {
+    rectangle "API Gateway\ncontainer :8888 / host :8080\n• validate JWT when required\n• inject trusted user headers\n• route /api/v1/**" as GW
+    database "Keycloak :8180\nRealm: agricontract\nBUYER / SELLER / ADMIN" as KC
 
-CS --> PS : PUT /listings/{id}/close\n[OpenFeign — SYNC]\nclose listing khi SIGNED
+    rectangle "user-service :8081" as US
+    rectangle "product-service :8082\nCategory · Product · Listing\nTransactional Outbox" as PS
+    rectangle "contract-service :8083\nState Machine · Revisions\nTransactional Outbox" as CS
+    rectangle "escrow-service :8084\nMock Ledger · Delayed Release\nTransactional Outbox" as ES
+    rectangle "notification-service :8085\nIdempotent Email" as NS
 
-CS --> MQ : publish domain events\n(via Outbox Poller)
-MQ --> ES : contract.signed\ncontract.delivered\ncontract.cancelled\ncontract.disputed
-MQ --> CS : escrow.locked\nescrow.released
-MQ --> NS : all events
+    queue "RabbitMQ :5672\nagricontract.events\nagricontract.contracts\nagricontract.escrow" as MQ
 
-ES --> ESDB
-CS --> CDB
+    database "user_db" as UDB
+    database "product_db\n+ product_domain_events" as PDB
+    database "contract_db\n+ contract_negotiations\n+ contract_domain_events" as CDB
+    database "escrow_db\n+ escrow_transactions\n+ escrow_domain_events" as EDB
+    database "notification_db" as NDB
+
+    rectangle "MailHog\nSMTP :1025 · UI :8025" as MAIL
+}
+
+User --> FE
+FE --> KC : Login / logout
+FE --> GW : REST + Bearer JWT
+GW --> KC : JWKS validation
+GW --> US : /api/v1/users/**
+GW --> PS : /api/v1/products/**\n/api/v1/listings/**
+GW --> CS : /api/v1/contracts/**
+GW --> ES : /api/v1/escrows/**
+
+CS --> US : GET user snapshot\n[Feign + X-Internal-Secret]
+CS --> PS : GET listing / close listing\n[Feign + X-Internal-Secret]
+
+PS --> MQ : category.approved / rejected\nvia Outbox Poller
+CS --> MQ : contract.*\nvia Outbox Poller
+ES --> MQ : escrow.*\nvia Outbox Poller
+MQ --> ES : contract.signed / delivered\ncancelled / disputed
+MQ --> CS : escrow.locked / released / arbitrated
+MQ --> NS : selected contract / escrow / category events
+
 US --> UDB
 PS --> PDB
+CS --> CDB
+ES --> EDB
 NS --> NDB
 NS --> MAIL : JavaMailSender
 
-note right of CS
-  Outbox Pattern:
-  1. Save contract + events in same TX
-  2. @Scheduled poller reads PENDING
-  3. Publish to RabbitMQ
-  4. Mark PUBLISHED
+note right of GW
+  Public implemented API:
+  GET /api/v1/products
+  GET /api/v1/listings
+  GET /api/v1/listings/{id}
+
+  Other implemented routes require JWT.
+  Gateway strips Authorization and injects:
+  X-User-Id, X-User-Email,
+  X-User-Role, X-Gateway-Secret.
 end note
 
 note right of ES
-  Idempotency:
-  contractId = idempotency key
-  Skip if escrow already LOCKED
-
-  Mock Balance:
-  Seeded co dinh — khong co
-  escrow.lock_failed trong Phase 1
+  Delivery flow:
+  FULLY_LOCKED -> DELIVERY_PENDING
+  default dispute window: PT30S
+  no dispute -> RELEASED
+  dispute -> DISPUTED -> ARBITRATED
 end note
 
 @enduml

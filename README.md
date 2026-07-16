@@ -1,214 +1,193 @@
 # AgriContract
 
-> A B2B agricultural forward-contract platform with a self-enforcing escrow layer, built on a 13-service event-driven microservice architecture (Java 21 / Spring Boot 3.3).
+AgriContract is a B2B agricultural contract platform for Vietnamese cooperatives and buyers. The Phase 1 implementation covers the complete marketplace and contract lifecycle: listing, offer, negotiation, dual signing, two-party escrow, delivery confirmation, cancellation penalties, dispute holding, admin arbitration, and email notifications.
 
-AgriContract digitizes the procurement contract lifecycle between Vietnamese cooperatives (HTX) and trading companies, and adds an escrow mechanism that aligns both parties' incentives **before** a transaction happens — not after a dispute lands in court.
+The current runnable system consists of six Java services plus a React SPA. Phase 2 is a separate design track and is not required to run Phase 1.
 
-The interesting part isn't the domain. It's the engineering problem underneath it: **moving money and state consistently across independent services with no distributed transaction, no dual-write, and no way to lose or double-apply a payment instruction** — the same class of problem real fintech and escrow systems solve.
+## Project status
 
----
+| Scope | Status |
+|---|---|
+| Phase 1 backend, frontend, migrations, tests, and local Docker stack | Built on `main` |
+| Phase 1 happy path, cancellation, dispute, and arbitration flows | Covered by frontend and Bruno E2E suites |
+| Phase 2 services and production extensions | Design documents only; see [`docs/phase_2`](docs/phase_2/) |
 
-## Why this project is worth a look (for engineers)
+The code-aligned Phase 1 reference is [`docs/PHASE_1_IMPLEMENTATION.md`](docs/PHASE_1_IMPLEMENTATION.md). It supersedes older Phase 1 design assumptions when they conflict with the implementation.
 
-This is a graduation project, but it's built around production concerns, not "does it compile":
+## Phase 1 capabilities
 
-- **Choreography Saga + Transactional Outbox** for cross-service consistency — no 2PC, no distributed lock. State transitions are driven by events, and every event is written atomically with the business change it describes.
-- **Idempotent money movement over at-least-once delivery** — RabbitMQ can redeliver the same instruction; the ledger is designed so a duplicated `lock`/`release`/`refund` can never double-apply.
-- **Append-only ledger with derived balances (FBO/omnibus model)** — balances are never stored and mutated in place; they're always computed from immutable ledger entries. This is how real escrow/marketplace custody works, and it sidesteps a whole family of dual-write and race-condition bugs.
-- **Tamper-evident audit trail via hash chaining** — each audit record links to the previous one; the DB user has `INSERT`/`SELECT` only. Chain integrity is verified on every EUDR export.
-- **Event-driven read models (CQRS)** for reputation and analytics — writes and reads are decoupled across services.
-- **Clean, enforced service boundaries** — `contract-service` owns delivery state, `escrow-service` owns money, `bank-service` is the only place funds physically sit. No service reaches across that line.
-
-The full design reasoning behind these decisions lives in [`/docs`](docs/) as complete design documents, including the trade-offs we considered and rejected.
-
----
-
-## Build status — what's actually built vs. designed
-
-We're keeping this explicit on purpose.
-
-| Phase | Scope | Status |
-|---|---|---|
-| **Phase 1 — MVP** | 6 services, full contract → escrow → settlement flow | **Built & runnable** (`docker compose up`) |
-| **Phase 2 — Production** | +7 services (bank, inspection, reputation, file, pricing, audit, analytics) | **Designed in depth**, partial implementation — see [`/docs`](docs/) design specs |
-
-Phase 2 services are documented as detailed design specs (domain models, event contracts, idempotency strategy, failure handling) before coding — the design docs are part of the deliverable.
-
----
-
-## The problem it solves
-
-Vietnam's agricultural exports hit **$70.09B in 2025 (+12% YoY)**, yet B2B procurement still runs on verbal agreements with no enforcement:
-
-1. **Breaking a contract is often the rational move (*bẻ kèo*).** Contracts are signed 3–6 months before harvest. In 2024, Robusta coffee swung from VND 60M to 135M/ton — a 125% move that made breaking the contract more profitable than any penalty clause. Only ~30% of Vietnam's agricultural supply linkages reach a "stable" enforcement level.
-2. **Perishable goods can't wait for courts.** Vietnamese commercial disputes take 1–3 years; VIAC logged a record 475 disputes in 2024.
-3. **Cooperatives have no tools to protect themselves.** 90% of Mekong Delta rice moves through intermediaries; 57% of Vietnamese SMEs can't access formal financing for lack of verifiable transaction history.
-
-AgriContract adds escrow, milestone-based settlement, tiered dispute resolution, and an immutable audit trail at exactly the layer where these failures happen — **the contract layer**. It intentionally does *not* do logistics, marketplace, or accounting.
-
----
+- Public product and active-listing marketplace.
+- Keycloak login with `BUYER`, `SELLER`, and `ADMIN` roles; first-login profile registration.
+- Seller product creation with approved category and one to five image URLs, followed by listing creation.
+- Buyer offer creation, counter-offers, immutable terms-revision history, and two-party signing.
+- Automatic buyer-payment lock after signing and explicit seller-deposit confirmation before activation.
+- Automatic cancellation penalties while a contract is `ACTIVE`.
+- Delivery confirmation followed by a configurable dispute window (30 seconds locally) before automatic escrow release.
+- Buyer dispute during that window, escrow hold, admin allocation, contract settlement, and arbitration-result emails.
+- Role-aware React routes, API error feedback, component tests, and real-stack Playwright flows.
 
 ## Architecture
 
-![Architecture](docs/diagrams/AgriContract_Diagram_Architecture.svg)
+![Phase 1 architecture](docs/diagrams/AgriContract_Phase1_Architecture.svg)
 
-### Phase 1 — MVP (built, 6 services)
+| Component | Container port | Default host access | Responsibility |
+|---|---:|---:|---|
+| frontend | 5173 | 5173 | React 19 SPA, Keycloak JS, TanStack Query, Zustand |
+| api-gateway | 8888 | 8080 | JWT validation, public-route policy, routing, trusted user-context headers |
+| user-service | 8081 | Internal | User profiles and role snapshot from Keycloak |
+| product-service | 8082 | Internal | Categories, products, images, and listings |
+| contract-service | 8083 | Internal | Contract state machine, terms revisions, transactional outbox |
+| escrow-service | 8084 | Internal | Two-party mock escrow, append-only transactions, delayed release, arbitration |
+| notification-service | 8085 | 8085 | Idempotent email delivery through MailHog |
 
-| Service | Port | Responsibility |
-|---|---|---|
-| api-gateway | 8080 | JWT validation (Keycloak), routing, `X-Internal-Secret` injection |
-| user-service | 8081 | User profiles, organization data, KYC status |
-| product-service | 8082 | Commodity listings |
-| contract-service | 8083 | Contract lifecycle state machine, Outbox Poller |
-| escrow-service | 8084 | Escrow lock/release/penalty (Phase 1: mock DB balance) |
-| notification-service | 8085 | Email notifications via MailHog |
-
-### Phase 2 — Production (designed, +7 services)
-
-| Service | Port | New Capability |
-|---|---|---|
-| bank-service | 8086 | Legal fund custody (FBO/ledger model); idempotent instruction handling |
-| inspection-service | 8087 | INSPECTOR role; immutable evidence records with SHA-256 hash |
-| reputation-service | 8088 | Event-driven read model; cross-contract reputation aggregation |
-| file-service | 8089 | MinIO binary storage; inspection report files |
-| pricing-service | 8091 | Redis-cached external commodity price feeds |
-| audit-service | 8092 | Append-only event store; EUDR compliance export (PDF/CSV) |
-| analytics-service | 8093 | Time-series aggregation; platform analytics |
-
-> Listing search is handled as filter parameters inside `product-service` rather than a standalone service — port `8090` is intentionally unused.
+The optional [`backend/docker-compose.override.yml`](backend/docker-compose.override.yml) exposes ports 8081–8084 for direct service development and Bruno tests. Normal browser traffic goes through the gateway on port 8080.
 
 ### Infrastructure
 
-| Service | Purpose |
-|---|---|
-| Keycloak | Authentication & RBAC (`BUYER`, `SELLER`, `ADMIN`, `INSPECTOR`) |
-| RabbitMQ | Async events — Choreography Saga + Transactional Outbox |
-| MySQL × 5 | One isolated DB per Phase 1 service |
-| MailHog | Dev email catcher |
-| MinIO / Redis | Phase 2: file storage / cache, rate limiting, pub-sub |
+- Keycloak 24 on `http://localhost:8180`
+- RabbitMQ 3.13 on ports 5672 and 15672
+- Five isolated MySQL 8 databases on host ports 3307–3311
+- MailHog SMTP on 1025 and web UI on `http://localhost:8025`
 
----
+## Domain flow
 
-## Key engineering decisions
+| Step | Action | Contract | Escrow |
+|---:|---|---|---|
+| 1 | Seller creates a product and listing | — | — |
+| 2 | Buyer creates an offer | `OFFERED` | — |
+| 3 | Either party counter-offers; each revision is retained | `NEGOTIATING` | — |
+| 4 | Both parties sign the same revision | `SIGNED` | `BUYER_LOCKED` |
+| 5 | Seller confirms its deposit | `ACTIVE` | `FULLY_LOCKED` |
+| 6 | Buyer confirms receipt | `DELIVERED` | `DELIVERY_PENDING` |
+| 7a | No dispute before the configured deadline | `SETTLED` | `RELEASED` |
+| 7b | Buyer disputes, then Admin allocates the held funds | `DISPUTED → SETTLED` | `DISPUTED → ARBITRATED` |
 
-Short version of the reasoning that recruiters and interviewers usually ask about. Full write-ups in [`/docs`](docs/).
+Cancellation is accepted only while the contract is `ACTIVE`. Buyer cancellation applies `buyerPenaltyRate`; seller cancellation refunds the buyer payment and transfers the seller deposit as the seller penalty.
 
-### 1. Append-only ledger, not account-per-contract
+## Consistency and security
 
-**Naive approach:** one balance row per contract, updated on every lock/release. This has two problems — a provisioning race (the account must exist before you can lock into it, but the trigger to create it comes *after* the moment you need the lock), and it doesn't match how real custody works.
-
-**What's built instead:** a single pooled custody balance (FBO/omnibus — the same model PayPal, e-wallets, and real-estate escrow use) plus an **append-only `LedgerEntry`** table. Every lock/release/seize/refund is one immutable row. **Balances are never stored — they're always derived** from `SUM(amount)` filtered by contract/milestone/user/type. Nothing to keep in sync, nothing to corrupt in place.
-
-### 2. Idempotency key = source event ID, not a business key
-
-RabbitMQ is at-least-once, so the same "lock these funds" instruction can arrive twice (retry, consumer restart mid-processing). Without a guard, funds get locked twice.
-
-The tempting key is `(contractId, milestoneId, entryType)` — but that same pair passes through *different* entry types over its lifetime (`LOCK` then later `RELEASE`), so it isn't unique per message. The key used is the **outbox message's own `sourceEventId`** (`UNIQUE` in the DB). It answers the right question — "have I processed *this request*?" — not "has this *kind of action* happened?" On a duplicate, the entry isn't re-inserted, but the confirmation event **is** re-published, because the redelivery might mean the *original confirmation* was lost, not that the request was resent.
-
-### 3. Wait for confirmation, never fire-and-forget
-
-`escrow-service` is the only actor that talks to `bank-service`. It publishes `bank.lock_requested` and **waits** for `bank.lock_completed` before setting state to `LOCKED` — it never optimistically sets state and hopes the bank succeeds. Firing and setting state immediately is a dual-write: if the bank fails, the two services silently disagree until a human notices.
-
-### 4. External reference price only — never an internal average
-
-An obvious "market price" feature would average `agreedPrice` across settled contracts. Rejected: on a new platform with sparse data it's statistically meaningless, and worse, a large buyer could deliberately underprice a few early deals to manufacture a fake "reference price," then use that number to squeeze cooperatives — the exact power asymmetry the platform exists to fix. Pricing instead ingests **external** reference prices (government VNSAT feed for coffee/rice, admin entry for rubber/cashew), cached with cache-aside (MySQL = source of truth, Redis = self-healing cache, no hard TTL).
-
----
-
-## Security model
-
-Phase 2 layers tamper-evidence onto the audit trail:
-
-1. **Contract content hash** — SHA-256 of `ContractTerms` at signing; every later state transition re-verifies it. DB tampering ⇒ hash mismatch ⇒ operation rejected.
-2. **Audit hash chain** — each record carries `previousHash` + `recordHash`; the audit DB user has `INSERT`/`SELECT` only. Verified on every export.
-3. **Inspection report hash** — reports hashed (content + timestamp + inspectorId) at submission; immutable after.
-4. **Multi-location hash storage** — hashes stored independently in `contract-service`, `audit-service`, and the signed PDF held by both parties. An attacker must compromise all three at once.
-5. **Email timestamp anchor** — content hashes emailed to both parties, so evidence survives even a full DB compromise.
-
-> Hash chains detect tampering, digital signatures prevent repudiation, email timestamps provide an external anchor — covering the attack surface blockchain addresses, at a complexity appropriate for a trusted-operator deployment.
-
----
+- `product-service`, `contract-service`, and `escrow-service` write outgoing domain events to an outbox table in the same database transaction as aggregate changes. Pollers publish pending events every second.
+- Contract and escrow rows use optimistic locking to protect concurrent state transitions, including the delivery-release/dispute race.
+- Contract creation supports caller-provided idempotency IDs; escrow creation is unique by `contractId`; notification delivery is unique by `(eventId, recipient)`.
+- Escrow transactions are append-only records for locks, refunds, releases, penalties, and arbitration allocations. Phase 1 uses mock balances and never moves real money.
+- Public access is limited to `GET /api/v1/products`, `GET /api/v1/listings`, and `GET /api/v1/listings/{listingId}`. Other implemented gateway routes require a valid Keycloak bearer token.
+- The gateway strips the bearer token before forwarding and injects `X-User-Id`, `X-User-Email`, `X-User-Role`, and `X-Gateway-Secret`. Internal Feign calls use `X-Internal-Secret`.
 
 ## Tech stack
 
-- **Java 21** / Spring Boot 3.3
-- **Spring Cloud Gateway** — API gateway with JWT validation
-- **Spring Security** — Keycloak RS256 JWT
-- **Spring Data JPA** + **Flyway** — per-service MySQL schema migrations
-- **Spring AMQP / RabbitMQ** — Choreography Saga + Transactional Outbox
-- **OpenFeign** — synchronous inter-service calls
-- **Keycloak 24** — identity provider, RBAC
-- **Docker** + Docker Compose — local orchestration
-- **Phase 2:** Kubernetes (deploy & self-heal), MinIO (file storage), Redis (cache / rate limiting / pub-sub), Zipkin (distributed tracing across service hops)
-
----
+- Java 21, Spring Boot 3.3.5, Spring Cloud Gateway
+- Spring Security, Keycloak, OpenFeign
+- Spring Data JPA, Flyway, MySQL 8
+- Spring AMQP, RabbitMQ, transactional outbox polling
+- React 19, TypeScript 6, Vite 8, React Router 7
+- TanStack Query, Zustand, Axios, React Hook Form, Zod
+- Vitest, Testing Library, Playwright, Bruno
+- Docker Compose and MailHog
 
 ## Getting started
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/install/) — no local Java or Maven needed.
+- Docker with Docker Compose
+- Node.js `^20.19.0` or `>=22.12.0` and npm for the frontend
+- Optional: Java 21 and Maven 3.9+ for backend tests outside Docker
 
-### 1. Clone and configure
+### 1. Configure the backend
 
 ```bash
 git clone https://github.com/RedAvocado22/AgriContract.git
 cd AgriContract
-cp .env.example .env   # defaults work out of the box for local dev
+cp .env.example .env
 ```
 
-### 2. Start all services
+Open `.env` and replace both `REPLACE_WITH_RANDOM_SECRET` values. Generate each value with:
 
 ```bash
-docker compose up --build
+openssl rand -hex 32
 ```
 
-First build downloads dependencies and compiles all services (~5–10 min). Later builds are ~30s per service.
+### 2. Start infrastructure and backend services
 
-### 3. Set up Keycloak
+```bash
+docker compose up --build -d
+docker compose ps
+```
 
-Once Keycloak is healthy at http://localhost:8180:
+### 3. Import the Keycloak realm
 
-1. Log in with `admin` / `admin` (or your `.env` values).
-2. **Realm settings → Import realm**.
-3. Upload `infra/keycloak/agricontract-realm.json` — creates the `agricontract` realm with pre-configured clients and roles.
+1. Open `http://localhost:8180` and sign in to the admin console with `admin` / `admin` unless changed in `.env`.
+2. Create/import a realm and select [`infra/keycloak/agricontract-realm.json`](infra/keycloak/agricontract-realm.json).
+3. Confirm that realm `agricontract` and client `agricontract-frontend` exist.
 
-### 4. Access the services
+The imported development users all use password `pass123`:
 
-| URL | Service |
+| Username | Role |
 |---|---|
-| http://localhost:8080 | API Gateway |
-| http://localhost:8180 | Keycloak admin console |
-| http://localhost:15672 | RabbitMQ management (`guest`/`guest`) |
-| http://localhost:8025 | MailHog — outgoing emails |
-| http://localhost:8083/swagger-ui.html | contract-service API docs |
-| http://localhost:8084/swagger-ui.html | escrow-service API docs |
+| `buyer1` | BUYER |
+| `seller1`, `seller2` | SELLER |
+| `admin1` | ADMIN |
 
----
+### 4. Start the frontend
 
-## Domain flow (Phase 1 — two-phase lock)
+```bash
+cd frontend
+cp .env.example .env
+npm ci
+npm run dev
+```
 
-| Step | Action | Contract State | Escrow State |
-|---|---|---|---|
-| 1 | Seller posts listing (after Admin KYC) | — | — |
-| 2 | Buyer submits offer | OFFERED | — |
-| 3 | Parties negotiate; all changes recorded | NEGOTIATING | — |
-| 4 | Both parties sign | SIGNED | — |
-| 5 | Buyer locks payment; Seller locks deposit | ACTIVE | LOCKED |
-| 6 | Seller delivers | ACTIVE | LOCKED |
-| 7 | Buyer confirms receipt | DELIVERED | LOCKED |
-| 8 | Escrow auto-releases to Seller | SETTLED | RELEASED |
+Open `http://localhost:5173`. On first login, the SPA redirects users without a `user-service` profile to `/register-profile`.
 
-> **Phase 2 replaces this single-delivery flow with milestone escrow:** the contract stays `ACTIVE` across N delivery batches (no single `DELIVERED` state), each milestone locking/releasing its own amount, with an INSPECTOR-backed tiered dispute path and force-majeure handling per batch. Seller deposit becomes optional (negotiated per contract). See [`/docs`](docs/) for the full milestone state machine.
+### Local URLs
 
-**Cancellation & penalty** are executed automatically from the signed `ContractTerms` (deposit forfeit, full refund, or dispute routing), grounded in Civil Code 2015 Art. 328 and Commercial Law 2005 Art. 300–302 — the platform *enforces an agreement*, it does not *issue a ruling*.
+| URL | Purpose |
+|---|---|
+| `http://localhost:5173` | AgriContract SPA |
+| `http://localhost:8080` | API Gateway |
+| `http://localhost:8180` | Keycloak admin and login |
+| `http://localhost:15672` | RabbitMQ management (`guest` / `guest`) |
+| `http://localhost:8025` | MailHog inbox |
 
----
+## Tests
 
-## Business & legal context
+Backend unit and integration tests:
 
-The platform sells to **industry associations** (VICOFA, VRA, VINACAS) and large procurement companies — not to cooperatives directly — which solves both the sales problem (small HTX don't buy software) and the trust problem (HTX trust the association that deployed it, and in Phase 2, trust the bank holding the funds).
+```bash
+mvn test
+```
 
-It's positioned against the **EUDR 2026** compliance deadline (deforestation-free audit trail for EU coffee/rubber exports) and Vietnam's agricultural digitalization policy. The platform holds **no real money** — Phase 1 uses mock balances, and Phase 2's `bank-service` is designed around a real bank's custody model (FBO/ledger) but stays mock-backed within the capstone scope, behind a clean interface so the mock can later be swapped for a real bank API (Agribank/BIDV) without changing business logic. This keeps it outside payment-service licensing requirements (Decree 52/2024, Art. 8.7).
+Frontend checks:
 
-Full market analysis, competitive gap, and legal framework: [`/docs`](docs/).
+```bash
+cd frontend
+npm test
+npm run lint
+npm run build
+```
+
+With the backend, imported realm, and frontend already running, install the Playwright browser once and run the real-stack flows:
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:e2e
+```
+
+For the Bruno contract suite, expose direct service ports and then run the reset-and-test script:
+
+```bash
+docker compose -f docker-compose.yml -f backend/docker-compose.override.yml up --build -d
+./scripts/run-e2e.sh
+```
+
+The Bruno CLI (`bru`) must be available on `PATH`.
+
+## Documentation map
+
+- [Phase 1 implementation reference](docs/PHASE_1_IMPLEMENTATION.md)
+- [Phase 1 system architecture source](docs/diagrams/01-architecture.puml)
+- [Phase 1 happy-path sequence](docs/diagrams/02-sequence-happy-path.puml)
+- [Phase 1 cancel and dispute sequence](docs/diagrams/03-sequence-cancel-and-dispute.puml)
+- [Phase 1 Word document builder](docs/phase_1/files/README.md)
+- [Frontend development guide](frontend/README.md)
+- [Phase 2 design documents](docs/phase_2/)

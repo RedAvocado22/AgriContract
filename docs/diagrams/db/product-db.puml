@@ -1,45 +1,71 @@
 @startuml product_db Schema
 !theme plain
 skinparam backgroundColor #FAFAFA
-title product-service — product_db
+title product-service — product_db (Phase 1 current schema)
+
+entity "categories" as C {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * category_id : VARCHAR(255) <<UNIQUE>>
+    * name : VARCHAR(100)
+    * normalized_name : VARCHAR(100) <<UNIQUE>>
+    * status : VARCHAR(20)
+    rejection_reason : VARCHAR(500)
+    * proposed_by : VARCHAR(255)
+    * proposed_by_email : VARCHAR(255)
+    * created_at / updated_at : DATETIME
+}
 
 entity "products" as P {
     * id : BIGINT <<PK, AUTO_INCREMENT>>
     --
     * product_id : VARCHAR(255) <<UNIQUE>>
     * name : VARCHAR(255)
-    * unit : VARCHAR(50) (kg, tấn, bao...)
-    category : VARCHAR(100)
-    * created_at : DATETIME
-    * updated_at : DATETIME
+    * unit : VARCHAR(50)
+    category_id : VARCHAR(255)
+    * images : JSON
+    * created_at / updated_at : DATETIME
 }
 
 entity "listings" as L {
     * id : BIGINT <<PK, AUTO_INCREMENT>>
     --
     * listing_id : VARCHAR(255) <<UNIQUE>>
-    * seller_id : VARCHAR(255) (ref user_profiles.user_id)
-    * product_id : VARCHAR(255) (ref products.product_id)
+    * seller_id : VARCHAR(255)
+    * product_id : VARCHAR(255)
     * product_name : VARCHAR(255) <<snapshot>>
+    * cover_image_url : VARCHAR(1000) <<snapshot>>
     * quantity : DECIMAL(15,3)
     * quantity_unit : VARCHAR(50)
     * price_floor : DECIMAL(15,2)
     * currency : VARCHAR(10)
     * delivery_deadline : DATE
-    * status : ENUM(ACTIVE, CLOSED, EXPIRED)
-    * created_at : DATETIME
-    * updated_at : DATETIME
+    * status : VARCHAR(20)
+    * created_at / updated_at : DATETIME
 }
 
-P ||--o{ L : "referenced by\n(product_id snapshot)"
+entity "product_domain_events" as OB {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * event_id : VARCHAR(255) <<UNIQUE>>
+    * event_type : VARCHAR(100)
+    * aggregate_id : VARCHAR(255)
+    * payload : JSON
+    * status : VARCHAR(20) <<PENDING | PUBLISHED>>
+    * created_at : DATETIME
+    published_at : DATETIME
+}
 
-note right of L
+C ||--o{ P : "approved categoryId"
+P ||--o{ L : "product reference\n+ snapshots"
+C ||--o{ OB : "approved/rejected events"
+
+note right of C
   State machine:
-  ACTIVE → CLOSED (contract signed)
-  ACTIVE → EXPIRED (deadline passed)
+  PENDING -> APPROVED | REJECTED.
 
-  product_name là snapshot — không thay đổi
-  khi product bị sửa sau khi listing tạo.
+  normalized_name blocks duplicates
+  regardless of case/diacritics normalization.
 end note
 
 @enduml

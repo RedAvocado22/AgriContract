@@ -1,0 +1,121 @@
+<svg viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#64748B"/></marker>
+    <marker id="arrowTeal" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0F766E"/></marker>
+    <marker id="arrowAmber" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#B45309"/></marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0F172A" flood-opacity="0.13"/></filter>
+    <style>
+      .title{font-size:27px;font-weight:700;fill:#172033}.subtitle{font-size:13px;fill:#64748B}
+      .boxTitle{font-size:14px;font-weight:700;fill:#172033}.boxSub{font-size:10px;fill:#475569}
+      .whiteTitle{font-size:14px;font-weight:700;fill:#FFFFFF}.whiteSub{font-size:10px;fill:#DDE7FF}
+      .dbTitle{font-size:12px;font-weight:700;fill:#334155}.dbSub{font-size:9px;fill:#64748B}
+      .small{font-size:9px;fill:#64748B}.label{font-size:10px;font-weight:600;fill:#475569}
+    </style>
+  </defs>
+
+  <rect width="1440" height="900" fill="#FFFFFF"/>
+  <text x="48" y="52" class="title">AgriContract — Phase 1 Architecture</text>
+  <text x="48" y="77" class="subtitle">6 Spring Boot services + React SPA · database per service · Choreography Saga · Transactional Outbox</text>
+  <text x="1392" y="52" text-anchor="end" class="subtitle">main baseline · 17/07/2026</text>
+
+  <g filter="url(#shadow)">
+    <rect x="555" y="105" width="330" height="58" rx="10" fill="#EEF2FF" stroke="#4F46E5" stroke-width="1.6"/>
+  </g>
+  <text x="720" y="130" text-anchor="middle" class="boxTitle">React SPA · :5173</text>
+  <text x="720" y="148" text-anchor="middle" class="boxSub">Keycloak JS + PKCE · React Query · Zustand · Axios</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1030" y="105" width="250" height="58" rx="10" fill="#FFF1F2" stroke="#E11D48" stroke-width="1.5"/>
+  </g>
+  <text x="1155" y="130" text-anchor="middle" class="boxTitle">Keycloak · :8180</text>
+  <text x="1155" y="148" text-anchor="middle" class="boxSub">agricontract realm · BUYER / SELLER / ADMIN</text>
+
+  <line x1="885" y1="134" x2="1027" y2="134" stroke="#64748B" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="956" y="125" text-anchor="middle" class="small">login · PKCE</text>
+
+  <g filter="url(#shadow)">
+    <rect x="525" y="205" width="390" height="74" rx="10" fill="#334155" stroke="#1E293B" stroke-width="1.5"/>
+  </g>
+  <text x="720" y="233" text-anchor="middle" class="whiteTitle">API Gateway · container :8888 / host :8080</text>
+  <text x="720" y="254" text-anchor="middle" class="whiteSub">JWT policy · /api/v1 routing · trusted user headers · CORS</text>
+  <line x1="720" y1="164" x2="720" y2="202" stroke="#64748B" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="915" y1="241" x2="1027" y2="150" stroke="#64748B" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="984" y="201" text-anchor="middle" class="small">JWKS</text>
+
+  <rect x="42" y="318" width="1356" height="260" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.3"/>
+  <text x="66" y="346" class="label">PHASE 1 BUSINESS SERVICES</text>
+
+  <g filter="url(#shadow)"><rect x="80" y="376" width="220" height="94" rx="10" fill="#ECFDF5" stroke="#0F766E" stroke-width="1.5"/></g>
+  <text x="190" y="404" text-anchor="middle" class="boxTitle">user-service · :8081</text>
+  <text x="190" y="425" text-anchor="middle" class="boxSub">UserProfile · organization</text>
+  <text x="190" y="443" text-anchor="middle" class="boxSub">Keycloak identity snapshot</text>
+
+  <g filter="url(#shadow)"><rect x="340" y="376" width="220" height="94" rx="10" fill="#ECFDF5" stroke="#0F766E" stroke-width="1.5"/></g>
+  <text x="450" y="404" text-anchor="middle" class="boxTitle">product-service · :8082</text>
+  <text x="450" y="425" text-anchor="middle" class="boxSub">Category · Product · Listing</text>
+  <text x="450" y="443" text-anchor="middle" class="boxSub">Images · Transactional Outbox</text>
+
+  <g filter="url(#shadow)"><rect x="600" y="376" width="240" height="94" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.7"/></g>
+  <text x="720" y="404" text-anchor="middle" class="boxTitle">contract-service · :8083</text>
+  <text x="720" y="425" text-anchor="middle" class="boxSub">State machine · Terms revisions</text>
+  <text x="720" y="443" text-anchor="middle" class="boxSub">Optimistic lock · Transactional Outbox</text>
+
+  <g filter="url(#shadow)"><rect x="880" y="376" width="240" height="94" rx="10" fill="#FFF7ED" stroke="#C2410C" stroke-width="1.7"/></g>
+  <text x="1000" y="404" text-anchor="middle" class="boxTitle">escrow-service · :8084</text>
+  <text x="1000" y="425" text-anchor="middle" class="boxSub">Mock ledger · Deposit · Penalty</text>
+  <text x="1000" y="443" text-anchor="middle" class="boxSub">Dispute window · Arbitration · Outbox</text>
+
+  <g filter="url(#shadow)"><rect x="1160" y="376" width="200" height="94" rx="10" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5"/></g>
+  <text x="1260" y="404" text-anchor="middle" class="boxTitle">notification · :8085</text>
+  <text x="1260" y="425" text-anchor="middle" class="boxSub">Event consumers</text>
+  <text x="1260" y="443" text-anchor="middle" class="boxSub">Idempotent email</text>
+
+  <g stroke="#94A3B8" stroke-width="1.15" fill="none" marker-end="url(#arrow)">
+    <line x1="640" y1="279" x2="190" y2="373"/><line x1="680" y1="279" x2="450" y2="373"/>
+    <line x1="720" y1="279" x2="720" y2="373"/><line x1="760" y1="279" x2="1000" y2="373"/>
+  </g>
+  <text x="377" y="322" class="small">REST through Gateway</text>
+
+  <line x1="602" y1="418" x2="563" y2="418" stroke="#0F766E" stroke-width="1.5" marker-end="url(#arrowTeal)"/>
+  <line x1="602" y1="444" x2="302" y2="444" stroke="#0F766E" stroke-width="1.5" marker-end="url(#arrowTeal)"/>
+  <text x="575" y="410" text-anchor="middle" class="small">Feign</text>
+  <text x="451" y="458" text-anchor="middle" class="small">listing/user snapshots · X-Internal-Secret</text>
+
+  <rect x="275" y="507" width="890" height="50" rx="10" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+  <text x="720" y="530" text-anchor="middle" font-size="14" font-weight="700" fill="#92400E">RabbitMQ Event Bus · :5672</text>
+  <text x="720" y="547" text-anchor="middle" font-size="9.5" fill="#B45309">agricontract.events · agricontract.contracts · agricontract.escrow · retries + DLQ</text>
+  <g stroke="#B45309" stroke-width="1.3" fill="none" marker-end="url(#arrowAmber)">
+    <line x1="450" y1="471" x2="450" y2="505"/><line x1="720" y1="471" x2="720" y2="505"/>
+    <line x1="1000" y1="471" x2="1000" y2="505"/><line x1="1165" y1="532" x2="1258" y2="473"/>
+  </g>
+  <path d="M1000 505 C930 480, 860 480, 792 470" fill="none" stroke="#B45309" stroke-width="1.2" marker-end="url(#arrowAmber)"/>
+  <path d="M720 505 C800 480, 880 480, 940 470" fill="none" stroke="#B45309" stroke-width="1.2" marker-end="url(#arrowAmber)"/>
+
+  <text x="48" y="622" class="label">ISOLATED DATA STORES</text>
+  <g>
+    <rect x="80" y="650" width="220" height="78" rx="9" fill="#F8FAFC" stroke="#94A3B8"/><text x="190" y="678" text-anchor="middle" class="dbTitle">user_db · MySQL</text><text x="190" y="699" text-anchor="middle" class="dbSub">user_profiles</text>
+    <rect x="340" y="650" width="220" height="78" rx="9" fill="#F8FAFC" stroke="#94A3B8"/><text x="450" y="678" text-anchor="middle" class="dbTitle">product_db · MySQL</text><text x="450" y="699" text-anchor="middle" class="dbSub">categories · products · listings · outbox</text>
+    <rect x="600" y="650" width="240" height="78" rx="9" fill="#F8FAFC" stroke="#94A3B8"/><text x="720" y="678" text-anchor="middle" class="dbTitle">contract_db · MySQL</text><text x="720" y="699" text-anchor="middle" class="dbSub">contracts · negotiations · outbox</text>
+    <rect x="880" y="650" width="240" height="78" rx="9" fill="#F8FAFC" stroke="#94A3B8"/><text x="1000" y="678" text-anchor="middle" class="dbTitle">escrow_db · MySQL</text><text x="1000" y="699" text-anchor="middle" class="dbSub">accounts · append-only ledger · outbox</text>
+    <rect x="1160" y="650" width="200" height="78" rx="9" fill="#F8FAFC" stroke="#94A3B8"/><text x="1260" y="678" text-anchor="middle" class="dbTitle">notification_db</text><text x="1260" y="699" text-anchor="middle" class="dbSub">unique(eventId, recipient)</text>
+  </g>
+  <g stroke="#94A3B8" stroke-width="1.2" fill="none" marker-end="url(#arrow)">
+    <line x1="190" y1="471" x2="190" y2="647"/><line x1="450" y1="558" x2="450" y2="647"/>
+    <line x1="720" y1="558" x2="720" y2="647"/><line x1="1000" y1="558" x2="1000" y2="647"/>
+    <line x1="1260" y1="471" x2="1260" y2="647"/>
+  </g>
+
+  <g filter="url(#shadow)"><rect x="1160" y="772" width="200" height="58" rx="10" fill="#ECFEFF" stroke="#0891B2" stroke-width="1.4"/></g>
+  <text x="1260" y="798" text-anchor="middle" class="boxTitle">MailHog · :8025</text>
+  <text x="1260" y="816" text-anchor="middle" class="boxSub">SMTP mock · no real email</text>
+  <line x1="1260" y1="730" x2="1260" y2="769" stroke="#64748B" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <rect x="80" y="772" width="980" height="58" rx="10" fill="#F1F5F9" stroke="#CBD5E1"/>
+  <text x="102" y="795" font-size="11" font-weight="700" fill="#334155">Delivery safety:</text>
+  <text x="222" y="795" font-size="11" fill="#475569">FULLY_LOCKED → DELIVERY_PENDING → RELEASED after PT30S</text>
+  <text x="102" y="816" font-size="11" font-weight="700" fill="#334155">Dispute path:</text>
+  <text x="204" y="816" font-size="11" fill="#475569">DELIVERY_PENDING → DISPUTED → ARBITRATED; escrow.arbitrated settles Contract and emails both parties</text>
+
+  <text x="48" y="872" font-size="9" fill="#94A3B8">Phase 1 uses mock balances and never moves real money. Phase 2 designs are documented separately.</text>
+  <text x="1392" y="872" text-anchor="end" font-size="9" fill="#94A3B8">github.com/RedAvocado22/AgriContract</text>
+</svg>

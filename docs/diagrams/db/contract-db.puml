@@ -1,27 +1,49 @@
 @startuml contract_db Schema
 !theme plain
 skinparam backgroundColor #FAFAFA
-title contract-service — contract_db (+ Outbox table)
+title contract-service — contract_db (Phase 1 current schema)
 
 entity "contracts" as C {
     * id : BIGINT <<PK, AUTO_INCREMENT>>
     --
     * contract_id : VARCHAR(255) <<UNIQUE>>
-    * listing_id : VARCHAR(255) <<snapshot>>
-    * seller_id : VARCHAR(255) <<snapshot>>
-    * buyer_id : VARCHAR(255) <<snapshot>>
+    * listing_id : VARCHAR(255)
+    * seller_id / buyer_id : VARCHAR(255)
     * product_name : VARCHAR(255) <<snapshot>>
-    * quantity : DECIMAL(15,3) <<snapshot>>
-    * quantity_unit : VARCHAR(50) <<snapshot>>
-    * agreed_price : DECIMAL(15,2) <<snapshot>>
-    * currency : VARCHAR(10) <<snapshot>>
-    * delivery_deadline : DATE <<snapshot>>
-    * status : ENUM(OFFERED, SIGNED, GOODS_DELIVERED,\n  SETTLED, CANCELLED_BY_BUYER,\n  CANCELLED_BY_SELLER, DISPUTED, ARBITRATED)
+    * buyer_org_name / seller_org_name : VARCHAR(255) <<snapshot>>
+    * buyer_email / seller_email : VARCHAR(255) <<snapshot>>
+    * quantity : DECIMAL(15,3)
+    * quantity_unit : VARCHAR(50)
+    * agreed_price : DECIMAL(15,2)
+    * currency : VARCHAR(10)
+    * delivery_deadline : DATE
+    buyer_penalty_rate : DECIMAL(10,4)
+    seller_deposit_rate : DECIMAL(10,4)
+    quality_spec : TEXT
+    * status : VARCHAR(30)
     cancel_reason : TEXT
-    penalty_amount : DECIMAL(15,2)
-    penalty_currency : VARCHAR(10)
-    * created_at : DATETIME
-    * updated_at : DATETIME
+    cancelled_by : VARCHAR(10)
+    signatories : TEXT
+    * terms_revision : INT
+    * version : BIGINT <<optimistic lock>>
+    * created_at / updated_at : DATETIME
+}
+
+entity "contract_negotiations" as N {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * contract_id : VARCHAR(255) <<FK>>
+    * terms_revision : INT
+    * proposed_by : VARCHAR(255)
+    * proposed_at : DATETIME(6)
+    * quantity / quantity_unit
+    * agreed_price / currency
+    * delivery_deadline
+    buyer_penalty_rate
+    seller_deposit_rate
+    quality_spec
+    --
+    UNIQUE(contract_id, terms_revision)
 }
 
 entity "contract_domain_events" as OB {
@@ -29,26 +51,20 @@ entity "contract_domain_events" as OB {
     --
     * event_id : VARCHAR(255) <<UNIQUE>>
     * event_type : VARCHAR(100)
-    * aggregate_id : VARCHAR(255) (contract_id)
+    * aggregate_id : VARCHAR(255)
     * payload : JSON
-    * status : ENUM(PENDING, PUBLISHED, FAILED)
+    * status : VARCHAR(20) <<PENDING | PUBLISHED>>
     * created_at : DATETIME
     published_at : DATETIME
 }
 
-C ||--o{ OB : "produces\n(same transaction)"
-
-note right of OB
-  Outbox Pattern:
-  1. Written in same TX as contract update
-  2. Poller reads PENDING → publish RabbitMQ
-  3. Mark PUBLISHED (or FAILED after retry)
-end note
+C ||--o{ N : "terms revisions"
+C ||--o{ OB : "outgoing events\n(same transaction)"
 
 note right of C
-  Mọi field từ listing/product là snapshot.
-  Domain invariant: contract data không thay đổi
-  sau khi ký, kể cả khi listing bị sửa.
+  Contract stores immutable transaction snapshots.
+  Every counter-offer increments terms_revision
+  and clears signatures for the previous revision.
 end note
 
 @enduml

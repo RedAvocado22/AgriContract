@@ -1,47 +1,70 @@
 @startuml escrow_db Schema
 !theme plain
 skinparam backgroundColor #FAFAFA
-title escrow-service — escrow_db
+title escrow-service — escrow_db (Phase 1 current schema)
 
 entity "escrow_accounts" as EA {
     * id : BIGINT <<PK, AUTO_INCREMENT>>
     --
     * escrow_id : VARCHAR(255) <<UNIQUE>>
-    * contract_id : VARCHAR(255) <<UNIQUE>> (idempotency key)
-    * buyer_user_id : VARCHAR(255)
-    * seller_user_id : VARCHAR(255)
+    * contract_id : VARCHAR(255) <<UNIQUE>>
+    * buyer_user_id / seller_user_id : VARCHAR(255)
+    * buyer_email / seller_email : VARCHAR(255)
     * total_amount : DECIMAL(15,2)
+    seller_deposit : DECIMAL(15,2)
+    seller_deposit_rate : DECIMAL(5,4)
     * currency : VARCHAR(10)
-    * status : ENUM(LOCKED, RELEASED,\n  PENALIZED_BUYER, PENALIZED_SELLER,\n  ARBITRATED)
-    * created_at : DATETIME
-    * updated_at : DATETIME
+    * status : VARCHAR(25)
+    release_eligible_at : DATETIME(6)
+    * version : BIGINT <<optimistic lock>>
+    * created_at / updated_at : DATETIME
 }
 
 entity "escrow_transactions" as ET {
     * id : BIGINT <<PK, AUTO_INCREMENT>>
     --
     * transaction_id : VARCHAR(255) <<UNIQUE>>
-    * escrow_id : VARCHAR(255) <<FK>>
-    * transaction_type : ENUM(LOCK, RELEASE,\n  PENALIZE_BUYER, PENALIZE_SELLER,\n  ARBITRATION)
+    * escrow_account_id : BIGINT <<FK>>
+    * escrow_id : VARCHAR(255)
+    * transaction_type : VARCHAR(25)
     * amount : DECIMAL(15,2)
     * currency : VARCHAR(10)
     note : TEXT
     * created_at : DATETIME
 }
 
-EA ||--o{ ET : "ledger\n(append-only)"
+entity "escrow_domain_events" as OB {
+    * id : BIGINT <<PK, AUTO_INCREMENT>>
+    --
+    * event_id : VARCHAR(255) <<UNIQUE>>
+    * event_type : VARCHAR(100)
+    * aggregate_id : VARCHAR(255)
+    * payload : JSON
+    * status : VARCHAR(20) <<PENDING | PUBLISHED>>
+    * created_at : DATETIME
+    published_at : DATETIME
+}
 
-note right of ET
-  Append-only financial ledger.
-  KHÔNG bao giờ UPDATE — chỉ INSERT.
-  Mỗi operation tạo 1 transaction record.
-  Đây là audit trail tài chính.
-end note
+EA ||--o{ ET : "append-only ledger"
+EA ||--o{ OB : "outgoing events\n(same transaction)"
 
 note right of EA
-  Idempotency: contractId là UNIQUE
-  Nếu escrow đã LOCKED → bỏ qua event lock lần 2.
-  (RabbitMQ at-least-once delivery)
+  Status values:
+  BUYER_LOCKED, FULLY_LOCKED,
+  DELIVERY_PENDING, DISPUTED,
+  RELEASED, PENALIZED_BUYER,
+  PENALIZED_SELLER, ARBITRATED.
+
+  release_eligible_at supports the
+  configurable delivery dispute window.
+end note
+
+note right of ET
+  Types:
+  LOCK, REFUND_TO_BUYER,
+  REFUND_TO_SELLER, RELEASE,
+  PENALIZE_BUYER, PENALIZE_SELLER,
+  ARBITRATION_BUYER, ARBITRATION_SELLER.
 end note
 
 @enduml

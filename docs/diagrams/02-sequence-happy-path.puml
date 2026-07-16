@@ -1,99 +1,98 @@
-@startuml Happy Path — OFFERED → SETTLED
+@startuml Phase 1 Happy Path
 !theme plain
 skinparam backgroundColor #FAFAFA
 skinparam defaultFontName Arial
 
-title Happy Path: Contract Lifecycle\nOFFERED → NEGOTIATING → SIGNED → ACTIVE → DELIVERED → SETTLED
+title Phase 1 Happy Path\nOFFERED → NEGOTIATING → SIGNED → ACTIVE → DELIVERED → SETTLED
 
 actor Seller
 actor Buyer
 participant "API Gateway" as GW
 participant "product-service" as PS
 participant "contract-service" as CS
-database "contract_db\n(+ outbox)" as CDB
-participant "Outbox Poller" as OP
+database "contract_db\n+ negotiations + outbox" as CDB
 queue "RabbitMQ" as MQ
 participant "escrow-service" as ES
+database "escrow_db\n+ ledger + outbox" as EDB
 participant "notification-service" as NS
 
-== 1. Seller tạo Listing ==
-Seller -> GW : POST /api/listings
-GW -> PS : forward
-PS -> PS : Listing.create() [ACTIVE]
-PS --> Seller : 201 listingId
+== 1. Marketplace ==
+Seller -> GW : POST /api/v1/products
+GW -> PS : trusted user headers
+PS --> Seller : 201 product
+Seller -> GW : POST /api/v1/listings
+GW -> PS : trusted user headers
+PS -> PS : Listing ACTIVE\nSnapshot name + cover image
+PS --> Seller : 201 listing
 
-== 2. Buyer tạo Offer ==
-Buyer -> GW : POST /api/contracts\n{listingId, proposedTerms}
-GW -> CS : forward (X-User-Id: buyerId)
-CS -> CS : Contract.offer() → OFFERED
-CS -> CDB : save contract
-CS --> Buyer : 201 contractId
+== 2. Offer and negotiation ==
+Buyer -> GW : POST /api/v1/contracts\n{contractId?, listingId, terms}
+GW -> CS : buyer principal
+CS -> PS : GET listing snapshot [Feign]
+CS -> CS : Contract.offer() → OFFERED\ntermsRevision = 1
+CS -> CDB : save contract + revision 1 + outbox
+CS --> Buyer : 201 contract
 
-== 3. Đàm phán (0..n lần) ==
-note over Seller, CS: Cả hai bên có thể counter-offer\nMỗi lần append NegotiationEvent\nContract ở NEGOTIATING sau counter-offer đầu tiên
+Seller -> GW : PUT /api/v1/contracts/{id}/negotiate\n{newTerms}
+GW -> CS : seller principal
+CS -> CS : counterOffer() → NEGOTIATING\nrevision++ · clear signatories
+CS -> CDB : update contract + append revision + outbox
+CS --> Seller : 200
 
-== 4. Hai bên ký Contract ==
-note over Seller, Buyer: Mỗi bên gọi sign() riêng.\nSau lần ký đầu: vẫn OFFERED/NEGOTIATING.\nSau lần ký thứ hai (cả hai đã ký): → SIGNED
+== 3. Both parties sign the same revision ==
+Seller -> GW : PUT /api/v1/contracts/{id}/sign
+GW -> CS : seller principal
+CS -> CS : add seller signature\ncontract remains NEGOTIATING
+CS -> CDB : save + contract.partially_signed outbox
 
-Seller -> GW : PUT /api/contracts/{id}/sign
-GW -> CS : forward (X-User-Id: sellerId)
-CS -> CS : Contract.sign(sellerId)\nAdd sellerId vào signatories set\nchưa đủ 2 — giữ nguyên state
-CS --> Seller : 200 OK
+Buyer -> GW : PUT /api/v1/contracts/{id}/sign
+GW -> CS : buyer principal
+CS -> CS : both signatures → SIGNED
+CS -> PS : PUT /api/v1/listings/{id}/close [Feign]
+PS -> PS : ACTIVE → CLOSED
+CS -> CDB : save + contract.signed outbox
+CS --> Buyer : 200
 
-Buyer -> GW : PUT /api/contracts/{id}/sign
-GW -> CS : forward (X-User-Id: buyerId)
-CS -> CS : Contract.sign(buyerId)\nsignatories.size() == 2 → SIGNED
-CS -> PS : PUT /listings/{id}/close [OpenFeign SYNC]
-PS -> PS : Listing.close() [ACTIVE → CLOSED]
-PS --> CS : 200 OK
-CS -> CDB : save contract + ContractSignedEvent (PENDING)
-CS --> Buyer : 200 OK
+CDB -> MQ : Outbox poller publishes contract.signed
 
-== 5. Outbox Poller publish ==
-OP -> CDB : SELECT WHERE status=PENDING
-CDB --> OP : [ContractSignedEvent]
-OP -> MQ : publish routing-key: contract.signed
-OP -> CDB : UPDATE status=PUBLISHED
-
-== 6. Escrow lock (async) ==
+== 4. Two-party escrow lock ==
 MQ -> ES : contract.signed
-ES -> ES : check contractId idempotency\n(nếu đã LOCKED thì skip)
-ES -> ES : EscrowAccount.lock()\nDeduct mock buyer balance → LOCKED
-ES -> MQ : publish escrow.locked
+ES -> ES : unique contractId\nlock buyer payment → BUYER_LOCKED
+ES -> EDB : save account + LOCK ledger + outbox
 
-== 7. Contract → ACTIVE (async) ==
+Seller -> GW : PUT /api/v1/escrows/{contractId}/confirm-deposit
+GW -> ES : SELLER principal
+ES -> ES : sellerDeposit = total × rate\nBUYER_LOCKED → FULLY_LOCKED
+ES -> EDB : save LOCK ledger + escrow.locked outbox
+EDB -> MQ : Outbox poller publishes escrow.locked
 MQ -> CS : escrow.locked
-CS -> CS : Contract.activate() → ACTIVE
-CS -> CDB : save
-
-== 8. Notification (async) ==
+CS -> CS : activate() → ACTIVE
+CS -> CDB : save + contract.activated outbox
 MQ -> NS : escrow.locked
-NS -> NS : check eventId idempotency
-NS -> NS : send email to seller
-note right of NS : "Buyer đã lock escrow\nTiến hành giao hàng"
+NS -> NS : email Seller
 
-== 9. Buyer xác nhận nhận hàng ==
-Buyer -> GW : PUT /api/contracts/{id}/confirm-delivery
-GW -> CS : forward (X-User-Id: buyerId)
-CS -> CS : Contract.confirmDelivery(buyerId) → DELIVERED
-CS -> CDB : save + ContractDeliveredEvent (PENDING)
-CS --> Buyer : 200 OK
-
-OP -> MQ : publish contract.delivered
-
-== 10. Escrow release (async) ==
+== 5. Delivery confirmation and dispute window ==
+Buyer -> GW : PUT /api/v1/contracts/{id}/confirm-delivery
+GW -> CS : BUYER principal
+CS -> CS : ACTIVE → DELIVERED
+CS -> CDB : save + contract.delivered outbox
+CDB -> MQ : publish contract.delivered
 MQ -> ES : contract.delivered
-ES -> ES : EscrowAccount.release()\nLOCKED → RELEASED\nAdd mock seller balance
-ES -> MQ : publish escrow.released
+ES -> ES : FULLY_LOCKED → DELIVERY_PENDING\nreleaseEligibleAt = now + PT30S
+ES -> EDB : save deadline
+MQ -> NS : contract.delivered
+NS -> NS : email Seller
 
-== 11. Contract → SETTLED (async) ==
+== 6. Automatic release after no dispute ==
+... configured dispute window expires ...
+ES -> EDB : scheduler finds due DELIVERY_PENDING account
+ES -> ES : RELEASED\nRELEASE buyer payment\nREFUND seller deposit
+ES -> EDB : append ledger + escrow.released outbox
+EDB -> MQ : publish escrow.released
 MQ -> CS : escrow.released
-CS -> CS : Contract.settle() → SETTLED
-CS -> CDB : save
-
-== 12. Notification (async) ==
+CS -> CS : DELIVERED → SETTLED
+CS -> CDB : save + contract.settled outbox
 MQ -> NS : escrow.released
-NS -> NS : send email to both parties
-note right of NS : "Escrow released\nHop dong da SETTLED"
+NS -> NS : email Buyer + Seller
 
 @enduml

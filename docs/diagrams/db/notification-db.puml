@@ -6,8 +6,8 @@ title notification-service — notification_db
 entity "notification_logs" as NL {
     * id : BIGINT <<PK, AUTO_INCREMENT>>
     --
-    * notification_id : VARCHAR(255) <<UNIQUE>>
-    * event_id : VARCHAR(255) <<UNIQUE>> (dedup key)
+    * notification_id : VARCHAR(36) <<UNIQUE>>
+    * event_id : VARCHAR(36)
     * user_id : VARCHAR(255)
     * channel : ENUM(EMAIL)
     * subject : VARCHAR(500)
@@ -19,8 +19,9 @@ entity "notification_logs" as NL {
 }
 
 note right of NL
-  Idempotency: event_id là UNIQUE
-  → không gửi email 2 lần cho cùng 1 event.
+  Idempotency: UNIQUE(event_id, user_id)
+  → một event có thể gửi nhiều recipient,
+  nhưng không gửi hai lần cho cùng một người.
 
   Retry logic:
   - Max 3 lần
