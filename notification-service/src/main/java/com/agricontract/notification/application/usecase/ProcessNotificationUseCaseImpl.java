@@ -110,6 +110,17 @@ public class ProcessNotificationUseCaseImpl implements ProcessNotificationUseCas
     }
 
     @Override
+    public void handleEscrowArbitrated(EscrowArbitratedCommand command) {
+        String subject = "[AgriContract] Dispute arbitration completed";
+        String body = "Escrow " + command.escrowId()
+                + " for contract " + command.contractId()
+                + " has been arbitrated. Decision: " + command.justification();
+
+        sendNotification(command.eventId(), command.buyerEmail(), subject, body);
+        sendNotification(command.eventId(), command.sellerEmail(), subject, body);
+    }
+
+    @Override
     public void handleCategoryApproved(CategoryApprovedCommand command) {
         String subject = "[AgriContract] Category proposal approved";
         String body = "Your proposed category \"" + command.name() + "\" has been approved.";

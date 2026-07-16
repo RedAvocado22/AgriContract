@@ -128,6 +128,25 @@ public class NotificationEventConsumer {
         }
     }
 
+    @RabbitListener(queues = "notification-svc.escrow.arbitrated")
+    public void onEscrowArbitrated(Map<String, Object> event) {
+        processNotificationUseCase.handleEscrowArbitrated(parseEscrowArbitratedEvent(event));
+    }
+
+    private EscrowArbitratedCommand parseEscrowArbitratedEvent(Map<String, Object> event) {
+        try {
+            return new EscrowArbitratedCommand(
+                    (String) event.get("eventId"),
+                    (String) event.get("escrowId"),
+                    (String) event.get("contractId"),
+                    (String) event.get("buyerEmail"),
+                    (String) event.get("sellerEmail"),
+                    (String) event.get("justification"));
+        } catch (RuntimeException e) {
+            throw new InvalidEventPayloadException("Malformed escrow.arbitrated payload: " + event, e);
+        }
+    }
+
     @RabbitListener(queues = "notification-svc.category.approved")
     public void onCategoryApproved(Map<String, Object> event) {
         processNotificationUseCase.handleCategoryApproved(parseCategoryApprovedEvent(event));

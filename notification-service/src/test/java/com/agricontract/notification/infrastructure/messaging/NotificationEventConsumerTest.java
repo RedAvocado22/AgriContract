@@ -2,6 +2,7 @@ package com.agricontract.notification.infrastructure.messaging;
 
 import com.agricontract.notification.application.dto.CategoryApprovedCommand;
 import com.agricontract.notification.application.dto.CategoryRejectedCommand;
+import com.agricontract.notification.application.dto.EscrowArbitratedCommand;
 import com.agricontract.notification.application.exception.InvalidEventPayloadException;
 import com.agricontract.notification.application.usecase.ProcessNotificationUseCase;
 import org.junit.jupiter.api.Test;
@@ -63,5 +64,21 @@ class NotificationEventConsumerTest {
         ArgumentCaptor<CategoryRejectedCommand> captor = ArgumentCaptor.forClass(CategoryRejectedCommand.class);
         verify(processNotificationUseCase).handleCategoryRejected(captor.capture());
         assertThat(captor.getValue().rejectionReason()).isEqualTo("trung ten");
+    }
+
+    @Test
+    void onEscrowArbitrated_wellFormedPayload_delegatesDecision() {
+        consumer = new NotificationEventConsumer(processNotificationUseCase);
+        Map<String, Object> event = Map.of(
+                "eventId", "event-3", "escrowId", "escrow-1", "contractId", "contract-1",
+                "buyerEmail", "buyer@test.com", "sellerEmail", "seller@test.com",
+                "justification", "Inspection result");
+
+        consumer.onEscrowArbitrated(event);
+
+        ArgumentCaptor<EscrowArbitratedCommand> captor = ArgumentCaptor.forClass(EscrowArbitratedCommand.class);
+        verify(processNotificationUseCase).handleEscrowArbitrated(captor.capture());
+        assertThat(captor.getValue().contractId()).isEqualTo("contract-1");
+        assertThat(captor.getValue().justification()).isEqualTo("Inspection result");
     }
 }
