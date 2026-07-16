@@ -28,7 +28,7 @@ metadata:
 
 **Thứ tự ưu tiên đã chốt:** file-service → pricing-service → analytics-service.
 
-**Đã loại hẳn:** `search-service` — không tồn tại như 1 service riêng, thay bằng 2 param filter trong `product-service`.
+**Tìm kiếm/lọc listing:** dùng trực tiếp các query parameter trong `product-service`.
 
 ---
 
@@ -200,10 +200,10 @@ CREATE TABLE email_intake_failure (
 
 **Review pass 2 (05/07/2026) — bug đã fix:** kênh `EMAIL_INTAKE` (nguồn ngoài internet) từng bỏ qua virus-scan hoàn toàn do tách nhầm consumer theo nguồn gốc file thay vì theo loại công việc — xem §4. Đã fix bằng cách nối chuỗi `EmailParseConsumer` → `file-service.virus-scan` queue. Đồng thời chốt thêm size cap 20MB (streaming check) cho `EMAIL_INTAKE` — trước đó chưa có giới hạn nào (§3).
 
-**Việc còn treo, không block thiết kế này:** chưa xin cấp phép/khảo sát thực tế khả năng dùng IMAP polling với mailbox thật của SGS/Bureau Veritas (giả định đơn giản hoá cho scope đồ án).
+**Known Limitation (không block thiết kế):** khả năng dùng IMAP polling với mailbox thật của SGS/Bureau Veritas không khảo sát/xin cấp phép được trong phạm vi đồ án — giữ làm giả định đơn giản hoá. Thiết kế không phụ thuộc chi tiết cơ chế lấy mail cụ thể; nếu deployment thật dùng cơ chế khác (Inbound Parse webhook, API...), chỉ đổi adapter tầng intake, không đụng logic lõi.
 
-File-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
+File-service — **ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
 
 ---
 
-_Design session: 05/07/2026 · Review pass 2 (fix virus-scan gap + storage key + size cap): 05/07/2026 · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức._
+_Design session: 05/07/2026 · Review pass 2 (fix virus-scan gap + storage key + size cap): 05/07/2026 · Cập nhật 13/07/2026 (giả định IMAP mailbox SGS/BV chuyển thành Known Limitation) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**_

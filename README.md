@@ -75,7 +75,7 @@ AgriContract adds escrow, milestone-based settlement, tiered dispute resolution,
 | audit-service | 8092 | Append-only event store; EUDR compliance export (PDF/CSV) |
 | analytics-service | 8093 | Time-series aggregation; platform analytics |
 
-> Listing search is handled as filter parameters inside `product-service` rather than a standalone service — port `8090` is intentionally unused.
+> Listing discovery is handled directly by filter parameters inside `product-service`.
 
 ### Infrastructure
 

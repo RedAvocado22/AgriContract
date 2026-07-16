@@ -12,7 +12,7 @@
   <rect x="0" y="0" width="1440" height="905" fill="#FFFFFF"/>
 
   <text x="44" y="48" font-size="25" font-weight="700" fill="#1E293B">AgriContract — Phase 2 Architecture</text>
-  <text x="44" y="73" font-size="12.5" fill="#64748B">13 microservices · event-driven (Choreography Saga + Transactional Outbox) · external verification &amp; anchoring integrations</text>
+  <text x="44" y="73" font-size="12.5" fill="#64748B">12 microservices · event-driven (Choreography Saga + Transactional Outbox) · external verification &amp; anchoring integrations</text>
 
   <g filter="url(#soft)"><rect x="610" y="96" width="220" height="44" rx="8" fill="#EEF2FF" stroke="#4F46E5" stroke-width="1.6"/></g>
   <text x="720" y="117" text-anchor="middle" font-size="13" font-weight="700" fill="#3730A3">Web Client</text>
@@ -68,27 +68,25 @@
   <text x="720" y="458" text-anchor="middle" font-size="9.5" fill="#B45309">Choreography Saga + Transactional Outbox · at-least-once delivery (idempotent consumers)</text>
 
   <g stroke="#EA580C" stroke-width="1.4" stroke-dasharray="4,3" opacity="0.8">
-    <line x1="118" y1="466" x2="118" y2="526"/><line x1="290" y1="466" x2="290" y2="526"/><line x1="462" y1="466" x2="462" y2="526"/><line x1="634" y1="466" x2="634" y2="526"/><line x1="806" y1="466" x2="806" y2="526"/><line x1="978" y1="466" x2="978" y2="526"/><line x1="1150" y1="466" x2="1150" y2="526"/><line x1="1322" y1="466" x2="1322" y2="526"/>
+    <line x1="118" y1="466" x2="118" y2="526"/><line x1="319" y1="466" x2="319" y2="526"/><line x1="519" y1="466" x2="519" y2="526"/><line x1="720" y1="466" x2="720" y2="526"/><line x1="921" y1="466" x2="921" y2="526"/><line x1="1121" y1="466" x2="1121" y2="526"/><line x1="1322" y1="466" x2="1322" y2="526"/>
   </g>
 
   <g filter="url(#soft)">
     <rect x="44" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <rect x="216" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <rect x="388" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <rect x="560" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <rect x="732" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <rect x="904" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <rect x="1076" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="245" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="445" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="646" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="847" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <rect x="1047" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
     <rect x="1248" y="526" width="148" height="76" rx="8" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="5,3"/>
   </g>
   <g text-anchor="middle" fill="#6D28D9">
     <text x="118" y="552" font-size="12" font-weight="700">bank-service</text><text x="118" y="569" font-size="9" fill="#8B5CF6">:8086</text><text x="118" y="585" font-size="8.5" fill="#5B21B6">FBO ledger · custody</text>
-    <text x="290" y="552" font-size="12" font-weight="700">inspection-service</text><text x="290" y="569" font-size="9" fill="#8B5CF6">:8087</text><text x="290" y="585" font-size="8.5" fill="#5B21B6">INSPECTOR 3-tier · evidence</text>
-    <text x="462" y="552" font-size="12" font-weight="700">reputation-service</text><text x="462" y="569" font-size="9" fill="#8B5CF6">:8088</text><text x="462" y="585" font-size="8.5" fill="#5B21B6">read model (CQRS)</text>
-    <text x="634" y="552" font-size="12" font-weight="700">file-service</text><text x="634" y="569" font-size="9" fill="#8B5CF6">:8089</text><text x="634" y="585" font-size="8.5" fill="#5B21B6">MinIO storage</text>
-    <text x="806" y="552" font-size="12" font-weight="700">search-service</text><text x="806" y="569" font-size="9" fill="#8B5CF6">:8090</text><text x="806" y="585" font-size="8.5" fill="#5B21B6">read model (CQRS)</text>
-    <text x="978" y="552" font-size="12" font-weight="700">pricing-service</text><text x="978" y="569" font-size="9" fill="#8B5CF6">:8091</text><text x="978" y="585" font-size="8.5" fill="#5B21B6">price feeds · Redis</text>
-    <text x="1150" y="552" font-size="12" font-weight="700">audit-service</text><text x="1150" y="569" font-size="9" fill="#8B5CF6">:8092</text><text x="1150" y="585" font-size="8.5" fill="#5B21B6">append-only · hash chain</text>
+    <text x="319" y="552" font-size="12" font-weight="700">inspection-service</text><text x="319" y="569" font-size="9" fill="#8B5CF6">:8087</text><text x="319" y="585" font-size="8.5" fill="#5B21B6">INSPECTOR 3-tier · evidence</text>
+    <text x="519" y="552" font-size="12" font-weight="700">reputation-service</text><text x="519" y="569" font-size="9" fill="#8B5CF6">:8088</text><text x="519" y="585" font-size="8.5" fill="#5B21B6">read model (CQRS)</text>
+    <text x="720" y="552" font-size="12" font-weight="700">file-service</text><text x="720" y="569" font-size="9" fill="#8B5CF6">:8089</text><text x="720" y="585" font-size="8.5" fill="#5B21B6">MinIO storage</text>
+    <text x="921" y="552" font-size="12" font-weight="700">pricing-service</text><text x="921" y="569" font-size="9" fill="#8B5CF6">:8091</text><text x="921" y="585" font-size="8.5" fill="#5B21B6">price feeds · Redis</text>
+    <text x="1121" y="552" font-size="12" font-weight="700">audit-service</text><text x="1121" y="569" font-size="9" fill="#8B5CF6">:8092</text><text x="1121" y="585" font-size="8.5" fill="#5B21B6">append-only · hash chain</text>
     <text x="1322" y="552" font-size="12" font-weight="700">analytics-service</text><text x="1322" y="569" font-size="9" fill="#8B5CF6">:8093</text><text x="1322" y="585" font-size="8.5" fill="#5B21B6">time-series agg.</text>
   </g>
 
@@ -99,17 +97,17 @@
   <text x="210" y="670" text-anchor="middle" font-size="11.5" font-weight="700" fill="#334155">MySQL</text>
   <text x="210" y="685" text-anchor="middle" font-size="8.5" fill="#475569">DB per service ×5</text>
 
-  <rect x="572" y="650" width="124" height="48" rx="6" fill="#E2E8F0" stroke="#475569" stroke-width="1.3"/>
-  <text x="634" y="671" text-anchor="middle" font-size="11.5" font-weight="700" fill="#334155">MinIO</text>
-  <text x="634" y="686" text-anchor="middle" font-size="8.5" fill="#475569">object storage · files</text>
+  <rect x="658" y="650" width="124" height="48" rx="6" fill="#E2E8F0" stroke="#475569" stroke-width="1.3"/>
+  <text x="720" y="671" text-anchor="middle" font-size="11.5" font-weight="700" fill="#334155">MinIO</text>
+  <text x="720" y="686" text-anchor="middle" font-size="8.5" fill="#475569">object storage · files</text>
 
-  <path d="M916,650 a62,9 0 0 0 124,0 v38 a62,9 0 0 1 -124,0 z" fill="#E2E8F0" stroke="#475569" stroke-width="1.3"/>
-  <ellipse cx="978" cy="650" rx="62" ry="9" fill="#EDF1F6" stroke="#475569" stroke-width="1.3"/>
-  <text x="978" y="670" text-anchor="middle" font-size="11.5" font-weight="700" fill="#334155">Redis</text>
-  <text x="978" y="685" text-anchor="middle" font-size="8" fill="#475569">cache · rate-limit · token</text>
+  <path d="M859,650 a62,9 0 0 0 124,0 v38 a62,9 0 0 1 -124,0 z" fill="#E2E8F0" stroke="#475569" stroke-width="1.3"/>
+  <ellipse cx="921" cy="650" rx="62" ry="9" fill="#EDF1F6" stroke="#475569" stroke-width="1.3"/>
+  <text x="921" y="670" text-anchor="middle" font-size="11.5" font-weight="700" fill="#334155">Redis</text>
+  <text x="921" y="685" text-anchor="middle" font-size="8" fill="#475569">cache · rate-limit · token</text>
 
-  <line x1="634" y1="602" x2="634" y2="650" stroke="#64748B" stroke-width="1.3" marker-start="url(#arrowGrayS)" marker-end="url(#arrowGray)"/>
-  <line x1="978" y1="602" x2="978" y2="648" stroke="#64748B" stroke-width="1.3" marker-start="url(#arrowGrayS)" marker-end="url(#arrowGray)"/>
+  <line x1="720" y1="602" x2="720" y2="650" stroke="#64748B" stroke-width="1.3" marker-start="url(#arrowGrayS)" marker-end="url(#arrowGray)"/>
+  <line x1="921" y1="602" x2="921" y2="648" stroke="#64748B" stroke-width="1.3" marker-start="url(#arrowGrayS)" marker-end="url(#arrowGray)"/>
 
   <rect x="40" y="726" width="1360" height="104" rx="10" fill="#F0FDFA" stroke="#99F6E4" stroke-width="1.3" stroke-dasharray="6,4"/>
   <text x="52" y="744" font-size="11" font-weight="700" fill="#0F766E">External Systems &amp; Verification Sources — outside trust boundary</text>
@@ -146,11 +144,11 @@
   <text x="1308" y="807" text-anchor="middle" font-size="8" fill="#0891B2">tamper-proof audit proof</text>
 
   <line x1="118" y1="602" x2="118" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-start="url(#arrowCyanS)" marker-end="url(#arrowCyan)"/>
-  <line x1="290" y1="602" x2="290" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arrowCyan)"/>
-  <line x1="318" y1="602" x2="466" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arrowCyan)"/>
+  <line x1="319" y1="602" x2="290" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arrowCyan)"/>
+  <line x1="347" y1="602" x2="466" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arrowCyan)"/>
   <line x1="720" y1="368" x2="720" y2="754" stroke="#D97706" stroke-width="1.4" stroke-dasharray="6,4" marker-end="url(#arrowAmber)"/>
-  <line x1="1000" y1="602" x2="1110" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-start="url(#arrowCyanS)" marker-end="url(#arrowCyan)"/>
-  <line x1="1160" y1="602" x2="1290" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arrowCyan)"/>
+  <line x1="943" y1="602" x2="1110" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-start="url(#arrowCyanS)" marker-end="url(#arrowCyan)"/>
+  <line x1="1141" y1="602" x2="1290" y2="754" stroke="#0891B2" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#arrowCyan)"/>
 
   <path d="M872,368 C 680,460 360,470 122,524" fill="none" stroke="#E11D48" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrowRose)"/>
   <rect x="286" y="480" width="316" height="16" rx="3" fill="#FFFFFF" stroke="#E11D48" stroke-width="1"/>

@@ -28,7 +28,7 @@ push(table(
   ["Dịch vụ", "Sở hữu"],
   [
     ["user-service", "Cầu nối Keycloak; profile tổ chức; xác minh thẩm quyền đại diện (KYC); cưỡng chế khoá tài khoản theo quyết định từ reputation-service. KHÔNG giữ credentials (Keycloak giữ)"],
-    ["notification-service", "Thông báo hướng sự kiện (email/in-app); gửi OTP ký; neo hash qua email; weekly digest; alert khi verify chain fail. Pure consumer"],
+    ["notification-service", "Thông báo hướng sự kiện; gửi OTP qua internal sync API; neo hash qua email; weekly digest; alert khi verify chain fail. Không sở hữu OTP/hash hay quyết định recipient"],
     ["analytics-service", "Read model CQRS phục vụ dashboard hiệp hội/Admin. Pure consumer — KHÔNG gọi ngược Feign về dịch vụ nào"],
   ],
   { size: 18 }
@@ -41,13 +41,17 @@ push(H1("2. user-service"));
 push(H2("2.1 Trách nhiệm & mô hình miền"));
 push(P("Keycloak là IAM server giữ credentials và cấp JWT; user-service chỉ giữ dữ liệu profile nghiệp vụ và trạng thái xác minh, khoá userId theo claim sub của Keycloak."));
 push(codeblock([
-  "CREATE TABLE app_user (",
-  "  user_id                  UUID PRIMARY KEY,     -- = Keycloak sub",
+  "CREATE TABLE user_profiles (",
+  "  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,",
+  "  user_id                  VARCHAR(255) NOT NULL UNIQUE, -- = Keycloak sub",
   "  organization_name        VARCHAR(255) NOT NULL,",
-  "  role                     VARCHAR(15) NOT NULL, -- BUYER|SELLER|ADMIN|INSPECTOR",
+  "  role                     VARCHAR(15) NOT NULL,       -- BUYER|SELLER|ADMIN|INSPECTOR",
+  "  email                    VARCHAR(255) NOT NULL, phone VARCHAR(50) NULL, address TEXT NULL,",
   "  verification_status      VARCHAR(20) NOT NULL DEFAULT 'PENDING', -- PENDING|VERIFIED|REJECTED",
   "  authorization_expires_at TIMESTAMP NULL,       -- nhập tay từ giấy tờ; NULL = vô thời hạn",
   "  locked_until             TIMESTAMP NULL,       -- cache từ reputation.locked/unlocked",
+  "  verified_by_admin_id     VARCHAR(255) NULL, verified_at TIMESTAMP NULL,",
+  "  rejection_reason         TEXT NULL,",
   "  created_at               TIMESTAMP NOT NULL, updated_at TIMESTAMP NOT NULL",
   ");",
 ]));
@@ -61,8 +65,8 @@ push(legal("Bộ luật Dân sự 2015, Điều 142", "Giao dịch do người k
 
 push(H2("2.3 Cưỡng chế khoá tài khoản"));
 push(P("Không thể chặn ở Keycloak (chỉ biết identity + role, không biết business lock state). user-service là nơi enforce thật:"));
-push(numbered("Consume reputation.locked / reputation.unlocked → cập nhật cache lockedUntil trên app_user (không gọi sync mỗi lần check — cache state flag là ổn, không phải dual-write)."));
-push(numbered("Expose CheckLockStatus qua Feign cho contract-service sign() (fail-closed) — trả lockedUntil hiện tại."));
+push(numbered("Consume reputation.locked / reputation.unlocked → cập nhật cache lockedUntil trên user_profiles; sau commit publish notification.user_lock_changed_requested đã enrich recipient email. reputation-service không cần biết email."));
+push(numbered("Expose InternalUserInfo qua endpoint /internal/v1/users/{id} cho contract-service sign() (fail-closed) — trả verificationStatus, authorizationExpiresAt và lockedUntil cùng DTO nội bộ."));
 push(numbered("product-service CreateListing gọi kiểm tra fail-open (chưa có Feign client, thêm mới); sign() fail-closed + @CircuitBreaker (ưu tiên đóng gap này trước mọi Feign call khác)."));
 push(P("Hai tầng không thừa nhau: khoá chỉ chặn tạo mới, không hồi tố hợp đồng đã ACTIVE/SIGNED. Seller sạch lúc tạo offer, dính khoá giữa đàm phán — chỉ sign() check lại mới bắt được."));
 
@@ -71,10 +75,12 @@ push(table(
   [4400, 1500, 3738],
   ["Endpoint", "Vai trò", "Mô tả"],
   [
-    ["POST /api/v1/users/register", "công khai", "Đăng ký + nộp hồ sơ KYC (PENDING)"],
-    ["POST /api/v1/users/{id}/verify", "ADMIN", "Duyệt KYC, nhập authorizationExpiresAt"],
-    ["GET /api/v1/users/{id}/lock-status", "nội bộ (Feign)", "CheckLockStatus — trả lockedUntil"],
-    ["GET /api/v1/users/{id}", "các bên", "Profile (không lộ dữ liệu nhạy cảm ngoài phạm vi vai trò)"],
+    ["POST /api/v1/users/register", "authenticated", "Đăng ký profile KYC (PENDING), idempotent theo Keycloak sub"],
+    ["GET /api/v1/users/me", "chính chủ", "Profile đầy đủ: contact, KYC, authorization, lock"],
+    ["GET /api/v1/users/{id}", "authenticated", "PublicUserResponse — KHÔNG email/phone/address"],
+    ["GET /api/v1/admin/users?verificationStatus=PENDING", "ADMIN", "Hàng đợi duyệt KYC"],
+    ["POST /api/v1/admin/users/{id}/verify | /reject", "ADMIN", "Duyệt hoặc từ chối có audit metadata"],
+    ["GET /internal/v1/users/{id}", "service nội bộ", "InternalUserInfoResponse có email/KYC/authorization/lock; Gateway không route"],
   ],
   { size: 17, colAlign: [null, AlignmentType.CENTER, null] }
 ));
@@ -83,7 +89,7 @@ push(table(
 // 3. NOTIFICATION-SERVICE
 // ============================================================
 push(H1("3. notification-service"));
-push(P("Pure consumer sự kiện — không sở hữu nghiệp vụ lõi. Ngoài thông báo thường (email/in-app), gánh bốn vai trò gắn với bảo mật/bằng chứng:"));
+push(P("Không sở hữu nghiệp vụ lõi, OTP hay hash. Notification nghiệp vụ/bằng chứng đi qua RabbitMQ; riêng OTP dùng internal synchronous API từ contract-service để caller chỉ báo “đã gửi” khi mail provider đã nhận request. Endpoint nội bộ này không route qua Gateway."));
 push(table(
   [3000, 6638],
   ["Vai trò", "Cơ chế"],
@@ -95,20 +101,19 @@ push(table(
   ],
   { size: 18 }
 ));
-push(P([runs("Idempotency & retry: ", { bold: true }), runs("dedup theo eventId (một event chỉ gửi một lần dù RabbitMQ at-least-once). Retry 3 lần exponential backoff trước khi vào dead-letter exchange. Gửi email qua SendGrid (hạ tầng dùng chung với OTP và IMAP intake).", {})]));
+push(P([runs("Recipient, idempotency & retry: ", { bold: true }), runs("publisher mang recipient email trong event; notification không Feign ngược user-service. Dedup theo (eventId, recipientEmail, notificationType) để một event gửi đúng một lần cho từng người/loại mail. Async retry 3 lần exponential backoff trước DLX. OTP sync không tự gửi muộn sau khi caller đã nhận failure.", {})]));
 push(codeblock([
   "CREATE TABLE notification_log (",
   "  notification_id UUID PRIMARY KEY,",
-  "  event_id        UUID NOT NULL UNIQUE,   -- dedup key (at-least-once)",
-  "  recipient_id    UUID NOT NULL,          -- userId người nhận",
-  "  channel         VARCHAR(10) NOT NULL,   -- EMAIL | IN_APP",
-  "  template_code   VARCHAR(50) NOT NULL,",
-  "  status          VARCHAR(10) NOT NULL,   -- SENT | FAILED",
-  "  sent_at         TIMESTAMP NOT NULL",
+  "  event_id         UUID NOT NULL, event_type VARCHAR(100) NOT NULL,",
+  "  notification_type VARCHAR(100) NOT NULL, recipient_id UUID NULL,",
+  "  recipient_email VARCHAR(255) NOT NULL, channel VARCHAR(10) NOT NULL,",
+  "  template_version VARCHAR(50) NOT NULL, status VARCHAR(10) NOT NULL, -- PENDING|SENT|FAILED",
+  "  retry_count INT NOT NULL DEFAULT 0, provider_message_id VARCHAR(255) NULL,",
+  "  failure_reason TEXT NULL, sent_at TIMESTAMP NULL,",
+  "  UNIQUE(event_id, recipient_email, notification_type)",
   ");",
-  "CREATE TABLE email_template (",
-  "  template_code VARCHAR(50) PRIMARY KEY, subject VARCHAR(255) NOT NULL, body_html TEXT NOT NULL",
-  ");",
+  "-- Evidence/security template version trong code/resources; DB log đúng version đã gửi.",
 ]));
 
 // ============================================================
@@ -160,6 +165,7 @@ push(codeblock([
 
 push(H2("4.3 Batch job & API"));
 push(P("MonthlyAggregationJob (@Scheduled) chạy 1:00 sáng mỗi ngày (off-peak, trước VerifyChainJob của audit lúc 2:00 để tránh giành tài nguyên DB). Quét fact_contract_settlement + fact_contract_cancellation (JOIN dim_contract lấy commodity — granularity Contract, cho total_contracts_settled/total_contracts_cancelled) và fact_milestone_performance (JOIN dim_contract, granularity Milestone, cho total_value_settled/escrow_efficiency_rate/force_majeure_incidents) — hai nguồn khác granularity, upsert đúng cột tương ứng vào agg_monthly_commodity_stats tháng hiện tại, tính và ghi đè rate. API cache Redis TTL 1 giờ (phân tích vĩ mô không cần fresh tới giây)."));
+push(P([runs("AmlPatternScanJob (@Scheduled, bổ sung 10/07/2026) — tầng batch AML: ", { bold: true }), runs("quét data warehouse tìm cụm near-threshold theo cặp buyer-seller: giá trị trong band [475tr, 500tr), tối thiểu 5 hợp đồng, lookback 90 ngày — bắt structuring chậm rải mỏng dưới ngưỡng tuyệt đối mà 2 tầng realtime (Phần 3, reputation) không với tới. Phát hiện cụm → publish analytics.structuring_pattern_detected; consumer: reputation-service (set cặp ELEVATED_RISK — cơ chế EDD, chi tiết Phần 3) và bank-service (nghĩa vụ báo cáo cơ quan). Đúng triết lý pure consumer: analytics chỉ quét dữ liệu mình đã có và publish event, không gọi ngược service nào.", {})]));
 push(table(
   [4700, 4938],
   ["Endpoint", "Ý nghĩa quản trị (VICOFA/VRA/Admin)"],
@@ -185,23 +191,28 @@ push(table(
   [3300, 2100, 4238],
   ["Routing key", "Publisher", "Consumer(s)"],
   [
-    ["contract.signed", "contract-service", "escrow, notification, audit, analytics"],
-    ["contract.settled", "contract-service", "escrow (hoàn cọc), reputation, notification, analytics"],
-    ["contract.cancelled", "contract-service", "escrow (seize/refund cọc), notification, analytics"],
-    ["milestone.seller_weighed", "contract-service", "file, notification, audit"],
-    ["milestone.buyer_confirmed", "contract-service", "notification, audit (sửa 08/07/2026 — bỏ escrow, tránh release tiền 2 lần; release tiền thật đi qua milestone.settled)"],
-    ["milestone.flagged", "contract-service", "notification"],
-    ["milestone.force_majeure_claimed", "contract-service", "notification (Admin), audit"],
-    ["milestone.force_majeure_resolved", "contract-service", "escrow, notification, audit"],
-    ["milestone.settled", "contract-service", "escrow, notification, reputation, analytics, audit"],
-    ["milestone.cancelled_with_penalty", "contract-service", "escrow, reputation, analytics, notification, audit"],
+    ["contract.signed", "contract-service", "escrow, audit, analytics"],
+    ["contract.settled", "contract-service", "escrow (hoàn cọc), reputation, analytics"],
+    ["contract.cancelled", "contract-service", "escrow (seize/refund cọc), analytics"],
+    ["milestone.seller_weighed", "contract-service", "file, audit"],
+    ["milestone.buyer_confirmed", "contract-service", "audit (bỏ escrow, tránh release tiền 2 lần)"],
+    ["milestone.flagged", "contract-service", "không có domain consumer bắt buộc; mail qua notification command"],
+    ["milestone.force_majeure_claimed", "contract-service", "audit"],
+    ["milestone.force_majeure_resolved", "contract-service", "escrow, audit"],
+    ["milestone.settled", "contract-service", "escrow, reputation, analytics, audit (payload propagate recipients để gửi OTS)"],
+    ["milestone.cancelled_with_penalty", "contract-service", "escrow, reputation, analytics, audit"],
     ["milestone.dispute_resolved (mới, 08/07/2026)", "contract-service", "reputation (đếm tỷ lệ buyer flag-rồi-thua — tín hiệu chống lạm dụng FLAG_ISSUE, Phần 3 §3.5)"],
     ["bank.lock/release/seize/refund_requested", "escrow-service", "bank-service"],
     ["bank.lock/release/seize/refund_completed | _failed", "bank-service", "escrow-service"],
     ["escrow.deposit_locked (mới, 08/07/2026)", "escrow-service", "contract-service (chuyển ACTIVE); escrow-service tự dùng để lock batchAmount milestone đầu"],
     ["bank.large_transaction_flagged (08/07/2026)", "bank-service", "reputation, audit (báo cáo ≥500tr, không hold — reputation chỉ dùng làm 1 input composite score, không tự trigger hold)"],
-    ["milestone.level2_provisional_settled | _buffer_reconciled | _terminal_settled (08/07/2026)", "contract-service", "escrow, notification (provisional settlement 3 bước)"],
+    ["milestone.level2_provisional_settled | _buffer_reconciled | _terminal_settled (08/07/2026)", "contract-service", "escrow (mail qua notification.milestone_status_requested)"],
     ["reputation.locked | reputation.unlocked", "reputation-service", "user-service"],
+    ["notification.user_kyc_result_requested | user_lock_changed_requested", "user-service", "notification-service"],
+    ["notification.contract_anchor_requested | contract_cancelled_requested | milestone_status_requested", "contract-service", "notification-service"],
+    ["notification.milestone_anchor_requested | audit_digest_requested | audit_failure_requested", "audit-service", "notification-service"],
+    ["notification.level2_commission_requested", "inspection-service", "notification-service"],
+    ["notification.verifier_key_anchor_requested | security_lock_changed_requested", "bank-service", "notification-service"],
     ["file.uploaded.direct | file.email.received", "file-service", "file-service (queue nội bộ)"],
     ["file.ready | file.failed", "file-service", "dịch vụ sở hữu fileId (contract, inspection, product)"],
   ],
@@ -233,15 +244,15 @@ push(table(
   ],
   { size: 16 }
 ));
-push(P("(Port 8090 bỏ trống — search-service đã gộp thành 2 tham số filter trong product-service.)"));
+push(P("Tìm kiếm/lọc listing được xử lý trực tiếp bằng query parameter trong product-service."));
 
 // ============================================================
 // 7. OPEN ITEMS
 // ============================================================
-push(H1("Điểm còn treo tổng hợp"));
+push(H1("Tổng hợp trạng thái đóng & giới hạn đã biết"));
+push(bullet([runs("KI-3 email IDOR — đã đóng ở design Phase 2. ", { bold: true }), runs("API tách /users/me (contact chính chủ), /users/{id} (PublicUserResponse không email/phone/address) và /internal/v1/users/{id} (DTO nội bộ có email/KYC/lock, Gateway không route). Không còn dùng một UserInfoResponse cho cả external và Feign.", {})]));
 push(bullet([runs("Payload event mang commodity — đã đóng hoàn toàn (08/07/2026). ", { bold: true }), runs("contract.signed mang {contractId, commodity, buyerId, sellerId, totalAmount, buyerDepositAmount, sellerDepositAmount, signedAt} — commodity là enum cứng COFFEE/RICE/RUBBER/CASHEW, luôn non-null (analytics-service chỉ nhận và lưu, không tự map). Nguồn: contract-service đọc Category.commodity của category gắn với sản phẩm — không có case NULL vì category chỉ dùng được khi APPROVED và approve() bắt buộc gán commodity. Cơ chế Category/commodity (2 tầng, vì sao bỏ bảng mapping) chốt ở product-service §2.6 (owner) — không mô tả lại ở đây. Điểm treo mapping trước đây đã đóng hoàn toàn.", {})]));
-push(bullet([runs("Checklist KYC theo loại hình doanh nghiệp ", { bold: true }), runs("(buyer TNHH/cổ phần/hộ kinh doanh; giấy tờ INSPECTOR) — nguyên tắc đã chốt, danh mục cụ thể cần xác nhận nghiệp vụ.", {})]));
-push(bullet([runs("search-service — đã loại bỏ, không phải \"chưa thiết kế\". ", { bold: true }), runs("Map-based browse cần mật độ dữ liệu chưa có ở quy mô pilot; reputation score không tương thích kiến trúc read-model riêng; filter còn lại giống hệt query SQL sẵn có ở product-service. Quyết định: gộp thành 2 tham số filter trong product-service, port 8090 bỏ trống (Phụ lục B).", {})]));
+push(bullet([runs("Checklist KYC theo loại hình doanh nghiệp — giới hạn đã biết. ", { bold: true }), runs("(buyer TNHH/cổ phần/hộ kinh doanh; giấy tờ INSPECTOR) — nguyên tắc đã chốt, danh mục cụ thể cần xác nhận nghiệp vụ với đối tác thật, ngoài phạm vi xác nhận được của đồ án; không block thiết kế.", {})]));
 
 if (IS_MAIN) push(endMark());
 

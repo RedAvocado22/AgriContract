@@ -85,7 +85,7 @@ push(table(
   ],
   { size: 18, colAlign: [AlignmentType.CENTER, null, AlignmentType.CENTER, null] }
 ));
-push(P([runs("Vì sao 12 dịch vụ, không phải 13. ", { bold: true }), runs("Chức năng tìm kiếm/lọc listing ban đầu dự kiến tách thành search-service riêng (CQRS read model) đã được gộp lại thành hai tham số filter trong product-service — cross-service query cho một tính năng đọc đơn giản không đủ biện minh cho một dịch vụ độc lập với chi phí đồng bộ read-model đi kèm. Port 8090 bỏ trống.", {})]));
+push(P([runs("Ranh giới tìm kiếm/lọc listing. ", { bold: true }), runs("Chức năng này nằm trong product-service dưới dạng hai tham số filter — truy vấn đọc đơn giản chạy trực tiếp trên dữ liệu listing, không phát sinh read model hoặc cơ chế đồng bộ riêng.", {})]));
 push(P([runs("Vì sao tách contract-service và escrow-service. ", { bold: true }), runs("Hai năng lực này có độ thay đổi (rate of change) khác nhau: contract-service là business logic thuần về trạng thái giao hàng, escrow-service là financial operation với yêu cầu audit riêng. Ranh giới rõ ràng: contract-service quản lý trạng thái giao hàng, escrow-service quản lý tiền — không lẫn hai domain.", {})]));
 
 // ============================================================
@@ -98,10 +98,10 @@ push(H2("3.1 user-service"));
 push(svcTable([
   ["Port · DB", "8081 · user_db"],
   ["Trách nhiệm", "Cầu nối định danh với Keycloak; quản lý profile tổ chức; xác minh thẩm quyền đại diện; enforce khoá tài khoản theo quyết định của reputation-service"],
-  ["Aggregate", "UserProfile (userId = Keycloak sub UUID, organizationName, role, verificationStatus, authorizationExpiresAt)"],
+  ["Aggregate", "UserProfile (Keycloak sub, organizationName, role, verificationStatus, authorizationExpiresAt, lockedUntil, KYC audit metadata)"],
   ["Vai trò Keycloak", "SELLER, BUYER, ADMIN, INSPECTOR"],
 ]));
-push(P("user-service không lưu credentials (Keycloak giữ) — chỉ giữ dữ liệu profile và trạng thái xác minh. Xác minh thẩm quyền đại diện được thực hiện lúc đăng ký, fail-closed (chưa duyệt thì chưa được đăng listing/ký), áp dụng đối xứng cho buyer và seller. Trường authorizationExpiresAt nhập tay từ giấy tờ thật (giấy uỷ quyền, giấy phép), không hardcode."));
+push(P("user-service không lưu credentials (Keycloak giữ) và không sở hữu Signature (Signature là VO của Contract trong contract-service). Dịch vụ chỉ giữ profile, KYC/thẩm quyền và cache lockedUntil từ reputation events. Xác minh áp dụng đối xứng buyer/seller, fail-closed; authorizationExpiresAt nhập từ giấy thật, không hardcode. API tách rõ /users/me (contact đầy đủ), /users/{id} (không email/phone/address) và /internal/v1/users/{id} cho service-to-service; Gateway tuyệt đối không route /internal/**."));
 push(legal("BLDS 2015, Điều 142", "Giao dịch do người không có thẩm quyền đại diện xác lập có thể bị tuyên vô hiệu. Việc gate xác minh thẩm quyền ký kết trước khi kích hoạt tài khoản là biện pháp kiến trúc trực tiếp chống rủi ro hợp đồng vô hiệu."));
 
 // 3.2 product
@@ -140,7 +140,7 @@ push(svcTable([
   ["Consumes", "contract.signed (trigger khoá cọc), milestone.settled, milestone.cancelled_with_penalty, contract.settled, contract.cancelled"],
 ]));
 push(P("escrow-service là actor duy nhất gọi bank-service; contract-service không bao giờ nói chuyện trực tiếp với bank. Nguyên tắc chống dual-write: EscrowAccount/EscrowMilestone chỉ giữ trạng thái, không tự lưu con số tiền phải đồng bộ tay với bank — số tiền thật là single source of truth ở ledger bên bank-service. Khi nhận milestone.settled (mang lockedAmount và actualAmount sau pro-rata), escrow-service tự tính chênh lệch và bắn cặp lệnh RELEASE_TO_SELLER + REFUND_TO_BUYER nếu số thực nhận thấp hơn số đã khoá."));
-push(P([runs("Sửa 08/07/2026 — pure consumer không tự tính được tiền. ", { bold: true }), runs("contract.signed phải mang sẵn buyerDepositAmount/sellerDepositAmount đã tính (= rate × totalAmount, tính ở contract-service — nơi có đủ ContractTerms). escrow-service không Feign ngược lấy ContractTerms nên không tự nhân rate×totalAmount được nếu chỉ nhận rate thô. Cũng từ đợt rà soát này: milestone.buyer_confirmed KHÔNG còn là consumer của escrow-service — release tiền thật chỉ đi qua milestone.settled, tránh release 2 lần cho cùng milestone (di sản logic Phase 1 đã dọn).", {})]));
+push(P([runs("Sửa 08/07/2026 — pure consumer không tự tính được tiền. ", { bold: true }), runs("contract.signed phải mang sẵn buyerDepositAmount/sellerDepositAmount đã tính (= rate × totalAmount, tính ở contract-service — nơi có đủ ContractTerms). escrow-service không Feign ngược lấy ContractTerms nên không tự nhân rate×totalAmount được nếu chỉ nhận rate thô. Cũng từ đợt rà soát này: milestone.buyer_confirmed KHÔNG còn là consumer của escrow-service — release tiền thật chỉ đi qua milestone.settled, tránh release 2 lần cho cùng milestone (di sản logic bản thiết kế trước, đã dọn).", {})]));
 
 // 3.5 bank
 push(H2("3.5 bank-service"));
@@ -170,13 +170,13 @@ push(P([runs("Ranh giới cross-service. ", { bold: true }), runs("signature.rep
 push(H2("3.7 reputation-service"));
 push(svcTable([
   ["Port · DB", "8088 · reputation_db"],
-  ["Trách nhiệm", "Sổ khoá bất biến (enforce lockout); điểm uy tín (search ranking, đối xứng buyer/seller); tham chiếu tín dụng (export)"],
+  ["Trách nhiệm", "Sổ khoá bất biến (enforce lockout); điểm uy tín đối xứng buyer/seller; tham chiếu tín dụng (export)"],
   ["Aggregate", "LockEntry (insert-only, lockDurationDays snapshot bất biến, sourceEventId idempotency key)"],
   ["Consumes", "milestone.cancelled_with_penalty, contract.settled, milestone.dispute_resolved (mới, chống flag-abuse), bank.large_transaction_flagged (mới, 1 input AML)"],
 ]));
 push(P("Dịch vụ này gánh ba loại dữ liệu khác bản chất, không gộp chung logic: sổ khoá (không thể là pure read model vì là bằng chứng pháp lý — lockDurationDays snapshot cứng lúc tính, không recompute), điểm uy tín (view sống, tính lại được), và tham chiếu tín dụng (export cho bên thứ ba). Enforcement thực hiện ở tầng use-case chứ không ở Gateway: sign() fail-closed (ưu tiên đóng circuit-breaker gap ở hành động rủi ro nhất), CreateListing fail-open. user-service là nơi enforce khoá thật dựa trên quyết định từ reputation-service."));
 push(P([runs("lockDurationDays thêm hệ số zeroProgressMultiplier (mới, 08/07/2026). ", { bold: true }), runs("1.5x khi cancel lúc 0 milestone nào từng SETTLED (ký xong bỏ ngay là tín hiệu xấu nhất, cũng là ma sát chống disintermediation — 2 bên quen nhau qua platform rồi rủ nhau giao dịch tay ngoài né phí); 1.0x mọi trường hợp khác.", {})]));
 push(risk("Sửa AML (08/07/2026) — hold tuyệt đối không còn tự đứng một mình.", "Bản trước để ngưỡng 500 triệu tự nó trigger hold ngay giao dịch đầu — nhưng hợp đồng cà phê thật thường 13,5-135 tỷ VNĐ, tức GẦN NHƯ MỌI giao dịch điển hình sẽ bị treo chờ Admin, biến platform tự-thực-thi thành cổ chai thủ công. Chốt: hold chỉ kích hoạt khi ngưỡng tuyệt đối ĐI KÈM ≥1 tín hiệu hành vi khác (track record mỏng/zero-variance/counterparty mới). Nguồn phát hiện cũng dời sang bank-service (đúng chủ thể pháp lý theo Luật PCRT 2022) — reputation-service chỉ consume bank.large_transaction_flagged làm input, không tự query ledger."));
-push(P([runs("Đối xứng hoá + chống flag-abuse (mới, 08/07/2026). ", { bold: true }), runs("Mọi tín hiệu minh bạch trước đây một chiều buyer-xem-seller. Endpoint GET /reputation/{userId}/public-summary (không cần consent, đối xứng thật) cho seller xem track record buyer trước khi ký — dữ liệu đã có sẵn ở lock_entry (penalizedRole=BUYER đã insert từ đầu), chỉ thêm chiều hiển thị. Song song: milestone.dispute_resolved đếm tỷ lệ buyer flag-rồi-thua, phơi ra ở public-summary — chống buyer lạm dụng FLAG_ISSUE ép seller vào dispute mà không mất gì.", {})]));
+push(P([runs("Đối xứng hoá + chống flag-abuse (mới, 08/07/2026). ", { bold: true }), runs("Mọi tín hiệu minh bạch trước đây một chiều buyer-xem-seller. Endpoint GET /api/v1/reputation/{userId}/public-summary (không cần consent, đối xứng thật) cho seller xem track record buyer trước khi ký — dữ liệu đã có sẵn ở lock_entry (penalizedRole=BUYER đã insert từ đầu), chỉ thêm chiều hiển thị. Song song: milestone.dispute_resolved đếm tỷ lệ buyer flag-rồi-thua, phơi ra ở public-summary — chống buyer lạm dụng FLAG_ISSUE ép seller vào dispute mà không mất gì.", {})]));
 
 module.exports = { body, push, code, svcTable, codeblock };

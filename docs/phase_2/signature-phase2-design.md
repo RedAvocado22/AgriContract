@@ -6,7 +6,7 @@ metadata:
     type: design
     phase: 2
     extends: "services.md § Security gaps (mục 9)"
-    related: "hash-chain-phase2-design.md § 4 (signedContentHash — nguồn dữ liệu vào chain)"
+    related: "hash-chain-phase2-design.md §4; user-service-phase2-design.md §3-4; notification-service-phase2-design.md §2.2/§4"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -121,10 +121,13 @@ InitiateSign(contractId, signerRole, jwt):
   3. Sinh OTP (otpLength số), hash, INSERT signature_otp
      (sent_at=now(), expires_at=now()+otpExpirySeconds)
 
-  4. Gửi email: OTP + signedContentHash = SHA256(ContractTerms hiện tại)
-     (§4.1 — OTP gắn liền nội dung, không chỉ xác thực người)
+  4. Gọi sync `POST /internal/v1/notifications/otp-email` với otpId làm requestId,
+     OTP + signedContentHash = SHA256(ContractTerms hiện tại). Chỉ trả thành công
+     khi notification-service xác nhận mail provider đã nhận request; lỗi → trả lỗi,
+     không nói "OTP đã gửi" và không có background retry gửi muộn.
 
-  5. Trả về "OTP đã gửi" — CHƯA tạo Signature, chưa chuyển Contract state
+  5. Trả về "OTP đã gửi" — CHƯA tạo Signature, chưa chuyển Contract state.
+     Retry cùng otpId là idempotent; resend thật tạo OTP/otpId mới theo cooldown.
 
 VerifyOtpAndSign(contractId, signerRole, otpCode):
   1. Lấy signature_otp mới nhất chưa verified cho (contractId, signerRole)
@@ -142,7 +145,11 @@ VerifyOtpAndSign(contractId, signerRole, otpCode):
      → Contract.transitionTo(SIGNED)
 
   5. Publish Contract.signedContentHash vào audit-service (hash-chain-phase2-design.md §2.2)
-     + gửi email anchor cho buyer/seller (hash-chain-phase2-design.md §4.1)
+     + publish `notification.contract_anchor_requested` cho notification-service,
+       payload `{eventId, contractId, recipients[{userId,email,role}],
+       contractTermsSnapshot, signedContentHash, signedAt}`. contract-service lấy email qua
+       InternalUserInfo đã dùng cho KYC; domain event `contract.signed` ở bước 6 không bị
+       nhồi snapshot/email chỉ để phục vụ notification.
 
   6. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026, payload mở
      rộng 08/07/2026) — tách biệt với việc push hash ở bước 5 (đó là ghi vào audit

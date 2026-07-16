@@ -132,8 +132,10 @@ InitiateLevel2Inspection(contractId):
   5. INSERT audit_record (contract_id, source_type = LEVEL2_INSPECTION_COMMISSIONED,
      content = {commissionId, intakeAddress: "intake@agricontract.vn",
                 buyerEmail, sellerEmail, org}, timestamp = now())
-  6. Hệ thống tự gửi mail transactional (SendGrid, hạ tầng đã có từ OTP) tới org,
-     nội dung: yêu cầu kiểm định + 3 địa chỉ nhận report cuối
+  6. Publish `notification.level2_commission_requested` tới notification-service,
+     payload `{eventId, commissionId, orgEmail, buyerEmail, sellerEmail,
+     intakeAddress, contractContext}`. Notification gửi mail transactional tới org
+     và bản xác nhận cho buyer/seller; inspection-service không gọi SendGrid trực tiếp.
 ```
 
 **Ranh giới rõ ràng, không tự huyễn:** bước 6 chỉ tạo ra *yêu cầu*, không tạo ra *sự đồng ý*. SGS/Bureau Veritas có thật sự nhận job, lên lịch, cử người đi kiểm định hay không vẫn là quan hệ thương mại thật ngoài hệ thống (báo giá, PO, lịch hẹn) — không automate được, và không cần automate, vì đó không phải nơi tạo ra bằng chứng. Cái audit record ở bước 5 chứng minh **platform đã yêu cầu gửi đi đâu, lúc nào** — không chứng minh org có làm đúng theo yêu cầu đó.
@@ -298,7 +300,8 @@ CREATE TABLE inspection_report (
 - **Commission là hành động thương mại thật ngoài hệ thống.** Platform ghi lại đã yêu cầu gửi report đi đâu, lúc nào (`LEVEL2_INSPECTION_COMMISSIONED`) — không chứng minh org có nhận lời, có tuân theo đúng 3 địa chỉ hay không. Không giải được bằng thiết kế, chỉ giảm được rủi ro qua fallback thủ công.
 - **Xác nhận buyer/seller đã nhận mail là self-report, không phải bằng chứng độc lập.** App chỉ ghi lại actor tuyên bố gì, không xác minh được nội dung mail họ nhận có khớp bản Admin xử lý hay không.
 - **Case ID matching là best-effort, phụ thuộc quy ước riêng của từng org.** Không match được luôn rơi về `PENDING_REVIEW`, không đoán bừa — honest fail được ưu tiên hơn confident wrong.
-- **External verification (SGS document verification hoặc tương đương) là thao tác tay qua web form công khai, không phải API.** Không thể là gate tự động trong `ReviewPendingExternalReport`, chỉ là field Admin điền song song lúc duyệt. Chưa xác nhận Bureau Veritas có dịch vụ tương đương — nếu chọn BV, dùng giá trị `UNAVAILABLE`.
+- **External verification (SGS document verification hoặc tương đương) là thao tác tay qua web form công khai, không phải API.** Không thể là gate tự động trong `ReviewPendingExternalReport`, chỉ là field Admin điền song song lúc duyệt. **Known Limitation:** không xác nhận được trong phạm vi đồ án liệu Bureau Veritas có dịch vụ document-verification tương đương SGS hay không — nếu deployment chọn BV, dùng giá trị `UNAVAILABLE` cho field này, không block luồng duyệt.
+- **Tự động hoá tra cứu accreditation qua API là enhancement, không phải Phase 2 (Known Limitation).** 3 nguồn tra cứu (BoA-VIAS, IAF CertSearch, ILAC Signatory Search) hiện Admin tra tay; không xác nhận được BoA có API export JSON trong phạm vi đồ án — nối API là việc sau, không đổi logic duyệt (§3.2).
 - **SPF/DKIM chỉ raise bar domain gửi, không chứng minh thẩm quyền người gửi.** Admin vẫn là quyết định cuối cho tính hợp lệ của report.
 - **Endpoint duyệt (`ReviewPendingExternalReport`) không nhận file, và `reportHash` đóng băng trước khi Admin chạm vào** — đây là cơ chế kỹ thuật thật, không phải quy tắc miệng, ngăn Admin thay file report đã ingest.
 - **3-mail chỉ là passive backup**, không có active reconciliation tự động — không có bước nào chủ động so sánh bản buyer/seller nhận với bản platform xử lý, chỉ nằm đó dùng khi có tranh chấp thật cần lôi ra đối chiếu. Kế thừa đúng giới hạn "phải có người chủ động nhìn" từ `hash-chain-phase2-design.md` §6.
@@ -322,4 +325,4 @@ Inspection — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technic
 
 ---
 
-*Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***

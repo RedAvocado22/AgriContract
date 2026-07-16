@@ -140,6 +140,13 @@ push(P([runs("Vì sao bên bán vẫn bị ràng buộc bằng uy tín ngay cả
 // ============================================================
 // 4. INSPECTOR
 // ============================================================
+push(H2("3.6 Vì sao nông dân không bị khoá vốn lưu động"));
+push(P([runs("Đây là câu hỏi sống còn với phía HTX/nông dân — và thiết kế đã trả lời sẵn bằng ba lựa chọn có chủ đích, nêu rõ ở đây thay vì để hội đồng phải tự suy ra: ", { bold: true })]));
+push(bullet([runs("Bên khoá tiền là buyer, không phải nông dân. ", { bold: true }), runs("Nghĩa vụ ký quỹ giá trị hợp đồng (batchAmount) thuộc về bên mua — bên có vốn và có nghĩa vụ thanh toán. Với HTX, tiền của buyer nằm sẵn trong escrow chính là bảo đảm thanh toán mà phương thức truyền thống không có: giao hàng đạt chuẩn là tiền tự release, không còn cảnh giao xong đi đòi nợ.", {})]));
+push(bullet([runs("Cọc phía seller là optional, mặc định 0. ", { bold: true }), runs("sellerDepositRate đàm phán per-contract, mặc định không thu — HTX thiếu vốn lưu động gần như không bị giam đồng nào để tham gia. Cặp đối tác muốn ràng buộc chặt hơn (giá trị lớn, lịch sử mỏng) tự thoả thuận mức cọc; nền tảng không áp đặt.", {})]));
+push(bullet([runs("Khoá theo đợt, không khoá cả cục. ", { bold: true }), runs("Milestone escrow chia dòng tiền theo tiến độ giao hàng: mỗi đợt chỉ khoá phần giá trị của đợt đó và release ngay khi nghiệm thu — vòng quay vốn của cả hai bên ngắn hơn nhiều so với khoá toàn bộ giá trị hợp đồng từ ngày ký.", {})]));
+push(P([runs("Lợi ích phái sinh — hồ sơ tín dụng: ", { bold: true }), runs("chuỗi hợp đồng đã thực hiện trên nền tảng (ký số, ledger đối soát được, lịch sử nghiệm thu) chính là loại bằng chứng mà phía ngân hàng cần để tự tin giải ngân cho liên kết chuỗi — đúng khuyến nghị lập hợp đồng chuỗi ràng buộc trách nhiệm đã dẫn ở tài liệu Phân tích thị trường. Nền tảng không xây sản phẩm tín dụng trong phạm vi đồ án; đây là giá trị dữ liệu mở ra cho HTX khi làm việc với tổ chức tín dụng.", {})]));
+
 push(H1("4. Giám định độc lập — INSPECTOR ba cấp"));
 push(P("Phán quyết dựa trên nhận định chủ quan của Admin không đủ tin cậy cho hợp đồng giá trị cao hoặc hàng hoá phức tạp; nhưng áp phí giám định quốc tế cho mọi hợp đồng lại không thực tế về kinh tế. Hệ thống giải quyết cả hai vế bằng phân tầng theo giá trị kết hợp định giá linh hoạt. Cấp giám định được xác định tự động theo giá trị hợp đồng, loại hàng hoá và yếu tố xuất khẩu EU — cấu hình theo từng deployment, không hardcode trong logic nghiệp vụ."));
 push(table(
@@ -248,13 +255,20 @@ push(src("Bộ Công Thương (Cục TMĐT) — hệ thống đảm bảo giao d
 // ============================================================
 // 10. FAQ
 // ============================================================
-push(H1("10. Câu hỏi thường gặp từ hội đồng thẩm định"));
+push(H1("10. Chiến lược vào thị trường — đi qua anchor buyer"));
+push(P([runs("Nền tảng hai đầu chợ không launch bằng cách kéo cả hai đầu cùng lúc. ", { bold: true }), runs("Chiến lược là đi qua một anchor buyer: doanh nghiệp xuất khẩu cà phê sang thị trường EU. Nhóm khách này chịu nghĩa vụ truy xuất EUDR từ 30/12/2026 (Quy định (EU) 2023/1115, sửa đổi 2025/2650) — tức có lực ép pháp lý phải chuẩn hoá dữ liệu vùng trồng và hợp đồng thu mua ngay trong năm bảo vệ đồ án, có ngân sách compliance, và có sẵn mạng lưới HTX cung ứng nhiều năm. Một anchor buyer vào là kéo cả chuỗi cung ứng của chính nó vào — bài toán khởi động chợ thu về một đầu duy nhất, và đầu đó có deadline luật đứng sau.", {})]));
+push(P([runs("Định vị theo đó cũng đổi: ", { bold: true }), runs("giai đoạn đầu, AgriContract không chào hàng như một chợ mở cho mọi người, mà như công cụ hợp đồng + compliance cho chuỗi cung ứng của anchor — nơi giá trị (EUDR traceability, escrow bảo đảm thanh toán, hồ sơ nghiệm thu) đến được cả hai phía của những cặp giao dịch vốn đã quen mặt nhau. Chợ mở là bước mở rộng khi mật độ người dùng và dữ liệu uy tín đã đủ dày.", {})]));
+push(P([runs("Về adverse selection — kẻ định phá hợp đồng không có động lực tham gia nền tảng ràng buộc mình: ", { bold: true }), runs("đúng, và nền tảng không cần họ. Cơ chế hoạt động theo hướng tín hiệu (signaling): người làm ăn nghiêm túc dùng nền tảng để tách mình khỏi nhóm rủi ro — hồ sơ sạch trên AgriContract là tín hiệu đắt giả, vì chỉ tích luỹ được qua chuỗi hợp đồng thật có ký số, ledger và nghiệm thu độc lập. Khi mật độ đủ lớn, chính việc không có lịch sử trên nền tảng trở thành dấu hỏi trong đàm phán — vòng xoáy tự chọn lọc kéo phần thị trường nghiêm túc vào trước, phần còn lại chịu áp lực theo sau.", {})]));
+
+push(H1("11. Câu hỏi thường gặp từ hội đồng thẩm định"));
 const faq = [
   ["Ký quỹ dùng mock balance — có giá trị kỹ thuật gì?", "Giá trị kỹ thuật nằm ở logic, không phải ở tiền: Choreography Saga qua message queue, idempotency cho compensating transaction, Outbox Pattern đảm bảo at-least-once delivery. Các thách thức này đều thật và không thay đổi khi thay lớp giữ tiền mock bằng API ngân hàng thật — ranh giới interface được thiết kế sạch để việc thay thế không đụng business logic."],
   ["Nền tảng có đang thay thế chức năng của toà án không?", "Không. Admin thực thi điều khoản penalty mà hai bên đã tự thoả thuận và ký trước đó. Luật TM 2005 Điều 300 cho phép phạt vi phạm theo thoả thuận; Nghị định 98/2018 Điều 15 cho phép hoà giải nội bộ. Nền tảng không ra phán quyết — chỉ thực thi thoả thuận đã có."],
   ["Vì sao HTX sẽ tin đặt tiền vào ký quỹ của một nền tảng mới?", "HTX không cần tin nền tảng — họ tin hiệp hội (VICOFA/VRA) đã triển khai nền tảng. Tiền do ngân hàng giữ, không phải nền tảng. Cấu trúc trust được thiết kế để không phụ thuộc vào uy tín của một startup."],
   ["Vì sao chưa có ai làm điều này trước đây?", "Koina (VinaCapital, >1 triệu USD) đã thử năm 2023 với mô hình farm-to-business, đóng cửa 2024 — sai lầm ở phân khúc (bán trực tiếp cho nông dân lẻ, unit economics không bền vững) và mô hình full-stack đốt vốn quá nhanh. AgriContract khác ở ba điểm: bán cho hiệp hội, chỉ giải quyết tầng hợp đồng, và EUDR 2026 tạo ra nhu cầu bắt buộc chưa từng tồn tại."],
   ["INSPECTOR có thể bị mua chuộc không?", "Report có hash xác thực, không sửa được sau khi submit. SGS/Bureau Veritas là tổ chức chứng nhận quốc tế chịu trách nhiệm pháp nhân theo giấy phép hành nghề; tổ chức trong nước được xác minh qua số chứng nhận công nhận quốc gia. Đây là cấp bảo đảm cao hơn nhiều so với Admin nội bộ không có chuyên môn độc lập."],
+  ["Chợ hai đầu — làm sao có người dùng đầu tiên khi chưa ai ở đầu kia?", "Không launch hai đầu cùng lúc — đi qua anchor buyer (doanh nghiệp xuất khẩu chịu nghĩa vụ EUDR từ 30/12/2026, chi tiết mục 10). Anchor vào là kéo theo mạng lưới HTX cung ứng sẵn có của chính nó; bài toán khởi động thu về một đầu, và đầu đó có deadline pháp lý đứng sau."],
+  ["Bên định phá hợp đồng đâu có tự nguyện vào nền tảng ràng buộc mình?", "Đúng — và nền tảng không cần kéo họ vào. Giá trị nằm ở phía ngược lại: người làm ăn nghiêm túc dùng nền tảng để tách mình khỏi nhóm rủi ro bằng hồ sơ giao dịch đắt giả (ký số, ledger, nghiệm thu độc lập — không làm giả được bằng vài giao dịch ảo). Khi mật độ đủ dày, không có lịch sử trên nền tảng tự nó thành dấu hỏi trong đàm phán — cơ chế tự chọn lọc chuẩn của thị trường có tín hiệu (mục 10)."],
   ["Ký quỹ dùng mock balance — có vi phạm Nghị định 52/2024 không?", "Không. Nghị định 52/2024 điều chỉnh dịch vụ thanh toán liên quan đến tiền thật. Mock balance trong database không phát sinh giao dịch tài chính thật, không cần giấy phép trung gian thanh toán. Khi tích hợp ngân hàng có license giữ tiền thật, chính ngân hàng là bên chịu điều chỉnh — nền tảng vẫn chỉ ra lệnh."],
 ];
 faq.forEach(([q, a]) => { push(P([runs(q, { bold: true, color: T.HEAD })], { after: 40 })); push(P(a, { after: 160 })); });
@@ -262,7 +276,7 @@ faq.forEach(([q, a]) => { push(P([runs(q, { bold: true, color: T.HEAD })], { aft
 // ============================================================
 // 10. LIMITATIONS
 // ============================================================
-push(H1("11. Giới hạn và phạm vi ngoài"));
+push(H1("12. Giới hạn và phạm vi ngoài"));
 push(P("Các điểm dưới đây là ranh giới có chủ đích của thiết kế, không phải điểm mù bị bỏ sót — nêu rõ để giữ độ tin cậy trước hội đồng."));
 push(bullet([runs("Ngân hàng giữ tiền là mock trong phạm vi đồ án. ", { bold: true }), runs("Không tổ chức tín dụng nào ký hợp đồng API cho một đồ án tốt nghiệp. Lớp giữ tiền được mô phỏng theo đúng ngữ nghĩa nghiệp vụ (mô hình ledger gộp), interface thiết kế sạch để tích hợp thật chỉ cần thay implementation — nhưng tích hợp thật nằm ngoài phạm vi.", {})]));
 push(bullet([runs("Chữ ký ở tầng cơ bản, không tương đương chữ ký tay. ", { bold: true }), runs("Chữ ký điện tử của nền tảng không có chứng thư từ CA được cấp phép nên không được luật tự động suy đoán; hợp đồng vẫn có hiệu lực đầy đủ, nhưng gánh nặng chứng minh khi tranh chấp thuộc về nền tảng (đã bù bằng audit trail). Chữ ký số CA và WebAuthn là hướng nâng cấp, chưa triển khai.", {})]));
@@ -273,7 +287,7 @@ push(bullet([runs("Đòn bẩy uy tín phụ thuộc giả định thể chế c
 // ============================================================
 // 11. SOURCES
 // ============================================================
-push(H1("12. Danh mục nguồn tham khảo"));
+push(H1("13. Danh mục nguồn tham khảo"));
 push(H3("Văn bản pháp luật"));
 [
   "Luật Giao dịch Điện tử 2023 (Luật 20/2023/QH15, hiệu lực 1/7/2024).",

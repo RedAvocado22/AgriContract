@@ -114,7 +114,7 @@ push(P("Các chuẩn dưới đây bắt buộc áp dụng cho mọi dịch vụ
 push(H2("3.1 Chuẩn API REST"));
 push(bullet([runs("Điểm vào duy nhất: ", { bold: true }), runs("mọi request từ ngoài đi qua API Gateway (:8080); client không gọi trực tiếp port dịch vụ.", {})]));
 push(bullet([runs("Versioning & path: ", { bold: true }), runs("tiền tố /api/v1/{resource}, danh từ số nhiều, phân cấp theo tài nguyên (vd /api/v1/contracts/{id}/milestones).", {})]));
-push(bullet([runs("Xác thực: ", { bold: true }), runs("Authorization: Bearer {JWT}; Gateway validate rồi tiêm X-User-Id, X-User-Email, X-User-Role xuống downstream.", {})]));
+push(bullet([runs("Xác thực: ", { bold: true }), runs("Authorization: Bearer {JWT}; Gateway validate, xoá mọi X-User-* do client tự gửi rồi tiêm X-User-Id/X-User-Email/X-User-Role từ JWT. Public match theo method + exact path; protected route authenticated mặc định; /internal/** không route.", {})]));
 push(bullet([runs("Phân trang: ", { bold: true }), runs("query params page, size, sort; response bọc content + metadata (page, size, totalElements, totalPages).", {})]));
 push(bullet([runs("Idempotency: ", { bold: true }), runs("thao tác ghi liên quan tiền hoặc trạng thái nhạy cảm nhận header Idempotency-Key hoặc dùng khoá nghiệp vụ tương đương.", {})]));
 push(P("Cấu trúc phản hồi lỗi chuẩn (error envelope) — đồng nhất mọi dịch vụ:"));
@@ -172,10 +172,11 @@ push(table(
 ));
 
 push(H2("3.5 Bảo mật xuyên suốt"));
-push(bullet([runs("Xác thực tập trung: ", { bold: true }), runs("Keycloak cấp JWT RS256; Gateway validate qua JWKS, dịch vụ downstream tin định danh tiêm từ Gateway.", {})]));
+push(bullet([runs("Xác thực tập trung: ", { bold: true }), runs("Keycloak cấp JWT RS256; Gateway validate qua JWKS, strip/overwrite identity headers, inject correlation ID + gateway secret; downstream chỉ tin context đi qua ranh giới này.", {})]));
 push(bullet([runs("Phân quyền theo vai trò: ", { bold: true }), runs("RBAC ở từng dịch vụ; ngoài role còn kiểm tra ownership (vd chỉ buyer của hợp đồng mới confirm được).", {})]));
 push(bullet([runs("Ranh giới nội bộ: ", { bold: true }), runs("giao tiếp service-to-service siết bằng X-Internal-Secret, tiến hoá lên mTLS.", {})]));
 push(bullet([runs("Bảo toàn dữ liệu nhạy cảm: ", { bold: true }), runs("không log số dư/giao dịch; audit trail bất biến làm evidence khi điều tra.", {})]));
+push(P("Route policy Gateway: public chỉ các GET reference/catalog được liệt kê tường minh; protected route authenticated mặc định; /api/v1/admin/** và /api/v1/inspector/** gate role thô; /internal/** không có external route. Emergency lock/unlock dùng chữ ký External Verifier, không có Admin bypass. Gateway không enforce ownership/KYC/reputation lock — các quyết định đó thuộc domain service."));
 push(legal("Nghị định 52/2024/NĐ-CP, Điều 8 Khoản 4", "Nghiêm cấm tiết lộ thông tin số dư và giao dịch của khách hàng. RBAC + không-log-nhạy-cảm + mTLS là biện pháp kỹ thuật đáp ứng yêu cầu này."));
 
 // ============================================================
@@ -197,7 +198,7 @@ push(table(
     ["File", "file-service", "uploadedBy (userId hoặc serviceId)"],
     ["PriceQuote", "pricing-service", "— (không tham chiếu cross-service)"],
     ["AuditRecord", "audit-service", "contractId; sourceEventId; content (JSON payload gốc)"],
-    ["NotificationLog", "notification-service", "eventId; recipient userId"],
+    ["NotificationLog", "notification-service", "eventId; recipient userId/email; notificationType; templateVersion"],
     ["dim_contract, fact_*, agg_*", "analytics-service", "contractId (denormalized từ event)"],
   ],
   { size: 17 }
@@ -233,7 +234,7 @@ push(bullet("Use case chi tiết và sơ đồ trình tự (sequence) cho từng
 push(bullet("Đặc tả API mức endpoint (request/response schema, mã lỗi cụ thể) cho từng dịch vụ."));
 push(bullet("Lược đồ dữ liệu mức bảng (DDL đầy đủ, index, ràng buộc) cho từng dịch vụ."));
 push(bullet("Chi tiết cấu hình theo môi trường (application.yml) và các tham số có thể chỉnh (thresholds, windows, rates)."));
-push(callout("Ghi chú.", "Các giả định mô phỏng (bank-service, tiếp nhận report Level 2) và các điểm còn treo cần xác nhận nghiệp vụ (vd checklist KYC theo loại hình doanh nghiệp, payload event mang commodity cho analytics) sẽ được đánh dấu rõ tại phần dịch vụ tương ứng.", "note"));
+push(callout("Ghi chú.", "Các giả định mô phỏng (bank-service, tiếp nhận report Level 2) và các giới hạn đã biết cần xác nhận nghiệp vụ (vd checklist KYC theo loại hình doanh nghiệp, payload event mang commodity cho analytics) sẽ được đánh dấu rõ tại phần dịch vụ tương ứng.", "note"));
 
 module.exports = { body };
 
