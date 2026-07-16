@@ -1,5 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 
+import { authApi } from '../../api/authApi'
+import { env } from '../../config/env'
 import { useAuthStore } from '../../stores/authStore'
 
 const privateNavItems = [
@@ -21,7 +23,11 @@ export function AppShell({ publicMode = false }: AppShellProps) {
   const normalizedRole = user?.role?.trim().toUpperCase()
   const handleLogout = () => {
     logout()
-    navigate('/login', { replace: true })
+    if (!env.useMocks) {
+      void authApi.logout()
+    } else {
+      navigate('/login', { replace: true })
+    }
   }
 
   return (
@@ -43,7 +49,13 @@ export function AppShell({ publicMode = false }: AppShellProps) {
             </Link>
           ) : (
             <>
-              <button className="icon-button" type="button" aria-label="Thông báo">
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Thông báo được gửi qua email"
+                title="Thông báo Phase 1 được gửi qua email"
+                disabled
+              >
                 <span className="material-symbols-outlined">notifications</span>
               </button>
               <div className="user-pill">
@@ -79,10 +91,16 @@ export function AppShell({ publicMode = false }: AppShellProps) {
             ))}
 
             {!publicMode && normalizedRole === 'SELLER' ? (
-              <NavLink to="/listings/create" className="sidebar-link">
-                <span className="material-symbols-outlined">add_circle</span>
-                Đăng tin hàng
-              </NavLink>
+              <>
+                <NavLink to="/listings/mine" className="sidebar-link">
+                  <span className="material-symbols-outlined">inventory_2</span>
+                  Tin của tôi
+                </NavLink>
+                <NavLink to="/listings/create" className="sidebar-link">
+                  <span className="material-symbols-outlined">add_circle</span>
+                  Đăng tin hàng
+                </NavLink>
+              </>
             ) : null}
           </div>
         </aside>
