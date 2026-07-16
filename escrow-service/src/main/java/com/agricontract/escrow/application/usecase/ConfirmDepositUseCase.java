@@ -26,7 +26,7 @@ public class ConfirmDepositUseCase {
             throw new UnauthorizedEscrowActionException(command.sellerUserId(), contractId);
         }
 
-        if (account.getStatus() == EscrowStatus.FULLY_LOCKED) {
+        if (account.getStatus() != EscrowStatus.BUYER_LOCKED) {
             log.info("{} deposit already confirmed", contractId);
             return;
         }

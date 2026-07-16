@@ -27,6 +27,7 @@ public class EscrowMapper {
                 .sellerDepositRate(account.getSellerDepositRate())
                 .currency(account.getTotalAmount().currency())
                 .status(account.getStatus())
+                .releaseEligibleAt(account.getReleaseEligibleAt())
                 .build();
 
         List<EscrowTransactionJpaEntity> transactions = account.getTransactions().stream()
@@ -58,6 +59,7 @@ public class EscrowMapper {
                 sellerDeposit,
                 entity.getStatus(),
                 entity.getSellerDepositRate(),
+                entity.getReleaseEligibleAt(),
                 transactions
         );
     }

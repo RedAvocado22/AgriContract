@@ -31,7 +31,7 @@ public class RabbitMQConfig {
 
         List<Declarable> declarables = new ArrayList<>(List.of(exchangeContracts, exchangeEscrow, dlx));
 
-        for (String event : List.of("signed", "delivered", "cancelled")) {
+        for (String event : List.of("signed", "delivered", "cancelled", "disputed")) {
             String routingKey = "contract." + event;
             Queue queue = QueueBuilder.durable("escrow-svc." + routingKey)
                     .withArgument("x-dead-letter-exchange", dlx.getName())
