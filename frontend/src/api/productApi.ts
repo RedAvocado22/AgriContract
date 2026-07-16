@@ -28,19 +28,11 @@ export const productApi = {
       return MOCK_PRODUCTS
     }
 
-    try {
-      const response = await apiClient.get('/api/v1/products', {
-        params: {
-          page: 0,
-          size: 100,
-        },
-        timeout: MARKETPLACE_TIMEOUT_MS,
-      })
-
-      return (response.data.data.content as BackendProduct[]).map(toProduct)
-    } catch {
-      return MOCK_PRODUCTS
-    }
+    const response = await apiClient.get('/api/v1/products', {
+      params: { page: 0, size: 100 },
+      timeout: MARKETPLACE_TIMEOUT_MS,
+    })
+    return (response.data.data.content as BackendProduct[]).map(toProduct)
   },
 
   async create(input: CreateProductInput) {
