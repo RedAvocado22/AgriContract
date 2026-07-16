@@ -65,7 +65,7 @@ const toBackendSort = (sortBy: ListingFilters['sortBy']) => {
   return { sortBy: 'createdAt', sortDirection: 'DESC' }
 }
 
-const applyFilters = (
+export const applyListingFilters = (
   listings: Listing[],
   filters: ListingFilters = {
     categories: [],
@@ -124,30 +124,18 @@ export const listingApi = {
   async getAll(filters: ListingFilters) {
     if (env.useMocks) {
       await wait(300)
-      return applyFilters(mockListings, filters)
+      return applyListingFilters(mockListings, filters)
     }
 
-    try {
-      const [response, products] = await Promise.all([
-        apiClient.get('/api/v1/listings', {
-          params: {
-            page: 0,
-            size: 100,
-            ...toBackendSort(filters.sortBy),
-          },
-          timeout: MARKETPLACE_TIMEOUT_MS,
-        }),
-        productApi.getAll(),
-      ])
-
-      const listingsContent = response.data.data.content as BackendListing[]
-      return applyFilters(
-        listingsContent.map((listing) => toListing(listing, products)),
-        filters,
-      )
-    } catch {
-      return applyFilters(mockListings, filters)
-    }
+    const [response, products] = await Promise.all([
+      apiClient.get('/api/v1/listings', {
+        params: { page: 0, size: 100, ...toBackendSort(filters.sortBy) },
+        timeout: MARKETPLACE_TIMEOUT_MS,
+      }),
+      productApi.getAll(),
+    ])
+    const listingsContent = response.data.data.content as BackendListing[]
+    return applyListingFilters(listingsContent.map((listing) => toListing(listing, products)), filters)
   },
 
   async getById(listingId: string) {
@@ -162,24 +150,28 @@ export const listingApi = {
       return listing
     }
 
-    try {
-      const [listingResponse, products] = await Promise.all([
-        apiClient.get(`/api/v1/listings/${listingId}`, {
-          timeout: MARKETPLACE_TIMEOUT_MS,
-        }),
-        productApi.getAll(),
-      ])
+    const [listingResponse, products] = await Promise.all([
+      apiClient.get(`/api/v1/listings/${listingId}`, { timeout: MARKETPLACE_TIMEOUT_MS }),
+      productApi.getAll(),
+    ])
+    return toListing(listingResponse.data.data as BackendListing, products)
+  },
 
-      return toListing(listingResponse.data.data as BackendListing, products)
-    } catch {
-      const listing = mockListings.find((item) => item.listingId === listingId)
-
-      if (!listing) {
-        throw new Error('Không tìm thấy tin hàng')
-      }
-
-      return listing
+  async getSellerListings() {
+    if (env.useMocks) {
+      await wait(180)
+      return mockListings
     }
+
+    const [response, products] = await Promise.all([
+      apiClient.get('/api/v1/listings/seller', {
+        params: { page: 0, size: 100, sortBy: 'createdAt', sortDirection: 'DESC' },
+        timeout: MARKETPLACE_TIMEOUT_MS,
+      }),
+      productApi.getAll(),
+    ])
+    const listingsContent = response.data.data.content as BackendListing[]
+    return listingsContent.map((listing) => toListing(listing, products))
   },
 
   async create(input: CreateListingInput) {

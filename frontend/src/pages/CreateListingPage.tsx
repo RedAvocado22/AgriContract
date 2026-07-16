@@ -10,7 +10,7 @@ import { productApi } from '../api/productApi'
 import { env } from '../config/env'
 import type { CreateListingInput } from '../types/listing'
 import type { CreateProductInput } from '../types/product'
-import { PRODUCT_CATEGORIES } from '../utils/productCategory'
+import { normalizeProductCategory, PRODUCT_CATEGORIES } from '../utils/productCategory'
 
 const MAX_IMAGE_URLS = 5
 const LISTING_CURRENCY = 'VND'
@@ -29,10 +29,6 @@ const getDefaultDeliveryDate = () => {
 
   const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000
   return new Date(date.getTime() - timezoneOffsetMs).toISOString().slice(0, 10)
-}
-
-const sanitizeIntegerInput = (input: HTMLInputElement) => {
-  input.value = input.value.split(/[.,]/)[0].replace(/[^\d]/g, '')
 }
 
 const isValidImageUrl = (value: string) => {
@@ -58,10 +54,6 @@ const translateCreateListingMessage = (message: string | undefined) => {
 
   if (message.includes('must be a date in the present or in the future')) {
     return 'Ngày giao hàng phải là hôm nay hoặc một ngày trong tương lai.'
-  }
-
-  if (message.includes('quantity') && message.includes('integer')) {
-    return 'Số lượng phải là số nguyên.'
   }
 
   if (message.includes('Invalid image URL')) {
@@ -113,7 +105,7 @@ const createListingSchema = z.object({
     .min(3, 'Tên sản phẩm cần ít nhất 3 ký tự'),
   category: z.string().min(2, 'Chọn loại hàng'),
   unit: z.string().min(1, 'Nhập đơn vị'),
-  quantity: z.coerce.number().int('Số lượng phải là số nguyên').positive('Số lượng phải lớn hơn 0'),
+  quantity: z.coerce.number().min(0.001, 'Số lượng tối thiểu là 0,001'),
   priceFloor: z.coerce.number().positive('Giá sàn phải lớn hơn 0'),
   deliveryDeadline: z
     .string()
@@ -133,6 +125,8 @@ export function CreateListingPage() {
   const [imageUrlInput, setImageUrlInput] = useState('')
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [imageUrlError, setImageUrlError] = useState('')
+  const [workflowError, setWorkflowError] = useState<unknown>(null)
+  const [isResolvingProduct, setIsResolvingProduct] = useState(false)
   const {
     register,
     handleSubmit,
@@ -237,25 +231,40 @@ export function CreateListingPage() {
       return
     }
 
-    const product = await createProductMutation.mutateAsync({
-      name: values.productName,
-      category: values.category,
-      unit: values.unit,
-      imageUrls: productImageUrls.length > 0 ? productImageUrls : undefined,
-    })
+    setWorkflowError(null)
+    setIsResolvingProduct(true)
+    try {
+      const products = await productApi.getAll()
+      const category = normalizeProductCategory(values.category)
+      const product = products.find(
+        (item) =>
+          item.name.trim().toLocaleLowerCase('vi-VN') === values.productName.trim().toLocaleLowerCase('vi-VN') &&
+          normalizeProductCategory(item.categoryId ?? item.category) === category &&
+          item.unit.trim().toLocaleLowerCase('vi-VN') === values.unit.trim().toLocaleLowerCase('vi-VN'),
+      ) ?? await createProductMutation.mutateAsync({
+        name: values.productName,
+        category: values.category,
+        unit: values.unit,
+        imageUrls: productImageUrls.length > 0 ? productImageUrls : undefined,
+      })
 
-    await createListingMutation.mutateAsync({
-      productId: product.productId,
-      quantity: values.quantity,
-      quantityUnit: values.unit,
-      priceFloor: Math.round(values.priceFloor),
-      currency: LISTING_CURRENCY,
-      deliveryDeadline: values.deliveryDeadline,
-    })
+      await createListingMutation.mutateAsync({
+        productId: product.productId,
+        quantity: values.quantity,
+        quantityUnit: values.unit,
+        priceFloor: Math.round(values.priceFloor),
+        currency: LISTING_CURRENCY,
+        deliveryDeadline: values.deliveryDeadline,
+      })
+    } catch (error) {
+      setWorkflowError(error)
+    } finally {
+      setIsResolvingProduct(false)
+    }
   }
 
-  const isPending = createProductMutation.isPending || createListingMutation.isPending
-  const createError = createProductMutation.error ?? createListingMutation.error
+  const isPending = isResolvingProduct || createProductMutation.isPending || createListingMutation.isPending
+  const createError = workflowError ?? createProductMutation.error ?? createListingMutation.error
 
   return (
     <div className="form-page">
@@ -296,10 +305,9 @@ export function CreateListingPage() {
             <input
               {...register('quantity')}
               type="number"
-              inputMode="numeric"
-              min="1"
-              step="1"
-              onInput={(event) => sanitizeIntegerInput(event.currentTarget)}
+              inputMode="decimal"
+              min="0.001"
+              step="0.001"
             />
             {errors.quantity ? <small>{errors.quantity.message}</small> : null}
           </label>

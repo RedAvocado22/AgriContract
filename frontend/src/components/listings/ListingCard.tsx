@@ -9,12 +9,12 @@ interface ListingCardProps {
 
 export function ListingCard({ listing }: ListingCardProps) {
   const isActive = listing.status === 'ACTIVE'
-  const displayQuantity = Math.max(1, Math.round(listing.quantity))
+  const displayQuantity = listing.quantity
 
   return (
     <article className={`listing-card ${isActive ? '' : 'listing-card--muted'}`}>
       <div className="listing-card__image-wrap">
-        <img src={listing.imageUrl} alt={listing.productName} />
+        <img src={listing.imageUrl} alt={listing.productName} loading="lazy" decoding="async" />
         <span className={`status-badge status-badge--${listing.status.toLowerCase()}`}>
           {isActive ? 'Đang mở' : listing.status === 'CLOSED' ? 'Đã đóng' : 'Hết hạn'}
         </span>

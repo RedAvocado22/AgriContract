@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { FilterSidebar } from '../components/listings/FilterSidebar'
@@ -16,12 +16,24 @@ const defaultFilters: ListingFilters = {
   sortBy: 'latest',
 }
 
+const PAGE_SIZE = 12
+
 export function ListingsPage() {
   const userRole = useAuthStore((state) => state.user?.role)
   const normalizedRole = userRole?.trim().toUpperCase()
   const [filters, setFilters] = useState<ListingFilters>(defaultFilters)
+  const [searchInput, setSearchInput] = useState('')
+  const [page, setPage] = useState(0)
   const { data, isLoading, isError } = useListingsQuery(filters)
   const { data: catalogData } = useListingsQuery({ ...defaultFilters, search: '' })
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setFilters((current) => ({ ...current, search: searchInput }))
+      setPage(0)
+    }, 350)
+    return () => window.clearTimeout(timeoutId)
+  }, [searchInput])
 
   const categoryOptions = useMemo(
     () =>
@@ -47,6 +59,9 @@ export function ListingsPage() {
     }
   }, [catalogData])
 
+  const pageCount = Math.max(1, Math.ceil((data?.length ?? 0) / PAGE_SIZE))
+  const pageItems = (data ?? []).slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
   return (
     <div className="page-stack">
       <section className="page-title-row">
@@ -66,7 +81,10 @@ export function ListingsPage() {
       <div className="workspace-grid">
         <FilterSidebar
           filters={filters}
-          onChange={setFilters}
+          onChange={(nextFilters) => {
+            setFilters(nextFilters)
+            setPage(0)
+          }}
           categories={categoryOptions}
           priceBounds={priceBounds}
         />
@@ -76,13 +94,8 @@ export function ListingsPage() {
             <label className="search-input">
               <span className="material-symbols-outlined">search</span>
               <input
-                value={filters.search ?? ''}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    search: event.target.value,
-                  }))
-                }
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Tìm sản phẩm, bên bán hoặc loại hàng"
               />
             </label>
@@ -90,12 +103,13 @@ export function ListingsPage() {
             <select
               className="sort-select"
               value={filters.sortBy}
-              onChange={(event) =>
+              onChange={(event) => {
+                setPage(0)
                 setFilters((current) => ({
                   ...current,
                   sortBy: event.target.value as ListingFilters['sortBy'],
                 }))
-              }
+              }}
             >
               <option value="latest">Mới nhất trước</option>
               <option value="price-asc">Giá: thấp đến cao</option>
@@ -110,10 +124,18 @@ export function ListingsPage() {
           ) : null}
 
           <div className="listing-grid">
-            {data?.map((listing) => (
+            {pageItems.map((listing) => (
               <ListingCard key={listing.listingId} listing={listing} />
             ))}
           </div>
+
+          {(data?.length ?? 0) > PAGE_SIZE ? (
+            <nav className="pagination" aria-label="Phân trang tin hàng">
+              <button type="button" className="secondary-button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Trang trước</button>
+              <span>Trang {page + 1}/{pageCount}</span>
+              <button type="button" className="secondary-button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)}>Trang sau</button>
+            </nav>
+          ) : null}
         </section>
       </div>
     </div>

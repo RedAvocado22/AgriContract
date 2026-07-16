@@ -5,9 +5,8 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { contractApi } from '../api/contractApi'
 import { useListingQuery } from '../hooks/useListingQuery'
 import { useAuthStore } from '../stores/authStore'
+import { getApiErrorMessage } from '../utils/apiError'
 import { formatDate, formatMoney } from '../utils/formatters'
-
-const sanitizeIntegerInput = (value: string) => value.split(/[.,]/)[0].replace(/[^\d]/g, '')
 
 export function ListingDetailPage() {
   const { listingId } = useParams()
@@ -34,11 +33,16 @@ export function ListingDetailPage() {
 
       const offerPriceFloor = data.currency === 'VND' ? Math.ceil(data.priceFloor) : data.priceFloor
 
+      const requestedQuantity = Number(quantity || data.quantity)
+      if (requestedQuantity < 0.001 || requestedQuantity > data.quantity) {
+        throw new Error(`Số lượng phải từ 0,001 đến ${data.quantity} ${data.quantityUnit}.`)
+      }
+
       return contractApi.create({
         listingId: data.listingId,
         terms: {
           quantity: {
-            value: Math.max(1, Math.round(Number(quantity || data.quantity))),
+            value: requestedQuantity,
             unit: data.quantityUnit,
           },
           agreedPrice: {
@@ -73,11 +77,11 @@ export function ListingDetailPage() {
   const listingImages = data.imageUrls?.length ? data.imageUrls : [data.imageUrl]
   const selectedImage = listingImages[selectedImageIndex] ?? listingImages[0]
   const hasMultipleImages = listingImages.length > 1
-  const availableQuantity = Math.max(1, Math.round(data.quantity))
-  const canCreateOffer = isAuthenticated && normalizedRole !== 'SELLER' && data.status === 'ACTIVE'
+  const availableQuantity = data.quantity
+  const canCreateOffer = isAuthenticated && normalizedRole === 'BUYER' && data.status === 'ACTIVE'
   const priceInputMin = data.currency === 'VND' ? Math.ceil(data.priceFloor) : data.priceFloor
   const priceInputStep = data.currency === 'VND' ? '1' : '0.01'
-  const offerQuantity = Math.max(1, Math.round(Number(quantity || availableQuantity)))
+  const offerQuantity = Number(quantity || availableQuantity)
   const offerPrice = Number(price || priceInputMin)
   const offerTotal = offerQuantity * offerPrice
   const sellerDeposit = offerTotal * 0.1
@@ -321,12 +325,12 @@ export function ListingDetailPage() {
                   <span>Số lượng ({data.quantityUnit})</span>
                   <input
                     value={quantity}
-                    min="1"
+                    min="0.001"
                     max={availableQuantity}
-                    step="1"
+                    step="0.001"
                     type="number"
-                    inputMode="numeric"
-                    onChange={(event) => setQuantity(sanitizeIntegerInput(event.target.value))}
+                    inputMode="decimal"
+                    onChange={(event) => setQuantity(event.target.value)}
                     placeholder={`${availableQuantity}`}
                   />
                 </label>
@@ -355,7 +359,7 @@ export function ListingDetailPage() {
               {createContractMutation.isError ? (
                 <div className="notice-panel notice-panel--danger" role="alert">
                   <span className="material-symbols-outlined">error</span>
-                  <p>Không tạo được đề nghị hợp đồng. Vui lòng kiểm tra dịch vụ hợp đồng và thử lại.</p>
+                  <p>{getApiErrorMessage(createContractMutation.error, 'Không tạo được đề nghị hợp đồng. Vui lòng thử lại.')}</p>
                 </div>
               ) : null}
 
