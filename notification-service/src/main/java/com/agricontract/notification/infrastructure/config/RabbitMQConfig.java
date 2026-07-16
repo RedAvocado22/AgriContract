@@ -50,7 +50,7 @@ public class RabbitMQConfig {
             declarables.add(BindingBuilder.bind(dlq).to(contractsDlx).with(routingKey));
         }
 
-        for (String routingKey : List.of("escrow.locked", "escrow.released", "escrow.penalized")) {
+        for (String routingKey : List.of("escrow.locked", "escrow.released", "escrow.penalized", "escrow.arbitrated")) {
             Queue queue = QueueBuilder.durable("notification-svc." + routingKey)
                     .withArgument("x-dead-letter-exchange", escrowDlx.getName())
                     .build();
@@ -116,4 +116,3 @@ public class RabbitMQConfig {
                 .build();
     }
 }
-

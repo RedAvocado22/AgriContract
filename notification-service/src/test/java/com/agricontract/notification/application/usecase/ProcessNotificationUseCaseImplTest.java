@@ -2,6 +2,7 @@ package com.agricontract.notification.application.usecase;
 
 import com.agricontract.notification.application.dto.CategoryApprovedCommand;
 import com.agricontract.notification.application.dto.CategoryRejectedCommand;
+import com.agricontract.notification.application.dto.EscrowArbitratedCommand;
 import com.agricontract.notification.application.port.EmailPort;
 import com.agricontract.notification.domain.model.NotificationLog;
 import com.agricontract.notification.domain.model.vo.NotificationChannel;
@@ -60,5 +61,19 @@ class ProcessNotificationUseCaseImplTest {
                 "event-2", "category-1", "Ca Phe", "seller@test.com", "trung ten"));
 
         verify(emailPort).sendEmail(eq("seller@test.com"), contains("rejected"), contains("trung ten"));
+    }
+
+    @Test
+    void handleEscrowArbitrated_notifiesBothPartiesWithDecision() {
+        useCase = new ProcessNotificationUseCaseImpl(notificationLogRepository, emailPort);
+        when(notificationLogRepository.findByEventIdAndUserId(eq("event-3"), anyString()))
+                .thenReturn(Optional.empty());
+
+        useCase.handleEscrowArbitrated(new EscrowArbitratedCommand(
+                "event-3", "escrow-1", "contract-1",
+                "buyer@test.com", "seller@test.com", "Split based on inspection report"));
+
+        verify(emailPort).sendEmail(eq("buyer@test.com"), contains("arbitration"), contains("inspection report"));
+        verify(emailPort).sendEmail(eq("seller@test.com"), contains("arbitration"), contains("inspection report"));
     }
 }
