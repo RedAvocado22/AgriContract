@@ -17,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
+import java.time.Instant;
 import java.util.stream.Collectors;
+import com.agricontract.escrow.domain.model.vo.EscrowStatus;
 
 @Slf4j
 @Repository
@@ -90,5 +93,14 @@ public class EscrowAccountRepositoryImpl implements EscrowAccountRepository {
     @Transactional(readOnly = true)
     public boolean existsByContractId(String contractId) {
         return jpaRepo.existsByContractId(contractId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EscrowAccount> findReleaseEligibleBefore(Instant threshold) {
+        return jpaRepo.findByStatusAndReleaseEligibleAtLessThanEqual(
+                        EscrowStatus.DELIVERY_PENDING, threshold).stream()
+                .map(mapper::toDomain)
+                .toList();
     }
 }

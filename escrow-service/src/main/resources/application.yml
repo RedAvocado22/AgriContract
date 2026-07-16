@@ -27,6 +27,11 @@ spring:
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
 
+escrow:
+  delivery:
+    dispute-window: ${DELIVERY_DISPUTE_WINDOW:PT30S}
+    release-poll-interval-ms: ${DELIVERY_RELEASE_POLL_INTERVAL_MS:1000}
+
 springdoc:
   api-docs:
     enabled: ${SWAGGER_ENABLED:true}

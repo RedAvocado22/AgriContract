@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -13,7 +14,10 @@ import java.util.UUID;
 
 // Aggregate Root
 // Idempotency: contractId is used as the idempotency key
-// State machine: LOCKED → RELEASED | PENALIZED_BUYER | PENALIZED_SELLER | ARBITRATED
+// State machine:
+//   BUYER_LOCKED → FULLY_LOCKED → DELIVERY_PENDING → RELEASED
+//                               → DISPUTED → ARBITRATED
+//                               → PENALIZED_BUYER | PENALIZED_SELLER
 @Getter
 public class EscrowAccount {
 
@@ -27,6 +31,7 @@ public class EscrowAccount {
     private Money sellerDeposit;
     private BigDecimal sellerDepositRate;
     private EscrowStatus status;
+    private Instant releaseEligibleAt;
     @Getter(AccessLevel.NONE)
     private List<EscrowTransaction> transactions; // append-only ledger
     @Getter(AccessLevel.NONE)
@@ -42,6 +47,7 @@ public class EscrowAccount {
                                              String buyerEmail, String sellerEmail,
                                              String sellerUserId, Money totalAmount, Money sellerDeposit, EscrowStatus status,
                                              BigDecimal sellerDepositRate,
+                                             Instant releaseEligibleAt,
                                              List<EscrowTransaction> transactions) {
         EscrowAccount account = new EscrowAccount();
 
@@ -55,6 +61,7 @@ public class EscrowAccount {
         account.sellerDeposit = sellerDeposit;
         account.status = status;
         account.sellerDepositRate = sellerDepositRate;
+        account.releaseEligibleAt = releaseEligibleAt;
         account.transactions = new ArrayList<>(transactions);
 
         return account;
@@ -114,17 +121,40 @@ public class EscrowAccount {
         this.domainEvents.add(new EscrowLockedEvent(this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail));
     }
 
+    public void scheduleRelease(Instant releaseEligibleAt) {
+        if (this.status != EscrowStatus.FULLY_LOCKED) {
+            throw new IllegalStateException("This payment is not fully locked yet.");
+        }
+        if (releaseEligibleAt == null) {
+            throw new IllegalArgumentException("Release eligibility time is required.");
+        }
+
+        this.status = EscrowStatus.DELIVERY_PENDING;
+        this.releaseEligibleAt = releaseEligibleAt;
+    }
+
+    public void holdForDispute() {
+        if (this.status != EscrowStatus.FULLY_LOCKED
+                && this.status != EscrowStatus.DELIVERY_PENDING) {
+            throw new IllegalStateException("This payment cannot be held for dispute.");
+        }
+
+        this.status = EscrowStatus.DISPUTED;
+        this.releaseEligibleAt = null;
+    }
+
     /**
-     * Called on contract.delivered event → escrow released to seller
+     * Called after the delivery dispute window expires without a dispute.
      */
     public void release() {
         //Guard
-        if (this.status != EscrowStatus.FULLY_LOCKED) {
-            throw new IllegalStateException("This payment is not fully locked yet.");
+        if (this.status != EscrowStatus.DELIVERY_PENDING) {
+            throw new IllegalStateException("This payment is not eligible for release.");
         }
 
         //Mutate
         this.status = EscrowStatus.RELEASED;
+        this.releaseEligibleAt = null;
 
         //Emit
         EscrowTransaction releaseToSeller = EscrowTransaction.create(
@@ -226,8 +256,8 @@ public class EscrowAccount {
 
     public void arbitrate(Money buyerAmount, Money sellerAmount, String justification) {
         //Guard
-        if (this.status != EscrowStatus.FULLY_LOCKED) {
-            throw new IllegalStateException("This payment not fully locked yet.");
+        if (this.status != EscrowStatus.DISPUTED) {
+            throw new IllegalStateException("This payment is not held for dispute.");
         }
 
         if (!buyerAmount.add(sellerAmount).equals(this.totalAmount.add(this.sellerDeposit))) {
@@ -256,6 +286,9 @@ public class EscrowAccount {
                 justification
         );
         this.transactions.add(sellerArbitration);
+        this.domainEvents.add(new EscrowArbitratedEvent(
+                this.escrowId.value(), this.contractId, this.buyerEmail, this.sellerEmail,
+                buyerAmount, sellerAmount, justification));
     }
 
     public List<DomainEvent> pullDomainEvents() {

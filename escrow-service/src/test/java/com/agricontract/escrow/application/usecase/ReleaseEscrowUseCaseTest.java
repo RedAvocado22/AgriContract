@@ -12,6 +12,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -19,6 +23,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReleaseEscrowUseCaseTest {
+
+    private static final Instant NOW = Instant.parse("2026-07-01T00:00:00Z");
+    private static final Duration DISPUTE_WINDOW = Duration.ofSeconds(30);
 
     @Mock
     private EscrowAccountRepository escrowAccountRepository;
@@ -33,9 +40,16 @@ class ReleaseEscrowUseCaseTest {
         return account;
     }
 
+    private ReleaseEscrowUseCase useCase() {
+        return new ReleaseEscrowUseCase(
+                escrowAccountRepository,
+                DISPUTE_WINDOW,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
     @Test
     void execute_accountNotFound_throws() {
-        useCase = new ReleaseEscrowUseCase(escrowAccountRepository);
+        useCase = useCase();
         when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(new ReleaseEscrowCommand("contract-1")))
@@ -46,8 +60,9 @@ class ReleaseEscrowUseCaseTest {
 
     @Test
     void execute_alreadyReleased_skipsSilently() {
-        useCase = new ReleaseEscrowUseCase(escrowAccountRepository);
+        useCase = useCase();
         EscrowAccount account = fullyLockedAccount();
+        account.scheduleRelease(NOW);
         account.release();
         when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.of(account));
 
@@ -58,19 +73,20 @@ class ReleaseEscrowUseCaseTest {
 
     @Test
     void execute_happyPath_releasesAndSaves() {
-        useCase = new ReleaseEscrowUseCase(escrowAccountRepository);
+        useCase = useCase();
         EscrowAccount account = fullyLockedAccount();
         when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.of(account));
 
         useCase.execute(new ReleaseEscrowCommand("contract-1"));
 
-        assertThat(account.getStatus()).isEqualTo(EscrowStatus.RELEASED);
+        assertThat(account.getStatus()).isEqualTo(EscrowStatus.DELIVERY_PENDING);
+        assertThat(account.getReleaseEligibleAt()).isEqualTo(NOW.plus(DISPUTE_WINDOW));
         verify(escrowAccountRepository).save(account);
     }
 
     @Test
     void execute_whenNotFullyLocked_propagatesIllegalState() {
-        useCase = new ReleaseEscrowUseCase(escrowAccountRepository);
+        useCase = useCase();
         EscrowAccount account = EscrowAccount.lockBuyerPayment(
                 "contract-1", "buyer-1", "seller-1", "b@x.com", "s@x.com",
                 new BigDecimal("0.1"), new Money(new BigDecimal("10000000"), "VND"));

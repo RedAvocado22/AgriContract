@@ -6,6 +6,7 @@ import com.agricontract.escrow.domain.event.EscrowLockedEvent;
 import com.agricontract.escrow.domain.event.EscrowPenalizedEvent;
 import com.agricontract.escrow.domain.event.EscrowReleasedEvent;
 import com.agricontract.escrow.domain.event.EscrowRefundedEvent;
+import com.agricontract.escrow.domain.event.EscrowArbitratedEvent;
 import com.agricontract.escrow.domain.model.vo.EscrowStatus;
 import com.agricontract.escrow.domain.model.vo.Money;
 import com.agricontract.escrow.domain.model.vo.Party;
@@ -13,6 +14,7 @@ import com.agricontract.escrow.domain.model.vo.TransactionType;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
@@ -35,6 +37,18 @@ class EscrowAccountTest {
     private EscrowAccount fullyLocked() {
         EscrowAccount account = buyerLocked();
         account.lockSellerDeposit();
+        return account;
+    }
+
+    private EscrowAccount deliveryPending() {
+        EscrowAccount account = fullyLocked();
+        account.scheduleRelease(Instant.parse("2026-07-01T00:00:30Z"));
+        return account;
+    }
+
+    private EscrowAccount disputed() {
+        EscrowAccount account = fullyLocked();
+        account.holdForDispute();
         return account;
     }
 
@@ -86,7 +100,7 @@ class EscrowAccountTest {
 
     @Test
     void release_happyPath_transitionsToReleasedWithTwoEntries() {
-        EscrowAccount account = fullyLocked();
+        EscrowAccount account = deliveryPending();
 
         account.release();
 
@@ -105,6 +119,25 @@ class EscrowAccountTest {
         EscrowAccount account = buyerLocked();
 
         assertThatThrownBy(account::release)
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void scheduleRelease_thenDispute_cancelsPendingRelease() {
+        EscrowAccount account = deliveryPending();
+
+        account.holdForDispute();
+
+        assertThat(account.getStatus()).isEqualTo(EscrowStatus.DISPUTED);
+        assertThat(account.getReleaseEligibleAt()).isNull();
+        assertThatThrownBy(account::release).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void holdForDispute_beforeDeliveryEvent_preventsLaterReleaseSchedule() {
+        EscrowAccount account = disputed();
+
+        assertThatThrownBy(() -> account.scheduleRelease(Instant.now()))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -183,7 +216,7 @@ class EscrowAccountTest {
 
     @Test
     void arbitrate_happyPath_transitionsToArbitratedWithTwoEntries() {
-        EscrowAccount account = fullyLocked();
+        EscrowAccount account = disputed();
         Money buyerAmount = new Money(new BigDecimal("3000000"), "VND");
         Money sellerAmount = new Money(new BigDecimal("8000000"), "VND"); // 3M + 8M = 10M + 1M
         String justification = "Seller delivered 70% of agreed quality.";
@@ -215,7 +248,7 @@ class EscrowAccountTest {
 
     @Test
     void arbitrate_whenSumDoesNotMatch_throwsIllegalArgument() {
-        EscrowAccount account = fullyLocked();
+        EscrowAccount account = disputed();
 
         assertThatThrownBy(() -> account.arbitrate(
                 new Money(new BigDecimal("3000000"), "VND"),
@@ -226,7 +259,7 @@ class EscrowAccountTest {
 
     @Test
     void arbitrate_whenJustificationNull_throwsIllegalArgument() {
-        EscrowAccount account = fullyLocked();
+        EscrowAccount account = disputed();
 
         assertThatThrownBy(() -> account.arbitrate(
                 new Money(new BigDecimal("3000000"), "VND"),
@@ -237,7 +270,7 @@ class EscrowAccountTest {
 
     @Test
     void arbitrate_whenJustificationBlank_throwsIllegalArgument() {
-        EscrowAccount account = fullyLocked();
+        EscrowAccount account = disputed();
 
         assertThatThrownBy(() -> account.arbitrate(
                 new Money(new BigDecimal("3000000"), "VND"),
@@ -277,7 +310,7 @@ class EscrowAccountTest {
 
     @Test
     void release_happyPath_emitsReleasedAndRefundedToSellerEvents() {
-        EscrowAccount account = fullyLocked();
+        EscrowAccount account = deliveryPending();
         account.pullDomainEvents(); // discard lockSellerDeposit's event
 
         account.release();
@@ -338,8 +371,8 @@ class EscrowAccountTest {
     }
 
     @Test
-    void arbitrate_happyPath_emitsNoEvent() {
-        EscrowAccount account = fullyLocked();
+    void arbitrate_happyPath_emitsArbitratedEvent() {
+        EscrowAccount account = disputed();
         account.pullDomainEvents();
 
         account.arbitrate(
@@ -347,7 +380,12 @@ class EscrowAccountTest {
                 new Money(new BigDecimal("8000000"), "VND"),
                 "reason");
 
-        assertThat(account.pullDomainEvents()).isEmpty();
+        List<DomainEvent> events = account.pullDomainEvents();
+        assertThat(events).singleElement().isInstanceOf(EscrowArbitratedEvent.class);
+        EscrowArbitratedEvent event = (EscrowArbitratedEvent) events.getFirst();
+        assertThat(event.getBuyerAmount()).isEqualTo(new Money(new BigDecimal("3000000"), "VND"));
+        assertThat(event.getSellerAmount()).isEqualTo(new Money(new BigDecimal("8000000"), "VND"));
+        assertThat(event.getJustification()).isEqualTo("reason");
     }
 
     @Test

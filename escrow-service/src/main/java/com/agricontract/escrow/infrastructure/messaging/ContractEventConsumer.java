@@ -3,10 +3,12 @@ package com.agricontract.escrow.infrastructure.messaging;
 import com.agricontract.escrow.application.dto.LockBuyerPaymentCommand;
 import com.agricontract.escrow.application.dto.PenalizeEscrowCommand;
 import com.agricontract.escrow.application.dto.ReleaseEscrowCommand;
+import com.agricontract.escrow.application.dto.HoldEscrowForDisputeCommand;
 import com.agricontract.escrow.application.exception.InvalidEventPayloadException;
 import com.agricontract.escrow.application.usecase.LockBuyerPaymentUseCase;
 import com.agricontract.escrow.application.usecase.PenalizeEscrowUseCase;
 import com.agricontract.escrow.application.usecase.ReleaseEscrowUseCase;
+import com.agricontract.escrow.application.usecase.HoldEscrowForDisputeUseCase;
 import com.agricontract.escrow.domain.model.vo.Money;
 import com.agricontract.escrow.domain.model.vo.Party;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class ContractEventConsumer {
     private final LockBuyerPaymentUseCase lockBuyerPaymentUseCase;
     private final ReleaseEscrowUseCase releaseEscrowUseCase;
     private final PenalizeEscrowUseCase penalizeEscrowUseCase;
+    private final HoldEscrowForDisputeUseCase holdEscrowForDisputeUseCase;
 
     @RabbitListener(queues = "escrow-svc.contract.signed")
     public void onContractSigned(Map<String, Object> event) {
@@ -82,6 +85,25 @@ public class ContractEventConsumer {
             return new PenalizeEscrowCommand((String) event.get("contractId"), cancelledBy, buyerPenaltyRate);
         } catch (RuntimeException e) {
             throw new InvalidEventPayloadException("Malformed contract.cancelled payload: " + event + " (" + e + ")");
+        }
+    }
+
+    @RabbitListener(queues = "escrow-svc.contract.disputed")
+    public void onContractDisputed(Map<String, Object> event) {
+        log.info("Received contract.disputed for contract {}", event.get("contractId"));
+        holdEscrowForDisputeUseCase.execute(parseDisputedEvent(event));
+    }
+
+    private HoldEscrowForDisputeCommand parseDisputedEvent(Map<String, Object> event) {
+        try {
+            String contractId = (String) event.get("contractId");
+            if (contractId == null || contractId.isBlank()) {
+                throw new IllegalArgumentException("contractId is required");
+            }
+            return new HoldEscrowForDisputeCommand(contractId);
+        } catch (RuntimeException exception) {
+            throw new InvalidEventPayloadException(
+                    "Malformed contract.disputed payload: " + event + " (" + exception + ")");
         }
     }
 }

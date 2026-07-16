@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -68,15 +69,15 @@ class ConfirmDepositUseCaseTest {
     }
 
     @Test
-    void execute_whenAlreadyReleased_propagatesIllegalStateAndDoesNotSave() {
+    void execute_whenAlreadyReleased_skipsDuplicateDepositConfirmation() {
         useCase = new ConfirmDepositUseCase(escrowAccountRepository);
         EscrowAccount account = buyerLockedAccount();
         account.lockSellerDeposit();
+        account.scheduleRelease(Instant.now());
         account.release();
         when(escrowAccountRepository.findByContractId("contract-1")).thenReturn(Optional.of(account));
 
-        assertThatThrownBy(() -> useCase.execute(new ConfirmDepositCommand("contract-1", "seller-1")))
-                .isInstanceOf(IllegalStateException.class);
+        useCase.execute(new ConfirmDepositCommand("contract-1", "seller-1"));
 
         verify(escrowAccountRepository, never()).save(any());
     }

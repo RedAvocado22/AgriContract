@@ -8,6 +8,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,6 +56,9 @@ public class EscrowAccountJpaEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 25)
     private EscrowStatus status;
+
+    @Column(name = "release_eligible_at")
+    private Instant releaseEligibleAt;
 
     @CreationTimestamp @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

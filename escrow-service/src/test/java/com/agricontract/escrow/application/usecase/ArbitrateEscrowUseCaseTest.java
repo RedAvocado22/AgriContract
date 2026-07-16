@@ -30,6 +30,7 @@ class ArbitrateEscrowUseCaseTest {
                 "contract-1", "buyer-1", "seller-1", "b@x.com", "s@x.com",
                 new BigDecimal("0.1"), new Money(new BigDecimal("10000000"), "VND"));
         account.lockSellerDeposit();
+        account.holdForDispute();
         return account;
     }
 
