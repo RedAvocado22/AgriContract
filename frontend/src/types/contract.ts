@@ -27,6 +27,26 @@ export interface ContractTerms {
   qualitySpec: string
 }
 
+export interface ContractSignature {
+  userId: string
+  termsRevision?: number
+  signedAt?: string | null
+}
+
+export interface NegotiationHistoryEntry {
+  termsRevision: number
+  proposedBy: string
+  proposedAt?: string | null
+  terms: ContractTerms
+  signatures?: ContractSignature[]
+  status?: string | null
+}
+
+export interface NegotiationHistory {
+  supported: boolean
+  entries: NegotiationHistoryEntry[]
+}
+
 export interface Contract {
   contractId: string
   listingId: string
@@ -38,6 +58,8 @@ export interface Contract {
   buyerEmail: string
   sellerEmail: string
   terms: ContractTerms
+  termsRevision?: number
+  signatures?: ContractSignature[]
   status: ContractStatus
   cancelReason?: string | null
   cancelledBy?: string | null

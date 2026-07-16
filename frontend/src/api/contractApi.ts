@@ -1,25 +1,127 @@
 import apiClient from './client'
 import { env } from '../config/env'
-import type { Contract, CreateContractInput } from '../types/contract'
+import type {
+  Contract,
+  ContractSignature,
+  ContractTerms,
+  CreateContractInput,
+  NegotiationHistory,
+  NegotiationHistoryEntry,
+} from '../types/contract'
 import { repairMojibake } from '../utils/textEncoding'
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-interface PaginatedContractResponse {
-  content: Contract[]
+type ContractWire = Omit<Contract, 'signatures' | 'termsRevision'> & {
+  revision?: number
+  termsRevision?: number
+  signatures?: Array<ContractSignature | string>
+  signatories?: string[]
+  buyerSigned?: boolean
+  sellerSigned?: boolean
 }
 
-const toContract = (contract: Contract): Contract => ({
-  ...contract,
-  productName: repairMojibake(contract.productName),
-  buyerOrgName: repairMojibake(contract.buyerOrgName),
-  sellerOrgName: repairMojibake(contract.sellerOrgName),
-  cancelReason: repairMojibake(contract.cancelReason),
-  terms: {
-    ...contract.terms,
-    qualitySpec: repairMojibake(contract.terms?.qualitySpec),
-  },
-})
+interface PaginatedContractResponse {
+  content: ContractWire[]
+}
+
+interface NegotiationHistoryEntryWire {
+  revision?: number
+  termsRevision?: number
+  proposedBy?: string
+  proposedAt?: string | null
+  occurredAt?: string | null
+  createdAt?: string | null
+  terms?: ContractTerms
+  proposedTerms?: ContractTerms
+  signatures?: Array<ContractSignature | string>
+  signatories?: string[]
+  status?: string | null
+}
+
+const normalizeSignatures = (
+  contract: ContractWire,
+  termsRevision: number | undefined,
+): ContractSignature[] | undefined => {
+  const hasSignaturePayload = contract.signatures !== undefined
+    || contract.signatories !== undefined
+    || contract.buyerSigned !== undefined
+    || contract.sellerSigned !== undefined
+
+  if (!hasSignaturePayload) return undefined
+
+  const signatures = (contract.signatures ?? []).map((signature) =>
+    typeof signature === 'string'
+      ? { userId: signature, termsRevision }
+      : { ...signature, termsRevision: signature.termsRevision ?? termsRevision },
+  )
+  const legacySignatories = [
+    ...(contract.signatories ?? []),
+    ...(contract.buyerSigned ? [contract.buyerId] : []),
+    ...(contract.sellerSigned ? [contract.sellerId] : []),
+  ]
+
+  for (const userId of legacySignatories) {
+    if (!signatures.some((signature) => signature.userId === userId)) {
+      signatures.push({ userId, termsRevision })
+    }
+  }
+
+  return signatures
+}
+
+const toContract = (contract: ContractWire): Contract => {
+  const termsRevision = contract.termsRevision ?? contract.revision
+  const signatures = normalizeSignatures(contract, termsRevision)
+
+  return {
+    contractId: contract.contractId,
+    listingId: contract.listingId,
+    buyerId: contract.buyerId,
+    sellerId: contract.sellerId,
+    productName: repairMojibake(contract.productName),
+    buyerOrgName: repairMojibake(contract.buyerOrgName),
+    sellerOrgName: repairMojibake(contract.sellerOrgName),
+    buyerEmail: contract.buyerEmail,
+    sellerEmail: contract.sellerEmail,
+    cancelReason: repairMojibake(contract.cancelReason),
+    cancelledBy: contract.cancelledBy,
+    status: contract.status,
+    terms: {
+      ...contract.terms,
+      qualitySpec: repairMojibake(contract.terms?.qualitySpec),
+    },
+    ...(termsRevision === undefined ? {} : { termsRevision }),
+    ...(signatures === undefined ? {} : { signatures }),
+  }
+}
+
+const toNegotiationHistoryEntry = (
+  entry: NegotiationHistoryEntryWire,
+  index: number,
+): NegotiationHistoryEntry | null => {
+  const terms = entry.terms ?? entry.proposedTerms
+  if (!terms || !entry.proposedBy) return null
+
+  const termsRevision = entry.termsRevision ?? entry.revision ?? index + 1
+  const signatures = (entry.signatures ?? entry.signatories ?? []).map((signature) =>
+    typeof signature === 'string'
+      ? { userId: signature, termsRevision }
+      : { ...signature, termsRevision: signature.termsRevision ?? termsRevision },
+  )
+
+  return {
+    termsRevision,
+    proposedBy: entry.proposedBy,
+    proposedAt: entry.proposedAt ?? entry.occurredAt ?? entry.createdAt,
+    terms: {
+      ...terms,
+      qualitySpec: repairMojibake(terms.qualitySpec),
+    },
+    ...(entry.signatures === undefined && entry.signatories === undefined ? {} : { signatures }),
+    status: entry.status,
+  }
+}
 
 let mockContracts: Contract[] = [
   {
@@ -78,7 +180,7 @@ export const contractApi = {
         size: 100,
       },
     })
-    const data = response.data.data as Contract[] | PaginatedContractResponse
+    const data = response.data.data as ContractWire[] | PaginatedContractResponse
     return (Array.isArray(data) ? data : data.content).map(toContract)
   },
 
@@ -93,7 +195,46 @@ export const contractApi = {
     }
 
     const response = await apiClient.get(`/api/v1/contracts/${contractId}`)
-    return toContract(response.data.data as Contract)
+    return toContract(response.data.data as ContractWire)
+  },
+
+  async getNegotiationHistory(contractId: string): Promise<NegotiationHistory> {
+    if (env.useMocks) {
+      await wait(120)
+      const contract = mockContracts.find((item) => item.contractId === contractId)
+      if (!contract) return { supported: true, entries: [] }
+      return {
+        supported: true,
+        entries: [{
+          termsRevision: contract.termsRevision ?? 1,
+          proposedBy: contract.buyerId,
+          proposedAt: null,
+          terms: contract.terms,
+          signatures: contract.signatures,
+          status: contract.status,
+        }],
+      }
+    }
+
+    const response = await apiClient.get(`/api/v1/contracts/${contractId}/negotiations`, {
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 403 || status === 404,
+    })
+    if (response.status === 403 || response.status === 404) {
+      return { supported: false, entries: [] }
+    }
+
+    const data = response.data.data as
+      | NegotiationHistoryEntryWire[]
+      | { content?: NegotiationHistoryEntryWire[]; entries?: NegotiationHistoryEntryWire[]; supported?: boolean }
+    const rawEntries = Array.isArray(data) ? data : data.entries ?? data.content ?? []
+    const entries = rawEntries
+      .map(toNegotiationHistoryEntry)
+      .filter((entry): entry is NegotiationHistoryEntry => entry !== null)
+
+    return {
+      supported: Array.isArray(data) ? true : data.supported ?? true,
+      entries,
+    }
   },
 
   async create(input: CreateContractInput) {
@@ -121,7 +262,7 @@ export const contractApi = {
       listingId: input.listingId,
       terms: input.terms,
     })
-    return toContract(response.data.data as Contract)
+    return toContract(response.data.data as ContractWire)
   },
 
   async sign(contractId: string) {
@@ -136,6 +277,25 @@ export const contractApi = {
     await apiClient.put(`/api/v1/contracts/${contractId}/sign`)
   },
 
+  async negotiate(contractId: string, newTerms: ContractTerms) {
+    if (env.useMocks) {
+      await wait(200)
+      mockContracts = mockContracts.map((item) =>
+        item.contractId === contractId
+          ? {
+              ...item,
+              terms: newTerms,
+              status: 'NEGOTIATING',
+            }
+          : item,
+      )
+      return mockContracts.find((item) => item.contractId === contractId)!
+    }
+
+    const response = await apiClient.put(`/api/v1/contracts/${contractId}/negotiate`, { newTerms })
+    return toContract(response.data.data as ContractWire)
+  },
+
   async confirmDelivery(contractId: string) {
     if (env.useMocks) {
       await wait(200)
@@ -146,7 +306,7 @@ export const contractApi = {
     }
 
     const response = await apiClient.put(`/api/v1/contracts/${contractId}/confirm-delivery`)
-    return toContract(response.data.data as Contract)
+    return toContract(response.data.data as ContractWire)
   },
 
   async cancel(contractId: string, reason: string) {
@@ -161,7 +321,7 @@ export const contractApi = {
     }
 
     const response = await apiClient.put(`/api/v1/contracts/${contractId}/cancel`, { reason })
-    return toContract(response.data.data as Contract)
+    return toContract(response.data.data as ContractWire)
   },
 
   async dispute(contractId: string, reason: string) {
@@ -174,6 +334,6 @@ export const contractApi = {
     }
 
     const response = await apiClient.put(`/api/v1/contracts/${contractId}/dispute`, { reason })
-    return toContract(response.data.data as Contract)
+    return toContract(response.data.data as ContractWire)
   },
 }
