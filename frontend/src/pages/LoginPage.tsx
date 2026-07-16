@@ -4,28 +4,34 @@ import { useForm } from 'react-hook-form'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
-import { authApi, TOKEN_STORAGE_KEY } from '../api/authApi'
-import { isNotFoundError, userApi } from '../api/userApi'
+import { authApi } from '../api/authApi'
 import { AuthHeader } from '../components/layout/AuthHeader'
 import { env } from '../config/env'
 import { useAuthStore } from '../stores/authStore'
 import type { UserRole } from '../types/auth'
 
-const loginSchema = z.object({
-  identifier: z.string().trim().min(1, 'Nhập email hoặc tên đăng nhập'),
-  password: z.string().nonempty('Nhập mật khẩu'),
-  role: z.enum(['BUYER', 'SELLER', 'ADMIN']).optional(),
-})
+const loginSchema = z
+  .object({
+    identifier: z.string(),
+    password: z.string(),
+    role: z.enum(['BUYER', 'SELLER', 'ADMIN']).optional(),
+  })
+  .superRefine((values, context) => {
+    if (!env.useMocks) return
+    if (!values.identifier.trim()) {
+      context.addIssue({ code: 'custom', path: ['identifier'], message: 'Nhập email hoặc tên đăng nhập' })
+    }
+    if (!values.password) {
+      context.addIssue({ code: 'custom', path: ['password'], message: 'Nhập mật khẩu' })
+    }
+  })
 
 type LoginFormValues = z.infer<typeof loginSchema>
 
 export function LoginPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const setSession = useAuthStore((state) => state.setSession)
-  const setUser = useAuthStore((state) => state.setUser)
   const loginWithMock = useAuthStore((state) => state.loginWithMock)
-  const markProfileMissing = useAuthStore((state) => state.markProfileMissing)
   const {
     register,
     handleSubmit,
@@ -42,30 +48,12 @@ export function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: async (result, values) => {
-      window.localStorage.setItem(TOKEN_STORAGE_KEY, result.accessToken)
-
-      if (env.useMocks) {
+      if (env.useMocks && result) {
         loginWithMock({
           email: values.identifier.includes('@') ? values.identifier : `${values.identifier}@example.com`,
           role: (values.role ?? 'BUYER') as UserRole,
         })
         navigate('/dashboard')
-        return
-      }
-
-      setSession(result.accessToken)
-
-      try {
-        const profile = await userApi.getMe()
-        setUser(profile)
-        navigate('/dashboard')
-      } catch (error) {
-        if (!isNotFoundError(error)) {
-          throw error
-        }
-
-        markProfileMissing()
-        navigate('/register-profile')
       }
     },
   })
@@ -102,32 +90,27 @@ export function LoginPage() {
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
-            <label>
-              <span>Email hoặc tên đăng nhập</span>
-              <input
-                {...register('identifier')}
-                type="text"
-                autoComplete="username"
-                placeholder="seller1 hoặc seller1@test.com"
-              />
-              {errors.identifier ? <small>{errors.identifier.message}</small> : null}
-            </label>
-
-            <label>
-              <span>Mật khẩu</span>
-              <input {...register('password')} type="password" />
-              {errors.password ? <small>{errors.password.message}</small> : null}
-            </label>
-
             {env.useMocks ? (
-              <label>
-                <span>Vai trò giả lập</span>
-                <select {...register('role')}>
-                  <option value="BUYER">Bên mua</option>
-                  <option value="SELLER">Bên bán</option>
-                  <option value="ADMIN">Quản trị</option>
-                </select>
-              </label>
+              <>
+                <label>
+                  <span>Email hoặc tên đăng nhập</span>
+                  <input {...register('identifier')} type="text" autoComplete="username" />
+                  {errors.identifier ? <small>{errors.identifier.message}</small> : null}
+                </label>
+                <label>
+                  <span>Mật khẩu</span>
+                  <input {...register('password')} type="password" />
+                  {errors.password ? <small>{errors.password.message}</small> : null}
+                </label>
+                <label>
+                  <span>Vai trò giả lập</span>
+                  <select {...register('role')}>
+                    <option value="BUYER">Bên mua</option>
+                    <option value="SELLER">Bên bán</option>
+                    <option value="ADMIN">Quản trị</option>
+                  </select>
+                </label>
+              </>
             ) : null}
 
             {loginMutation.isError ? <small>Email hoặc mật khẩu không đúng.</small> : null}
@@ -137,7 +120,7 @@ export function LoginPage() {
               type="submit"
               disabled={loginMutation.isPending}
             >
-              {loginMutation.isPending ? 'Đang đăng nhập...' : 'Đăng nhập'}
+              {loginMutation.isPending ? 'Đang chuyển hướng...' : env.useMocks ? 'Đăng nhập' : 'Đăng nhập với Keycloak'}
               <span className="material-symbols-outlined">arrow_forward</span>
             </button>
           </form>
