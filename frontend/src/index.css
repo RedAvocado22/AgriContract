@@ -1799,3 +1799,156 @@ img {
     grid-column: 2;
   }
 }
+.api-error-toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  display: flex;
+  max-width: 28rem;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  color: #fff;
+  background: #b42318;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 20%);
+}
+
+.api-error-toast button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 1.25rem;
+}
+
+.pagination {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.contract-actions-bar,
+.negotiation-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.signature-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.signature-summary div {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.signature-summary span,
+.negotiation-history__terms dt {
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.signature-state {
+  color: var(--text-muted);
+}
+
+.signature-state--signed {
+  color: var(--brand);
+}
+
+.negotiation-history-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.panel-empty-copy {
+  padding: 1rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.negotiation-history {
+  display: grid;
+  gap: 0.75rem;
+  max-height: 30rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.negotiation-history > li {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.negotiation-history__heading {
+  display: flex;
+  gap: 1rem;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.negotiation-history__heading div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.negotiation-history__heading span,
+.negotiation-history__heading time,
+.negotiation-history small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.negotiation-history__terms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.negotiation-history__terms div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.negotiation-history__terms dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .signature-summary,
+  .negotiation-history__terms {
+    grid-template-columns: 1fr;
+  }
+
+  .negotiation-history__heading {
+    display: grid;
+  }
+}
