@@ -6,12 +6,14 @@ import lombok.Getter;
 @Getter
 public class ContractNegotiatingEvent extends DomainEvent {
     private String proposedBy;
+    private int termsRevision;
     private ContractTerms proposedTerms;
 
     public ContractNegotiatingEvent(String contractId, String buyerEmail, String sellerEmail,
-                                    String proposedBy, ContractTerms proposedTerms) {
+                                    String proposedBy, int termsRevision, ContractTerms proposedTerms) {
         super(contractId, buyerEmail, sellerEmail);
         this.proposedBy = proposedBy;
+        this.termsRevision = termsRevision;
         this.proposedTerms = proposedTerms;
     }
 

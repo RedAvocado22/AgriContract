@@ -18,7 +18,7 @@ import java.util.Set;
 // State machine:
 //   OFFERED → NEGOTIATING → SIGNED → ACTIVE → DELIVERED → SETTLED
 //   ACTIVE  → CANCELLED
-//   DELIVERED → DISPUTED
+//   DELIVERED → DISPUTED → SETTLED
 @Getter
 public class Contract {
 
@@ -32,6 +32,7 @@ public class Contract {
     private String buyerEmail;        // snapshot at offer time
     private String sellerEmail;       // snapshot at offer time
     private ContractTerms terms;
+    private int termsRevision;
     private ContractStatus status;
     private String cancelReason;
     private CancelledBy cancelledBy;       // "BUYER" or "SELLER"
@@ -52,6 +53,7 @@ public class Contract {
             String buyerEmail, String sellerEmail,
             ContractTerms terms, ContractStatus status,
             String cancelReason, CancelledBy cancelledBy,
+            int termsRevision,
             Set<String> signatories) {
         Contract contract = new Contract();
 
@@ -65,6 +67,7 @@ public class Contract {
         contract.sellerOrgName = sellerOrgName;
         contract.sellerEmail = sellerEmail;
         contract.terms = terms;
+        contract.termsRevision = termsRevision;
         contract.status = status;
         contract.cancelReason = cancelReason;
         contract.cancelledBy = cancelledBy;
@@ -88,6 +91,7 @@ public class Contract {
         contract.buyerEmail = buyerEmail;
         contract.sellerEmail = sellerEmail;
         contract.terms = terms;
+        contract.termsRevision = 1;
         contract.status = ContractStatus.OFFERED;
         contract.productName = productName;
 
@@ -109,9 +113,13 @@ public class Contract {
         //Mutate
         this.status = ContractStatus.NEGOTIATING;
         this.terms = newTerms;
+        this.termsRevision++;
+        this.signatories.clear();
 
         //Emit
-        this.domainEvents.add(new ContractNegotiatingEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, userId, newTerms));
+        this.domainEvents.add(new ContractNegotiatingEvent(
+                this.contractId.value(), this.buyerEmail, this.sellerEmail,
+                userId, this.termsRevision, newTerms));
     }
 
     public void sign(String userId) {
@@ -227,6 +235,20 @@ public class Contract {
         this.status = ContractStatus.DISPUTED;
         //Emit
         this.domainEvents.add(new ContractDisputedEvent(contractId.value(), buyerEmail, sellerEmail, buyerId, reason));
+    }
+
+    /**
+     * Called when escrow.arbitrated confirms that the disputed funds were allocated.
+     */
+    public void resolveDispute() {
+        if (this.status != ContractStatus.DISPUTED) {
+            throw new IllegalArgumentException("This contract dispute can't be resolved.");
+        }
+
+        this.status = ContractStatus.SETTLED;
+        this.domainEvents.add(new ContractSettledEvent(
+                this.contractId.value(), this.buyerEmail, this.sellerEmail,
+                this.buyerId, this.sellerId));
     }
 
     public List<DomainEvent> pullDomainEvents() {

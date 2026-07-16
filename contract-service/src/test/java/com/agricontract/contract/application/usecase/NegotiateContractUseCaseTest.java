@@ -78,6 +78,8 @@ class NegotiateContractUseCaseTest {
         assertThat(contract.getStatus()).isEqualTo(ContractStatus.NEGOTIATING);
         assertThat(contract.getTerms()).isEqualTo(NEW_TERMS);
         assertThat(response.status()).isEqualTo("NEGOTIATING");
+        assertThat(response.termsRevision()).isEqualTo(2);
+        assertThat(response.signatories()).isEmpty();
         verify(contractRepository).save(contract);
     }
 

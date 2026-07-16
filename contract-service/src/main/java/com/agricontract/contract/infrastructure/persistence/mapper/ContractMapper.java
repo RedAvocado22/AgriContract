@@ -42,6 +42,7 @@ public class ContractMapper {
                 .cancelReason(contract.getCancelReason())
                 .cancelledBy(contract.getCancelledBy())
                 .signatories(serializeSignatories(contract.getSignatories()))
+                .termsRevision(contract.getTermsRevision())
                 .build();
     }
 
@@ -68,6 +69,7 @@ public class ContractMapper {
                 e.getStatus(),
                 e.getCancelReason(),
                 e.getCancelledBy(),
+                e.getTermsRevision(),
                 deserializeSignatories(e.getSignatories())
         );
     }
