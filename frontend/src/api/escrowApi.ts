@@ -81,4 +81,13 @@ export const escrowApi = {
 
     await apiClient.put(`/api/v1/escrows/${contractId}/confirm-deposit`)
   },
+
+  async arbitrate(contractId: string, input: { buyerAmount: number; sellerAmount: number; justification: string }) {
+    if (env.useMocks) {
+      await wait(220)
+      return
+    }
+
+    await apiClient.put(`/api/v1/escrows/${contractId}/arbitrate`, input)
+  },
 }
