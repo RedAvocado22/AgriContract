@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { TOKEN_STORAGE_KEY } from '../api/authApi'
 import { isNotFoundError, userApi } from '../api/userApi'
+import { initializeKeycloak, keycloak, refreshKeycloakToken } from './keycloak'
+import { env } from '../config/env'
 import { useAuthStore } from '../stores/authStore'
 
 interface AuthBootstrapProps {
@@ -18,26 +19,40 @@ export function AuthBootstrap({ children }: AuthBootstrapProps) {
 
   useEffect(() => {
     const bootstrap = async () => {
-      const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
-
-      if (!token) {
-        logoutStore()
+      if (env.useMocks) {
         setIsReady(true)
         return
       }
 
-      setSession(token)
-
       try {
-        const profile = await userApi.getMe()
-        setUser(profile)
-      } catch (error) {
-        if (isNotFoundError(error)) {
-          markProfileMissing()
-        } else {
-          window.localStorage.removeItem(TOKEN_STORAGE_KEY)
+        const authenticated = await initializeKeycloak()
+        const token = keycloak.token ?? null
+
+        if (!authenticated || !token) {
           logoutStore()
+          setIsReady(true)
+          return
         }
+
+        setSession(token)
+        keycloak.onTokenExpired = () => {
+          void refreshKeycloakToken()
+            .then(setSession)
+            .catch(logoutStore)
+        }
+
+        try {
+          const profile = await userApi.getMe()
+          setUser(profile)
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            markProfileMissing()
+          } else {
+            throw error
+          }
+        }
+      } catch {
+        logoutStore()
       } finally {
         setIsReady(true)
       }

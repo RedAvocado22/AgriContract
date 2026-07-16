@@ -64,7 +64,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     })
   },
   logout: () => {
-    window.localStorage.removeItem('agricontract.accessToken')
     set({
       accessToken: null,
       user: null,
