@@ -48,11 +48,11 @@ VALUES
    @buyer1_id, @buyer1_email, @seller1_id, @seller1_email,
    34000000.00, 3400000.00, 0.1000, 'VND', 'PENALIZED_BUYER', NOW(), NOW()),
 
-  -- DISPUTED contract: FULLY_LOCKED, chờ Admin arbitrate
+  -- DISPUTED contract: chờ Admin arbitrate
   -- total 18,750,000 (150kg × 125000), deposit 1,875,000
   ('seed-esc-disputed',  'seed-ctr-disputed',
    @buyer1_id, @buyer1_email, @seller1_id, @seller1_email,
-   18750000.00, 1875000.00, 0.1000, 'VND', 'FULLY_LOCKED', NOW(), NOW()),
+   18750000.00, 1875000.00, 0.1000, 'VND', 'DISPUTED', NOW(), NOW()),
 
   -- ACTIVE contract thứ 2 (seller-cancel test): FULLY_LOCKED
   -- total 22,500,000 (250kg × 90000), deposit 2,250,000
@@ -126,7 +126,7 @@ INSERT IGNORE INTO escrow_transactions (transaction_id, escrow_account_id, escro
 SELECT '9b003f4b-02d9-4f73-a5fe-4cd8555ebdb4', id, 'seed-esc-cancelled', 'REFUND_TO_SELLER', 3400000.00, 'VND', 'Refund seller deposit.', NOW()
 FROM escrow_accounts WHERE escrow_id = 'seed-esc-cancelled';
 
--- FULLY_LOCKED (disputed): 2 tx — chờ Admin gọi PUT /arbitrate
+-- DISPUTED: 2 tx — chờ Admin gọi PUT /arbitrate
 INSERT IGNORE INTO escrow_transactions (transaction_id, escrow_account_id, escrow_id, transaction_type, amount, currency, note, created_at)
 SELECT 'a493caac-a940-408f-aa65-c8c98976bc86', id, 'seed-esc-disputed', 'LOCK', 18750000.00, 'VND', 'Lock buyer payment.', NOW()
 FROM escrow_accounts WHERE escrow_id = 'seed-esc-disputed';

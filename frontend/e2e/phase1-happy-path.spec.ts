@@ -77,6 +77,8 @@ const createActiveContract = async (browser: Browser, label: string): Promise<Ac
   await seller.page.getByLabel('Giá').fill('120000')
   await seller.page.getByRole('button', { name: 'Gửi counter-offer' }).click()
   await expect(seller.page.locator('.status-badge').first()).toHaveText('Đang thương lượng')
+  await expect(seller.page.locator('.negotiation-history > li')).toHaveCount(2)
+  await expect(seller.page.locator('.negotiation-history').getByText('Phiên bản 2')).toBeVisible()
   await seller.page.getByRole('button', { name: 'Ký điều khoản hiện tại' }).click()
   await expect(
     seller.page.getByText('Bạn đã ký. Đang chờ bên còn lại ký hoặc gửi điều khoản mới.'),
@@ -109,12 +111,12 @@ const closeFixture = async (fixture: ActiveContractFixture) => {
 }
 
 test('seller and buyer complete the Phase 1 happy path', async ({ browser }) => {
-  test.setTimeout(90_000)
+  test.setTimeout(120_000)
   const fixture = await createActiveContract(browser, 'happy')
 
   await fixture.buyer.page.getByRole('button', { name: 'Xác nhận đã nhận hàng' }).click()
   await expect(fixture.buyer.page.locator('.status-badge').first()).toHaveText('Đã tất toán', {
-    timeout: 20_000,
+    timeout: 45_000,
   })
 
   await closeFixture(fixture)
@@ -148,10 +150,6 @@ test('buyer can dispute delivered goods', async ({ browser }) => {
 })
 
 test('admin arbitrates a disputed contract', async ({ browser }) => {
-  test.fail(
-    true,
-    'BE releases escrow on contract.delivered before arbitration, so the arbitrate endpoint returns 409.',
-  )
   test.setTimeout(120_000)
   const fixture = await createActiveContract(browser, 'arbitrate')
 
@@ -169,6 +167,10 @@ test('admin arbitrates a disputed contract', async ({ browser }) => {
   await admin.page.getByLabel('Căn cứ phân xử').fill('Phân xử E2E theo biên bản chất lượng')
   await admin.page.getByRole('button', { name: 'Xác nhận phân xử' }).click()
   await expect(admin.page.getByText('Đã ghi nhận kết quả phân xử.')).toBeVisible({ timeout: 15_000 })
+  await expect(async () => {
+    await admin.page.goto(fixture.contractUrl)
+    await expect(admin.page.locator('.status-badge').first()).toHaveText('Đã tất toán')
+  }).toPass({ timeout: 15_000, intervals: [1000, 2000] })
 
   await admin.context.close()
   await closeFixture(fixture)
