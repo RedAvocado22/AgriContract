@@ -1,12 +1,12 @@
 ---
 name: reputation-service-phase2-design
-description: "Reputation-service — lock ledger bất biến + reputation score, phục vụ lockout enforcement, search ranking, và credit reference export. Nguồn: design session 04/07/2026, cập nhật 06/07/2026 (AML: thêm nhóm tín hiệu tuyệt đối theo ngưỡng luật định), 08/07/2026 (hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse)."
+description: "Reputation-service — lock ledger bất biến + reputation score, phục vụ lockout enforcement, đánh giá đối tác hai chiều, và credit reference export. Nguồn: design session 04/07/2026, cập nhật 06/07/2026 (AML: thêm nhóm tín hiệu tuyệt đối theo ngưỡng luật định), 08/07/2026 (hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse)."
 status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
   extends: "services.md § reputation-service (8088)"
-  related: "milestone-escrow-phase2-design.md §6, §6.3 (nguồn trigger lockout, công thức lockDurationDays, buyerDepositRate release paths); bank-service-phase2-design.md §4 (pattern idempotency/insert-only tương tự); inspection-phase2-design.md (routing INSPECTOR cho AML trigger); AgriContract_01 mục 6 (credit infra); AgriContract_02 §5.2 Rủi ro 4 (giao dịch khống)"
+  related: "milestone-escrow-phase2-design.md §6/§7; bank-service-phase2-design.md §4; inspection-phase2-design.md; user-service-phase2-design.md §2.2/§3"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -14,7 +14,7 @@ metadata:
 **Chốt (04/07/2026):** `services.md` mô tả `reputation-service` là "pure event-driven read model" — mô tả này chỉ đúng 1 phần, không phải sai hoàn toàn. Đúng nguyên tắc đã dùng ở `inspection-phase2-design.md` §3.1 (framework gốc không giữ quyết định chi tiết, doc sau override mà không cần sửa lại services.md): `reputation-service` thực chất gánh **3 vai trò khác bản chất**, không phải 1 domain đơn thuần:
 
 1. **Lock ledger** — bất biến, ghi 1 lần, phục vụ lockout enforcement (milestone-escrow §6). Đây là phần *không* thể là pure read model.
-2. **Reputation score** — view sống, tính lại được, phục vụ search ranking (search-service, chưa thiết kế).
+2. **Reputation score** — view sống, tính lại được, phục vụ đánh giá đối tác hai chiều trước khi ký.
 3. **Credit reference** — export cho bên thứ 3 (khả năng cao nhất: VARI, xem §6.3), vai trò bổ trợ.
 
 Không tách 3 vai trò này thành 3 service riêng trong Phase 2 (over-engineer so với quy mô đồ án) — nhưng thiết kế domain model phải phản ánh đúng 3 loại dữ liệu khác nhau, không gộp chung logic.
@@ -139,7 +139,7 @@ Lý do 2 tầng không thừa nhau: khoá chỉ chặn **tạo mới**, không h
 
 **Tin tốt: dữ liệu đã có sẵn, chỉ thiếu chiều hiển thị.** `lock_entry` (§2.1) **đã** insert-only cho cả `penalizedRole = BUYER` lẫn `SELLER` từ đầu — dữ liệu "buyer này từng bùng mấy lần, lock bao lâu" đã tồn tại, không cần cơ chế mới. Chỉ cần:
 
-1. **Endpoint mới `GET /reputation/{userId}/public-summary`** — query theo đúng `userId` (không phân biệt buyer hay seller gọi), trả reputation score + lock history công khai (không cần consent như `credit-export` §6.3, vì đây là thông tin đối tác cần biết *trước khi* quyết định ký, không phải hồ sơ tín dụng riêng tư). Seller dùng endpoint này để xem uy tín buyer trước khi nhận offer/đàm phán — đối xứng thật với việc buyer xem seller lúc chọn listing.
+1. **Endpoint mới `GET /api/v1/reputation/{userId}/public-summary`** — query theo đúng `userId` (không phân biệt buyer hay seller gọi), trả reputation score + lock history công khai (không cần consent như `credit-export` §6.3, vì đây là thông tin đối tác cần biết *trước khi* quyết định ký, không phải hồ sơ tín dụng riêng tư). Seller dùng endpoint này để xem uy tín buyer trước khi nhận offer/đàm phán — đối xứng thật với việc buyer xem seller lúc chọn listing.
 2. **Framing lại `buyerDepositRate`/`sellerDepositRate` là công cụ 2 chiều theo mức tin tưởng** (đã đúng về cơ chế ở `milestone-escrow-phase2-design.md` §2.1/§6.1, chỉ cần nói rõ ra): seller mới, gặp buyer lạ, xem `public-summary` thấy buyer có track record xấu → seller có quyền đàm phán `buyerDepositRate` cao hơn 5% mặc định lúc `NEGOTIATING` — không phải chỉ buyer mới có quyền đòi cọc seller.
 
 **Tín hiệu mới — chống buyer lạm dụng `FLAG_ISSUE` vô cớ (mới, 08/07/2026):** lỗ thật seller chưa được bảo vệ — buyer có thể flag bừa để ép seller vào dispute/kéo dài mà không mất gì (chi phí giám định do bên thua chịu, §8 milestone-escrow, nhưng buyer có thể chấp nhận rủi ro đó để gây áp lực). Thêm 1 input event mới:
@@ -152,9 +152,9 @@ Dùng đúng bộ máy reputation đã có (view sống, tính từ event, khôn
 
 **Tổng kết B4:** đối xứng hoá reputation (dữ liệu đã có, chỉ thêm chiều hiển thị) + framing 2 deposit rate là công cụ 2 chiều (đã đúng cơ chế, chỉ cần nói rõ) + tín hiệu chống flag-abuse (nhỏ, tái dùng hạ tầng sẵn có). Không phải known-limitation cần chấp nhận — là hoàn chỉnh hoá luận điểm gốc "bảo vệ bên yếu thế" cho đúng cả 2 chiều.
 
-### 6.2 `search-service`
+### 6.2 `product-service` — tìm kiếm/lọc listing
 
-Chưa thiết kế — để dành session riêng. Kỳ vọng: `reputation-service` publish event mỗi khi score đổi, `search-service` tự consume để cập nhật bản denormalized, không gọi sync mỗi lần search.
+`product-service` sở hữu truy vấn tìm kiếm/lọc listing bằng các query parameter trên dữ liệu sản phẩm. `reputation-service` không sở hữu listing index hoặc ranking; điểm uy tín được cung cấp qua `GET /api/v1/reputation/{userId}/public-summary` ở bước xem đối tác/đàm phán trước khi ký.
 
 ### 6.3 Credit reference export
 
@@ -163,7 +163,7 @@ Chưa thiết kế — để dành session riêng. Kỳ vọng: `reputation-serv
 **Định vị lại vai trò (04/07/2026):** `reputation-service` export là **reference/reputation attestation**, không phải nguồn chấm điểm tín dụng chính — reputation (đáng tin để giao dịch tiếp) và cash-flow data (đủ tiền trả nợ) đo 2 chuyện khác nhau, không thay thế nhau.
 
 Thiết kế:
-- Endpoint riêng `GET /reputation/{userId}/credit-export`, JSON theo 4 nhóm phổ quát (lịch sử thanh toán đúng hạn, quy mô/tần suất giao dịch, vi phạm/nợ xấu, thâm niên hoạt động — bao gồm `firstContractDate`/`activeMonthsSpan`, không chỉ đếm số lượng).
+- Endpoint riêng `GET /api/v1/reputation/{userId}/credit-export`, JSON theo 4 nhóm phổ quát (lịch sử thanh toán đúng hạn, quy mô/tần suất giao dịch, vi phạm/nợ xấu, thâm niên hoạt động — bao gồm `firstContractDate`/`activeMonthsSpan`, không chỉ đếm số lượng).
 - **Chỉ chạy khi seller chủ động yêu cầu** (consent rõ ràng), không phải endpoint mở tự động đẩy dữ liệu ra ngoài — đúng cơ chế CIC vận hành (người vay tự tra cứu mang đi).
 - **Gate theo counterparty diversity** trước khi cho export — seller chỉ giao dịch với 1-2 đối tác dù đủ 5+ hợp đồng "sạch" cũng không đủ điều kiện, giảm động cơ tạo hợp đồng giả để làm đẹp hồ sơ vay vốn (xem §7).
 
@@ -217,7 +217,7 @@ Giải pháp: thêm **nhóm tín hiệu tuyệt đối, không cần lịch sử
    - **`ELEVATED_RISK` là một *state* bền của cặp, KHÔNG phải trigger hold một-lần.** Cơ chế hold ở mục 1-2 là *forward-looking*: pattern đang diễn ra → chặn mắt xích kế tiếp. Batch thì *backward-looking*: nhìn lại 90 ngày, pattern **đã xong**, tiền các hợp đồng cũ đã settle — không có gì để hold ngược, và "hold đúng giao dịch kế tiếp" là vô nghĩa vì cặp có thể đã im nhiều tháng. Thay vào đó, batch **kết luận về cả cặp** và nhuộm trạng thái.
    - **Còn `ELEVATED_RISK` → MỌI giao dịch của cặp** (bất kể to nhỏ, kể cả dưới 500 triệu) route qua review đồng bộ trước khi auto-`SETTLED`, cho tới khi Admin clear. Đây là đúng cơ chế Enhanced Due Diligence (EDD) chuẩn AML: cặp rủi ro cao thì soi tăng cường suốt vòng đời quan hệ, không phải chặn đúng 1 phát rồi thôi.
    - **Đây là đường enforcement RIÊNG, không sửa luật composite ở mục 2.** Gate composite (mục 2) vẫn giữ nguyên "(tuyệt đối ≥500tr) AND (≥1 hành vi)" cho từng giao dịch lẻ. `ELEVATED_RISK` là lớp phủ cấp-cặp, độc lập ngưỡng 500 triệu — nên đóng được đúng phần slow-drip *dưới* ngưỡng (490 triệu đều đặn) mà gate composite không chạm. Không cần chế ngoại lệ "batch tự-hold không cần absolute" trong gate — `state` chính là cơ chế.
-   - **Bắt buộc có clear-path + expiry (nếu thiếu = nhà tù không án):** Admin gỡ `ELEVATED_RISK` → `NORMAL`, **ghi lý do vào audit-service hash chain** (defensible closure — chuẩn AML: thanh tra soi đúng việc quyết định đóng case có được ghi lại và defend được không). Và tự động rà: cặp không tái phạm sau `elevatedRiskReviewMonths` (đặt tạm **6 tháng**) → hạ về `NORMAL`. Không có expiry thì cặp làm ăn thật (bị false-positive) bị soi vĩnh viễn.
+   - **Bắt buộc có clear-path + expiry (nếu thiếu = nhà tù không án):** Admin gỡ `ELEVATED_RISK` → `NORMAL`, **ghi lý do vào audit-service hash chain** (defensible closure — chuẩn AML: thanh tra soi đúng việc quyết định đóng case có được ghi lại và defend được không). Và tự động rà: cặp không tái phạm sau `elevatedRiskReviewMonths` (chốt **6 tháng**, `application.yml`, chỉnh được) → hạ về `NORMAL`. Không có expiry thì cặp làm ăn thật (bị false-positive) bị soi vĩnh viễn.
 
    **Nghĩa vụ báo cáo cơ quan (KHÔNG được bỏ):** trong khung AML, phát hiện structuring mà không báo cáo tự nó là lỗi tuân thủ. `analytics.structuring_pattern_detected` còn có consumer thứ 2 là **`bank-service`** — bên báo cáo giao dịch khả nghi cho cơ quan (Cục PCRT, đúng chủ thể pháp lý giữ tiền theo Luật PCRT 2022 Điều 4). `reputation-service` lo xử lý *nội bộ* (ELEVATED, chặn giao dịch tương lai của cặp); `bank-service` lo nghĩa vụ *ra ngoài* (khai báo cơ quan). 2 nhánh song song, độc lập — consumer bên `bank-service` cần thêm vào `bank-service-phase2-design.md`.
 
@@ -225,7 +225,6 @@ Giải pháp: thêm **nhóm tín hiệu tuyệt đối, không cần lịch sử
 
 ## 9. Out of Scope (có chủ đích, không phải thiếu sót)
 
-- **Tích hợp thật với `search-service`** (§6.2) — chưa thiết kế, để dành session riêng. Chỉ note kỳ vọng interface (publish event khi score đổi), không code.
 - **Tích hợp thật với VARI hoặc bất kỳ ngân hàng nào** (§6.3) — chưa ký kết, chưa có đối tác thật. Thiết kế sẵn interface export (`GetCreditExportUseCase`) để nếu sau này có đối tác thật, chỉ cần thêm adapter, không đổi business logic. Cùng tinh thần `bank-service` doc đã làm với vai trò arbitrator.
 - **Multi-currency** — không cần, platform chỉ giao dịch VNĐ.
 - **Giải quyết dứt điểm ngân sách chi phí inspection** (§8 mục 4) — chỉ model đúng field (`triggerType`, `costBearer`) trong `InspectionRequest` (thuộc `inspection-service`, không phải `reputation-service`), không giải quyết nguồn ngân sách thật trong đồ án.
@@ -247,7 +246,7 @@ Fix + dead-path cleanup đã chốt tại `milestone-escrow-phase2-design.md` §
 
 Fix đã chốt tại `inspection-phase2-design.md` §3.2: allowlist 3 nhóm (major quốc tế hardcode / trong nước verify qua BoA-VIAS / "lạ" thì Admin duyệt case-by-case, private, không lưu danh sách dùng chung), verify qua accreditation certificate number tra đúng cơ quan công nhận quốc gia. Tự động hoá tra cứu API BoA/ILAC để sau — deferred có chủ đích.
 
-**KI-3 — `GET /api/v1/users/{userId}` (user-service) vẫn lộ `email`.** IDOR đã fix `phone`/`address` nhưng `UserInfoResponse` vẫn còn field `email`. Endpoint cũng không có role/ownership check — bất kỳ user nào qua Gateway đều gọi được, không riêng service nội bộ. Không thuộc phạm vi `reputation-service` nhưng phát hiện lúc verify code liên quan Feign integration (§6.1) nên ghi lại đây. Vẫn treo.
+**KI-3 — `GET /api/v1/users/{userId}` (user-service) vẫn lộ `email`.** IDOR đã fix `phone`/`address` nhưng `UserInfoResponse` vẫn còn field `email`. Endpoint cũng không có role/ownership check — bất kỳ user nào qua Gateway đều gọi được, không riêng service nội bộ. Không thuộc phạm vi `reputation-service` nhưng phát hiện lúc verify code liên quan Feign integration (§6.1) nên ghi lại đây. **PHẢI FIX khi vào user-service:** bỏ `email` khỏi DTO ra Gateway (chỉ giữ ở kênh service-to-service nếu cần), thêm ownership/role check — chỉ chính chủ `userId` hoặc service nội bộ (mTLS/service token) mới gọi được, đúng pattern proxy-qua-service-sở-hữu ở `file-service-phase2-design.md` §5. Không block đóng session reputation-service (bug nằm ở service khác).
 
 ---
 
@@ -263,10 +262,10 @@ Fix đã chốt tại `inspection-phase2-design.md` §3.2: allowlist 3 nhóm (ma
 - **A5** — ngưỡng tuyệt đối 500 triệu (Điều 9 TT27/2025/TT-NHNN, giao dịch chuyển tiền điện tử — số này **vẫn đúng, không đổi**, đã verify lại độc lập) không còn tự nó trigger hold. Detection dời sang `bank-service` (`bank.large_transaction_flagged`, đúng chủ thể pháp lý — bank giữ tiền, không phải platform). Hold chỉ kích hoạt khi ngưỡng tuyệt đối **đi kèm** ≥1 tín hiệu hành vi khác (track record mỏng/zero-variance/counterparty mới) — trước đó giá trị đơn thuần đã trigger hold, khiến gần như mọi hợp đồng thật (13,5-135 tỷ VNĐ theo ví dụ Doc02) bị treo chờ Admin, giết chết selling point "escrow tự thực thi" (§8).
 - **B4** — reputation trước đây một chiều (buyer xem seller, seller không có công cụ tự bảo vệ). Đối xứng hoá: expose reputation của buyer cho seller xem trước khi ký (dữ liệu `lock_entry` đã insert-only cho cả 2 role từ đầu, chỉ thiếu chiều hiển thị); thêm tín hiệu chống buyer lạm dụng `FLAG_ISSUE` vô cớ (tỷ lệ flag-rồi-thua/rút) — xem §6.1, §7 mục mới.
 
-**Chốt bổ sung (10/07/2026) — tầng batch AML + `ELEVATED_RISK` (§8 mục 6, §9):** đóng phần gap structuring chậm *có lặp lại* mà 2 tầng realtime không bắt được. `analytics-service.AmlPatternScanJob` (batch 90 ngày, cụm near-threshold) publish `analytics.structuring_pattern_detected` → `reputation-service` consume → set cặp `ELEVATED_RISK` (state bền, không phải trigger một-lần), route mọi giao dịch của cặp qua review tới khi Admin clear (cơ chế EDD chuẩn). Đường enforcement riêng, KHÔNG sửa gate composite mục 2. Bắt buộc clear-path (Admin gỡ, ghi audit chain) + expiry (`elevatedRiskReviewMonths`, đặt tạm 6 tháng — tránh soi vĩnh viễn cặp false-positive). Nghĩa vụ báo cáo cơ quan tách sang `bank-service` (consumer thứ 2 của cùng event — cần thêm vào `bank-service-phase2-design.md`). Residual còn lại (vài mảnh đầu chưa đủ cụm + one-shot nhỏ lẻ thật) là giới hạn toán học của pattern-based detection, ghi honest ở §9.
+**Chốt bổ sung (10/07/2026) — tầng batch AML + `ELEVATED_RISK` (§8 mục 6, §9):** đóng phần gap structuring chậm *có lặp lại* mà 2 tầng realtime không bắt được. `analytics-service.AmlPatternScanJob` (batch 90 ngày, cụm near-threshold) publish `analytics.structuring_pattern_detected` → `reputation-service` consume → set cặp `ELEVATED_RISK` (state bền, không phải trigger một-lần), route mọi giao dịch của cặp qua review tới khi Admin clear (cơ chế EDD chuẩn). Đường enforcement riêng, KHÔNG sửa gate composite mục 2. Bắt buộc clear-path (Admin gỡ, ghi audit chain) + expiry (`elevatedRiskReviewMonths`, chốt 6 tháng — tránh soi vĩnh viễn cặp false-positive). Nghĩa vụ báo cáo cơ quan tách sang `bank-service` (consumer thứ 2 của cùng event — cần thêm vào `bank-service-phase2-design.md`). Residual còn lại (vài mảnh đầu chưa đủ cụm + one-shot nhỏ lẻ thật) là giới hạn toán học của pattern-based detection, ghi honest ở §9.
 
-Reputation-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức**, ngoại trừ bổ sung 06/07/2026 (tách 2 nhóm tín hiệu AML) — phần này về nguyên tắc đã chốt, không có điểm treo số liệu (ngưỡng 500 triệu là số luật định thật, không phải placeholder đoán). Bổ sung 10/07/2026 (`ELEVATED_RISK`): tham số `elevatedRiskReviewMonths` = 6 tháng là số vận hành đặt tạm, chỉnh được khi có dữ liệu thật — không phải hằng số cứng.
+Reputation-service — **ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** Không có điểm treo số liệu: ngưỡng 500 triệu là số luật định thật; `elevatedRiskReviewMonths` chốt 6 tháng (`application.yml`, tinh chỉnh được khi có dữ liệu vận hành thật). KI-3 (`email` IDOR) là bug ở `user-service`, ghi rõ must-fix ở §10, không block file này. VICOFA lever giữ ở Known Limitation §9 (giả định thể chế ngoài scope đồ án).
 
 ---
 
-*Design session: 04/07/2026 · Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Cập nhật: 08/07/2026 (rà soát end-to-end: hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service — A5; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse — B4) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức.*
+*Design session: 04/07/2026 · Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Cập nhật: 08/07/2026 (rà soát end-to-end: hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service — A5; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse — B4) · Cập nhật: 13/07/2026 (KI-3 ghi rõ thành must-fix ở user-service, không block; VICOFA lever giữ ở Known Limitation §9) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***

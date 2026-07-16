@@ -83,7 +83,7 @@ Lý do lệch nhau nhiều giữa 2 commodity dù cùng 1 nguồn: VNSAT publish
 
 ### 3.2 Admin manual entry (`RUBBER`, `CASHEW`)
 
-`POST /api/prices/manual` (role ADMIN) — ghi thẳng `price_history` với `source = ADMIN_MANUAL`, `province = NULL`, update Redis cùng cơ chế cache-aside như §4.
+`POST /api/v1/prices/manual` (role ADMIN) — ghi thẳng `price_history` với `source = ADMIN_MANUAL`, `province = NULL`, update Redis cùng cơ chế cache-aside như §4.
 
 ### 3.3 Scheduled job
 
@@ -104,9 +104,9 @@ CREATE TABLE price_ingestion_failure (
 
 ## 4. Read API
 
-`GET /api/prices/{commodity}/{province}?item={itemSlug}` — public, không cần auth (thông tin tham khảo, không phải business data nhạy cảm). `item` bắt buộc cho `RICE` (nhiều giống/tỉnh/ngày, xem §5), optional cho `COFFEE` (chỉ 1 `itemSlug` cố định, tự suy ra nếu bỏ trống).
+`GET /api/v1/prices/{commodity}/{province}?item={itemSlug}` — public, không cần auth (thông tin tham khảo, không phải business data nhạy cảm). `item` bắt buộc cho `RICE` (nhiều giống/tỉnh/ngày, xem §5), optional cho `COFFEE` (chỉ 1 `itemSlug` cố định, tự suy ra nếu bỏ trống).
 
-`GET /api/prices/{commodity}/{province}/items` — liệt kê toàn bộ `itemName` có sẵn cho tỉnh đó, phục vụ autocomplete gợi ý bên `product-service` lúc seller nhập `varietyName` (không bắt buộc khớp, xem §5).
+`GET /api/v1/prices/{commodity}/{province}/items` — liệt kê toàn bộ `itemName` có sẵn cho tỉnh đó, phục vụ autocomplete gợi ý bên `product-service` lúc seller nhập `varietyName` (không bắt buộc khớp, xem §5).
 
 **Cache-aside chuẩn:** đọc Redis trước. Miss (key chưa từng có, hoặc Redis mất data do restart không persistence/evict) → query `price_history` (`ORDER BY capturedAt DESC LIMIT 1` theo `commodity + province`), trả về, đồng thời ghi lại Redis để lần sau hit. MySQL luôn là nguồn thật; Redis là bản sao nhanh tự vá lại được từ MySQL bất cứ lúc nào — không phải 2 nguồn ngang hàng.
 

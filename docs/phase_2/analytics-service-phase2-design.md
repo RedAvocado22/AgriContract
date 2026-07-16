@@ -299,8 +299,8 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 
 **Chốt bổ sung (10/07/2026) — `AmlPatternScanJob` đóng gap structuring chậm (§3.5):** thêm job batch AML riêng (KHÔNG gộp `MonthlyAggregationJob`) quét cụm near-threshold `[475tr, 500tr)`, min 5 hợp đồng/cặp, lookback 90 ngày, JOIN `dim_contract` (đã có `total_amount`/`buyer_id`/`seller_id`) — **không** thêm cột vào `fact_contract_settlement`, tránh sửa payload `contract.settled`. Bắt cụm → publish `analytics.structuring_pattern_detected`; `analytics-service` chỉ phát hiện, không tự hold/flag/báo cáo (pure consumer). Consumer: `reputation-service` (ELEVATED_RISK) + `bank-service` (báo cáo cơ quan). Đóng đúng phần slow-drip có lặp mà 2 tầng realtime của `reputation-service` (§8) không bắt được; residual (vài mảnh đầu + one-shot nhỏ lẻ) ghi rõ ở `reputation-service-phase2-design.md` §9.
 
-Analytics-service — **đóng session, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức** (sau khi điểm treo mapping ở trên được xác nhận).
+Analytics-service — **ĐÓNG SESSION HOÀN TOÀN, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** Điểm treo mapping `commodity` đã đóng hoàn toàn (08/07/2026, §2.3) — `commodity` non-null đọc từ `Category.commodity`, cơ chế chốt ở `product-phase2-design.md` §9. Không còn điểm treo.
 
 ---
 
-*Design session: 06/07/2026 · Rà soát + fix 4 bug: 06/07/2026 · Chưa code · Đã đóng kiến trúc Phase 2 tổng thể.*
+*Design session: 06/07/2026 · Rà soát + fix 4 bug: 06/07/2026 · Cập nhật 13/07/2026 (gỡ câu điều kiện thừa ở Status — mapping commodity đã đóng từ 08/07, không còn điểm treo) · Chưa code · **Đã đóng kiến trúc Phase 2 tổng thể — sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
