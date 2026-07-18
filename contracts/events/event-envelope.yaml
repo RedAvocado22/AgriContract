@@ -1,0 +1,85 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://agricontract.local/contracts/events/event-envelope.yaml"
+title: AgriContract Event Envelope
+description: >-
+  Common envelope for canonical RabbitMQ domain events and notification commands.
+  eventId is the transport identity and DLQ replay key. For bank command events,
+  payload.sourceEventId MUST equal eventId; bank-service uses that value as the
+  ledger idempotency key. Result events have a new eventId, preserve the original
+  sourceEventId in payload, and set causationId to the request eventId. aggregateId
+  identifies the source aggregate that produced the event. subject, when an
+  authoritative design defines it, identifies the separate audit/business subject
+  and need not equal aggregateId.
+type: object
+required:
+  - eventId
+  - eventType
+  - eventVersion
+  - occurredAt
+  - producer
+  - aggregateId
+  - payload
+properties:
+  eventId:
+    type: string
+    format: uuid
+  eventType:
+    type: string
+    pattern: "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"
+  eventVersion:
+    type: integer
+    minimum: 1
+  occurredAt:
+    type: string
+    format: date-time
+  producer:
+    type: string
+    minLength: 1
+  aggregateId:
+    type: string
+    minLength: 1
+    description: Canonical identifier of the source aggregate that produced the event.
+  correlationId:
+    type: [string, "null"]
+    minLength: 1
+    description: >-
+      Required by contract when the event belongs to a request, saga, or scheduled
+      workflow. The producer must generate it when possible. A standalone event that
+      does not belong to such a workflow may omit it.
+  causationId:
+    type: [string, "null"]
+    minLength: 1
+    description: >-
+      Absent or null for a root event. For a derived event, the eventId or commandId
+      that directly caused it. Producers must not fabricate a value for validation.
+  subject:
+    $ref: "#/$defs/subject"
+    description: >-
+      Optional audit/business subject. Include only when authoritative design defines
+      a subject such as CONTRACT, USER_PAIR, or SYSTEM. It is semantically independent
+      from aggregateId.
+  payload:
+    type: object
+$defs:
+  subject:
+    type: object
+    required: [type, id]
+    additionalProperties: false
+    properties:
+      type:
+        type: string
+        enum: [CONTRACT, USER_PAIR, SYSTEM]
+      id:
+        type: string
+        minLength: 1
+additionalProperties: false
+x-agricontract-rules:
+  correlationId: Mandatory for request, saga, or scheduled workflow events.
+  causationId: Optional; absent/null for root events and direct cause ID for derived events.
+  workflowEvents: "Canonical event schemas mark x-requires-correlation=true when they belong to a request/saga/scheduled workflow."
+  derivedEvents: "Result/confirmation schemas mark x-requires-causation=true; root events omit/null causationId and producers never fabricate one."
+  bankRequests: "payload.sourceEventId must equal envelope eventId."
+  bankResults: "Result payload.sourceEventId preserves the request eventId and envelope causationId equals that request eventId."
+  replay: "DLQ replay must preserve the original eventId and payload."
+  pii: "Canonical domain events omit unnecessary contact PII; notification commands may carry recipient email as internal routing data."
+  source: "data-governance-phase2-design.md section 8b and approved contract-freeze corrections."

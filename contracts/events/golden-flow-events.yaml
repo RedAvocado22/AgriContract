@@ -1,0 +1,948 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://agricontract.local/contracts/events/golden-flow-events.yaml"
+title: AgriContract Canonical Golden-Flow Events
+description: >-
+  Exact event names and explicitly designed payload fields for the Phase 2 golden flow.
+  Payloads intentionally remain open where the authoritative design does not freeze all
+  fields. x-source records the authoritative source.
+x-bank-idempotency:
+  request: payload.sourceEventId MUST equal envelope.eventId for every bank.*_requested event.
+  result: payload.sourceEventId preserves request eventId; result causationId MUST equal request eventId.
+  replay: Replayed requests preserve eventId and payload; zero-value and negative commands are invalid.
+$defs:
+  money:
+    type: string
+    pattern: "^[0-9]+\\.[0-9]{2}$"
+  positiveMoney:
+    type: string
+    pattern: "^(?:0\\.(?:0[1-9]|[1-9][0-9])|[1-9][0-9]*\\.[0-9]{2})$"
+    description: Strictly positive money for bank commands; zero-value commands are omitted.
+  uuid:
+    type: string
+    format: uuid
+  inspectionSettlementResultV1:
+    type: object
+    required: [resultSchemaVersion, measuredQuantityKg, acceptedQuantityKg, qualityDisposition, determinedAt]
+    additionalProperties: false
+    properties:
+      resultSchemaVersion: {const: "1.0"}
+      measuredQuantityKg: {type: number, minimum: 0}
+      acceptedQuantityKg: {type: number, minimum: 0}
+      qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING, INCONCLUSIVE]}
+      determinedAt: {type: string, format: date-time}
+    x-invariant: acceptedQuantityKg must be less than or equal to measuredQuantityKg.
+  baseEnvelope:
+    $ref: "./event-envelope.yaml"
+  contractSigned:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.signed}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, commodity, buyerId, sellerId, totalAmount, buyerDepositAmount, sellerDepositAmount, signedContentHash, signedAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              commodity: {enum: [COFFEE, RICE, RUBBER, CASHEW]}
+              buyerId: {$ref: "#/$defs/uuid"}
+              sellerId: {$ref: "#/$defs/uuid"}
+              totalAmount: {$ref: "#/$defs/money"}
+              buyerDepositAmount: {$ref: "#/$defs/money"}
+              sellerDepositAmount: {$ref: "#/$defs/money"}
+              signedContentHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              signedAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service, analytics-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md section 7.2
+        x-verification-matrix: [3, 11c, 11f]
+  escrowDepositLocked:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: escrow.deposit_locked}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, buyerDepositState, sellerDepositState]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              buyerDepositState: {enum: [DEPOSIT_LOCKED, DEPOSIT_RELEASED, DEPOSIT_SEIZED]}
+              sellerDepositState: {enum: [DEPOSIT_LOCKED, DEPOSIT_RELEASED, DEPOSIT_SEIZED]}
+            additionalProperties: false
+        x-publisher: escrow-service
+        x-consumers: [contract-service, escrow-service]
+        x-source: milestone-escrow-phase2-design.md section 7.2
+        x-verification-matrix: [11]
+  escrowDepositLockFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: escrow.deposit_lock_failed}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, failedLeg, buyerDepositState, sellerDepositState, reason]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              failedLeg: {enum: [BUYER, SELLER, BOTH]}
+              buyerDepositState: {type: string}
+              sellerDepositState: {type: string}
+              reason: {type: string, minLength: 1}
+            additionalProperties: false
+        x-publisher: escrow-service
+        x-consumers: [contract-service]
+        x-source: milestone-escrow-phase2-design.md sections 3.1 and 7.2
+        x-verification-matrix: [11, 11b]
+  bankLockRequested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.lock_requested}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE]}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: escrow-service
+        x-consumers: [bank-service]
+        x-source: bank-service-phase2-design.md section 3
+        x-verification-matrix: [1, 6, 9]
+        x-requires-correlation: true
+  bankLockCompleted:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.lock_completed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE]}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              ledgerEntryId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3
+        x-contract-note: sourceEventId preserves the request eventId; request payload.sourceEventId equals request envelope eventId and result causationId equals that request eventId.
+        x-requires-correlation: true
+        x-requires-causation: true
+  bankLockFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.lock_failed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE]}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              failureReason: {type: string, minLength: 1}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3
+        x-contract-note: No retryability enum is added; escrow applies the retry policy from milestone-escrow design.
+  bankReleaseRequested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.release_requested}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: RELEASE_TO_SELLER}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: escrow-service
+        x-consumers: [bank-service]
+        x-source: bank-service-phase2-design.md sections 3.1 and 3.3; SDS Event Catalog 4.2
+  bankReleaseCompleted:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.release_completed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: RELEASE_TO_SELLER}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              ledgerEntryId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3; SDS Event Catalog 4.2
+  bankReleaseFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.release_failed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: RELEASE_TO_SELLER}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              failureReason: {type: string, minLength: 1}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3; SDS Event Catalog 4.2
+  bankSeizeRequested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.seize_requested}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: SEIZE_PENALTY}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: escrow-service
+        x-consumers: [bank-service]
+        x-source: bank-service-phase2-design.md sections 3 and 3.2; SDS Event Catalog 4.2
+  bankSeizeCompleted:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.seize_completed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: SEIZE_PENALTY}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              ledgerEntryId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3; SDS Event Catalog 4.2
+  bankSeizeFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.seize_failed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: SEIZE_PENALTY}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              failureReason: {type: string, minLength: 1}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3; SDS Event Catalog 4.2
+  bankRefundRequested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.refund_requested}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: REFUND_TO_BUYER}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: escrow-service
+        x-consumers: [bank-service]
+        x-source: bank-service-phase2-design.md sections 3.1-3.3; SDS Event Catalog 4.2
+  bankRefundCompleted:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.refund_completed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: REFUND_TO_BUYER}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              ledgerEntryId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3; SDS Event Catalog 4.2
+  bankRefundFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.refund_failed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
+              userId: {$ref: "#/$defs/uuid"}
+              entryType: {const: REFUND_TO_BUYER}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              sourceEventId: {$ref: "#/$defs/uuid"}
+              failureReason: {type: string, minLength: 1}
+            additionalProperties: false
+        x-publisher: bank-service
+        x-consumers: [escrow-service]
+        x-source: bank-service-phase2-design.md section 3; SDS Event Catalog 4.2
+  contractSettled:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.settled}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, buyerId, sellerId]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              buyerId: {$ref: "#/$defs/uuid"}
+              sellerId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service, reputation-service, analytics-service]
+        x-source: milestone-escrow-phase2-design.md section 7.2; existing ContractSettledEvent
+        x-verification-matrix: [8]
+  contractCancelled:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.cancelled}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, initiatedBy]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              initiatedBy: {enum: [BUYER, SELLER]}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service, analytics-service]
+        x-source: milestone-escrow-phase2-design.md sections 6.3 and 7.2
+        x-verification-matrix: [8]
+  milestoneSettled:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.settled}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, lockedAmount, actualAmount, recipients]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              lockedAmount: {$ref: "#/$defs/money"}
+              actualAmount: {$ref: "#/$defs/money"}
+              recipients:
+                type: array
+                items:
+                  type: object
+                  required: [userId, email, role]
+                  properties:
+                    userId: {$ref: "#/$defs/uuid"}
+                    email: {type: string, format: email}
+                    role: {enum: [BUYER, SELLER]}
+                  additionalProperties: false
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service, reputation-service, analytics-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md section 7.1
+        x-verification-matrix: [1, 8]
+        x-pii-exception: recipients.email is explicitly required for the later anchor notification; broker TTL and log redaction apply.
+  milestoneDisputeResolved:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.dispute_resolved}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [milestoneId, flaggedBy, resolutionFavors]
+            properties:
+              milestoneId: {$ref: "#/$defs/uuid"}
+              flaggedBy: {const: BUYER}
+              resolutionFavors: {enum: [BUYER, SELLER]}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [reputation-service]
+        x-source: milestone-escrow-phase2-design.md section 7.1
+  milestoneLevel2ProvisionalSettled:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.level2_provisional_settled}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, level1_5ReportId, level1_5EntitlementAmount, releaseRate, sellerReleaseAmount, remainingLockedAmount]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              level1_5ReportId: {$ref: "#/$defs/uuid"}
+              level1_5EntitlementAmount: {$ref: "#/$defs/money"}
+              releaseRate: {type: string, pattern: "^(0(\\.[0-9]+)?|1(\\.0+)?)$"}
+              sellerReleaseAmount: {$ref: "#/$defs/money"}
+              remainingLockedAmount: {$ref: "#/$defs/money"}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service]
+        x-source: milestone-escrow-phase2-design.md section 7.1
+        x-verification-matrix: [10]
+        x-invariant: sellerReleaseAmount + remainingLockedAmount == original batchAmount; no buyer refund at provisional stage.
+  milestoneLevel2BufferReconciled:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.level2_buffer_reconciled}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, level1_5ReportId, level2ReportId, finalSellerEntitlementAmount, alreadyReleasedAmount, sellerAdditionalReleaseAmount, buyerRefundAmount, overReleaseAmount]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              level1_5ReportId: {$ref: "#/$defs/uuid"}
+              level2ReportId: {$ref: "#/$defs/uuid"}
+              finalSellerEntitlementAmount: {$ref: "#/$defs/money"}
+              alreadyReleasedAmount: {$ref: "#/$defs/money"}
+              sellerAdditionalReleaseAmount: {$ref: "#/$defs/money"}
+              buyerRefundAmount: {$ref: "#/$defs/money"}
+              overReleaseAmount: {$ref: "#/$defs/money"}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service]
+        x-source: milestone-escrow-phase2-design.md section 7.1
+        x-invariant: final seller/refund/release legs conserve the original batch amount; overReleaseAmount is evidence only.
+  milestoneLevel2TerminalSettled:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.level2_terminal_settled}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, level1_5ReportId, finalSellerEntitlementAmount, alreadyReleasedAmount, sellerAdditionalReleaseAmount, buyerRefundAmount]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              level1_5ReportId: {$ref: "#/$defs/uuid"}
+              finalSellerEntitlementAmount: {$ref: "#/$defs/money"}
+              alreadyReleasedAmount: {$ref: "#/$defs/money"}
+              sellerAdditionalReleaseAmount: {$ref: "#/$defs/money"}
+              buyerRefundAmount: {$ref: "#/$defs/money"}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service]
+        x-source: milestone-escrow-phase2-design.md section 7.1
+        x-invariant: final seller/refund legs conserve the original batch amount.
+  inspectionReportConfirmed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: inspection.report_confirmed}
+          producer: {const: inspection-service}
+          payload:
+            type: object
+            required: [reportId, contractId, milestoneId, tier, normalizedResult, resultHash, reportFileHash, reportHash, confirmedAt]
+            properties:
+              reportId: {$ref: "#/$defs/uuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              tier: {enum: [LEVEL_1_5, LEVEL_2]}
+              normalizedResult: {$ref: "#/$defs/inspectionSettlementResultV1"}
+              resultHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              reportFileHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              reportHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              confirmedAt: {type: string, format: date-time}
+              inspectorId: {$ref: "#/$defs/uuid"}
+              confirmedByAdminId: {$ref: "#/$defs/uuid"}
+            additionalProperties: false
+        x-publisher: inspection-service
+        x-consumers: [audit-service, contract-service]
+        x-source: inspection-phase2-design.md section 4; milestone-escrow-phase2-design.md section 3.2; approved OQ-02
+        x-contract-note: >-
+          contract-service deduplicates by eventId/reportId, verifies resultHash and
+          reportHash, and applies the immutable result only to the matching CONTESTED
+          milestone. It computes min(batchAmount, acceptedQuantityKg * agreedPrice)
+          and does not apply tolerance a second time. No raw content or file is carried.
+        x-hash-contract:
+          resultHash: SHA256(RFC8785 canonical JSON of normalizedResult)
+          reportHash: SHA256(RFC8785 canonical JSON of report identity, reportFileHash, resultHash, confirmedAt and actor/source identity)
+  milestoneSellerWeighed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.seller_weighed}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, sellerDeclaredWeight, sellerEvidenceFileId]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              sellerDeclaredWeight: {type: number, minimum: 0}
+              sellerEvidenceFileId: {$ref: "#/$defs/uuid"}
+        x-publisher: contract-service
+        x-consumers: [file-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1
+  milestoneBuyerConfirmed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.buyer_confirmed}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, buyerReceivedWeight, buyerEvidenceFileId]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              buyerReceivedWeight: {type: number, minimum: 0}
+              buyerEvidenceFileId: {$ref: "#/$defs/uuid"}
+        x-publisher: contract-service
+        x-consumers: [audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1
+  milestoneFlagged:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.flagged}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, flaggedBy]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              flaggedBy: {const: BUYER}
+        x-publisher: contract-service
+        x-consumers: []
+        x-source: milestone-escrow-phase2-design.md sections 3.2 and 7.1
+  milestoneForceMajeureClaimed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.force_majeure_claimed}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, forceMajeureClaimId]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              forceMajeureClaimId: {$ref: "#/$defs/uuid"}
+        x-publisher: contract-service
+        x-consumers: [audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1
+  milestoneForceMajeureResolved:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.force_majeure_resolved}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, forceMajeureClaimId, decision]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              forceMajeureClaimId: {$ref: "#/$defs/uuid"}
+              decision: {enum: [APPROVED, REJECTED]}
+        x-publisher: contract-service
+        x-consumers: [escrow-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 3.2 and 7.1
+  milestoneCancelledWithPenalty:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.cancelled_with_penalty}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, cancelledBy, seizedAmount]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              cancelledBy: {enum: [BUYER, SELLER]}
+              seizedAmount: {$ref: "#/$defs/money"}
+        x-publisher: contract-service
+        x-consumers: [escrow-service, reputation-service, analytics-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 6.1-6.2 and 7.1
+  reputationLocked:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: reputation.locked}
+          producer: {const: reputation-service}
+          payload:
+            type: object
+            required: [userId, lockedUntil, reasonCode, lockRevision]
+            additionalProperties: false
+            properties:
+              userId: {$ref: "#/$defs/uuid"}
+              lockedUntil: {type: string, format: date-time}
+              reasonCode: {type: string}
+              lockRevision: {type: integer, minimum: 1}
+        x-publisher: reputation-service
+        x-consumers: [user-service]
+        x-source: user-service-phase2-design.md sections 2.2 and 7
+  reputationUnlocked:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: reputation.unlocked}
+          producer: {const: reputation-service}
+          payload:
+            type: object
+            required: [userId, effectiveLockedUntil, reasonCode, lockRevision]
+            additionalProperties: false
+            properties:
+              userId: {$ref: "#/$defs/uuid"}
+              effectiveLockedUntil: {oneOf: [{type: string, format: date-time}, {type: "null"}]}
+              reasonCode: {type: string}
+              lockRevision: {type: integer, minimum: 1}
+        x-publisher: reputation-service
+        x-consumers: [user-service]
+        x-source: user-service-phase2-design.md sections 2.2 and 7
+  fileReady:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: file.ready}
+          producer: {const: file-service}
+          payload:
+            type: object
+            required: [fileId, uploadedBy, ingestChannel, contentType, fileSize]
+            additionalProperties: false
+            properties:
+              fileId: {$ref: "#/$defs/uuid"}
+              uploadedBy: {$ref: "#/$defs/uuid"}
+              ingestChannel: {enum: [DIRECT_UPLOAD, EMAIL_INTAKE, SYSTEM_GENERATED]}
+              contentType: {type: string}
+              fileSize: {type: integer, minimum: 0}
+              emailMeta: {type: object}
+        x-publisher: file-service
+        x-consumers: [contract-service, inspection-service]
+        x-source: file-service-phase2-design.md section 5
+  fileFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: file.failed}
+          producer: {const: file-service}
+          payload:
+            type: object
+            required: [fileId, uploadedBy, ingestChannel, failureReason]
+            additionalProperties: false
+            properties:
+              fileId: {$ref: "#/$defs/uuid"}
+              uploadedBy: {$ref: "#/$defs/uuid"}
+              ingestChannel: {enum: [DIRECT_UPLOAD, EMAIL_INTAKE, SYSTEM_GENERATED]}
+              failureReason: {type: string}
+        x-publisher: file-service
+        x-consumers: [contract-service, inspection-service]
+        x-source: file-service-phase2-design.md section 5
+  bankSecurityLockChanged:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.security_lock_changed}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [action, verifierOrgId, reason, signedPayload]
+            additionalProperties: false
+            properties:
+              action: {enum: [LOCKED, UNLOCKED]}
+              verifierOrgId: {type: string}
+              reason: {type: string}
+              signedPayload: {type: object}
+        x-publisher: bank-service
+        x-consumers: [audit-service]
+        x-source: bank-service-phase2-design.md sections 3.5.4 and 3.5.7
+  bankVerifierKeyRegistered:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.verifier_key_registered}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [publicKeyFingerprint]
+            additionalProperties: false
+            properties:
+              publicKeyFingerprint: {type: string, minLength: 1}
+              rotationSignedByOldKey: {type: [boolean, "null"]}
+        x-publisher: bank-service
+        x-consumers: [audit-service]
+        x-source: bank-service-phase2-design.md section 3.5.6
+  bankLargeTransactionFlagged:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.large_transaction_flagged}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [entryId, contractId, userId, amount, entryType, createdAt]
+            additionalProperties: false
+            properties:
+              entryId: {$ref: "#/$defs/uuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              userId: {$ref: "#/$defs/uuid"}
+              amount: {$ref: "#/$defs/positiveMoney"}
+              entryType: {type: string}
+              createdAt: {type: string, format: date-time}
+        x-publisher: bank-service
+        x-consumers: [reputation-service, audit-service]
+        x-source: bank-service-phase2-design.md section 3.4
+  bankSuspiciousReportCreated:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: bank.suspicious_report_created}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [buyerId, sellerId, windowEnd, reportHash]
+            additionalProperties: false
+            properties:
+              buyerId: {$ref: "#/$defs/uuid"}
+              sellerId: {$ref: "#/$defs/uuid"}
+              windowEnd: {type: string, format: date-time}
+              reportHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+        x-publisher: bank-service
+        x-consumers: [audit-service]
+        x-source: bank-service-phase2-design.md section 3.4b
+  analyticsStructuringPatternDetected:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: analytics.structuring_pattern_detected}
+          producer: {const: analytics-service}
+          payload:
+            type: object
+            required: [buyerId, sellerId, contractIds, nearThresholdCount, windowStart, windowEnd, detectedAt]
+            additionalProperties: false
+            properties:
+              buyerId: {$ref: "#/$defs/uuid"}
+              sellerId: {$ref: "#/$defs/uuid"}
+              contractIds: {type: array, items: {$ref: "#/$defs/uuid"}}
+              nearThresholdCount: {type: integer, minimum: 1}
+              windowStart: {type: string, format: date-time}
+              windowEnd: {type: string, format: date-time}
+              detectedAt: {type: string, format: date-time}
+        x-publisher: analytics-service
+        x-consumers: [reputation-service, bank-service]
+        x-source: analytics-service-phase2-design.md section 3.5
+  reputationElevatedRiskCleared:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: reputation.elevated_risk_cleared}
+          producer: {const: reputation-service}
+          payload:
+            type: object
+            required: [buyerId, sellerId, clearedByAdminId, reason, proposedByOperatorId, approvedByAdminId]
+            additionalProperties: false
+            properties:
+              buyerId: {$ref: "#/$defs/uuid"}
+              sellerId: {$ref: "#/$defs/uuid"}
+              clearedByAdminId: {$ref: "#/$defs/uuid"}
+              reason: {type: string}
+              proposedByOperatorId: {$ref: "#/$defs/uuid"}
+              approvedByAdminId: {$ref: "#/$defs/uuid"}
+        x-publisher: reputation-service
+        x-consumers: [audit-service]
+        x-source: reputation-service-phase2-design.md section 8
+  inspectionLevel2Commissioned:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: inspection.level2_commissioned}
+          producer: {const: inspection-service}
+          payload:
+            type: object
+            required: [contractId, commissionId, org, requestedAt]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              commissionId: {$ref: "#/$defs/uuid"}
+              org: {type: string}
+              requestedAt: {type: string, format: date-time}
+        x-publisher: inspection-service
+        x-consumers: [audit-service]
+        x-source: inspection-phase2-design.md sections 3.4 and 4
+  fileEmailNotice:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: file.email_notice}
+          producer: {const: file-service}
+          payload:
+            type: object
+            required: [senderDomain, spfDkimResult, subject, snippet, receivedAt]
+            additionalProperties: false
+            properties:
+              senderDomain: {type: string}
+              spfDkimResult: {type: string}
+              subject: {type: string}
+              snippet: {type: string}
+              receivedAt: {type: string, format: date-time}
+        x-publisher: file-service
+        x-consumers: [inspection-service]
+        x-source: file-service-phase2-design.md sections 4.1 and 5
+oneOf:
+  - $ref: "#/$defs/contractSigned"
+  - $ref: "#/$defs/escrowDepositLocked"
+  - $ref: "#/$defs/escrowDepositLockFailed"
+  - $ref: "#/$defs/bankLockRequested"
+  - $ref: "#/$defs/bankLockCompleted"
+  - $ref: "#/$defs/bankLockFailed"
+  - $ref: "#/$defs/bankReleaseRequested"
+  - $ref: "#/$defs/bankReleaseCompleted"
+  - $ref: "#/$defs/bankReleaseFailed"
+  - $ref: "#/$defs/bankSeizeRequested"
+  - $ref: "#/$defs/bankSeizeCompleted"
+  - $ref: "#/$defs/bankSeizeFailed"
+  - $ref: "#/$defs/bankRefundRequested"
+  - $ref: "#/$defs/bankRefundCompleted"
+  - $ref: "#/$defs/bankRefundFailed"
+  - $ref: "#/$defs/contractSettled"
+  - $ref: "#/$defs/contractCancelled"
+  - $ref: "#/$defs/milestoneSettled"
+  - $ref: "#/$defs/milestoneDisputeResolved"
+  - $ref: "#/$defs/milestoneLevel2ProvisionalSettled"
+  - $ref: "#/$defs/milestoneLevel2BufferReconciled"
+  - $ref: "#/$defs/milestoneLevel2TerminalSettled"
+  - $ref: "#/$defs/inspectionReportConfirmed"
+  - $ref: "#/$defs/milestoneSellerWeighed"
+  - $ref: "#/$defs/milestoneBuyerConfirmed"
+  - $ref: "#/$defs/milestoneFlagged"
+  - $ref: "#/$defs/milestoneForceMajeureClaimed"
+  - $ref: "#/$defs/milestoneForceMajeureResolved"
+  - $ref: "#/$defs/milestoneCancelledWithPenalty"
+  - $ref: "#/$defs/reputationLocked"
+  - $ref: "#/$defs/reputationUnlocked"
+  - $ref: "#/$defs/fileReady"
+  - $ref: "#/$defs/fileFailed"
+  - $ref: "#/$defs/bankSecurityLockChanged"
+  - $ref: "#/$defs/bankVerifierKeyRegistered"
+  - $ref: "#/$defs/bankLargeTransactionFlagged"
+  - $ref: "#/$defs/bankSuspiciousReportCreated"
+  - $ref: "#/$defs/analyticsStructuringPatternDetected"
+  - $ref: "#/$defs/reputationElevatedRiskCleared"
+  - $ref: "#/$defs/inspectionLevel2Commissioned"
+  - $ref: "#/$defs/fileEmailNotice"
