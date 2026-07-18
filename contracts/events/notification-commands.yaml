@@ -1,0 +1,188 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://agricontract.local/contracts/events/notification-commands.yaml"
+title: AgriContract Canonical Notification Commands
+description: >-
+  Internal notification commands only. Recipient email is permitted here as
+  routing data required by notification-service design; canonical domain events
+  omit unnecessary contact PII.
+type: object
+oneOf:
+  - $ref: "#/$defs/contractAnchorRequested"
+  - $ref: "#/$defs/contractActivationFailedRequested"
+  - $ref: "#/$defs/milestoneStatusRequested"
+  - $ref: "#/$defs/milestoneAnchorRequested"
+  - $ref: "#/$defs/securityLockChangedRequested"
+  - $ref: "#/$defs/reconciliationMismatchRequested"
+  - $ref: "#/$defs/userKycResultRequested"
+  - $ref: "#/$defs/userLockChangedRequested"
+  - $ref: "#/$defs/verifierKeyAnchorRequested"
+$defs:
+  commandEnvelope:
+    type: object
+    required: [eventId, eventType, eventVersion, occurredAt, producer, aggregateId, correlationId, payload]
+    properties:
+      eventId: {type: string, format: uuid}
+      eventType: {type: string}
+      eventVersion: {type: integer, minimum: 1}
+      occurredAt: {type: string, format: date-time}
+      producer: {type: string, minLength: 1}
+      aggregateId: {type: string, minLength: 1}
+      correlationId: {type: string, format: uuid}
+      causationId: {type: [string, "null"], format: uuid}
+      payload: {type: object}
+    additionalProperties: false
+  contractAnchorRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.contract_anchor_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, recipients, contractTermsSnapshot, signedContentHash, signedAt]
+            additionalProperties: false
+            properties:
+              contractId: {type: string, format: uuid}
+              recipients: {$ref: "#/$defs/recipients"}
+              contractTermsSnapshot: {type: object}
+              signedContentHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              signedAt: {type: string, format: date-time}
+  contractActivationFailedRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.contract_activation_failed_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, recipients]
+            additionalProperties: false
+            properties:
+              contractId: {type: string, format: uuid}
+              recipients: {$ref: "#/$defs/recipients"}
+  milestoneStatusRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.milestone_status_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, recipients]
+            additionalProperties: false
+            properties:
+              contractId: {type: string, format: uuid}
+              milestoneId: {type: string, format: uuid}
+              recipients: {$ref: "#/$defs/recipients"}
+  milestoneAnchorRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.milestone_anchor_requested}
+          producer: {const: audit-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, recipients, recordHash, otsProof, settlementSummary]
+            additionalProperties: false
+            properties:
+              contractId: {type: string, format: uuid}
+              milestoneId: {type: string, format: uuid}
+              recipients: {$ref: "#/$defs/recipients"}
+              recordHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              otsProof: {type: string}
+              settlementSummary: {type: object}
+  securityLockChangedRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.security_lock_changed_requested}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [recipients, action, reason, timestamp]
+            additionalProperties: false
+            properties:
+              recipients: {$ref: "#/$defs/recipients"}
+              action: {enum: [LOCKED, UNLOCKED]}
+              reason: {type: string}
+              timestamp: {type: string, format: date-time}
+  reconciliationMismatchRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.reconciliation_mismatch_requested}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [contractId, recipients]
+            additionalProperties: false
+            properties:
+              contractId: {type: string, format: uuid}
+              recipients: {$ref: "#/$defs/recipients"}
+              mismatchSummary: {type: object}
+  userKycResultRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.user_kyc_result_requested}
+          producer: {const: user-service}
+          payload:
+            type: object
+            required: [userId, recipientEmail, organizationName, result, decidedAt]
+            additionalProperties: false
+            properties:
+              userId: {type: string, format: uuid}
+              recipientEmail: {type: string, format: email}
+              organizationName: {type: string}
+              result: {enum: [VERIFIED, REJECTED]}
+              reason: {type: string}
+              decidedAt: {type: string, format: date-time}
+  userLockChangedRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.user_lock_changed_requested}
+          producer: {const: user-service}
+          payload:
+            type: object
+            required: [userId, recipientEmail, action, reasonCode]
+            additionalProperties: false
+            properties:
+              userId: {type: string, format: uuid}
+              recipientEmail: {type: string, format: email}
+              action: {enum: [LOCKED, UNLOCKED]}
+              effectiveUntil: {type: [string, "null"], format: date-time}
+              reasonCode: {type: string}
+  verifierKeyAnchorRequested:
+    allOf:
+      - $ref: "#/$defs/commandEnvelope"
+      - type: object
+        properties:
+          eventType: {const: notification.verifier_key_anchor_requested}
+          producer: {const: bank-service}
+          payload:
+            type: object
+            required: [recipientEmail, publicKeyFingerprint]
+            additionalProperties: false
+            properties:
+              recipientEmail: {type: string, format: email}
+              publicKeyFingerprint: {type: string}
+  recipients:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [userId, email, role]
+      additionalProperties: false
+      properties:
+        userId: {type: string, format: uuid}
+        email: {type: string, format: email}
+        role: {enum: [BUYER, SELLER, ADMIN, OPERATOR, INSPECTOR]}
