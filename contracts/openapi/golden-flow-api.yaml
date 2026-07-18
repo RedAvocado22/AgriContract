@@ -1,0 +1,616 @@
+openapi: 3.1.0
+info:
+  title: AgriContract Golden Flow API
+  version: 0.1.0
+  description: >-
+    API paths already named by the authoritative designs or required by their named
+    golden-flow use cases are frozen here. Approved human decisions are promoted to
+    authoritative Markdown; no unresolved contract question is invented here.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/contracts:
+    x-service-owner: contract-service
+    post:
+      operationId: createContract
+      x-roles: [BUYER]
+      x-domain-ownership-check: true
+      description: Create an OFFERED contract from an approved listing. Buyer identity comes from JWT; listing resolves seller/product ownership.
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateContractRequest'}}}}
+      responses:
+        '201': {description: Contract created, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {description: Eligibility dependency unavailable; create offer fails closed.}
+    get:
+      operationId: listContracts
+      parameters:
+        - {name: role, in: query, required: false, schema: {enum: [BUYER, SELLER]}}
+        - {name: status, in: query, required: false, schema: {type: string}}
+        - {name: page, in: query, required: false, schema: {type: integer, minimum: 0}}
+        - {name: size, in: query, required: false, schema: {type: integer, minimum: 1}}
+      responses: {'200': {description: Participant-owned paginated contract list, content: {application/json: {schema: {$ref: '#/components/schemas/ContractPage'}}}}}
+  /api/v1/contracts/{contractId}:
+    x-service-owner: contract-service
+    get:
+      operationId: getContract
+      parameters: [{name: contractId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Participant-owned contract detail, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
+  /api/v1/contracts/{contractId}/terms:
+    x-service-owner: contract-service
+    patch:
+      operationId: updateContractTerms
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ContractTermsRequest'}}}}
+      responses: {'200': {description: Contract terms updated before first signature, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/sign/initiate:
+    x-service-owner: contract-service
+    post:
+      operationId: initiateSign
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: InitiateSign(contractId, signerRole, jwt) creates and persists the OTP challenge, then synchronously requests OTP email delivery.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/InitiateSignRequest'}}}}
+      responses:
+        '200':
+          description: Notification provider accepted the OTP request; no Signature row is created yet.
+          content: {application/json: {schema: {$ref: '#/components/schemas/InitiateSignResponse'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '5XX': {description: Notification provider failure; no delayed retry is performed.}
+  /api/v1/contracts/{contractId}/sign/verify:
+    x-service-owner: contract-service
+    post:
+      operationId: verifyOtpAndSign
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: VerifyOtpAndSign(otpId, contractId, otpCode) verifies the bound challenge and inserts the Signature row.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VerifyOtpAndSignRequest'}}}}
+      responses:
+        '204': {description: OTP accepted and signature inserted; the second valid signature transitions the contract to SIGNED.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/cancel:
+    x-service-owner: contract-service
+    post:
+      operationId: cancelContract
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses: {'204': {description: Contract-level pro-rata cancellation accepted; contract.cancelled is published.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/activation/retry-deposit-lock:
+    x-service-owner: contract-service
+    post:
+      operationId: retryDepositLock
+      x-roles: [ADMIN]
+      description: ADMIN-only recovery of the missing deposit leg after escrow.deposit_lock_failed.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Retry accepted; escrow retries only the missing leg.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/activation/mark-failed:
+    x-service-owner: contract-service
+    post:
+      operationId: markActivationFailed
+      x-roles: [ADMIN]
+      description: ADMIN-only terminal activation recovery; partial locks are refunded before ACTIVATION_FAILED.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Activation failure workflow started.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh:
+    x-service-owner: contract-service
+    post:
+      operationId: recordSellerWeighed
+      x-roles: [SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SellerWeighedRequest'}}}}
+      responses: {'204': {description: Milestone enters SELLER_WEIGHED and publishes milestone.seller_weighed.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/confirm:
+    x-service-owner: contract-service
+    post:
+      operationId: confirmMilestoneClean
+      x-roles: [BUYER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BuyerReceivedRequest'}}}}
+      responses: {'204': {description: Buyer records received weight/evidence and performs CONFIRM_CLEAN.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/flag:
+    x-service-owner: contract-service
+    post:
+      operationId: flagMilestoneIssue
+      x-roles: [BUYER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BuyerReceivedRequest'}}}}
+      responses: {'204': {description: Buyer records received weight/evidence and performs FLAG_ISSUE.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond:
+    x-service-owner: contract-service
+    post:
+      operationId: respondToMilestoneFlag
+      x-roles: [SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses: {'204': {description: Seller contests the flagged milestone; routing follows DisputeRoutingService.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure:
+    x-service-owner: contract-service
+    post:
+      operationId: claimForceMajeure
+      x-roles: [SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ForceMajeureClaimRequest'}}}}
+      responses: {'204': {description: Claim recorded and milestone enters FORCE_MAJEURE_PENDING_REVIEW.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve:
+    x-service-owner: contract-service
+    post:
+      operationId: resolveForceMajeure
+      x-roles: [ADMIN]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ForceMajeureResolveRequest'}}}}
+      responses: {'204': {description: ADMIN decision recorded and milestone.force_majeure_resolved published.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/users/register:
+    post:
+      operationId: registerUser
+      security: [{bearerAuth: []}]
+      responses:
+        '2XX': {description: Idempotent registration; exact success status is not frozen.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /api/v1/users/me:
+    get:
+      operationId: getMyProfile
+      responses:
+        '2XX': {description: Full participant profile; exact response wire shape is not frozen.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/users/{userId}:
+    get:
+      operationId: getPublicUser
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      responses:
+        '2XX':
+          description: Public user DTO without contact PII
+          content: {application/json: {schema: {$ref: '#/components/schemas/PublicUserResponse'}}}
+  /api/v1/admin/users:
+    get:
+      operationId: listPendingUsers
+      security: [{bearerAuth: []}]
+      parameters: [{name: verificationStatus, in: query, required: false, schema: {enum: [PENDING, VERIFIED, REJECTED]}}]
+      responses:
+        '2XX': {description: KYC queue; exact response wire shape is not frozen.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/users/{userId}/verify:
+    post:
+      operationId: verifyUser
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VerifyUserRequest'}}}}
+      responses: {'2XX': {description: Verified; exact success status is not frozen.}, '403': {$ref: '#/components/responses/Forbidden'}}
+  /api/v1/admin/users/{userId}/reject:
+    post:
+      operationId: rejectUser
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RejectUserRequest'}}}}
+      responses: {'2XX': {description: Rejected; exact success status is not frozen.}, '403': {$ref: '#/components/responses/Forbidden'}}
+  /internal/v1/users/{userId}:
+    get:
+      x-internal: true
+      operationId: getInternalUserInfo
+      security: [{serviceAuth: []}]
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      responses: {'2XX': {description: Internal user info as defined by user-service design section 4.3.}, '401': {$ref: '#/components/responses/Unauthorized'}}
+  /internal/v1/notifications/otp-email:
+    x-service-owner: notification-service
+    post:
+      x-internal: true
+      operationId: sendOtpEmail
+      security: [{serviceAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/OtpEmailRequest'}}}}
+      responses: {'200': {description: Provider accepted request}, '5XX': {description: Provider failure}}
+  /internal/v1/audit/records:
+    x-service-owner: audit-service
+    get:
+      x-internal: true
+      operationId: getAuditRecordsForReconciliation
+      security: [{serviceAuth: []}]
+      description: Read-only audit record query for bank-service LedgerAuditReconciliationJob; never route through Gateway.
+      parameters:
+        - {name: contractId, in: query, required: true, schema: {type: string}}
+        - {name: sourceType, in: query, required: false, schema: {type: string}}
+        - {name: from, in: query, required: false, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: false, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: Audit records matching the read-only filter.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditRecordList'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/security/audit-hash:
+    x-service-owner: audit-service
+    get:
+      operationId: getAuditHash
+      security: [{apiKeyAuth: []}]
+      x-rate-limit: required
+      parameters: [{name: contractId, in: query, required: true, schema: {type: string}}]
+      responses:
+        '200':
+          description: Current per-contract audit chain hash for External Verifier reconciliation.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditHashResponse'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/security/emergency-lock:
+    x-service-owner: bank-service
+    post:
+      operationId: emergencyLock
+      description: External Verifier ES256 signed request. No JWT, API key, Admin bypass or Gateway retry; request cap 64 KB.
+      security: []
+      x-signed-action: LOCK
+      x-error-codes: [EXTERNAL_SIGNATURE_INVALID, EXTERNAL_KEY_UNKNOWN, SIGNATURE_TIMESTAMP_OUT_OF_WINDOW, NONCE_REPLAYED, SYSTEM_ALREADY_LOCKED]
+      x-max-body-bytes: 65536
+      x-gateway-retry: false
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExternalVerifierRequest'}}}}
+      responses:
+        '204': {description: System lock activated.}
+        '401': {$ref: '#/components/responses/ExternalSignatureInvalid'}
+        '409': {$ref: '#/components/responses/SystemAlreadyLocked'}
+  /api/v1/security/emergency-unlock:
+    x-service-owner: bank-service
+    post:
+      operationId: emergencyUnlock
+      description: External Verifier ES256 signed request. The signed action must be UNLOCK.
+      security: []
+      x-signed-action: UNLOCK
+      x-error-codes: [EXTERNAL_SIGNATURE_INVALID, EXTERNAL_KEY_UNKNOWN, SIGNATURE_TIMESTAMP_OUT_OF_WINDOW, NONCE_REPLAYED, SYSTEM_NOT_LOCKED]
+      x-max-body-bytes: 65536
+      x-gateway-retry: false
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExternalVerifierRequest'}}}}
+      responses:
+        '204': {description: System lock released.}
+        '401': {$ref: '#/components/responses/ExternalSignatureInvalid'}
+        '409': {$ref: '#/components/responses/SystemNotLocked'}
+  /api/v1/escrows/statements:
+    x-service-owner: escrow-service
+    get:
+      operationId: exportEscrowStatement
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: Participant-owned read-only ledger statement.
+          headers:
+            Content-Disposition: {schema: {type: string}}
+          content:
+            text/csv: {schema: {type: string, format: binary}}
+            application/pdf: {schema: {type: string, format: binary}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /internal/v1/bank/ledger:
+    x-service-owner: bank-service
+    get:
+      x-internal: true
+      operationId: getInternalLedgerEntries
+      security: [{serviceAuth: []}]
+      parameters:
+        - {name: participantId, in: query, required: true, schema: {type: string, format: uuid}}
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: Read-only ledger entries, content: {application/json: {schema: {$ref: '#/components/schemas/LedgerEntryList'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+    serviceAuth: {type: apiKey, in: header, name: X-Gateway-Secret, description: Internal deployment secret; never accepted from an external client.}
+    apiKeyAuth: {type: apiKey, in: header, name: X-Api-Key}
+  schemas:
+    CreateContractRequest:
+      type: object
+      required: [listingId, terms]
+      additionalProperties: false
+      properties:
+        listingId: {type: string, format: uuid}
+        terms: {$ref: '#/components/schemas/ContractTermsRequest'}
+    ContractTermsRequest:
+      type: object
+      required: [agreedPrice, milestoneSchedule, toleranceRate, shortfallPenaltyThreshold, buyerPenaltyRate, sellerPenaltyRate, forceMajeureReportWindowDays, buyerDepositRate, disputeFloorReleaseRate, sellerDepositRate]
+      additionalProperties: false
+      properties:
+        agreedPrice: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        milestoneSchedule:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/MilestoneTermRequest'}
+        toleranceRate: {type: number, minimum: 0, maximum: 0.10}
+        shortfallPenaltyThreshold: {type: number, minimum: 0.03, maximum: 0.15}
+        buyerPenaltyRate: {type: number, minimum: 0, maximum: 0.30}
+        sellerPenaltyRate: {type: number, minimum: 0, maximum: 0.30}
+        forceMajeureReportWindowDays: {type: integer, minimum: 1}
+        buyerDepositRate: {type: number, minimum: 0, maximum: 1}
+        disputeFloorReleaseRate: {type: number, minimum: 0.50, maximum: 1, description: Must not exceed 1 - level2SafetyBufferRate; service validates the cross-field guardrail.}
+        sellerDepositRate: {type: number, minimum: 0, maximum: 1}
+        level2InspectorOrg: {type: [string, 'null']}
+    MilestoneTermRequest:
+      type: object
+      required: [milestoneIndex, committedQuantity, expectedDeliveryDate, graceDays]
+      additionalProperties: false
+      properties:
+        milestoneIndex: {type: integer, minimum: 1}
+        committedQuantity: {type: number, exclusiveMinimum: 0}
+        expectedDeliveryDate: {type: string, format: date}
+        graceDays: {type: integer, minimum: 0}
+    ContractResponse:
+      type: object
+      required: [contractId, listingId, buyerId, sellerId, status, terms, milestones]
+      additionalProperties: false
+      properties:
+        contractId: {type: string, format: uuid}
+        listingId: {type: string, format: uuid}
+        buyerId: {type: string, format: uuid}
+        sellerId: {type: string, format: uuid}
+        status: {enum: [OFFERED, NEGOTIATING, SIGNED, ACTIVE, ACTIVATION_REFUND_PENDING, ACTIVATION_FAILED, SETTLED, CANCELLED]}
+        terms: {$ref: '#/components/schemas/ContractTermsRequest'}
+        milestones:
+          type: array
+          items: {$ref: '#/components/schemas/MilestoneResponse'}
+    MilestoneResponse:
+      type: object
+      required: [milestoneId, milestoneIndex, status, committedQuantity, batchAmount, expectedDeliveryDate, graceDays]
+      additionalProperties: false
+      properties:
+        milestoneId: {type: string, format: uuid}
+        milestoneIndex: {type: integer, minimum: 1}
+        status: {enum: [CREATED, IN_PROGRESS, SELLER_WEIGHED, BUYER_RECEIVED, AWAITING_SELLER_RESPONSE, CONTESTED, FORCE_MAJEURE_PENDING_REVIEW, SETTLED]}
+        committedQuantity: {type: number, exclusiveMinimum: 0}
+        batchAmount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        expectedDeliveryDate: {type: string, format: date}
+        graceDays: {type: integer, minimum: 0}
+    ContractPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      additionalProperties: false
+      properties:
+        content: {type: array, items: {$ref: '#/components/schemas/ContractResponse'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1}
+        totalElements: {type: integer, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
+    PublicUserResponse:
+      type: object
+      required: [userId, organizationName, role, verificationStatus]
+      additionalProperties: false
+      properties:
+        userId: {type: string}
+        organizationName: {type: string}
+        role: {enum: [BUYER, SELLER, ADMIN, INSPECTOR, OPERATOR]}
+        verificationStatus: {enum: [PENDING, VERIFIED, REJECTED]}
+    VerifyUserRequest:
+      type: object
+      properties: {authorizationExpiresAt: {type: [string, 'null'], format: date-time}}
+      additionalProperties: false
+    RejectUserRequest:
+      type: object
+      required: [reason]
+      properties: {reason: {type: string, minLength: 1}}
+      additionalProperties: false
+    OtpEmailRequest:
+      type: object
+      required: [requestId, recipientUserId, recipientEmail, contractId, otpCode, signedContentHash, expiresAt]
+      properties:
+        requestId: {type: string}
+        recipientUserId: {type: string}
+        recipientEmail: {type: string, format: email}
+        contractId: {type: string}
+        otpCode: {type: string, pattern: '^[0-9]{6}$'}
+        signedContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+        expiresAt: {type: string, format: date-time}
+      additionalProperties: false
+    InitiateSignRequest:
+      type: object
+      required: [signerRole]
+      properties:
+        signerRole: {enum: [BUYER, SELLER]}
+      additionalProperties: false
+    InitiateSignResponse:
+      type: object
+      required: [otpId, expiresAt]
+      properties:
+        otpId: {type: string, format: uuid}
+        expiresAt: {type: string, format: date-time}
+      additionalProperties: false
+    VerifyOtpAndSignRequest:
+      type: object
+      required: [otpId, otpCode]
+      properties:
+        otpId: {type: string, format: uuid}
+        otpCode: {type: string, pattern: '^[0-9]{6}$'}
+      additionalProperties: false
+    SellerWeighedRequest:
+      type: object
+      required: [sellerDeclaredWeight, sellerEvidenceFileId]
+      properties:
+        sellerDeclaredWeight: {type: number, minimum: 0}
+        sellerEvidenceFileId: {type: string, format: uuid}
+      additionalProperties: false
+    BuyerReceivedRequest:
+      type: object
+      required: [buyerReceivedWeight, buyerEvidenceFileId]
+      properties:
+        buyerReceivedWeight: {type: number, minimum: 0}
+        buyerEvidenceFileId: {type: string, format: uuid}
+      additionalProperties: false
+    ForceMajeureClaimRequest:
+      type: object
+      required: [evidenceFileId]
+      additionalProperties: false
+      properties:
+        evidenceFileId: {type: string, format: uuid}
+    ForceMajeureResolveRequest:
+      type: object
+      required: [decision]
+      additionalProperties: false
+      properties:
+        decision: {enum: [APPROVED, REJECTED]}
+    AuditRecordList:
+      type: array
+      items:
+        type: object
+        required: [recordId, subjectType, subjectId, sourceType, sourceEventType, content, recordHash, createdAt]
+        additionalProperties: false
+        properties:
+          recordId: {type: string}
+          subjectType: {enum: [CONTRACT, USER_PAIR, SYSTEM]}
+          subjectId: {type: string}
+          sourceType: {type: string}
+          sourceEventType: {type: string}
+          sourceHash: {type: [string, 'null']}
+          content: {$ref: '#/components/schemas/AuditReconciliationContent'}
+          recordHash: {type: string}
+          prevHashGlobal: {type: [string, 'null']}
+          prevHashSubject: {type: [string, 'null']}
+          createdAt: {type: string, format: date-time}
+    AuditReconciliationContent:
+      type: object
+      required: [contractId, milestoneId, settledAmount, seizedAmount]
+      additionalProperties: false
+      properties:
+        contractId: {type: string, format: uuid}
+        milestoneId: {type: [string, 'null'], format: uuid}
+        settledAmount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        seizedAmount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        sourceEventId: {type: [string, 'null'], format: uuid}
+        releaseLegs: {type: array, items: {$ref: '#/components/schemas/MoneyLeg'}}
+        refundLegs: {type: array, items: {$ref: '#/components/schemas/MoneyLeg'}}
+    AuditHashResponse:
+      type: object
+      required: [contractId, recordHash]
+      additionalProperties: false
+      properties:
+        contractId: {type: string, format: uuid}
+        recordHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+    MoneyLeg:
+      type: object
+      required: [entryType, amount]
+      additionalProperties: false
+      properties:
+        entryType: {enum: [RELEASE_TO_SELLER, REFUND_TO_BUYER, SEIZE_PENALTY]}
+        amount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        sourceEventId: {type: string, format: uuid}
+    LedgerEntryList:
+      type: array
+      items:
+        type: object
+        required: [entryId, sourceEventId, contractId, milestoneId, userId, entryType, amount, createdAt]
+        additionalProperties: false
+        properties:
+          entryId: {type: string, format: uuid}
+          sourceEventId: {type: string, format: uuid}
+          contractId: {type: string, format: uuid}
+          milestoneId: {type: [string, 'null'], format: uuid}
+          userId: {type: string, format: uuid}
+          entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE, RELEASE_TO_SELLER, SEIZE_PENALTY, REFUND_TO_BUYER]}
+          amount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+          createdAt: {type: string, format: date-time}
+    ExternalVerifierRequest:
+      type: object
+      required: [keyId, signedPayload, signature]
+      additionalProperties: false
+      properties:
+        keyId: {type: string, minLength: 1}
+        signedPayload:
+          type: object
+          required: [action, reason, timestamp, nonce]
+          additionalProperties: false
+          properties:
+            action: {enum: [LOCK, UNLOCK]}
+            reason: {type: string, minLength: 1}
+            timestamp: {type: string, format: date-time}
+            nonce: {type: string, format: uuid}
+        signature: {type: string, pattern: '^[A-Za-z0-9_-]+$'}
+    ErrorEnvelope:
+      type: object
+      required: [timestamp, status, error, code, message, path, traceId]
+      properties:
+        timestamp: {type: string, format: date-time}
+        status: {type: integer, minimum: 100, maximum: 599}
+        error: {type: string}
+        code: {type: string, pattern: '^[A-Z][A-Z0-9_]*$'}
+        message: {type: string}
+        path: {type: string}
+        traceId: {type: string}
+      additionalProperties: false
+  responses:
+    BadRequest: {description: Validation failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Unauthorized: {description: Authentication or API-key failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Forbidden: {description: Authorization or ownership failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    NotFound: {description: Resource not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Conflict: {description: State/terms/challenge conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    ExternalSignatureInvalid:
+      description: ES256 verification, key lookup, or timestamp validation failed. Code is EXTERNAL_SIGNATURE_INVALID, EXTERNAL_KEY_UNKNOWN, or SIGNATURE_TIMESTAMP_OUT_OF_WINDOW.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+    SystemAlreadyLocked:
+      description: Code is NONCE_REPLAYED or SYSTEM_ALREADY_LOCKED.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+    SystemNotLocked:
+      description: Code is NONCE_REPLAYED or SYSTEM_NOT_LOCKED.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+      description: Stable command identifier reused for caller retries.
+x-closed-contract-questions: [OQ-02, OQ-02b, OQ-03, OC-01, OC-05, OC-09, OC-10, OC-11]
+x-reference-only:
+  description: >-
+    Reference-only paths are retained for cross-service context and are not part of
+    the first executable golden-flow release gate. Their owner designs remain the
+    source for future DTO/status promotion; they must not be implemented from this
+    document by inference.
+  paths:
+    - /api/v1/users/register
+    - /api/v1/users/me
+    - /api/v1/users/{userId}
+    - /api/v1/admin/users
+    - /api/v1/admin/users/{userId}/verify
+    - /api/v1/admin/users/{userId}/reject
