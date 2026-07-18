@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { writeDocx } = require("./docx_output.js");
 const { D, T, runs, P, H1, H2, H3, bullet, numbered, quote, callout, legal, risk, src, table, spacer, cover, toc, endMark, buildDoc } = require("./acdocx.js");
 const { body, push, code, svcTable, codeblock } = require("./build03_part1.js");
 const { Packer, AlignmentType } = D;
@@ -7,21 +8,21 @@ const { Packer, AlignmentType } = D;
 push(H2("3.8 audit-service"));
 push(svcTable([
   ["Port · DB", "8092 · audit_db (DB user chỉ có INSERT + SELECT)"],
-  ["Trách nhiệm", "Chuỗi hash bất biến; neo Bitcoin (OpenTimestamps); verify định kỳ; xuất báo cáo EUDR"],
-  ["Aggregate", "AuditRecord (dual chain: prevHashGlobal + prevHashContract trên cùng 1 bảng; ots_proof)"],
+  ["Trách nhiệm", "Chuỗi hash bất biến; neo OpenTimestamps; verify định kỳ; xuất gói bằng chứng DDS-supporting"],
+  ["Aggregate", "AuditRecord (prevHashGlobal + prevHashSubject) + AuditAnchor append-only; sourceHash tách recordHash"],
 ]));
-push(P("audit-service nhận và nối các hash từ nhiều nguồn (signedContentHash từ contract-service, reportHash từ inspection-service, các milestone event mang số liệu tranh chấp được) vào một chuỗi append-only. Không phải mọi event vào chain — tiêu chí là event phải mang số liệu/quyết định có thể bị tranh chấp làm bằng chứng. Dùng một bảng duy nhất với hai cột prevHash khác mục đích (chuỗi toàn cục + chuỗi per-contract) thay vì hai bảng riêng."));
+push(P("audit-service là writer duy nhất của audit_db: consume event có giá trị chứng cứ, chuẩn hoá subject/source/content tối giản rồi nối dual chain append-only. AuditRecord dùng prevHashGlobal + prevHashSubject; sourceHash cam kết artefact nguồn, recordHash cam kết bản ghi canonical; OTS proof nằm trong AuditAnchor riêng, không UPDATE audit_record."));
 push(P([runs("Bất biến ở tầng quyền DB, không chỉ ở code. ", { bold: true }), runs("Tài khoản DB của audit-service chỉ có quyền INSERT + SELECT — không UPDATE/DELETE. VerifyChainJob chạy hàng tuần (2–3h sáng Chủ nhật) đối chiếu chuỗi và so với OTS proof neo trên Bitcoin — bắt được cả cascade tampering (xoá rồi viết lại toàn bộ prevHash phía sau). Verify fail → alert tự động song song tới Admin và nhiều contact phía Software Buyer, không qua một gatekeeper duy nhất.", {})]));
-push(legal("Luật GDĐT 2023, Điều 14.2", "Giá trị chứng cứ của thông điệp dữ liệu dựa trên độ tin cậy của phương thức khởi tạo, lưu trữ và bảo toàn tính nguyên vẹn. Chuỗi hash append-only + quyền DB INSERT-only + neo độc lập (email, Bitcoin) là hiện thực hoá kỹ thuật của yêu cầu “bảo toàn tính nguyên vẹn” này."));
+push(legal("Luật GDĐT 2023, khoản 2 Điều 14", "Giá trị chứng cứ của thông điệp dữ liệu dựa trên độ tin cậy của phương thức khởi tạo, lưu trữ và bảo toàn tính nguyên vẹn. Chuỗi hash append-only + quyền DB INSERT-only + neo độc lập (email, Bitcoin) là hiện thực hoá kỹ thuật của yêu cầu “bảo toàn tính nguyên vẹn” này."));
 
 // 3.9 file
 push(H2("3.9 file-service"));
 push(svcTable([
   ["Port · DB", "8089 · file_db · MinIO object storage"],
   ["Trách nhiệm", "Lưu trữ file tập trung agnostic với nghiệp vụ; xử lý async (virus-scan, email-parse); retention EUDR"],
-  ["Aggregate", "File (fileId plain UUID, storageHash, ingestChannel, status PROCESSING/READY/FAILED, attached)"],
+  ["Aggregate", "File (fileId, storageHash, ingestChannel, status, attached, retentionUntil, legalHold, deletedAt)"],
 ]));
-push(P("file-service chỉ biết blob + metadata kỹ thuật, không biết ý nghĩa nghiệp vụ của file (evidence, cadastral, report…) — ý nghĩa nằm ở tên field bên dịch vụ giữ fileId. Ba entrypoint tách theo trust boundary (không phải một API generic) để ingestChannel không bị giả mạo: nếu để caller tự khai channel, bất kỳ ai cũng có thể tự xưng SYSTEM_GENERATED để né virus-scan. Trạng thái kỹ thuật (file toàn vẹn chưa) tách hoàn toàn khỏi quyết định duyệt nghiệp vụ (thuộc dịch vụ khác). Retention neo vào EUDR (tối thiểu 5 năm); orphan-cleanup qua cờ attached theo pattern ConfirmAttached."));
+push(P("file-service chỉ biết blob + metadata kỹ thuật, không biết ý nghĩa nghiệp vụ của file (evidence, cadastral, report…) — ý nghĩa nằm ở tên field bên dịch vụ giữ fileId. Ba entrypoint tách theo trust boundary (không phải một API generic) để ingestChannel không bị giả mạo: nếu để caller tự khai channel, bất kỳ ai cũng có thể tự xưng SYSTEM_GENERATED để né virus-scan. Trạng thái kỹ thuật (file toàn vẹn chưa) tách hoàn toàn khỏi quyết định duyệt nghiệp vụ (thuộc dịch vụ khác). Retention theo ma trận domain; legalHold chặn xoá. Owning service gọi DeleteFile hai bước tombstone→MinIO; orphan-cleanup chỉ áp file attached=false quá một tuần theo ConfirmAttached."));
 push(callout("Async processing là pain point chính.", "Ít nhất hai luồng không chạy đồng bộ trong request: quét virus và parse email report. Với file từ hòm thư ngoài (EMAIL_INTAKE), hai luồng nối chuỗi (parse → virus-scan), không chạy song song độc lập — nếu tách nhầm theo nguồn gốc thay vì theo loại công việc, file từ internet sẽ lọt virus-scan. Retry/DLQ dùng cơ chế dead-letter-exchange + TTL built-in của RabbitMQ.", "note"));
 
 // 3.10 pricing
@@ -37,11 +38,11 @@ push(P("Chỉ ingest external reference price — không tự tính giá từ da
 push(H2("3.11 analytics-service"));
 push(svcTable([
   ["Port · DB", "8093 · analytics_db"],
-  ["Trách nhiệm", "Read model CQRS thuần; tổng hợp time-series phục vụ dashboard quản trị (hiệp hội/Admin)"],
+  ["Trách nhiệm", "Event-driven projection/CQRS read model kiêm derived-signal producer; dashboard quản trị + AML pattern signal"],
   ["Aggregate", "Star schema thu nhỏ: dim_contract, fact_milestone_performance, fact_contract_settlement, fact_contract_cancellation, agg_monthly_commodity_stats"],
   ["Consumes", "contract.signed (dim_contract), contract.settled, contract.cancelled, milestone.settled, milestone.cancelled_with_penalty (+ force majeure flags)"],
 ]));
-push(P("Pure consumer — không gọi ngược (Feign) về dịch vụ nào; mọi dữ liệu đến từ việc nghe RabbitMQ. Thiết kế cứng này để analytics (non-critical path) dù sập/quá tải vì query báo cáo nặng cũng không tạo tải ngược lên contract/bank đang xử lý giao dịch. Hybrid: fact tables ghi event thô incremental (giải nghẽn ghi) + agg tables pre-computed bằng @Scheduled 1h sáng (giải nghẽn đọc/tính %). Bắt buộc idempotency log theo message_id (at-least-once làm lặp số tiền). Metric tập trung vào B2B value: tỷ lệ phá vỡ hợp đồng, hiệu quả ký quỹ, xu hướng bất khả kháng."));
+push(P("Analytics không nằm trên transaction critical path và không gọi đồng bộ (REST/Feign) ngược core service. Hybrid fact incremental + agg pre-computed; bắt buộc idempotency log. AmlPatternScanJob dùng MySQL 8 DATE_SUB + JSON_ARRAYAGG và publish analytics.structuring_pattern_detected cho reputation/bank. Outage ngắn catch-up queue backlog; không có cold rebuild/full-history, nên analytics_db phải backup/restore."));
 push(P([runs("Hai điểm sửa sau rà soát (06/07/2026). ", { bold: true }), runs("Thứ nhất, đếm \"hợp đồng đã hoàn tất\" phải lấy từ fact_contract_settlement (nguồn contract.settled, đúng granularity Contract) — không được suy từ fact_milestone_performance (granularity Milestone, sai bất cứ khi nào hợp đồng còn dở dang). Thứ hai, has_force_majeure gần như luôn sai nếu chỉ UPDATE trực tiếp, vì event force_majeure_resolved luôn tới trước khi milestone đạt trạng thái cuối — cần bảng staging trung gian để merge đúng thời điểm INSERT.", {})]));
 
 // 3.12 notification
@@ -51,7 +52,7 @@ push(svcTable([
   ["Trách nhiệm", "Thông báo hướng sự kiện; internal sync OTP delivery; neo hash qua email; weekly digest/integrity alert"],
   ["Aggregate", "NotificationLog (dedup eventId + recipientEmail + notificationType; templateVersion)"],
 ]));
-push(P("Notification nghiệp vụ/evidence là consumer RabbitMQ; riêng OTP dùng POST /internal/v1/notifications/otp-email từ contract-service để caller chỉ báo “đã gửi” khi provider đã nhận request. Publisher mang recipient email trong payload, notification không Feign ngược user-service. Retry async 3 lần exponential backoff trước DLX; idempotency theo (eventId, recipientEmail, notificationType). OTP plaintext không ghi log và không được gửi muộn sau khi caller đã nhận failure."));
+push(P("Notification nghiệp vụ/evidence là consumer RabbitMQ; riêng OTP dùng POST /internal/v1/notifications/otp-email từ contract-service để caller chỉ báo “đã gửi” khi provider accepted. Không có external Gateway route. Publisher mang recipient/attachment reference; retry async 3 lần trước DLX; dedup theo (eventId/sourceEventId, recipientEmail, notificationType). OTP plaintext không log và không gửi muộn sau response failure."));
 
 // ============================================================
 // 4. COMMUNICATION
@@ -123,43 +124,52 @@ push(H2("6.2 Một số schema then chốt"));
 push(P("Sổ cái tiền (bank-service) — append-only, số dư luôn derive từ SUM, không lưu sẵn:"));
 push(codeblock([
   "CREATE TABLE ledger_entry (",
-  "  entry_id        UUID PRIMARY KEY,",
-  "  source_event_id UUID NOT NULL UNIQUE,   -- idempotency key",
-  "  contract_id     UUID NOT NULL,",
-  "  milestone_id    UUID NULL,              -- NULL = buyerDepositRate",
-  "  user_id         UUID NOT NULL,",
+  "  entry_id        CHAR(36) PRIMARY KEY,",
+  "  source_event_id CHAR(36) NOT NULL UNIQUE,   -- idempotency key",
+  "  contract_id     CHAR(36) NOT NULL,",
+  "  milestone_id    CHAR(36) NULL,              -- NULL = buyerDepositRate",
+  "  user_id         CHAR(36) NOT NULL,",
   "  entry_type      VARCHAR(20) NOT NULL,   -- LOCK_* | RELEASE_* | SEIZE_* | REFUND_*",
   "  amount          DECIMAL(15,2) NOT NULL,",
   "  created_at      TIMESTAMP NOT NULL DEFAULT now()",
   ");",
 ]));
-push(P("Chuỗi hash audit (audit-service) — dual chain trên một bảng, DB user chỉ INSERT + SELECT:"));
+push(P("Chuỗi hash audit (audit-service) — AuditRecord + AuditAnchor append-only, DB user chỉ INSERT + SELECT:"));
 push(codeblock([
   "CREATE TABLE audit_record (",
-  "  record_id         UUID PRIMARY KEY,",
-  "  contract_id       UUID NOT NULL,",
+  "  record_id         CHAR(36) PRIMARY KEY,",
+  "  subject_type      VARCHAR(20) NOT NULL, -- CONTRACT|USER_PAIR|SYSTEM",
+  "  subject_id        VARCHAR(255) NOT NULL,",
   "  source_type       VARCHAR(50) NOT NULL,",
-  "  content           JSON NOT NULL,",
+  "  source_event_type VARCHAR(100) NOT NULL,",
+  "  source_hash       VARCHAR(64) NULL,",
+  "  content           JSON NOT NULL, -- minimalized, không PII",
   "  record_hash       VARCHAR(64) NOT NULL,",
-  "  prev_hash_global  VARCHAR(64),   -- chuỗi toàn cục",
-  "  prev_hash_contract VARCHAR(64),  -- chuỗi per-contract",
-  "  ots_proof         BLOB NULL      -- OpenTimestamps",
+  "  prev_hash_global  VARCHAR(64) NULL,",
+  "  prev_hash_subject VARCHAR(64) NULL,",
+  "  created_at        TIMESTAMP(3) NOT NULL",
+  ");",
+  "CREATE TABLE audit_anchor (",
+  "  anchor_id CHAR(36) PRIMARY KEY, record_id CHAR(36) NOT NULL,",
+  "  anchored_hash VARCHAR(64) NOT NULL, anchor_type VARCHAR(20) NOT NULL,",
+  "  proof BLOB NOT NULL, created_at TIMESTAMP(3) NOT NULL",
   ");",
 ]));
+push(P("recordHash = SHA256(canonicalJson({recordId, subjectType, subjectId, sourceType, sourceEventType, content, prevHashGlobal, prevHashSubject, createdAt})); canonical JSON sort key, UTF-8, không whitespace, UTC millisecond, decimal fixed-scale và giữ null key."));
 push(table(
   [2400, 7238],
   ["Database", "Bảng chính"],
   [
-    ["user_db", "user_profiles (userId = Keycloak sub, authorization_expires_at)"],
+    ["user_db", "user_profiles (role OPERATOR, verified_by_actor_id, last_lock_revision)"],
     ["product_db", "products (+ variety_name), listings, product_plot (GEOMETRY), plot_registry_entry (GEOMETRY)"],
-    ["contract_db", "contracts, contract_terms, milestones, signatures, contract_domain_events (Outbox), milestone_sync_outbox (Local Outbox)"],
+    ["contract_db", "contracts, contract_terms, milestones, signatures BUYER/SELLER, signature_otp, outbox/local outbox"],
     ["escrow_db", "escrow_accounts, escrow_milestones (state-only)"],
     ["bank_db", "ledger_entry (append-only)"],
-    ["inspection_db", "inspection_report, level2_inspection_commission"],
-    ["reputation_db", "lock_entry (insert-only), reputation_score"],
-    ["file_db", "file, email_parse_failure"],
+    ["inspection_db", "inspection_report, inspector_signature, level2_inspection_commission"],
+    ["reputation_db", "lock_entry, lock_override_event, governance_action_request, pair_risk_state, reputation_score"],
+    ["file_db", "file (retention/legal_hold/tombstone), email_parse_failure"],
     ["pricing_db", "price_history (append-only), price_ingestion_failure"],
-    ["audit_db", "audit_record (dual chain, INSERT+SELECT only)"],
+    ["audit_db", "audit_record + audit_anchor (append-only, INSERT+SELECT only)"],
     ["analytics_db", "dim_contract, fact_*, agg_monthly_commodity_stats, analytics_idempotency_log"],
     ["notification_db", "notification_logs (eventId + recipientEmail + notificationType dedup; templateVersion; providerMessageId)"],
   ],
@@ -187,32 +197,33 @@ push(table(
   { size: 17, colAlign: [AlignmentType.CENTER, null, null, null] }
 ));
 push(P("Nhánh bù trừ: nếu buyer flag vấn đề ở bước 5, milestone vào AWAITING_SELLER_RESPONSE; seller im lặng quá hạn → auto-settle theo số buyer báo, hoặc contest → DisputeRoutingService (INSPECTOR 3 cấp). Nếu một bên cancel, contract.cancelled kích hoạt seize/refund cọc theo initiatedBy; các milestone chưa settle bắn milestone.cancelled_with_penalty riêng."));
+push(P("Nhánh kích hoạt thất bại: retry từng leg khoá cọc tối đa 3 lần (5m/30m/2h) với cùng sourceEventId. ADMIN có RetryDepositLock hoặc MarkActivationFailed; leg đã khoá được refund và Contract SIGNED → ACTIVATION_REFUND_PENDING → ACTIVATION_FAILED chỉ sau mọi refund confirmed. Terminal invariant: tổng lock = 0, không penalty/reputation."));
 
 // ============================================================
 // 8. SECURITY
 // ============================================================
 push(H1("8. Mô hình bảo mật"));
 push(H2("8.1 Xác thực và phân quyền"));
-push(P("Keycloak (:8180, realm agricontract) là IAM server, cấp JWT RS256 với các vai trò BUYER/SELLER/ADMIN/INSPECTOR. Luồng: Frontend đăng nhập Keycloak → nhận JWT → gửi kèm Authorization: Bearer → Nginx → API Gateway validate token qua Keycloak JWKS → tiêm định danh (X-User-Id, X-User-Email, X-User-Role) xuống downstream. Downstream tin các header này vì request đến từ Gateway trong mạng nội bộ; ranh giới tin cậy nội bộ được siết bằng X-Internal-Secret, tiến hoá lên mTLS khi triển khai thật."));
-push(P("Gateway dùng explicit route policy: public chỉ GET listing/product catalog, pricing, public reputation summary và audit-hash; còn lại authenticated mặc định, các prefix Admin/Inspector gate role thô. Mọi header X-User-* và internal secret từ client bị xoá rồi inject lại từ JWT/deployment secret. /internal/**, raw file API và OTP API không có external route. Ownership, KYC, lock và contract state vẫn do domain service enforce — Gateway không gọi user-service trên mọi request."));
+push(P("Keycloak (:8180, realm agricontract) là IAM server, cấp JWT RS256 với các vai trò BUYER/SELLER/ADMIN/OPERATOR/INSPECTOR. Luồng: Frontend đăng nhập Keycloak → nhận JWT → gửi kèm Authorization: Bearer → Nginx → API Gateway validate token qua Keycloak JWKS → tiêm định danh (X-User-Id, X-User-Role, X-Correlation-Id, X-Gateway-Secret) xuống downstream. Downstream tin các header này vì request đến từ Gateway trong mạng nội bộ; ranh giới tin cậy nội bộ được siết bằng X-Internal-Secret, tiến hoá lên mTLS khi triển khai thật."));
+push(P("Gateway dùng explicit route policy: public chỉ GET listing/product catalog, pricing và audit-hash; reputation public-summary vẫn authenticated. Gateway strip Authorization, X-User-* và internal secret rồi inject đúng bốn header; X-Api-Key audit-hash được giữ nguyên. Daily admin paths cho ADMIN|OPERATOR; reputation propose cho ADMIN|OPERATOR nhưng approve/reject, security/audit/analytics chỉ ADMIN. /internal/**, notification, raw file/bank và OTP không có external route; ownership/KYC/lock/state do owner service enforce."));
 push(table(
   [2500, 3100, 4038],
   ["Nhóm route", "Ví dụ", "Policy"],
   [
-    ["Public read", "GET listings/products catalog; prices; reputation public-summary; security/audit-hash", "Exact method + path; audit-hash dùng API key + rate limit"],
+    ["Public read", "GET listings/products catalog; prices; GET security/audit-hash", "Exact method + path; audit-hash giữ X-Api-Key + rate limit"],
     ["Authenticated", "users, products/listings write, contracts/milestones, escrow, inspections, reputation", "JWT bắt buộc; ownership/state ở owner service"],
-    ["Role-gated", "/api/v1/admin/**; /api/v1/inspector/**", "Gateway gate ADMIN/INSPECTOR + service kiểm resource assignment"],
+    ["Role-gated", "daily ops; reputation propose/approve; security/audit/analytics; inspector", "ADMIN|OPERATOR cho daily/propose; approve/security/audit/analytics chỉ ADMIN; inspector chỉ INSPECTOR"],
     ["External Verifier", "POST security/emergency-lock | emergency-unlock", "Chữ ký bất đối xứng; không JWT/Admin bypass; Gateway không retry"],
-    ["Internal-only", "/internal/v1/users/**; /internal/v1/notifications/**; raw file/bank commands", "Không external route; request ngoài trả 404/403"],
+    ["Internal-only", "users/notification/OTP/raw file/bank ledger/audit reconciliation", "Không external route; request ngoài trả 404/403"],
   ],
   { size: 17 }
 ));
 push(H2("8.2 Bảo vệ tính toàn vẹn và chống chối bỏ"));
 push(P("Sáu lớp phối hợp, mỗi lớp phủ một attack vector khác nhau:"));
 push(numbered("Hash nội dung hợp đồng — SHA-256 toàn bộ ContractTerms lúc ký; mọi state transition sau đó verify hash trước khi proceed. Sửa DB → hash mismatch → operation reject."));
-push(numbered("Chuỗi hash audit trail — previousHash + recordHash; DB user chỉ INSERT + SELECT; verify khi export EUDR và định kỳ hàng tuần."));
+push(numbered("Chuỗi hash audit trail — canonical recordHash + prevHashGlobal + prevHashSubject; AuditAnchor tách riêng; verify trước export DDS-supporting và định kỳ."));
 push(numbered("Hash inspection report — SHA-256(content + timestamp + inspectorId) lúc submit; contract-service verify trước khi advance state; bất biến sau submit."));
-push(numbered("Lưu hash nhiều nơi — signedContentHash và reportHash lưu độc lập ở contract_db, audit_db, và file gửi hai bên; attacker phải compromise cả ba cùng lúc."));
+push(numbered("sourceHash trong audit phải khớp signedContentHash/reportHash và hash trong email anchor; recordHash là chain integrity riêng, không dùng thay sourceHash."));
 push(numbered("Neo timestamp qua email + Bitcoin — email cho hai bên sau mỗi lần ký/submit là điểm neo ngoài platform; OTS neo hash cam kết toàn cục lên Bitcoin, tồn tại độc lập kể cả khi platform sập."));
 push(numbered("Emergency Lock — Zero-Trust Kill Switch cho External Verifier (mới, 08/07/2026) — REST endpoint ký bất đối xứng (RSA/ECDSA), độc lập RabbitMQ, không qua Admin. Chỉ 1 gate chặn (system_lock trước mọi bank.*_requested) vì escrow-service là actor duy nhất gọi bank-service. Đóng băng toàn hệ thống khi External Verifier tự phát hiện tampering qua self-service query hash — không phụ thuộc duy nhất vào job nội bộ platform (chi tiết bank-service §3.5)."));
 push(P([runs("Vì sao hash thay vì blockchain. ", { bold: true }), runs("Platform có trusted operator (hiệp hội/DN triển khai) — bài toán trustless consensus không tồn tại. Sáu lớp phủ được attack vector tương đương blockchain với chi phí thấp hơn nhiều, phù hợp ràng buộc 5 tháng của dự án. Kill Switch thu hẹp — không đóng hoàn toàn — giới hạn collusion Admin+External Verifier vẫn là giới hạn cố hữu của mô hình trusted-operator (§11).", {})]));
@@ -234,13 +245,13 @@ push(table(
     ["mysql (per-service)", "—", "Mỗi dịch vụ một container MySQL riêng; bật binlog ROW cho CDC tương lai"],
     ["MinIO", "—", "Object storage cho file-service"],
     ["Redis", "—", "Cache pricing, rate-limit, token blacklist, pub-sub"],
-    ["SendGrid", "—", "Email + Inbound Parse (report Level 2); thay MailHog"],
+    ["Email + mailbox", "—", "SMTP/SendGrid outbound; MailHog local; intake@ qua IMAP polling của file-service (không inbound webhook)"],
   ],
   { size: 18 }
 ));
 push(P("Tất cả container trên cùng bridge network, giao tiếp bằng service name. Dịch vụ Spring Boot depends_on MySQL và RabbitMQ với condition service_healthy."));
 push(H2("9.2 Hướng tiến hoá hạ tầng"));
-push(P("Các quyết định pragmatic phục vụ phạm vi đồ án, có đường nâng cấp rõ ràng: Docker Compose → Kubernetes (replicas); @Scheduled Outbox Poller → Debezium CDC (đọc binlog thay vì poll); X-Internal-Secret → mTLS; Nginx → Cloudflare WAF; thêm Zipkin + Spring Cloud Sleuth (distributed tracing), ELK (log aggregation), Prometheus + Grafana (metrics)."));
+push(P("Các quyết định pragmatic phục vụ phạm vi đồ án, có đường nâng cấp rõ ràng: Docker Compose → Kubernetes (replicas); @Scheduled Outbox Poller → Debezium CDC (đọc binlog thay vì poll); X-Internal-Secret → mTLS; Nginx → Cloudflare WAF; thêm Micrometer Tracing với OpenTelemetry hoặc Brave, export sang Zipkin/OTLP; ELK (log aggregation); Prometheus + Grafana (metrics)."));
 
 // ============================================================
 // 10. FRONTEND
@@ -299,7 +310,7 @@ push(H3("Nguyên tắc & pattern"));
 ].forEach(s => push(bullet(s)));
 push(H3("Văn bản pháp luật liên quan tới quyết định kiến trúc"));
 [
-  "Luật Giao dịch Điện tử 2023 (20/2023/QH15) — Điều 14.2, 22–23, 34.",
+  "Luật Giao dịch Điện tử 2023 (20/2023/QH15) — Điều 8, khoản 2 Điều 14, Điều 22–23 và Điều 34–36.",
   "Nghị định 52/2024/NĐ-CP — Điều 8 (trung gian thanh toán, bảo mật thông tin).",
   "Nghị định 98/2018/NĐ-CP — Điều 15 (giải quyết tranh chấp).",
   "Bộ luật Dân sự 2015 — Điều 142, 156, 351.",
@@ -313,4 +324,4 @@ const doc = buildDoc(body, {
   headerText: "AgriContract · Kiến trúc kỹ thuật",
   footerText: "v2.0 · Tháng 7/2026",
 });
-Packer.toBuffer(doc).then(buf => { fs.writeFileSync("/tmp/AgriContract_Architecture_v2.docx", buf); console.log("written", buf.length); });
+Packer.toBuffer(doc).then(buf => { writeDocx("/tmp/AgriContract_Architecture_v2.docx", buf); });

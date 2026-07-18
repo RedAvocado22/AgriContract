@@ -11,7 +11,7 @@ metadata:
 
 ## 1. Bối cảnh & Scope
 
-**Analytics-service là một PURE CONSUMER.** Nó không sở hữu bất kỳ quy trình nghiệp vụ lõi nào, không gọi ngược (REST/Feign) về các service khác để lấy dữ liệu. Mọi dữ liệu nó có đều phải đến từ việc "nghe" RabbitMQ events. Lý do thiết kế cứng này: analytics là non-critical path. Dù `analytics-service` có sập hay bị quá tải vì query báo cáo nặng, nó tuyệt đối không được tạo tải ngược (cascading failure) lên `contract-service` hay `bank-service` đang xử lý giao dịch.
+**Analytics-service là event-driven projection kiêm derived-signal producer** (đổi cách gọi 18/07/2026 — "pure consumer" cũ hết đúng từ khi `AmlPatternScanJob` publish `analytics.structuring_pattern_detected`; 2 bất biến THẬT của thiết kế: **không nằm trên transaction critical path** và **không gọi đồng bộ (REST/Feign) ngược về core service**). Nó không sở hữu bất kỳ quy trình nghiệp vụ lõi nào. Mọi dữ liệu nó có đều phải đến từ việc "nghe" RabbitMQ events. Lý do thiết kế cứng này: analytics là non-critical path. Dù `analytics-service` có sập hay bị quá tải vì query báo cáo nặng, nó tuyệt đối không được tạo tải ngược (cascading failure) lên `contract-service` hay `bank-service` đang xử lý giao dịch.
 
 **Mục tiêu (B2B Agritech context):** Cung cấp các chỉ số đo lường sức khoẻ nền tảng có ý nghĩa thật cho Hiệp hội (VICOFA/VRA) và Admin nền tảng, để ra quyết định vĩ mô. Không vẽ dashboard vô thưởng vô phạt. Cụ thể:
 - **Tỷ lệ bẻ kèo (Cancellation/Default Rate):** Đo lường lòng tin vào hợp đồng forward.
@@ -32,14 +32,13 @@ Bởi vì không được gọi Feign ngược, analytics phải tự build mộ
 
 ```sql
 CREATE TABLE dim_contract (
-    contract_id    UUID PRIMARY KEY,
+    contract_id    CHAR(36) PRIMARY KEY,
     commodity      VARCHAR(50) NOT NULL,
-    buyer_id       UUID NOT NULL,
-    seller_id      UUID NOT NULL,
+    buyer_id       CHAR(36) NOT NULL,
+    seller_id      CHAR(36) NOT NULL,
     total_amount   DECIMAL(15,2) NOT NULL,
     signed_at      TIMESTAMP NOT NULL
-);
-```
+);```
 
 **Đã giải quyết (06/07/2026, rà soát lại):** điểm treo trước đây về nguồn `commodity` được chốt bằng cách thêm event mới `contract.signed` vào Event Catalog cấp Contract (`milestone-escrow-phase2-design.md` §7.2), publish đúng 1 lần lúc `Contract.transitionTo(SIGNED)`, payload `{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}`. `dim_contract` được `INSERT` (upsert theo `contract_id`) ngay khi nhận event này — chi tiết ingest ở §3.1 bên dưới. **Cập nhật (08/07/2026):** `commodity` trong payload là enum cứng `COFFEE/RICE/RUBBER/CASHEW`, luôn non-null (analytics chỉ nhận và lưu, không tự map). Cơ chế `commodity` đến từ đâu (`Category.commodity`, admin gán lúc `approve()`, bỏ bảng mapping) chốt ở `product-phase2-design.md` §9 (owner) — không mô tả lại ở đây. Điểm treo mapping trước đây **đã đóng hoàn toàn**.
 
@@ -55,9 +54,9 @@ CREATE TABLE dim_contract (
    ```sql
    -- Bảng Fact cho Milestone
    CREATE TABLE fact_milestone_performance (
-       fact_id                 UUID PRIMARY KEY,
-       contract_id             UUID NOT NULL,
-       milestone_id            UUID NOT NULL,
+       fact_id                 CHAR(36) PRIMARY KEY,
+       contract_id             CHAR(36) NOT NULL,
+       milestone_id            CHAR(36) NOT NULL,
        status                  VARCHAR(20) NOT NULL, -- SETTLED / CANCELLED_WITH_PENALTY
        locked_amount           DECIMAL(15,2) NOT NULL,
        actual_amount           DECIMAL(15,2) NOT NULL,
@@ -69,8 +68,8 @@ CREATE TABLE dim_contract (
 
    -- Bảng Fact cho Contract Cancellation
    CREATE TABLE fact_contract_cancellation (
-       fact_id                 UUID PRIMARY KEY,
-       contract_id             UUID NOT NULL,
+       fact_id                 CHAR(36) PRIMARY KEY,
+       contract_id             CHAR(36) NOT NULL,
        initiated_by            VARCHAR(10) NOT NULL, -- BUYER / SELLER
        cancelled_at            TIMESTAMP NOT NULL
    );
@@ -83,8 +82,8 @@ CREATE TABLE dim_contract (
    -- sự thật riêng ở đúng cấp Contract, lấy thẳng từ event `contract.settled`
    -- (chỉ bắn đúng 1 lần khi TOÀN BỘ milestone đã SETTLED — milestone-escrow §2.2/§7.2).
    CREATE TABLE fact_contract_settlement (
-       fact_id                 UUID PRIMARY KEY,
-       contract_id             UUID NOT NULL,
+       fact_id                 CHAR(36) PRIMARY KEY,
+       contract_id             CHAR(36) NOT NULL,
        settled_at              TIMESTAMP NOT NULL
    );
    CREATE INDEX idx_fact_contract_settlement_time ON fact_contract_settlement(settled_at);
@@ -115,8 +114,7 @@ RabbitMQ đảm bảo at-least-once delivery. Nếu 1 event `milestone.settled` 
 CREATE TABLE analytics_idempotency_log (
     message_id      VARCHAR(255) PRIMARY KEY, -- ID của RabbitMQ message
     processed_at    TIMESTAMP NOT NULL DEFAULT now()
-);
-```
+);```
 
 ### 2.4 Bảng staging cho `has_force_majeure` (mới, 06/07/2026 — bug fix race condition)
 
@@ -126,10 +124,9 @@ CREATE TABLE analytics_idempotency_log (
 
 ```sql
 CREATE TABLE pending_force_majeure_flag (
-    milestone_id    UUID PRIMARY KEY,
+    milestone_id    CHAR(36) PRIMARY KEY,
     flagged_at      TIMESTAMP NOT NULL
-);
-```
+);```
 
 Cơ chế 2 chiều (an toàn bất kể thứ tự event tới, dù thứ tự thực tế luôn là resolved-trước):
 1. Nhận `force_majeure_resolved` (APPROVED) → thử `UPDATE fact_milestone_performance SET has_force_majeure = TRUE WHERE milestone_id = X`. Nếu `rows affected = 0` (row chưa tồn tại — trường hợp thường gặp) → `INSERT` vào `pending_force_majeure_flag`.
@@ -184,26 +181,25 @@ Mỗi khi nhận event từ RabbitMQ, pipeline xử lý phải đi qua bước c
 -- Quét cụm near-threshold theo cặp buyer-seller, cửa sổ 90 ngày.
 SELECT dc.buyer_id, dc.seller_id,
        COUNT(*) AS near_threshold_count,
-       ARRAY_AGG(fcs.contract_id) AS contract_ids
+       JSON_ARRAYAGG(fcs.contract_id) AS contract_ids  -- MySQL 8 (sửa dialect 18/07/2026, ARRAY_AGG là Postgres)
 FROM   fact_contract_settlement fcs
 JOIN   dim_contract dc ON dc.contract_id = fcs.contract_id
-WHERE  fcs.settled_at >= (now() - INTERVAL '90 days')
+WHERE  fcs.settled_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)  -- MySQL 8 (sửa dialect 18/07/2026)
   AND  dc.total_amount >= 475000000      -- [95%, 100%) của ngưỡng 500 triệu
   AND  dc.total_amount <  500000000
 GROUP BY dc.buyer_id, dc.seller_id
-HAVING COUNT(*) >= 5;                     -- min 5 hợp đồng near-threshold cùng cặp
-```
+HAVING COUNT(*) >= 5;                     -- min 5 hợp đồng near-threshold cùng cặp```
 
 **3 tham số (số cứng, không placeholder — dẫn từ ngưỡng luật định 500 triệu, đã public):**
 - **Band near-threshold: `[475 triệu, 500 triệu)`** = `[95%, 100%)` của ngưỡng. Bám sát mép báo cáo. *Band một mình KHÔNG phải tín hiệu* — tín hiệu thật là **clustering low-variance**: nhiều hợp đồng dồn trong dải hẹp sát mép. Cặp làm ăn thật deal to-nhỏ lẫn lộn (ví dụ Doc02: 13,5-135 tỷ), không cluster quanh đúng 490 triệu.
 - **Min count: 5 hợp đồng** near-threshold cùng cặp trong window. Dưới 5 là bằng chứng yếu → false-positive cặp mua lặp hợp pháp.
 - **Lookback: 90 ngày.** Phải dài hơn hẳn cửa sổ realtime (48-72h) vì bắt slow-drip. Neo ~1 chu kỳ vụ; dài hơn thì vắt qua nhiều mùa không liên quan (nhiễu), ngắn hơn thì lọt kẻ rải mỏng.
 
-**Output — publish event, KHÔNG tự quyết định gì:** bắt cụm → `analytics-service` publish `analytics.structuring_pattern_detected`. `analytics-service` là pure consumer/read-model (§6), **không** tự hold giao dịch, **không** tự flag reputation, **không** tự báo cáo cơ quan — chỉ phát hiện và phát tín hiệu. Ai xử lý là việc của consumer.
+**Output — publish event, KHÔNG tự quyết định gì:** bắt cụm → `analytics-service` publish `analytics.structuring_pattern_detected`. `analytics-service` là **event-driven projection kiêm derived-signal producer** (sửa cách gọi 18/07/2026 — "pure consumer" cũ không còn chính xác vì job này publish event; điểm bất biến thật là: không nằm trên transaction critical path, không gọi sync ngược core service), **không** tự hold giao dịch, **không** tự flag reputation, **không** tự báo cáo cơ quan — chỉ phát hiện và phát tín hiệu. Ai xử lý là việc của consumer.
 
 | Event | Payload | Consumers |
 |---|---|---|
-| `analytics.structuring_pattern_detected` | `{buyerId, sellerId, contractIds[], nearThresholdCount, windowStart, windowEnd, detectedAt}` | **`reputation-service`** (set cặp `ELEVATED_RISK` — `reputation-service-phase2-design.md` §8) · **`bank-service`** (báo cáo giao dịch khả nghi cho cơ quan — nghĩa vụ Luật PCRT 2022, đúng chủ thể pháp lý giữ tiền; consumer cần thêm vào `bank-service-phase2-design.md`) |
+| `analytics.structuring_pattern_detected` | `{buyerId, sellerId, contractIds[], nearThresholdCount, windowStart, windowEnd, detectedAt}` | **`reputation-service`** (set cặp `ELEVATED_RISK` — `reputation-service-phase2-design.md` §8) · **`bank-service`** (báo cáo giao dịch khả nghi cho cơ quan — nghĩa vụ Luật PCRT 2022, đúng chủ thể pháp lý giữ tiền; consumer đã có trong `bank-service-phase2-design.md` §3.4b (cập nhật 18/07/2026 — bỏ trạng thái "cần thêm")) |
 
 **Giới hạn cấu trúc (ghi rõ, không cố lấp):** batch chỉ thấy hình sau khi các mảnh **đã settle** — vài hợp đồng đầu (trước khi đủ cụm ≥5) chắc chắn lọt, tiền đã đi. Không thiết kế nào bắt được mảnh đầu của một pattern chưa thành hình. Batch **không** cứu one-shot nhỏ lẻ (1 hợp đồng dưới ngưỡng rồi biến — không đủ cụm). Nó chỉ đóng đúng phần slow-drip *có lặp lại* — xem `reputation-service-phase2-design.md` §9 để biết residual còn lại.
 
@@ -280,14 +276,14 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 1.  **Eventual Consistency & Data Lag (Độ trễ dữ liệu):** Dữ liệu trên Dashboard sẽ không khớp tới từng VNĐ ngay thời điểm hiện tại so với `bank-service` hay `contract-service`. Có hai lớp lag:
     * *Lag hệ thống:* Độ trễ của RabbitMQ (thường là mili-giây, nhưng có thể lâu hơn nếu queue kẹt).
     * *Lag nghiệp vụ:* Bảng `agg_monthly_commodity_stats` chỉ được cập nhật qua batch job 1:00 AM. Những thay đổi trong ngày hôm nay sẽ không phản ánh vào các biểu đồ chia rate (%) cho tới ngày mai.
-2.  **Không có Historical Backfill (Dữ liệu quá khứ trống không):** Vì service này là một *pure consumer* không có API gọi ngược, nếu deploy `analytics-service` vào giữa Phase 2 (tháng thứ 3 chẳng hạn), nó sẽ chỉ bắt đầu ghi nhận data từ ngày deploy. Các hợp đồng đã SETTLED ở tháng 1, tháng 2 sẽ không tồn tại trên dashboard trừ khi ta viết script thủ công tái phát (replay) event từ `audit-service` đẩy vào lại RabbitMQ. Đây là cái giá thật của event-driven architecture.
+2.  **Không có Historical Backfill (Dữ liệu quá khứ trống không):** Vì service này không có API gọi ngược (event-driven projection), nếu deploy `analytics-service` vào giữa Phase 2 (tháng thứ 3 chẳng hạn), nó sẽ chỉ bắt đầu ghi nhận data từ ngày deploy. Các hợp đồng đã SETTLED ở tháng 1, tháng 2 sẽ không tồn tại trên dashboard trừ khi ta viết script thủ công tái phát (replay) event từ `audit-service` đẩy vào lại RabbitMQ. Đây là cái giá thật của event-driven architecture.
 3.  **Không bắt được thay đổi cấu trúc bảng cũ:** Nếu `milestone-escrow` quyết định sửa lịch sử giao dịch (data fix tay bằng SQL từ phía Admin), event RabbitMQ không được sinh ra, dẫn đến `analytics-service` sẽ vĩnh viễn bị lệch số so với DB gốc.
 
 ---
 
 ## 6. Status — Analytics-service Design
 
-**Chốt (06/07/2026):** `analytics-service` là pure consumer, cqrs read-model, không phụ thuộc đồng bộ vào service nào. Áp dụng mô hình Star Schema thu nhỏ: `fact` tables (lưu event thô incremental, giải quyết nghẽn ghi) + `agg` tables (pre-computed định kỳ 1:00 AM bằng `@Scheduled`, giải quyết nghẽn đọc/tính toán %). Bắt buộc có bảng Log Idempotency theo `message_id` để tránh at-least-once làm lặp số. Metric tập trung hoàn toàn vào B2B value (cancellation, force majeure, escrow effectiveness). Chấp nhận độ trễ (data lag) và trống data quá khứ lúc mới deploy làm tradeoff.
+**Chốt (06/07/2026, cách gọi sửa 18/07/2026):** `analytics-service` là event-driven projection/CQRS read-model kiêm derived-signal producer (không critical path, không sync ngược core), không phụ thuộc đồng bộ vào service nào. Áp dụng mô hình Star Schema thu nhỏ: `fact` tables (lưu event thô incremental, giải quyết nghẽn ghi) + `agg` tables (pre-computed định kỳ 1:00 AM bằng `@Scheduled`, giải quyết nghẽn đọc/tính toán %). Bắt buộc có bảng Log Idempotency theo `message_id` để tránh at-least-once làm lặp số. Metric tập trung hoàn toàn vào B2B value (cancellation, force majeure, escrow effectiveness). Chấp nhận độ trễ (data lag) và trống data quá khứ lúc mới deploy làm tradeoff.
 
 **Sửa (06/07/2026, rà soát lại sau khi đóng session lần đầu) — 4 vấn đề phát hiện, cả 4 đã fix trong bản này:**
 1. `total_contracts_settled` không thể tính đúng từ `fact_milestone_performance` (sai granularity: Milestone ≠ Contract) → thêm `fact_contract_settlement`, populate từ event `contract.settled` (§2.2, §3.3).
@@ -297,7 +293,7 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 
 **Nguồn `commodity` đã đóng hoàn toàn (08/07/2026):** `commodity` non-null, đọc từ `Category.commodity`. Cơ chế chốt ở `product-phase2-design.md` §9 (owner).
 
-**Chốt bổ sung (10/07/2026) — `AmlPatternScanJob` đóng gap structuring chậm (§3.5):** thêm job batch AML riêng (KHÔNG gộp `MonthlyAggregationJob`) quét cụm near-threshold `[475tr, 500tr)`, min 5 hợp đồng/cặp, lookback 90 ngày, JOIN `dim_contract` (đã có `total_amount`/`buyer_id`/`seller_id`) — **không** thêm cột vào `fact_contract_settlement`, tránh sửa payload `contract.settled`. Bắt cụm → publish `analytics.structuring_pattern_detected`; `analytics-service` chỉ phát hiện, không tự hold/flag/báo cáo (pure consumer). Consumer: `reputation-service` (ELEVATED_RISK) + `bank-service` (báo cáo cơ quan). Đóng đúng phần slow-drip có lặp mà 2 tầng realtime của `reputation-service` (§8) không bắt được; residual (vài mảnh đầu + one-shot nhỏ lẻ) ghi rõ ở `reputation-service-phase2-design.md` §9.
+**Chốt bổ sung (10/07/2026) — `AmlPatternScanJob` đóng gap structuring chậm (§3.5):** thêm job batch AML riêng (KHÔNG gộp `MonthlyAggregationJob`) quét cụm near-threshold `[475tr, 500tr)`, min 5 hợp đồng/cặp, lookback 90 ngày, JOIN `dim_contract` (đã có `total_amount`/`buyer_id`/`seller_id`) — **không** thêm cột vào `fact_contract_settlement`, tránh sửa payload `contract.settled`. Bắt cụm → publish `analytics.structuring_pattern_detected`; `analytics-service` chỉ phát hiện, không tự hold/flag/báo cáo (derived-signal producer — không critical path, không sync ngược). Consumer: `reputation-service` (ELEVATED_RISK) + `bank-service` (báo cáo cơ quan). Đóng đúng phần slow-drip có lặp mà 2 tầng realtime của `reputation-service` (§8) không bắt được; residual (vài mảnh đầu + one-shot nhỏ lẻ) ghi rõ ở `reputation-service-phase2-design.md` §9.
 
 Analytics-service — **ĐÓNG SESSION HOÀN TOÀN, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** Điểm treo mapping `commodity` đã đóng hoàn toàn (08/07/2026, §2.3) — `commodity` non-null đọc từ `Category.commodity`, cơ chế chốt ở `product-phase2-design.md` §9. Không còn điểm treo.
 

@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { writeDocx } = require("./docx_output.js");
 const { D, T, runs, P, H1, H2, H3, bullet, numbered, quote, callout, legal, risk, src, table, spacer, cover, toc, endMark, buildDoc } = require("./acdocx.js");
 const { Packer, AlignmentType } = D;
 
@@ -14,28 +15,29 @@ push(...toc());
 // 0. EXEC SUMMARY
 // ============================================================
 push(H1("Tóm tắt điều hành"));
-push(P("AgriContract số hoá vòng đời hợp đồng mua bán nông sản B2B — từ đàm phán điều khoản, ký kết điện tử, giữ tiền ký quỹ theo từng đợt giao hàng, đến giải ngân sau khi xác nhận giao nhận. Toàn bộ thao tác ghi vào audit trail bất biến, có giá trị làm bằng chứng pháp lý và xuất được cho kiểm toán EUDR."));
-push(P("Điểm khác biệt cốt lõi của mô hình là cơ chế tự thực thi được thiết kế bám sát ba đặc thù của ngành. Thứ nhất, tiền ký quỹ được khoá theo từng đợt giao hàng (milestone) thay vì khoá toàn bộ giá trị hợp đồng ngay từ đầu — giải quyết áp lực vốn lưu động ở quy mô thương mại. Thứ hai, bên bán (HTX) mặc định không phải nộp tiền cọc — ràng buộc chính đến từ uy tín tích luỹ và cơ chế khoá tài khoản, phù hợp thực tế phần lớn HTX không có tiền mặt ứng trước; tuy nhiên hai bên có thể tự đàm phán một khoản cọc nhỏ của bên bán nếu bên mua thấy cần, tuỳ mức độ tin tưởng với đối tác cụ thể. Thứ ba, tranh chấp được giải quyết phân tầng theo giá trị và độ phức tạp hàng hoá, với giám định viên độc lập ở hai cấp bên ngoài — giải quyết trong ngày thay vì trong năm."));
+push(P("AgriContract số hoá vòng đời hợp đồng mua bán nông sản B2B — từ đàm phán điều khoản, ký kết điện tử, giữ tiền ký quỹ theo từng đợt giao hàng, đến giải ngân sau khi xác nhận giao nhận. Các quyết định và số liệu có khả năng tranh chấp được ghi vào audit trail bất biến, tối giản PII, có thể xuất thành gói bằng chứng hỗ trợ DDS phục vụ chứng cứ pháp lý và kiểm toán EUDR."));
+push(P("Điểm khác biệt cốt lõi của mô hình là cơ chế tự thực thi được thiết kế bám sát ba đặc thù của ngành. Thứ nhất, tiền ký quỹ được khoá theo từng đợt giao hàng (milestone) thay vì khoá toàn bộ giá trị hợp đồng ngay từ đầu — giải quyết áp lực vốn lưu động ở quy mô thương mại. Thứ hai, bên bán (HTX) mặc định không phải nộp tiền cọc — uy tín tích luỹ và cơ chế khoá tài khoản là lớp ràng buộc bổ sung, hiệu lực phụ thuộc mật độ mạng lưới, giao dịch lặp lại và khả năng liên thông chế tài; hai bên vẫn có thể tự đàm phán một khoản cọc nhỏ của bên bán nếu bên mua thấy cần, tuỳ mức độ tin tưởng với đối tác cụ thể. Thứ ba, tranh chấp được giải quyết phân tầng theo giá trị và độ phức tạp hàng hoá, với giám định viên độc lập ở hai cấp bên ngoài — mục tiêu rút ngắn thời gian thu thập bằng chứng và xử lý nội bộ so với tố tụng kéo dài; SLA thực tế còn phụ thuộc tổ chức giám định và mức độ tranh chấp."));
 push(P("Nền tảng không tự giữ tiền: tiền do ngân hàng giữ với vai trò định chế được cấp phép, nền tảng chỉ ra lệnh khoá/giải ngân/phạt. Cấu trúc này loại bỏ rủi ro pháp lý nghiêm trọng nhất — cung ứng dịch vụ trung gian thanh toán không phép. Về dài hạn, audit trail tích luỹ trở thành lịch sử tín dụng có thể xác minh, là hạ tầng dữ liệu cho tín dụng nông nghiệp dựa trên dữ liệu giao dịch thay vì tài sản thế chấp."));
 
 // ============================================================
 // 1. PRODUCT DEFINITION
 // ============================================================
 push(H1("1. Định nghĩa sản phẩm"));
-push(P("AgriContract là nền tảng số hoá hợp đồng mua bán nông sản B2B với cơ chế ký quỹ tự thực thi. Hợp đồng điện tử trên nền tảng có giá trị pháp lý tương đương hợp đồng giấy theo Luật Giao dịch Điện tử 2023."));
+push(P("AgriContract là nền tảng số hoá hợp đồng mua bán nông sản B2B với cơ chế tiền cọc và tiền phong toả do ngân hàng giữ. Hợp đồng không bị phủ nhận giá trị pháp lý chỉ vì được giao kết và lưu trữ bằng phương tiện điện tử; hiệu lực vẫn phụ thuộc các điều kiện chung của giao dịch, pháp luật về hợp đồng và quy định có liên quan."));
 push(P([runs("Phạm vi giới hạn có chủ đích ở tầng hợp đồng. ", { bold: true }), runs("AgriContract không xử lý logistics, không phải sàn thương mại điện tử, không thay thế hệ thống kế toán doanh nghiệp. Phần mềm giải quyết một vấn đề cụ thể — thiếu cơ chế tự thực thi trong giao dịch forward contract nông sản B2B — và không có tham vọng giải quyết toàn bộ chuỗi cung ứng.", {})]));
-push(legal("Luật GDĐT 2023, Điều 34 và Điều 14.2", "Giá trị pháp lý của hợp đồng điện tử không thể bị phủ nhận chỉ vì được thể hiện dưới dạng thông điệp dữ liệu (Điều 34). Giá trị chứng cứ của thông điệp dữ liệu được xác định dựa trên độ tin cậy của phương thức khởi tạo, lưu trữ và bảo toàn tính nguyên vẹn (Điều 14.2)."));
+push(legal("Luật GDĐT 2023, Điều 8, Điều 14 và Điều 34–36", "Thông tin không bị phủ nhận giá trị pháp lý chỉ vì ở dạng thông điệp dữ liệu; việc giao kết và thực hiện hợp đồng điện tử vẫn phải tuân thủ pháp luật về hợp đồng và quy định liên quan. Audit trail có thể được sử dụng làm chứng cứ, với giá trị phụ thuộc độ tin cậy của phương thức tạo lập, gửi, nhận, lưu trữ và bảo toàn tính toàn vẹn."));
 
 // ============================================================
 // 2. FIVE USER TIERS
 // ============================================================
 push(H1("2. Năm tầng người dùng"));
+push(P("Các tầng stakeholder không đồng nhất với role runtime. Keycloak có năm role BUYER, SELLER, INSPECTOR, OPERATOR và ADMIN. OPERATOR xử lý công việc vận hành hằng ngày có thể đảo ngược như KYC, review, moderation và nhập giá thủ công; ADMIN giữ các quyết định rủi ro cao, security/audit và bước approve maker-checker. External Verifier và System là actor kỹ thuật, không phải role người dùng thông thường."));
 push(P("Nền tảng có năm nhóm người dùng với quan hệ pháp lý và quyền hạn hoàn toàn khác nhau. Nhầm lẫn giữa các tầng này dẫn đến hiểu sai về mô hình doanh thu, cơ chế trust và phân tích rủi ro pháp lý."));
 push(table(
   [1500, 2900, 5238],
   ["Tầng", "Chủ thể", "Vai trò"],
   [
-    [["Tầng 1", "Software Buyer"], "Hiệp hội ngành hàng (VICOFA, VRA, VINACAS) hoặc doanh nghiệp thu mua lớn (Intimex, Phúc Sinh Group, XNK 2/9 Đắk Lắk)", "Trả phí license/subscription — nguồn doanh thu của nền tảng. Triển khai nền tảng cho cộng đồng thành viên; chỉ định Admin vận hành"],
+    [["Tầng 1", "Software Buyer"], "Hiệp hội ngành hàng (VICOFA, VRA, VINACAS) hoặc doanh nghiệp thu mua lớn (Intimex, Phúc Sinh Group, XNK 2/9 Đắk Lắk)", "Trả phí license/subscription — nguồn doanh thu của nền tảng. Triển khai cho cộng đồng thành viên; chỉ định OPERATOR vận hành hằng ngày và ADMIN kiểm soát hành động rủi ro cao"],
     [["Tầng 2", "Platform Buyer"], "Doanh nghiệp thu mua, tập đoàn xuất khẩu nông sản (nhiều trường hợp trùng Tầng 1)", "Khởi tạo offer và đàm phán điều khoản; khoá tiền ký quỹ trước khi bên bán giao hàng; xác nhận nhận hàng để kích hoạt giải ngân"],
     [["Tầng 3", "Platform Seller"], "Hợp tác xã nông sản, nông hộ liên kết, doanh nghiệp cung ứng nguyên liệu", "Đăng listing sau khi được xác minh; đàm phán và ký hợp đồng điện tử; giao hàng và nhận thanh toán. Nhóm được cơ chế ký quỹ bảo vệ trực tiếp nhất"],
     [["Tầng 4", "INSPECTOR"], "Tổ chức giám định được Nhà nước công nhận: Vinacontrol, Quatest, SGS, Bureau Veritas, Intertek", "Nhân chứng chuyên môn độc lập, không phải người phán xử. Xác định số lượng/chất lượng tại điểm giao nhận; nộp inspection report có hash xác thực, không sửa được sau khi submit"],
@@ -46,9 +48,9 @@ push(table(
 push(P([runs("Vì sao bán cho hiệp hội, không bán trực tiếp cho HTX. ", { bold: true }), runs("HTX nhỏ không mua phần mềm. Hiệp hội hoặc doanh nghiệp thu mua lớn triển khai nền tảng, thành viên của họ sử dụng. Cách này cũng giải quyết bài toán niềm tin: HTX không cần tin một startup mới — họ tin VICOFA/VRA đã triển khai nền tảng. Khi ngân hàng giữ tiền, niềm tin hoàn toàn độc lập với uy tín thương hiệu của nền tảng.", {})]));
 
 push(H3("Xử lý xung đột lợi ích khi Tầng 1 và Tầng 2 trùng nhau"));
-push(P("Khi doanh nghiệp thu mua vừa mua license vừa là bên mua hàng trên nền tảng, Admin của họ có xung đột lợi ích trong vai trò xử lý tranh chấp. Hai cơ chế kiểm soát:"));
-push(numbered("Tranh chấp giá trị lớn hoặc hàng hoá phức tạp bắt buộc kích hoạt INSPECTOR độc lập — Admin chỉ thực thi kết quả giám định, không được ra phán quyết độc lập."));
-push(numbered("Mọi quyết định của Admin được ghi vào audit trail không thể xoá/sửa sau khi submit; hành động override bị đánh dấu vĩnh viễn."));
+push(P("Khi doanh nghiệp thu mua vừa mua license vừa là bên mua hàng trên nền tảng, đội vận hành do họ chỉ định có xung đột lợi ích trong vai trò xử lý tranh chấp. Hai cơ chế kiểm soát:"));
+push(numbered("Tranh chấp giá trị lớn hoặc hàng hoá phức tạp bắt buộc kích hoạt INSPECTOR độc lập — OPERATOR/ADMIN được ủy quyền chỉ thực thi kết quả giám định, không được ra phán quyết độc lập."));
+push(numbered("Mọi quyết định vận hành của OPERATOR/ADMIN được ghi vào audit trail không thể xoá/sửa sau khi submit; hành động override bị đánh dấu vĩnh viễn."));
 push(P("Khuyến nghị vận hành: ưu tiên triển khai qua hiệp hội ngành hàng — bên trung lập, không có lợi ích đối lập với Buyer hay Seller trong từng giao dịch — để loại bỏ xung đột lợi ích ngay từ mô hình phân phối."));
 
 // ============================================================
@@ -62,7 +64,7 @@ push(table(
   [1000, 4700, 2100, 1838],
   ["Bước", "Hành động", "Trạng thái hợp đồng", "Ký quỹ"],
   [
-    ["1", "Bên bán đăng listing sau khi Admin xác minh tư cách pháp nhân và gắn dữ liệu geolocation cho lô hàng", "LISTED", "—"],
+    ["1", "Bên bán đăng listing sau khi OPERATOR/ADMIN được ủy quyền xác minh tư cách pháp nhân và gắn dữ liệu geolocation cho lô hàng", "LISTED", "—"],
     ["2", "Bên mua gửi offer đề xuất điều khoản", "OFFERED", "—"],
     ["3", "Hai bên đàm phán điều khoản, gồm lịch giao hàng theo đợt (milestone schedule) và các tỷ lệ penalty/tolerance; mọi thay đổi ghi vào audit trail", "NEGOTIATING", "—"],
     ["4", "Hai bên ký điện tử (xác thực lại phiên + OTP). Cọc skin-in-the-game của bên mua được khoá một lần", "SIGNED", "buyerDepositRate khoá"],
@@ -91,7 +93,11 @@ push(table(
   { size: 18 }
 ));
 push(src("Lãi suất vay vốn lưu động doanh nghiệp 2025–2026: 6,8–9%/năm (ACB); lãi suất cho vay bình quân 10/2025 ~6,55%/năm (NHNN)."));
-push(P([runs("Đòn bẩy vốn bổ sung: ", { bold: true }), runs("khi ngân hàng tích hợp trực tiếp, HTX có thể dùng hợp đồng forward đang active — với ký quỹ đã khoá từ phía bên mua — làm bằng chứng dòng tiền tương lai để vay vốn lưu động trong vụ. Hợp đồng có ký quỹ = dòng tiền xác định = tài sản thế chấp thay thế. Agribank đang thử nghiệm cơ chế tín dụng chuỗi giá trị theo hướng này.", {})]));
+push(H3("3.2.1 Mức cọc 5% là tham số khởi điểm, không phải kết quả tối ưu đã được chứng minh"));
+push(P("Mức buyerDepositRate mặc định 5% chỉ là giả thuyết cấu hình cho MVP. Nó không thể tự bảo đảm thực hiện hợp đồng khi giá spot tăng 30%, 50% hoặc 100%; tác động hành vi phụ thuộc đồng thời vào penalty có thể thu, chi phí uy tín, thời gian khoá và giá trị quan hệ tương lai."));
+push(P([runs("U_phá_hợp_đồng = Q × (P_thị_trường − P_hợp_đồng) − Penalty − C_uy_tín − C_khoá", { bold: true, color: T.SUB })], { align: AlignmentType.CENTER }));
+push(P("Một bên có động lực phá hợp đồng khi lợi ích chênh lệch giá còn dương sau khi trừ toàn bộ chi phí. Vì vậy pilot phải chạy sensitivity analysis theo độ tăng giá, tỷ lệ cọc, xác suất penalty thực sự thu được, số hợp đồng tương lai bị mất và mức độ chia sẻ uy tín giữa các buyer. Kết quả dùng để hiệu chỉnh cấu hình; không hardcode 5% thành quy tắc tối ưu cho mọi ngành và mọi cặp đối tác."));
+push(P([runs("Đòn bẩy vốn bổ sung: ", { bold: true }), runs("khi ngân hàng tích hợp trực tiếp, HTX có thể dùng hợp đồng forward đang active — với ký quỹ đã khoá từ phía bên mua — làm bằng chứng dòng tiền tương lai để đề nghị vay vốn lưu động. Hợp đồng và ledger giúp tăng chất lượng hồ sơ dòng tiền, nhưng không tự động trở thành tài sản bảo đảm hay cam kết cấp tín dụng; quyết định tín dụng vẫn thuộc ngân hàng.", {})]));
 
 push(H2("3.3 Giao hàng từng phần và quyết toán pro-rata"));
 push(P("Hao mòn trong vận chuyển nông sản là không thể tránh khỏi — giao 95 tấn thay vì 100 tấn không đương nhiên là vi phạm hợp đồng. Mỗi đợt giao hàng được xác định qua hai phép cân, tạo ra hai loại sai lệch cần xử lý khác nhau:"));
@@ -114,12 +120,12 @@ push(table(
   ],
   { size: 18, colAlign: [AlignmentType.CENTER, null, null] }
 ));
-push(P("Quyết toán pro-rata tự động khi sai lệch nằm trong ngưỡng đã thoả thuận — không cần Admin can thiệp. Chỉ khi bên mua chủ động flag vấn đề (thiếu cân hoặc sai chất lượng) thì đợt giao hàng mới đi vào luồng phản hồi/tranh chấp."));
+push(P("Quyết toán pro-rata tự động khi sai lệch nằm trong ngưỡng đã thoả thuận — không cần người vận hành can thiệp. Chỉ khi bên mua chủ động flag vấn đề (thiếu cân hoặc sai chất lượng) thì đợt giao hàng mới đi vào luồng phản hồi/tranh chấp."));
 
 push(H2("3.4 Bất khả kháng"));
 push(P("Bất khả kháng phải hội đủ ba điều kiện: khách quan, không thể lường trước, và không thể khắc phục dù đã nỗ lực hết mức. Mất mùa hay sâu bệnh thông thường không đạt ngưỡng này — chỉ thiên tai lớn (lũ, bão), dịch bệnh, hoặc lệnh cấm của nhà nước mới đủ điều kiện. Hệ quả pháp lý: các bên tự chịu thiệt hại của mình, không bên nào được đòi bồi thường — hợp đồng giảm xuống đúng số lượng thực giao."));
-push(P("Thời điểm báo cáo neo theo lúc bên bán biết về sự kiện, không neo theo ngày giao hàng. Bên bán phải khai trong một cửa sổ thời gian ngắn (mặc định 3 ngày) kể từ lúc biết. Bằng chứng bắt buộc gồm xác nhận thiên tai của chính quyền địa phương, ảnh, tin tức — Admin xác minh trước khi công nhận, không tự động miễn chỉ vì bên bán khai."));
-push(P([runs("Quyền phản đối đối xứng hai chiều. ", { bold: true }), runs("Bên mua có quyền phản đối quyết định công nhận bất khả kháng (nghi ngờ bên bán không thực sự gặp thiên tai); bên bán có quyền phản đối quyết định bác (cho rằng Admin đánh giá sai mức độ). Cả hai cùng được đẩy lên giám định cấp địa phương (Level 1.5) làm cấp cuối. Đối xứng này là cần thiết vì Admin có thể gần phía bên mua hơn về cấu trúc trong mô hình triển khai của doanh nghiệp — nếu chỉ bên mua được phản đối, một Admin thiên vị có thể liên tục bác claim thật của bên bán mà không ai kiểm tra lại.", {})]));
+push(P("Thời điểm báo cáo neo theo lúc bên bán biết về sự kiện, không neo theo ngày giao hàng. Bên bán phải khai trong một cửa sổ thời gian ngắn (mặc định 3 ngày) kể từ lúc biết. Bằng chứng bắt buộc gồm xác nhận thiên tai của chính quyền địa phương, ảnh, tin tức — OPERATOR/ADMIN được ủy quyền review trước khi công nhận, không tự động miễn chỉ vì bên bán khai."));
+push(P([runs("Quyền phản đối đối xứng hai chiều. ", { bold: true }), runs("Bên mua có quyền phản đối quyết định công nhận bất khả kháng; bên bán có quyền phản đối quyết định bác nếu cho rằng người vận hành đánh giá sai mức độ. Cả hai cùng được đẩy lên giám định cấp địa phương (Level 1.5) làm cấp cuối. Đối xứng này là cần thiết vì đội vận hành của deployment có thể gần phía bên mua hơn về cấu trúc — nếu chỉ bên mua được phản đối, một quyết định thiên vị có thể lặp lại mà không có lớp kiểm tra độc lập.", {})]));
 push(legal("Bộ luật Dân sự 2015, Điều 156 và Điều 351", "Sự kiện bất khả kháng là sự kiện xảy ra khách quan, không thể lường trước và không thể khắc phục dù đã áp dụng mọi biện pháp cần thiết. Bên có nghĩa vụ không phải chịu trách nhiệm dân sự trong phạm vi sự kiện bất khả kháng gây ra."));
 
 push(H2("3.5 Huỷ hợp đồng và penalty"));
@@ -148,27 +154,27 @@ push(bullet([runs("Khoá theo đợt, không khoá cả cục. ", { bold: true }
 push(P([runs("Lợi ích phái sinh — hồ sơ tín dụng: ", { bold: true }), runs("chuỗi hợp đồng đã thực hiện trên nền tảng (ký số, ledger đối soát được, lịch sử nghiệm thu) chính là loại bằng chứng mà phía ngân hàng cần để tự tin giải ngân cho liên kết chuỗi — đúng khuyến nghị lập hợp đồng chuỗi ràng buộc trách nhiệm đã dẫn ở tài liệu Phân tích thị trường. Nền tảng không xây sản phẩm tín dụng trong phạm vi đồ án; đây là giá trị dữ liệu mở ra cho HTX khi làm việc với tổ chức tín dụng.", {})]));
 
 push(H1("4. Giám định độc lập — INSPECTOR ba cấp"));
-push(P("Phán quyết dựa trên nhận định chủ quan của Admin không đủ tin cậy cho hợp đồng giá trị cao hoặc hàng hoá phức tạp; nhưng áp phí giám định quốc tế cho mọi hợp đồng lại không thực tế về kinh tế. Hệ thống giải quyết cả hai vế bằng phân tầng theo giá trị kết hợp định giá linh hoạt. Cấp giám định được xác định tự động theo giá trị hợp đồng, loại hàng hoá và yếu tố xuất khẩu EU — cấu hình theo từng deployment, không hardcode trong logic nghiệp vụ."));
+push(P("Nhận định chủ quan của vận hành nội bộ không đủ tin cậy cho hợp đồng giá trị cao hoặc hàng hoá phức tạp; nhưng áp phí giám định quốc tế cho mọi hợp đồng lại không thực tế về kinh tế. Hệ thống giải quyết cả hai vế bằng phân tầng theo giá trị kết hợp định giá linh hoạt. Cấp giám định được xác định tự động theo giá trị hợp đồng, loại hàng hoá và yếu tố xuất khẩu EU — cấu hình theo từng deployment, không hardcode trong logic nghiệp vụ."));
 push(table(
   [1900, 3400, 2400, 1938],
   ["Cấp", "Tổ chức", "Điều kiện kích hoạt (OR)", "Phí giám định"],
   [
-    [["Level 1", "Admin nội bộ"], "Admin của deployment", "Giá trị nhỏ VÀ hàng hoá thông thường", "Không có"],
+    [["Level 1", "Vận hành nội bộ"], "OPERATOR hoặc ADMIN được ủy quyền", "Giá trị nhỏ VÀ hàng hoá thông thường", "Không có"],
     [["Level 1.5", "Giám định địa phương"], "Vinacontrol, Quatest, trung tâm kiểm định tỉnh được Nhà nước công nhận — là actor thật trên nền tảng, có tài khoản và ký báo cáo", "Giá trị trung bình HOẶC cần xác nhận khối lượng/chất lượng cơ bản", "inspectionFeeRate × contractValue (vd 0,1–0,3%)"],
     [["Level 2", "Giám định quốc tế"], "SGS, Bureau Veritas, Intertek — tổ chức quốc tế, report tự thân đủ uy tín; nền tảng chỉ tiếp nhận và bảo vệ tính toàn vẹn file", "Giá trị lớn HOẶC hàng hoá phức tạp (cà phê specialty, cao su kỹ thuật, điều xuất khẩu EU)", "inspectionFeeRate × contractValue (vd 0,2–0,5%)"],
   ],
   { size: 18 }
 ));
-push(P([runs("Hai mô hình định danh khác nhau, không phải hai mức độ nghiêm trọng của cùng một thứ. ", { bold: true }), runs("Level 1.5 là tổ chức quy mô tỉnh, quan hệ hợp đồng dịch vụ trực tiếp với nền tảng khả thi — trở thành actor thật, có tài khoản đăng nhập, KYC xác minh chứng chỉ hành nghề kiểm định. Level 2 là tập đoàn quốc tế không tích hợp đăng nhập vào một nền tảng agritech Việt Nam — và không cần, vì uy tín report của họ tự thân đã đủ; nền tảng chỉ cần bảo vệ tính toàn vẹn của file sau khi nhận, qua hòm thư tiếp nhận tự động rồi Admin xác nhận.", {})]));
-push(P("Cơ chế vận hành chung: INSPECTOR nộp report có hash xác thực, không sửa được sau khi submit. Admin thực thi giải ngân theo report, không được override; override bị đánh dấu vĩnh viễn trong audit trail. Cả hai bên deposit phí giám định vào ký quỹ trước khi INSPECTOR được assign; bên thua tranh chấp chịu toàn bộ, phán quyết 50/50 thì chia đôi."));
-push(P([runs("Kiểm soát chọn tổ chức Level 2. ", { bold: true }), runs("Tổ chức Level 2 được đàm phán vào điều khoản lúc ký, nhưng không thả tự do: chỉ chấp nhận ba nhóm — tổ chức quốc tế lớn có danh sách cứng, tổ chức trong nước xác minh qua số chứng nhận công nhận (BoA-VIAS), và tổ chức lạ thì Admin duyệt từng trường hợp và không lưu vào danh sách dùng chung. Điều này chặn kịch bản hai bên thông đồng tự chọn một tổ chức dễ dãi.", {})]));
-push(legal("Nghị định 98/2018/NĐ-CP, Điều 15", "Cho phép các bên lựa chọn phương thức phù hợp để giải quyết tranh chấp — thương lượng, hoà giải hoặc trọng tài. Hoà giải nội bộ do Admin thực hiện là hợp lệ khi hai bên đã đồng ý điều khoản này trong Điều khoản dịch vụ trước khi kích hoạt tài khoản."));
+push(P([runs("Hai mô hình định danh khác nhau, không phải hai mức độ nghiêm trọng của cùng một thứ. ", { bold: true }), runs("Level 1.5 là tổ chức quy mô tỉnh, quan hệ hợp đồng dịch vụ trực tiếp với nền tảng khả thi — trở thành actor thật, có tài khoản đăng nhập, KYC xác minh chứng chỉ hành nghề kiểm định. Level 2 là tập đoàn quốc tế không tích hợp đăng nhập vào một nền tảng agritech Việt Nam — và không cần, vì uy tín report của họ tự thân đã đủ; nền tảng chỉ cần bảo vệ tính toàn vẹn của file sau khi nhận, qua hòm thư tiếp nhận tự động rồi OPERATOR/ADMIN được ủy quyền xác nhận.", {})]));
+push(P("Cơ chế vận hành chung: INSPECTOR nộp report có hash xác thực, không sửa được sau khi submit. OPERATOR/ADMIN được ủy quyền thực thi giải ngân theo report, không được tự đổi kết luận; mọi override trái workflow bị đánh dấu vĩnh viễn trong audit trail. Cả hai bên deposit phí giám định vào ký quỹ trước khi INSPECTOR được assign; bên thua tranh chấp chịu toàn bộ, phán quyết 50/50 thì chia đôi."));
+push(P([runs("Kiểm soát chọn tổ chức Level 2. ", { bold: true }), runs("Tổ chức Level 2 được đàm phán vào điều khoản lúc ký, nhưng không thả tự do: chỉ chấp nhận ba nhóm — tổ chức quốc tế lớn có danh sách cứng, tổ chức trong nước xác minh qua số chứng nhận công nhận (BoA-VIAS), và tổ chức lạ thì OPERATOR đề xuất, ADMIN duyệt từng trường hợp và không lưu vào danh sách dùng chung. Điều này chặn kịch bản hai bên thông đồng tự chọn một tổ chức dễ dãi.", {})]));
+push(legal("Nghị định 98/2018/NĐ-CP, Điều 15", "Cho phép các bên lựa chọn phương thức phù hợp để giải quyết tranh chấp — thương lượng, hoà giải hoặc trọng tài. Hoà giải nội bộ do OPERATOR/ADMIN được ủy quyền hỗ trợ chỉ áp dụng khi hai bên đã chấp nhận quy trình này; nền tảng không thay thế cơ quan tài phán."));
 
 // ============================================================
 // 5. REPUTATION
 // ============================================================
 push(H1("5. Uy tín và cơ chế khoá tài khoản"));
-push(P("Với phần lớn hợp đồng — nơi bên bán mặc định không có cọc — uy tín là cơ chế dài hạn duy nhất ràng buộc bên bán không phá vỡ hợp đồng. Sau mỗi hợp đồng hoàn thành, hai bên đánh giá lẫn nhau; lịch sử tích luỹ thành điểm uy tín công khai. Phá vỡ một hợp đồng đồng nghĩa mất toàn bộ lịch sử tích luỹ — chi phí dài hạn này thường lớn hơn chênh lệch giá ngắn hạn của một vụ. Với hợp đồng có đàm phán cọc bên bán (Mục 3.5), uy tín vẫn áp dụng song song — cọc chỉ bù phần tài chính, không thay thế cơ chế uy tín."));
+push(P("Với hợp đồng không có cọc bên bán, uy tín và khoá tài khoản là cơ chế bổ sung để làm tăng chi phí phá vỡ hợp đồng. Sau mỗi hợp đồng hoàn thành, hai bên đánh giá lẫn nhau; lịch sử tích luỹ thành điểm uy tín công khai. Cơ chế này chỉ mạnh khi người dùng giao dịch lặp lại, mạng lưới có đủ buyer, khó tạo danh tính/pháp nhân thay thế và các tổ chức tham gia thực sự coi lịch sử nền tảng là tín hiệu có giá trị. Với hợp đồng có đàm phán cọc bên bán (Mục 3.5), uy tín áp dụng song song — cọc bù một phần rủi ro tài chính, còn uy tín phản ánh hành vi dài hạn."));
 push(P("Uy tín không chỉ là điểm số hiển thị; nó gồm ba loại dữ liệu khác bản chất: một sổ khoá (lock ledger) bất biến phục vụ enforce khoá tài khoản, một điểm uy tín sống phục vụ xếp hạng tìm kiếm, và dữ liệu tham chiếu tín dụng xuất được cho bên thứ ba."));
 push(H3("Khoá tài khoản khi phá vỡ hợp đồng"));
 push(P("Khi một bên phá vỡ hợp đồng có penalty, tài khoản bị khoá ngay (chặn tạo listing/hợp đồng mới) — không đợi kết quả toà, vì tố tụng 1–3 năm mâu thuẫn với chính lý do sản phẩm tồn tại. Thời gian khoá tách bạch với thiệt hại tài chính (đã phản ánh riêng ở penalty debt) và chỉ đo mức độ hành vi:"));
@@ -176,19 +182,33 @@ push(P([runs("lockDurationDays = baseDays × repeatOffenseMultiplier × trackRec
 push(bullet([runs("baseDays ", { bold: true }), runs("— mặc định 30 ngày.", {})]));
 push(bullet([runs("repeatOffenseMultiplier ", { bold: true }), runs("— theo số lần từng phá vỡ hợp đồng trước đó (1x/2x/3x), tuyến tính theo số lần tuyệt đối.", {})]));
 push(bullet([runs("trackRecordMultiplier ", { bold: true }), runs("— gated theo ngưỡng mẫu tối thiểu 5 hợp đồng: dưới ngưỡng dùng hệ số trung tính (không đẩy người mới xuống đáy chỉ vì ít dữ liệu); từ ngưỡng trở lên dùng tỷ lệ hợp đồng sạch thật để giảm nhẹ hoặc tăng nặng (0,7x nếu ≥90% sạch, 1,0x nếu 70–90%, 1,3x nếu dưới 70%).", {})]));
-push(P("Toàn bộ tham số nằm trong cấu hình, chỉnh được sau khi có dữ liệu thật. Tài khoản mở khoá qua một trong ba đường (đường nào tới trước): bên kia tự báo đã giải quyết, bên vi phạm nộp kết quả ràng buộc (bản án/phán quyết VIAC/thoả thuận hoà giải) để Admin xác minh, hoặc hết thời hạn khoá cố định. Penalty debt và lịch sử vi phạm không bao giờ bị xoá — mở khoá chỉ là cho giao dịch tiếp, không phải xoá tiền án."));
+push(P("Toàn bộ tham số nằm trong cấu hình, chỉnh được sau khi có dữ liệu thật. Tài khoản mở khoá qua một trong ba đường (đường nào tới trước): bên kia tự báo đã giải quyết, bên vi phạm nộp kết quả ràng buộc (bản án/phán quyết VIAC/thoả thuận hoà giải) để OPERATOR đề xuất và ADMIN phê duyệt mở khoá sớm theo maker-checker, hoặc hết thời hạn khoá cố định. Penalty debt và lịch sử vi phạm không bao giờ bị xoá — mở khoá chỉ là cho giao dịch tiếp, không phải xoá tiền án."));
+push(callout("Giới hạn hiệu lực của uy tín", "Khoá tài khoản chỉ enforce được trong phạm vi AgriContract. Nếu mạng lưới còn nhỏ, người vi phạm có thể quay lại giao dịch ngoài nền tảng hoặc chuyển sang pháp nhân khác; nếu dữ liệu không được nhiều buyer dùng trong quyết định đối tác, C_uy_tín gần bằng 0. Vì vậy tài liệu không coi reputation lock là bảo đảm thay thế cho cọc, pháp luật hoặc chế tài hiệp hội.", "warn"));
 push(legal("Luật Thương mại 2005, Điều 302", "Penalty debt ghi vào audit trail bất biến có giá trị làm căn cứ bồi thường thiệt hại nếu bên bị vi phạm truy đòi qua VIAC hoặc toà án. Nền tảng không tự thu hộ được — đây là bằng chứng, không phải cơ chế cưỡng chế thu tiền."));
 
 // ============================================================
 // 6. AUDIT TRAIL / EVIDENCE
 // ============================================================
 push(H1("6. Bằng chứng và audit trail"));
+push(P("Mỗi AuditRecord được định danh theo subjectType/subjectId (CONTRACT, USER_PAIR hoặc SYSTEM), nối đồng thời global chain và per-subject chain bằng prevHashGlobal/prevHashSubject. sourceHash là hash của artefact nguồn; recordHash là hash canonical của chính bản ghi. Bằng chứng OTS nằm ở bảng audit_anchor append-only riêng, không cập nhật ngược audit_record."));
 push(P("Vì chữ ký trên nền tảng ở dạng chữ ký điện tử cơ bản (không có chứng thư từ tổ chức chứng thực được cấp phép), luật không tự động suy đoán “đúng người, đúng thời điểm”. Nền tảng phải tự chứng minh điều đó khi có tranh chấp — nên audit trail không phải lớp phụ, mà là lý do tồn tại của toàn bộ thiết kế bằng chứng. Bốn lớp bảo vệ:"));
 push(bullet([runs("Hash nội dung hợp đồng. ", { bold: true }), runs("Toàn bộ điều khoản được băm (SHA-256) lúc ký; mọi thao tác sau đó verify hash trước khi thực hiện — sửa dữ liệu trong DB làm hash lệch, thao tác bị từ chối.", {})]));
 push(bullet([runs("Chuỗi hash audit trail. ", { bold: true }), runs("Mỗi bản ghi chứa hash của chính nó và hash của bản ghi trước, tạo thành chuỗi append-only; tài khoản DB của dịch vụ audit chỉ có quyền INSERT + SELECT, không UPDATE/DELETE. Chuỗi được verify định kỳ và trước mỗi lần xuất báo cáo EUDR.", {})]));
 push(bullet([runs("Lưu hash nhiều nơi + neo timestamp qua email. ", { bold: true }), runs("Hash được lưu độc lập ở nhiều nơi (DB hợp đồng, DB audit) và gửi email cho cả hai bên sau mỗi lần ký/nộp report — email là điểm neo bên ngoài nền tảng; dù toàn bộ DB bị xâm phạm, hai bên vẫn giữ bằng chứng hash trong hộp thư.", {})]));
 push(bullet([runs("Neo bằng chứng lên Bitcoin (OpenTimestamps). ", { bold: true }), runs("Hash cam kết toàn cục được neo lên Bitcoin qua OpenTimestamps (miễn phí, không cần ví crypto). Bằng chứng tồn tại độc lập ngay cả khi nền tảng sập hoàn toàn, và phát hiện được kiểu tấn công xoá-rồi-viết-lại-toàn-chuỗi.", {})]));
-push(P("Toàn bộ lịch sử xuất được dưới dạng báo cáo PDF/CSV theo yêu cầu — đây là Due Diligence Statement cho kiểm toán EUDR, không phải tính năng phụ thêm."));
+push(P("Toàn bộ lịch sử liên quan xuất được dưới dạng PDF/CSV theo yêu cầu như một gói bằng chứng hỗ trợ DDS; nền tảng không tuyên bố tự mình tạo ra một DDS hoàn chỉnh thay cho nghĩa vụ due diligence của operator EU. Operator hoặc đại diện được uỷ quyền vẫn phải thực hiện due diligence và nộp Due Diligence Statement/Simplified Declaration vào EUDR Information System của EU."));
+push(table(
+  [1900, 3500, 4238],
+  ["Thành phần", "Chứng minh được", "Không tự chứng minh được"],
+  [
+    ["Hash file", "File tại thời điểm kiểm tra không khác artefact đã băm", "Nội dung file phản ánh đúng sự thật ngoài đời"],
+    ["OTP/email challenge", "Tài khoản/email nhận challenge đã hoàn tất thao tác tại thời điểm ghi nhận", "Người thao tác chắc chắn có thẩm quyền đại diện pháp lý"],
+    ["Timestamp/audit chain", "Dữ liệu tồn tại và chuỗi record không bị thay đổi mà không để lại dấu vết", "Giao dịch không gian lận hoặc điều khoản đương nhiên hợp pháp"],
+    ["Inspection report", "Ý kiến chuyên môn và artefact của tổ chức/giám định viên đã nộp", "Phán quyết pháp lý cuối cùng hoặc hàng hoá tuyệt đối đúng khai báo"],
+  ],
+  { size: 17 }
+));
+push(src("European Commission — EUDR Information System; Understand Due Diligence (truy cập 7/2026)."));
 push(P([runs("Vì sao chọn hash thay vì blockchain đầy đủ. ", { bold: true }), runs("Nền tảng có trusted operator (hiệp hội/doanh nghiệp triển khai) — bài toán đồng thuận không tin cậy (trustless consensus) mà blockchain sinh ra để giải không tồn tại ở đây. Ba lớp hash + neo email + neo Bitcoin phủ được các attack vector tương đương với chi phí thực hiện thấp hơn nhiều, phù hợp ràng buộc thời gian và nhân lực thật của dự án.", {})]));
 
 // ============================================================
@@ -200,10 +220,10 @@ push(table(
   [3000, 3100, 3538],
   ["Văn bản", "Điều khoản liên quan", "Áp dụng với AgriContract"],
   [
-    ["Luật Giao dịch Điện tử 2023 (20/2023/QH15)", "Điều 34 — hợp đồng điện tử không bị phủ nhận giá trị; Điều 14.2 — giá trị chứng cứ của thông điệp dữ liệu", "Hợp đồng ký trên nền tảng tương đương hợp đồng giấy; audit trail là bằng chứng hợp lệ trước toà và cho kiểm toán EUDR"],
+    ["Luật Giao dịch Điện tử 2023 (20/2023/QH15)", "Điều 8 — không phủ nhận chỉ vì ở dạng thông điệp dữ liệu; Điều 14 — giá trị chứng cứ; Điều 34–36 — hợp đồng điện tử và nghĩa vụ tuân thủ pháp luật hợp đồng", "Hợp đồng không tự động có hiệu lực chỉ vì ở dạng điện tử; audit trail hỗ trợ chứng minh quá trình tạo lập, lưu trữ và bảo toàn, còn giá trị chứng cứ do cơ quan có thẩm quyền đánh giá"],
     ["Nghị định 98/2018/NĐ-CP", "Điều 4 — hợp đồng liên kết lập thành văn bản; Điều 15 — lựa chọn phương thức giải quyết tranh chấp", "Văn bản điện tử đáp ứng Điều 4; hoà giải nội bộ hợp lệ theo Điều 15, không thay thế toà án"],
     ["Luật Trọng tài Thương mại 2010 (54/2010/QH12)", "Điều 5 — thoả thuận trọng tài trước/sau tranh chấp; phán quyết chung thẩm", "Hoà giải nội bộ hợp lệ; nếu leo thang, VIAC xử lý dựa trên audit trail nền tảng làm bằng chứng"],
-    ["Bộ luật Dân sự 2015 & Luật Thương mại 2005", "BLDS Điều 328 (ký quỹ), 142 (đại diện), 156 & 351 (bất khả kháng); LTM Điều 300 (phạt), 302 (bồi thường)", "Ký quỹ hợp pháp; penalty thực thi theo thoả thuận đã ký — nền tảng thực thi thoả thuận của hai bên, không ra phán quyết"],
+    ["Bộ luật Dân sự 2015 & Luật Thương mại 2005", "BLDS Điều 328 (đặt cọc giữa các bên), Điều 330 (ký quỹ tại tài khoản phong toả của tổ chức tín dụng), Điều 142 (đại diện), Điều 156 & 351 (bất khả kháng); LTM Điều 300 (phạt), Điều 302 (bồi thường)", "buyerDepositRate/sellerDepositRate là tiền cọc theo thoả thuận; khoản tiền do ngân hàng giữ trong tài khoản phong toả được đối chiếu với cơ chế ký quỹ; nền tảng chỉ thực thi workflow đã ký, không ra phán quyết"],
   ],
   { size: 18 }
 ));
@@ -228,46 +248,63 @@ push(callout("Bài học:", "Nền tảng trung gian có thể chịu trách nhi
 // 8. VALUE LAYERS
 // ============================================================
 push(H1("8. Ba lớp giá trị"));
-push(P("Giá trị của nền tảng được xây dựng thành ba lớp chồng lên nhau — mỗi lớp giải quyết một nhóm nhu cầu và phục vụ một nhóm hưởng lợi khác nhau. Doanh nghiệp tiếp cận nền tảng vì yêu cầu EUDR, ở lại vì giảm được rủi ro vốn và tranh chấp, và không thể rời đi vì lịch sử giao dịch trên nền tảng là tài sản thực chất của họ."));
+push(P("Giá trị của nền tảng được xây dựng thành ba lớp chồng lên nhau — mỗi lớp giải quyết một nhóm nhu cầu và phục vụ một nhóm hưởng lợi khác nhau. Doanh nghiệp có thể tiếp cận nền tảng vì yêu cầu EUDR, tiếp tục sử dụng nếu giảm được rủi ro vốn và tranh chấp, và chịu chi phí chuyển đổi tăng dần khi lịch sử giao dịch trên nền tảng trở thành tài sản vận hành có giá trị."));
 push(table(
   [1900, 4900, 2838],
   ["Lớp", "Giá trị cụ thể", "Ai hưởng lợi"],
   [
-    [["Lớp 1", "Tuân thủ EUDR"], "Hợp đồng thu mua từ HTX có audit trail bất biến = bằng chứng deforestation-free cho kiểm toán EU; xuất báo cáo on-demand thay vì tổng hợp thủ công", "Doanh nghiệp xuất khẩu cà phê, cao su, gỗ vào EU — deadline pháp lý 30/12/2026"],
-    [["Lớp 2", "Kiểm soát rủi ro"], "Ký quỹ + Milestone: chi phí phá vỡ hợp đồng vượt lợi ích ngắn hạn. Giám định phân tầng: giải quyết tranh chấp trong ngày. Uy tín: vốn xã hội tích luỹ định giá được", "Cả bên mua lẫn bên bán — đặc biệt HTX không có nguồn lực pháp lý tự bảo vệ"],
-    [["Lớp 3", "Hạ tầng tín dụng"], "Audit trail tích luỹ = lịch sử tín dụng thực chất; ngân hàng đọc dữ liệu thay vì chỉ đếm tài sản thế chấp. 75,5% doanh nghiệp không vay được nếu thiếu tài sản thế chấp (VCCI 2025)", "HTX nhỏ + ngân hàng (vai trò data oracle, không chỉ cấp tín dụng truyền thống)"],
+    [["Lớp 1", "Hỗ trợ EUDR"], "Audit trail, geolocation snapshot và hồ sơ nguồn cung tạo gói traceability hỗ trợ due diligence; xuất báo cáo on-demand thay vì tổng hợp thủ công. Hệ thống không tự chứng minh deforestation-free", "Doanh nghiệp xuất khẩu cà phê, cao su, gỗ vào EU — 30/12/2026 với doanh nghiệp lớn/vừa; 30/6/2027 với phần lớn doanh nghiệp nhỏ/siêu nhỏ"],
+    [["Lớp 2", "Kiểm soát rủi ro"], "Ký quỹ + Milestone làm tăng chi phí phá vỡ hợp đồng; mức đủ mạnh phải kiểm chứng bằng sensitivity/pilot. Giám định phân tầng rút ngắn thu thập bằng chứng. Uy tín là tín hiệu bổ sung khi mạng lưới đủ dày", "Cả bên mua lẫn bên bán — đặc biệt HTX không có nguồn lực pháp lý tự bảo vệ"],
+    [["Lớp 3", "Hạ tầng tín dụng"], "Audit trail tích luỹ tạo dữ liệu đầu vào cho đánh giá tín dụng: lịch sử hoàn thành, nghiệm thu và dòng tiền. Ngân hàng quyết định cách sử dụng dữ liệu; nền tảng không tự biến lịch sử này thành hạn mức vay", "HTX nhỏ + ngân hàng (vai trò data oracle, không chỉ cấp tín dụng truyền thống)"],
   ],
   { size: 18 }
 ));
+
+push(H2("8.1 Khung ROI và willingness-to-pay cần kiểm chứng"));
+push(P("Business case không nên dừng ở câu “chi phí ký quỹ nhỏ hơn rủi ro được bảo hiểm”. Mỗi khách hàng mục tiêu cần một baseline đo được trước pilot và một kết quả sau pilot."));
+push(P([runs("ROI = (thiệt hại tránh được + chi phí tranh chấp tiết kiệm + lợi ích compliance − phí hệ thống − chi phí vốn ký quỹ) / (phí hệ thống + chi phí vốn ký quỹ)", { bold: true, color: T.SUB })], { align: AlignmentType.CENTER }));
+push(table(
+  [2100, 3500, 4038],
+  ["Giả thuyết thương mại", "Cách kiểm chứng", "Tiêu chí không được khẳng định trước"],
+  [
+    ["Ai trả tiền", "Phỏng vấn tách hiệp hội, doanh nghiệp xuất khẩu, buyer lớn và ngân hàng", "Không mặc định hiệp hội là payer chỉ vì có trust"],
+    ["Mô hình giá", "Test subscription năm, per-user và transaction fee với cùng một ICP", "Không chốt pricing từ benchmark ngành khác"],
+    ["Khoảng giá", "Dùng price-sensitivity với các band 30/60/120/240 triệu đồng/năm; test thêm 0,02–0,1% GMV như câu hỏi khảo sát", "Các band là công cụ hỏi, không phải bảng giá AgriContract"],
+    ["ROI", "Đo số vụ vi phạm, giá trị mua bù, ngày xử lý tranh chấp, giờ tổng hợp compliance và chi phí vốn", "Không dùng kim ngạch xuất khẩu làm proxy cho giá trị phần mềm"],
+  ],
+  { size: 17 }
+));
+push(callout("Gate thương mại", "Chỉ chuyển từ giả thuyết sang claim sau khi có ít nhất một anchor buyer cung cấp baseline thật, chấp nhận pilot có KPI và xác nhận mức phí hoặc cơ chế mua sắm. Letter of interest hữu ích, nhưng không tương đương hợp đồng trả tiền.", "note"));
 
 // ============================================================
 // 9. RELATED WORK
 // ============================================================
 push(H1("9. Tổng quan giải pháp quốc tế và điểm khác biệt"));
-push(P("Bài toán “thiếu bên mua đáng tin khiến nông hộ bán tháo cho thương lái quen với giá thấp” không phải mới trong nghiên cứu quốc tế. Việc đối chiếu với literature vừa xác nhận AgriContract giải đúng một bài toán đã được ghi nhận rộng rãi, vừa cho phép định vị chính xác điểm khác biệt của hệ thống."));
-push(bullet([runs("MDPI Sustainability (2022), Smart Agricultural Futures Market: ", { bold: true }), runs("phỏng vấn nông hộ Sri Lanka cho thấy họ chọn broker quen có sẵn niềm tin để được trả tiền trong vài tuần dù giá thấp, chỉ bán cho broker lạ nếu nhận tiền mặt ngay — đúng bài toán thiếu trusted buyer dẫn tới side-selling và thu nhập thấp mà escrow giải quyết.", {})]));
-push(bullet([runs("ResearchGate (2025), Assured Contract Farming System: ", { bold: true }), runs("smart contract cung cấp cơ chế giảm rủi ro và thiết lập niềm tin giữa các bên giao dịch không quen biết; cả bốn kịch bản đều chỉ ra việc thiếu trusted party buộc nông dân bán rẻ.", {})]));
-push(bullet([runs("FAO e-Agriculture: ", { bold: true }), runs("sổ cái minh bạch tạo credibility để tổ chức tài chính cho vay và bảo hiểm — cùng logic “dữ liệu minh bạch mở khoá tín dụng” là lớp giá trị thứ ba của AgriContract.", {})]));
-push(src("MDPI Sustainability 14(5):2916 (2022); ResearchGate publication 391678097 (2025); FAO e-Agriculture — blockchain for smallholder farmers; arXiv 2102.09401 — Blockchain in agriculture survey."));
-push(P([runs("Điểm khác biệt của AgriContract so với cả literature quốc tế lẫn giải pháp Việt Nam hiện có. ", { bold: true }), runs("Escrow đã được nhà nước Việt Nam công nhận nhưng chỉ cho B2C bán lẻ (chống bom hàng, COD); escrow B2B hiện tại chỉ là tài khoản ký quỹ ngân hàng thủ công cho M&A/giải ngân — không có nền tảng số hoá tự thực thi theo milestone, không tích hợp giám định, không có state machine tranh chấp. Literature quốc tế cũng thiếu ba thứ AgriContract có: (i) tầng giám định ba cấp cho tranh chấp chất lượng nông sản thật, không chỉ nhị phân giao/không-giao; (ii) mô hình pháp lý Việt Nam thật — không tự giữ tiền, tách qua bank-service theo Nghị định 52/2024; (iii) neo vào hạ tầng dữ liệu đang hình thành trong nước. AgriContract do đó không phải “một giải pháp blockchain nông nghiệp thứ N”, mà là bản địa hoá cộng với tầng tranh chấp và khớp khung pháp lý Việt Nam cho forward contract B2B.", {})]));
+push(P("Bài toán side-selling, hợp đồng quan hệ và điều phối qua hợp tác xã đã được nghiên cứu quốc tế; literature hỗ trợ cơ chế incentive nhưng cũng phản biện quan điểm rằng chỉ cần penalty hoặc công nghệ là đủ."));
+push(bullet([runs("Alemu, Guinan & Hermanson (2021): ", { bold: true }), runs("side-selling trong chuỗi malt barley được ước tính khoảng 30%; khuyến nghị phải xử lý đồng thời vấn đề cấp nông hộ, thị trường và năng lực hợp tác xã, kết hợp incentive với disincentive.", {})]));
+push(bullet([runs("Ewusi Koomson et al. (2022): ", { bold: true }), runs("trên mẫu 370 hộ cao su tại Ghana, 20% nông hộ contract farming có side-selling; chậm trễ từ contractor và điều kiện quan hệ là biến quan trọng — rất sát ngành cao su trong phạm vi AgriContract.", {})]));
+push(bullet([runs("Macchiavello (2022): ", { bold: true }), runs("relational contracts được duy trì bởi giá trị tương tác tương lai; reputation chỉ có hiệu lực khi quan hệ lặp lại và lợi ích tương lai đủ lớn.", {})]));
+push(bullet([runs("Abreham et al. (2025): ", { bold: true }), runs("systematic review/meta-regression nhấn mạnh kết quả contract farming phụ thuộc tiếp cận thị trường và bối cảnh thể chế — không nên suy luận rằng số hoá hợp đồng tự động tạo tác động tích cực.", {})]));
+push(src("DOI 10.1080/09614524.2020.1860194; 10.1080/14728028.2022.2079007; 10.1146/annurev-economics-051420-110722; 10.1080/23311932.2025.2551263."));
+push(P([runs("Điểm khác biệt của AgriContract so với cả literature quốc tế lẫn giải pháp Việt Nam hiện có. ", { bold: true }), runs("Escrow đã được nhà nước Việt Nam công nhận nhưng chỉ cho B2C bán lẻ (chống bom hàng, COD); escrow B2B hiện tại chỉ là tài khoản ký quỹ ngân hàng thủ công cho M&A/giải ngân — không có nền tảng số hoá tự thực thi theo milestone, không tích hợp giám định, không có state machine tranh chấp. Trong các nguồn đã rà soát, chưa thấy một mô hình duy nhất tích hợp đủ ba lớp AgriContract đang thiết kế: (i) tầng giám định ba cấp cho tranh chấp chất lượng nông sản thật, không chỉ nhị phân giao/không-giao; (ii) mô hình pháp lý Việt Nam thật — không tự giữ tiền, tách qua bank-service theo Nghị định 52/2024; (iii) neo vào hạ tầng dữ liệu đang hình thành trong nước. AgriContract do đó không phải “một giải pháp blockchain nông nghiệp thứ N”, mà là bản địa hoá cộng với tầng tranh chấp và khớp khung pháp lý Việt Nam cho forward contract B2B.", {})]));
 push(src("Bộ Công Thương (Cục TMĐT) — hệ thống đảm bảo giao dịch escrow B2C; BIDV — dịch vụ tài khoản Escrow; CeCA — ứng dụng giao dịch an toàn kết hợp hợp đồng điện tử (2025-2026)."));
 
 // ============================================================
 // 10. FAQ
 // ============================================================
 push(H1("10. Chiến lược vào thị trường — đi qua anchor buyer"));
-push(P([runs("Nền tảng hai đầu chợ không launch bằng cách kéo cả hai đầu cùng lúc. ", { bold: true }), runs("Chiến lược là đi qua một anchor buyer: doanh nghiệp xuất khẩu cà phê sang thị trường EU. Nhóm khách này chịu nghĩa vụ truy xuất EUDR từ 30/12/2026 (Quy định (EU) 2023/1115, sửa đổi 2025/2650) — tức có lực ép pháp lý phải chuẩn hoá dữ liệu vùng trồng và hợp đồng thu mua ngay trong năm bảo vệ đồ án, có ngân sách compliance, và có sẵn mạng lưới HTX cung ứng nhiều năm. Một anchor buyer vào là kéo cả chuỗi cung ứng của chính nó vào — bài toán khởi động chợ thu về một đầu duy nhất, và đầu đó có deadline luật đứng sau.", {})]));
+push(P([runs("Nền tảng hai đầu chợ không launch bằng cách kéo cả hai đầu cùng lúc. ", { bold: true }), runs("Chiến lược là đi qua một anchor buyer: doanh nghiệp xuất khẩu cà phê sang thị trường EU. Nhóm khách này chịu áp lực EUDR từ 30/12/2026 với doanh nghiệp lớn/vừa và từ 30/6/2027 với phần lớn doanh nghiệp nhỏ/siêu nhỏ (Quy định (EU) 2023/1115, sửa đổi 2025/2650), nên là ICP hợp lý để kiểm chứng nhu cầu chuẩn hoá dữ liệu vùng trồng và hợp đồng thu mua. Tuy nhiên “có áp lực pháp lý” không tự động đồng nghĩa “có ngân sách” hoặc “sẵn sàng mua AgriContract”; hai giả thuyết đó phải được xác nhận trong discovery. Một anchor buyer có thể kéo theo một phần mạng lưới HTX cung ứng sẵn có, giúp giảm bài toán khởi động hai đầu; tỷ lệ supplier thực sự onboard vẫn là KPI cần đo trong pilot.", {})]));
 push(P([runs("Định vị theo đó cũng đổi: ", { bold: true }), runs("giai đoạn đầu, AgriContract không chào hàng như một chợ mở cho mọi người, mà như công cụ hợp đồng + compliance cho chuỗi cung ứng của anchor — nơi giá trị (EUDR traceability, escrow bảo đảm thanh toán, hồ sơ nghiệm thu) đến được cả hai phía của những cặp giao dịch vốn đã quen mặt nhau. Chợ mở là bước mở rộng khi mật độ người dùng và dữ liệu uy tín đã đủ dày.", {})]));
-push(P([runs("Về adverse selection — kẻ định phá hợp đồng không có động lực tham gia nền tảng ràng buộc mình: ", { bold: true }), runs("đúng, và nền tảng không cần họ. Cơ chế hoạt động theo hướng tín hiệu (signaling): người làm ăn nghiêm túc dùng nền tảng để tách mình khỏi nhóm rủi ro — hồ sơ sạch trên AgriContract là tín hiệu đắt giả, vì chỉ tích luỹ được qua chuỗi hợp đồng thật có ký số, ledger và nghiệm thu độc lập. Khi mật độ đủ lớn, chính việc không có lịch sử trên nền tảng trở thành dấu hỏi trong đàm phán — vòng xoáy tự chọn lọc kéo phần thị trường nghiêm túc vào trước, phần còn lại chịu áp lực theo sau.", {})]));
+push(P([runs("Về adverse selection — tác nhân có ý định phá hợp đồng có thể né nền tảng ràng buộc mình. ", { bold: true }), runs("Chiến lược giai đoạn đầu không phụ thuộc vào việc chuyển đổi toàn bộ nhóm rủi ro; AgriContract dùng cơ chế tín hiệu để phục vụ trước các bên muốn chứng minh lịch sử giao dịch sạch. Chỉ khi mạng lưới đủ dày và nhiều buyer thực sự dùng lịch sử này trong lựa chọn đối tác, việc không có hồ sơ mới có thể trở thành một tín hiệu bất lợi — đây là giả thuyết cần đo, không phải hiệu ứng mạng đã tồn tại.", {})]));
 
 push(H1("11. Câu hỏi thường gặp từ hội đồng thẩm định"));
 const faq = [
   ["Ký quỹ dùng mock balance — có giá trị kỹ thuật gì?", "Giá trị kỹ thuật nằm ở logic, không phải ở tiền: Choreography Saga qua message queue, idempotency cho compensating transaction, Outbox Pattern đảm bảo at-least-once delivery. Các thách thức này đều thật và không thay đổi khi thay lớp giữ tiền mock bằng API ngân hàng thật — ranh giới interface được thiết kế sạch để việc thay thế không đụng business logic."],
-  ["Nền tảng có đang thay thế chức năng của toà án không?", "Không. Admin thực thi điều khoản penalty mà hai bên đã tự thoả thuận và ký trước đó. Luật TM 2005 Điều 300 cho phép phạt vi phạm theo thoả thuận; Nghị định 98/2018 Điều 15 cho phép hoà giải nội bộ. Nền tảng không ra phán quyết — chỉ thực thi thoả thuận đã có."],
-  ["Vì sao HTX sẽ tin đặt tiền vào ký quỹ của một nền tảng mới?", "HTX không cần tin nền tảng — họ tin hiệp hội (VICOFA/VRA) đã triển khai nền tảng. Tiền do ngân hàng giữ, không phải nền tảng. Cấu trúc trust được thiết kế để không phụ thuộc vào uy tín của một startup."],
-  ["Vì sao chưa có ai làm điều này trước đây?", "Koina (VinaCapital, >1 triệu USD) đã thử năm 2023 với mô hình farm-to-business, đóng cửa 2024 — sai lầm ở phân khúc (bán trực tiếp cho nông dân lẻ, unit economics không bền vững) và mô hình full-stack đốt vốn quá nhanh. AgriContract khác ở ba điểm: bán cho hiệp hội, chỉ giải quyết tầng hợp đồng, và EUDR 2026 tạo ra nhu cầu bắt buộc chưa từng tồn tại."],
-  ["INSPECTOR có thể bị mua chuộc không?", "Report có hash xác thực, không sửa được sau khi submit. SGS/Bureau Veritas là tổ chức chứng nhận quốc tế chịu trách nhiệm pháp nhân theo giấy phép hành nghề; tổ chức trong nước được xác minh qua số chứng nhận công nhận quốc gia. Đây là cấp bảo đảm cao hơn nhiều so với Admin nội bộ không có chuyên môn độc lập."],
-  ["Chợ hai đầu — làm sao có người dùng đầu tiên khi chưa ai ở đầu kia?", "Không launch hai đầu cùng lúc — đi qua anchor buyer (doanh nghiệp xuất khẩu chịu nghĩa vụ EUDR từ 30/12/2026, chi tiết mục 10). Anchor vào là kéo theo mạng lưới HTX cung ứng sẵn có của chính nó; bài toán khởi động thu về một đầu, và đầu đó có deadline pháp lý đứng sau."],
+  ["Nền tảng có đang thay thế chức năng của toà án không?", "Không. OPERATOR/ADMIN được ủy quyền chỉ thực thi workflow và điều khoản penalty mà hai bên đã tự thoả thuận, ký trước; Luật TM 2005 Điều 300 cho phép phạt vi phạm theo thoả thuận và Nghị định 98/2018 Điều 15 cho phép các bên lựa chọn phương thức giải quyết tranh chấp. Nền tảng không ra phán quyết cuối cùng."],
+  ["Vì sao HTX sẽ tin đặt tiền vào ký quỹ của một nền tảng mới?", "HTX không phải tin nền tảng về việc giữ tiền vì tiền do ngân hàng giữ; trust triển khai có thể được mượn từ hiệp hội hoặc anchor buyer. Đây là giả thuyết go-to-market cần phỏng vấn xác nhận: tên hiệp hội không tự động tạo adoption nếu quy chế, hỗ trợ vận hành và lợi ích cho HTX chưa rõ."],
+  ["Vì sao chưa có ai làm điều này trước đây?", "Koina là một case tham chiếu về rủi ro mô hình farm-to-business full-stack; các nguyên nhân đóng cửa công khai chưa đủ để kết luận duy nhất là sai phân khúc hoặc unit economics. AgriContract dùng case này như cảnh báo cần giữ phạm vi contract layer và kiểm chứng payer, không như bằng chứng chắc chắn cho chiến lược của mình. AgriContract khác ở việc giữ phạm vi contract layer, thử kênh hiệp hội/anchor buyer và đi vào thời điểm EUDR làm nhu cầu traceability cấp thiết hơn; cả ba vẫn phải được kiểm chứng bằng pilot và willingness-to-pay."],
+  ["INSPECTOR có thể bị mua chuộc không?", "Report có hash xác thực, không sửa được sau khi submit. SGS/Bureau Veritas là tổ chức chứng nhận quốc tế chịu trách nhiệm pháp nhân theo giấy phép hành nghề; tổ chức trong nước được xác minh qua số chứng nhận công nhận quốc gia. Đây là cấp bảo đảm cao hơn nhiều so với vận hành nội bộ không có chuyên môn độc lập."],
+  ["Chợ hai đầu — làm sao có người dùng đầu tiên khi chưa ai ở đầu kia?", "Không launch hai đầu cùng lúc — thử pilot qua một anchor buyer có mạng lưới HTX cung ứng sẵn có. Cách này giảm số phía phải bán đồng thời, nhưng không bảo đảm supplier tự động onboard; pilot phải đo tỷ lệ mời–kích hoạt–ký hợp đồng và nguyên nhân từ chối."],
   ["Bên định phá hợp đồng đâu có tự nguyện vào nền tảng ràng buộc mình?", "Đúng — và nền tảng không cần kéo họ vào. Giá trị nằm ở phía ngược lại: người làm ăn nghiêm túc dùng nền tảng để tách mình khỏi nhóm rủi ro bằng hồ sơ giao dịch đắt giả (ký số, ledger, nghiệm thu độc lập — không làm giả được bằng vài giao dịch ảo). Khi mật độ đủ dày, không có lịch sử trên nền tảng tự nó thành dấu hỏi trong đàm phán — cơ chế tự chọn lọc chuẩn của thị trường có tín hiệu (mục 10)."],
   ["Ký quỹ dùng mock balance — có vi phạm Nghị định 52/2024 không?", "Không. Nghị định 52/2024 điều chỉnh dịch vụ thanh toán liên quan đến tiền thật. Mock balance trong database không phát sinh giao dịch tài chính thật, không cần giấy phép trung gian thanh toán. Khi tích hợp ngân hàng có license giữ tiền thật, chính ngân hàng là bên chịu điều chỉnh — nền tảng vẫn chỉ ra lệnh."],
 ];
@@ -283,6 +320,8 @@ push(bullet([runs("Chữ ký ở tầng cơ bản, không tương đương chữ
 push(bullet([runs("Chống thông đồng toàn diện là giới hạn cố hữu. ", { bold: true }), runs("Nếu Admin và toàn bộ (hoặc đa số) bên nhận cảnh báo phía Software Buyer cùng thông đồng, không cơ chế phần mềm nào trong kiến trúc hiện tại chặn được — đây chính là bài toán trustless consensus mà nhóm chủ đích không theo hướng blockchain vì ràng buộc thời gian/nhân lực. Neo email và neo Bitcoin vẫn đảm bảo bằng chứng tồn tại độc lập cho bất kỳ bên thứ ba nào sau này kiểm tra.", {})]));
 push(bullet([runs("Xác minh nội dung file là best-effort. ", { bold: true }), runs("Nền tảng lưu và bảo vệ tính toàn vẹn file (trích lục địa chính, KML, report), nhưng không đối chiếu nội dung file với dữ liệu đã khai — khai đất hợp lệ hình học nhưng sai sự thật vẫn có thể lọt; cross-check tỉnh chỉ giảm nhẹ lỗi convert toạ độ vô ý, không chặn fraud có chủ đích.", {})]));
 push(bullet([runs("Đòn bẩy uy tín phụ thuộc giả định thể chế chưa xác nhận. ", { bold: true }), runs("Cơ chế khoá tài khoản có hiệu lực trong phạm vi nền tảng; việc gắn dữ liệu vi phạm vào hệ quả tư cách hội viên hiệp hội (quota, đoàn xúc tiến…) cần hiệp hội ban hành quy chế mới — nằm ngoài khả năng đồ án tự quyết định.", {})]));
+push(bullet([runs("Mức cọc, pricing và payer chưa được chứng minh bằng dữ liệu sơ cấp. ", { bold: true }), runs("buyerDepositRate 5%, mô hình license/subscription và giả thuyết hiệp hội/anchor buyer trả phí là các tham số để pilot; chưa có cơ sở tuyên bố tối ưu hoặc willingness-to-pay thực tế.", {})]));
+push(bullet([runs("Tác động giảm bẻ kèo chưa có causal evidence tại Việt Nam. ", { bold: true }), runs("Nghiên cứu quốc tế xác nhận side-selling và vai trò incentive, nhưng AgriContract chưa có thử nghiệm đối chứng hoặc dữ liệu trước–sau để khẳng định ký quỹ làm giảm bao nhiêu phần trăm vi phạm.", {})]));
 
 // ============================================================
 // 11. SOURCES
@@ -294,7 +333,7 @@ push(H3("Văn bản pháp luật"));
   "Nghị định 52/2024/NĐ-CP — Thanh toán không dùng tiền mặt; Nghị định 52/2013/NĐ-CP — Thương mại điện tử.",
   "Nghị định 98/2018/NĐ-CP — Liên kết sản xuất và tiêu thụ nông sản.",
   "Luật Trọng tài Thương mại 2010 (Luật 54/2010/QH12).",
-  "Bộ luật Dân sự 2015 — Điều 328, 142, 403, 156, 351.",
+  "Bộ luật Dân sự 2015 — Điều 328, 330, 142, 403, 156, 351.",
   "Luật Thương mại 2005 — Điều 300, 302.",
   "Nghị định 88/2019/NĐ-CP — Xử phạt vi phạm hành chính lĩnh vực tiền tệ.",
 ].forEach(s => push(bullet(s)));
@@ -311,6 +350,12 @@ push(H3("Thị trường & nghiên cứu"));
   "Agribank — Chương trình tín dụng chuỗi giá trị nông nghiệp 2024.",
   "VCCI — Báo cáo Kinh tế tư nhân 2025 (75,5% doanh nghiệp cần tài sản thế chấp để tiếp cận tín dụng).",
   "EC Regulation (EU) 2025/2650 — EUDR timeline (23/12/2025).",
+  "European Commission — EUDR Information System; Understand Due Diligence (truy cập 7/2026).",
+  "Alemu, D., Guinan, A. & Hermanson, J. (2021), DOI 10.1080/09614524.2020.1860194.",
+  "Macchiavello, R. (2022), DOI 10.1146/annurev-economics-051420-110722.",
+  "Ewusi Koomson, J. et al. (2022), DOI 10.1080/14728028.2022.2079007.",
+  "Tefera, D. A. & Bijman, J. (2021), DOI 10.1186/s40100-021-00198-0.",
+  "Abreham, G. et al. (2025), DOI 10.1080/23311932.2025.2551263.",
 ].forEach(s => push(bullet(s)));
 
 push(endMark());
@@ -320,4 +365,4 @@ const doc = buildDoc(body, {
   headerText: "AgriContract · Giải pháp & Mô hình",
   footerText: "v5.0 · Tháng 7/2026",
 });
-Packer.toBuffer(doc).then(buf => { fs.writeFileSync("/tmp/AgriContract_02_GiaiPhap_MoHinh_v5.docx", buf); console.log("written", buf.length); });
+Packer.toBuffer(doc).then(buf => { writeDocx("/tmp/AgriContract_02_GiaiPhap_MoHinh_v5.docx", buf); });

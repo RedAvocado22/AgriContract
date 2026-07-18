@@ -11,6 +11,9 @@ metadata:
 
 ## 1. Bối cảnh & Scope
 
+> **Role vận hành (18/07/2026):** các use case Admin trong doc này (review/moderate/nhập liệu hằng ngày) nhận thêm role `OPERATOR` theo `data-governance-phase2-design.md` §5 — permission matrix ở đó là source of truth, doc này không lặp lại; flow/state/schema không đổi.
+
+
 EUDR (EU Deforestation Regulation) áp dụng từ **30/12/2026** cho large/medium operator (Regulation 2025/2650, dời deadline lần 2, đã chốt cuối cùng — không còn dời tiếp). Yêu cầu cốt lõi: mọi lô hàng đưa ra thị trường EU phải truy được về **toạ độ chính xác của (các) plot đất nơi hàng được trồng**, chứng minh không có phá rừng sau 31/12/2020.
 
 **Điểm quan trọng nhất quyết định thiết kế này — EUDR cấm mass balance:** không được gộp hàng từ nhiều nguồn rồi khai đại diện bằng 1 plot. Phải khai đủ **toàn bộ** plot đóng góp vào lô hàng, segregate rõ ràng, không được "coi như" hoặc pha trộn.
@@ -134,6 +137,21 @@ Rơi vào class rừng tự nhiên 2020 → `geoRiskLevel = HIGH_RISK`; rơi và
 
 Áp dụng theo từng plot riêng lẻ, không phải theo tổng diện tích cả listing.
 
+### 2.3b Global overlap check + yield anomaly — chống tái sử dụng tọa độ CHÉO seller (mới, 18/07/2026)
+
+**Gap:** mọi lớp hiện có đều per-seller — `UNIQUE(sellerId, householdLabel)` không bắt Seller B đăng ký lại đúng polygon X của Seller A; province check và baseline rừng cũng pass vì tọa độ hoàn toàn hợp lệ. Đây là attack rẻ nhất để "mượn" đất sạch EUDR của người khác.
+
+**Check khi tạo/update `PlotRegistryEntry`:**
+1. Spatial index (GEOMETRY index sẵn có) lấy candidate có bounding box giao nhau, loại chính entry hiện tại.
+2. Với candidate `POLYGON`: tính exact geometry hash (bắt copy nguyên xi), diện tích giao, **IoU = giao/hợp** VÀ **coverage ratio = giao/min(diện tích 2 plot)** — coverage ratio bắt case plot nhỏ nằm lọt trong plot lớn mà IoU vẫn thấp; chỉ IoU là lọt lưới.
+3. Với `POINT` (không có IoU): khoảng cách toạ độ < epsilon + `areaHectares` xấp xỉ + owner khác.
+4. Owner khác và overlap vượt policy (config `plotOverlapIoUThreshold`/`plotOverlapCoverageThreshold`, `application.yml`) → set `plotReuseRisk = HIGH` → **đẩy OPERATOR review, KHÔNG auto-reject và không tự tuyên bố fraud** — overlap hợp pháp có thật: cùng hộ thuộc 2 HTX, thuê/chuyển quyền sử dụng đất, đo lại lệch nhẹ, polygon cadastral vs GPS không trùng khít. Human-in-the-loop, cùng nguyên tắc evidence review.
+
+**Yield anomaly — signal, không phải gate:** `declaredQuantity ≤ Σ(plotArea × maxYield)` với `maxYield` config theo commodity/vùng — vượt → `yieldRisk = SUSPICIOUS|EXTREME`, yêu cầu seller bổ sung bằng chứng hoặc OPERATOR review. **Không hard-reject**: hard-code "x tấn/ha" từ 1 nguồn chung tự tạo false positive cho vườn năng suất cao/nhiều vụ; khi chưa có dữ liệu yield đáng tin theo giống/vùng/mùa vụ thì đây chỉ được phép là anomaly signal.
+
+**Naming EUDR output (18/07/2026, đồng bộ governance §6b):** mọi chỗ export gọi là **"EUDR evidence package / DDS-supporting export"** — platform cung cấp traceability data cho due diligence, KHÔNG claim output là Due Diligence Statement hoàn chỉnh (risk assessment/mitigation/submission là nghĩa vụ của operator/trader tại EU).
+
+
 ### 2.4 `ProductPlot` (cập nhật, 04/07/2026) — snapshot copy từ `PlotRegistryEntry`, không phải nhập trực tiếp
 
 **Chốt (04/07/2026):** `ProductPlot` **giữ nguyên** vai trò VO list bên trong `Product` aggregate (không tách aggregate — lý do gốc không đổi, xem §2.6). Điểm đổi: dữ liệu của nó giờ **copy từ `PlotRegistryEntry`** tại thời điểm `CreateListing`, không phải nhập tay/API nhận trực tiếp `geoJson` nữa.
@@ -177,8 +195,8 @@ Additive — không sửa bảng `product` gốc:
 
 ```sql
 CREATE TABLE plot_registry_entry (
-    registry_entry_id  UUID PRIMARY KEY,
-    seller_id           UUID NOT NULL,          -- plain UUID, KHÔNG REFERENCES user_db (cross-service)
+    registry_entry_id  CHAR(36) PRIMARY KEY,
+    seller_id           CHAR(36) NOT NULL,          -- plain UUID lưu bằng CHAR(36), KHÔNG REFERENCES user_db (cross-service)
     household_label     VARCHAR(255) NOT NULL,
     geometry_type       VARCHAR(20) NOT NULL,   -- POINT | POLYGON
     geo_json            GEOMETRY NOT NULL SRID 4326,
@@ -186,8 +204,8 @@ CREATE TABLE plot_registry_entry (
     source              VARCHAR(20) NOT NULL,   -- KML_IMPORT | MANUAL_PIN
     accuracy_meters     DECIMAL(6,2) NULL,      -- chỉ MANUAL_PIN, từ coords.accuracy — cảnh báo UI, không phải constraint
     verification_level  VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',  -- SELF_DECLARED | CADASTRAL_BACKED
-    cadastral_extract_file_id UUID NULL,        -- reference file-service, NULL nếu SELF_DECLARED
-    original_kml_file_id UUID NULL,             -- reference file-service, NULL nếu MANUAL_PIN. Field phẳng, lặp giá trị theo batch (§2.1)
+    cadastral_extract_file_id CHAR(36) NULL,        -- reference file-service, NULL nếu SELF_DECLARED
+    original_kml_file_id CHAR(36) NULL,             -- reference file-service, NULL nếu MANUAL_PIN. Field phẳng, lặp giá trị theo batch (§2.1)
     declared_province    VARCHAR(50) NOT NULL,  -- seller tự chọn dropdown, 34 tỉnh (NQ 202/2025) — nguồn độc lập cho cross-check (§2.2.2), L1 08/07/2026
     province_mismatch_flag BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE nếu point-in-polygon suy ra tỉnh khác declared_province — non-blocking
     imported_at         TIMESTAMP NOT NULL,     -- cập nhật lại mỗi lần re-import/update, không chỉ lần đầu
@@ -204,9 +222,9 @@ CREATE INDEX idx_plot_registry_seller ON plot_registry_entry(seller_id);
 -- INSERT ... ON DUPLICATE KEY UPDATE, không cần query tìm rồi update tay.
 
 CREATE TABLE product_plot (
-    plot_id                    UUID PRIMARY KEY,
-    product_id                 UUID NOT NULL REFERENCES product(product_id),
-    source_registry_entry_id   UUID NULL REFERENCES plot_registry_entry(registry_entry_id),
+    plot_id                    CHAR(36) PRIMARY KEY,
+    product_id                 CHAR(36) NOT NULL REFERENCES product(product_id),
+    source_registry_entry_id   CHAR(36) NULL REFERENCES plot_registry_entry(registry_entry_id),
                                                   -- cùng DB product-service, REFERENCES hợp lệ.
                                                   -- NULL = hiếm, nhập tay ngoài registry, không phải luồng chính.
     household_label            VARCHAR(255) NOT NULL,
@@ -214,7 +232,7 @@ CREATE TABLE product_plot (
     geo_json                    GEOMETRY NOT NULL SRID 4326,   -- đổi từ TEXT
     area_hectares                DECIMAL(10,4) NOT NULL,
     verification_level           VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',  -- copy từ registry lúc snapshot
-    cadastral_extract_file_id    UUID NULL,                                     -- copy từ registry lúc snapshot
+    cadastral_extract_file_id    CHAR(36) NULL,                                     -- copy từ registry lúc snapshot
     declared_at                  TIMESTAMP NOT NULL,
     SPATIAL INDEX (geo_json)
 );

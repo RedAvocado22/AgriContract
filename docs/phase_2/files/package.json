@@ -1,0 +1,16 @@
+{
+  "name": "files",
+  "version": "1.0.0",
+  "description": "Toàn bộ tài liệu (.docx) được sinh bằng code (docx.js), không gõ tay trong Word.",
+  "main": "acdocx.js",
+  "scripts": {
+    "build:all": "bash build_all.sh",
+    "test": "node --check acdocx.js && for f in build01.js build02.js build03_part1.js build03_part2.js build04.js build05.js build06.js build07.js build08.js build_sds_full.js docx_output.js; do node --check \"$f\"; done && /usr/bin/python3 -m py_compile materialize_toc.py"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "docx": "^9.7.1"
+  }
+}

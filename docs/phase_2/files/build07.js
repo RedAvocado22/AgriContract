@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { writeDocx } = require("./docx_output.js");
 const { D, T, runs, P, H1, H2, H3, bullet, numbered, quote, callout, legal, risk, src, table, spacer, cover, toc, endMark, buildDoc } = require("./acdocx.js");
 const { Packer, AlignmentType, Paragraph, TextRun, BorderStyle, ShadingType } = D;
 
@@ -35,7 +36,7 @@ push(table(
   [
     ["product-service", "Geolocation mảnh đất cho EUDR: PlotRegistryEntry (tái sử dụng), ProductPlot (snapshot), validate hình học; varietyName. Product/Listing cốt lõi không đổi"],
     ["file-service", "Lưu trữ file agnostic với nghiệp vụ; xử lý async (parse email + virus-scan); retention EUDR. KHÔNG biết ý nghĩa nghiệp vụ của file"],
-    ["pricing-service", "Ingest giá tham chiếu ngoài (VNSAT scrape + admin nhập tay); cache Redis. KHÔNG tính giá từ dữ liệu nội bộ, KHÔNG denormalize giá vào hợp đồng"],
+    ["pricing-service", "Ingest giá tham chiếu ngoài (VNSAT scrape + OPERATOR/ADMIN nhập tay); cache Redis. KHÔNG tính giá từ dữ liệu nội bộ, KHÔNG denormalize giá vào hợp đồng"],
   ],
   { size: 18 }
 ));
@@ -101,10 +102,15 @@ push(callout("Giới hạn đã biết (Known Limitation):", "Baseline 10m 92% a
 
 push(callout("Commodity-gate cho geolocation (C3, 08/07/2026):", "EUDR chỉ áp cà phê và cao su — gạo và điều KHÔNG thuộc EUDR. Với gạo/điều, toàn bộ tầng geolocation/baseline-rừng không áp dụng (CreateListing không bắt buộc khai plot); giá trị đến từ escrow + tranh chấp + uy tín. Geolocation là module EUDR bật/tắt theo commodity, không phải năng lực lõi phổ quát.", "note"));
 
+push(H2("2.4.2 Global plot overlap và yield anomaly"));
+push(P("Sau khi tạo/update PlotRegistryEntry, product-service dùng spatial index lấy candidate có bounding box giao nhau trên toàn hệ thống, không chỉ cùng seller. POLYGON kiểm exact geometry hash, diện tích giao, IoU và coverage ratio = intersection/min(areaA, areaB); POINT kiểm khoảng cách dưới epsilon + areaHectares xấp xỉ. Hai metric polygon là bắt buộc vì plot nhỏ nằm trong plot lớn có IoU thấp nhưng coverage cao."));
+push(P("Owner khác và vượt plotOverlapIoUThreshold hoặc plotOverlapCoverageThreshold → plotReuseRisk=HIGH và đẩy OPERATOR review. Không auto-reject, không tự kết luận fraud: overlap hợp pháp có thể do cùng hộ thuộc hai HTX, thuê/chuyển quyền, hoặc sai số đo."));
+push(P("Yield anomaly là derived signal: declaredQuantity so với Σ(plotArea × maxYield theo commodity/vùng). Vượt ngưỡng → yieldRisk=SUSPICIOUS hoặc EXTREME, yêu cầu bằng chứng/OPERATOR review; không hard-reject khi chưa có baseline yield đủ tin cậy theo giống, vùng và mùa vụ."));
+
 push(H2("2.5 Use case chính"));
 uc("UC-P1", "ImportPlotsFromKML", [
   ["Actor", "SELLER"],
-  ["Input", "sellerId, kmlFile, declaredProvince (dropdown 63 tỉnh, áp cho cả file)"],
+  ["Input", "sellerId, kmlFile, declaredProvince (dropdown 34 tỉnh hiện hành, áp cho cả file)"],
   ["Luồng chính", "Lưu KML qua file-service → originalKmlFileId. Mỗi placemark: match (sellerId, householdLabel) → UPDATE nếu trùng (đo lại), INSERT nếu mới (ON DUPLICATE KEY UPDATE); xác định geometryType theo areaHectares; convert sang GeoJSON; JTS .isValid() trước persist (fail thì báo đúng placemark đó, không chặn cả file); point-in-polygon so declaredProvince → set provinceMismatchFlag"],
   ["areaHectares (Point)", "Điểm không có diện tích; ưu tiên đọc từ <ExtendedData> theo quy ước tên field; không có → bắt seller nhập tay (không mặc định 0 — gây hiểu nhầm)"],
 ]);
@@ -146,8 +152,8 @@ push(table(
 push(codeblock([
   "-- product_db · additive, không đụng bảng product gốc",
   "CREATE TABLE plot_registry_entry (",
-  "  registry_entry_id       UUID PRIMARY KEY,",
-  "  seller_id               UUID NOT NULL,          -- plain UUID (không cross-DB FK)",
+  "  registry_entry_id       CHAR(36) PRIMARY KEY,",
+  "  seller_id               CHAR(36) NOT NULL,          -- plain UUID (không cross-DB FK)",
   "  household_label         VARCHAR(255) NOT NULL,",
   "  geometry_type           VARCHAR(20) NOT NULL,   -- POINT | POLYGON",
   "  geo_json                GEOMETRY NOT NULL SRID 4326,",
@@ -155,27 +161,30 @@ push(codeblock([
   "  source                  VARCHAR(20) NOT NULL,   -- KML_IMPORT | MANUAL_PIN",
   "  accuracy_meters         DECIMAL(6,2) NULL,      -- chỉ MANUAL_PIN; cảnh báo, không constraint",
   "  verification_level      VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',",
-  "  cadastral_extract_file_id UUID NULL,            -- ref file-service",
-  "  original_kml_file_id    UUID NULL,              -- ref file-service; phẳng, lặp theo batch",
-  "  declared_province       VARCHAR(50) NOT NULL,   -- seller khai, 63 tỉnh cũ",
+  "  cadastral_extract_file_id CHAR(36) NULL,            -- ref file-service",
+  "  original_kml_file_id    CHAR(36) NULL,              -- ref file-service; phẳng, lặp theo batch",
+  "  declared_province       VARCHAR(50) NOT NULL,   -- seller khai, 34 tỉnh hiện hành",
   "  province_mismatch_flag  BOOLEAN NOT NULL DEFAULT FALSE,  -- non-blocking",
   "  imported_at             TIMESTAMP NOT NULL,     -- cập nhật lại mỗi lần re-import",
   "  geo_verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',  -- PENDING | CHECKED | UNVERIFIED (§2.4.1, mới 06/07/2026)",
-  "  geo_risk_level          VARCHAR(20) NULL,       -- LOW_RISK | HIGH_RISK | INCONCLUSIVE, chỉ có giá trị khi CHECKED (§2.4.1, mới 06/07/2026)",
+  "  geo_risk_level          VARCHAR(20) NULL,       -- LOW_RISK | HIGH_RISK | INCONCLUSIVE",
+  "  exact_geometry_hash     VARCHAR(64) NULL,",
+  "  plot_reuse_risk        VARCHAR(20) NULL,       -- NORMAL | HIGH",
+  "  yield_risk             VARCHAR(20) NULL,       -- NORMAL | SUSPICIOUS | EXTREME",
   "  UNIQUE (seller_id, household_label),  SPATIAL INDEX (geo_json)",
   ");",
   "-- Invariant 'MANUAL_PIN → POINT' check ở use-case layer, không phải DB constraint.",
   "",
   "CREATE TABLE product_plot (",
-  "  plot_id                  UUID PRIMARY KEY,",
-  "  product_id               UUID NOT NULL REFERENCES product(product_id),",
-  "  source_registry_entry_id UUID NULL REFERENCES plot_registry_entry(registry_entry_id),",
+  "  plot_id                  CHAR(36) PRIMARY KEY,",
+  "  product_id               CHAR(36) NOT NULL REFERENCES product(product_id),",
+  "  source_registry_entry_id CHAR(36) NULL REFERENCES plot_registry_entry(registry_entry_id),",
   "  household_label          VARCHAR(255) NOT NULL,",
   "  geometry_type            VARCHAR(20) NOT NULL,",
   "  geo_json                 GEOMETRY NOT NULL SRID 4326,",
   "  area_hectares            DECIMAL(10,4) NOT NULL,",
   "  verification_level       VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',  -- copy lúc snapshot",
-  "  cadastral_extract_file_id UUID NULL,",
+  "  cadastral_extract_file_id CHAR(36) NULL,",
   "  declared_at              TIMESTAMP NOT NULL,  SPATIAL INDEX (geo_json)",
   ");",
   "",
@@ -187,7 +196,7 @@ push(legal("EU Regulation 2023/1115 (EUDR), Điều 9 & yêu cầu geolocation",
 // 3. FILE-SERVICE
 // ============================================================
 push(H1("3. file-service"));
-push(P("Aggregate File duy nhất, agnostic với nghiệp vụ — file-service không biết một file dùng để làm gì (evidence, cadastral, report), chỉ biết blob + metadata kỹ thuật. Ý nghĩa nghiệp vụ nằm ở tên field bên dịch vụ giữ fileId. Sáu dịch vụ đã phụ thuộc: evidence cân hàng, bằng chứng bất khả kháng, trích lục địa chính, KML gốc, report Level 2, output DDS."));
+push(P("Aggregate File duy nhất, agnostic với nghiệp vụ — file-service chỉ biết blob + metadata kỹ thuật. Gateway không route file-service/raw upload ra ngoài. End-user gửi file vào endpoint của service sở hữu ngữ cảnh; service đó kiểm ownership/business params rồi gọi StoreOnBehalfOf nội bộ với actingUserId."));
 
 push(H2("3.1 Ba entrypoint theo trust boundary"));
 push(P("Không dùng một API generic store(bytes, ingestChannel) — vì ingestChannel khi đó là param caller tự khai, ai cũng có thể tự xưng SYSTEM_GENERATED để né virus-scan. Thay bằng ba entrypoint mỏng, ingestChannel do chính entrypoint quyết định (không giả mạo được):"));
@@ -195,9 +204,9 @@ push(table(
   [2100, 2200, 1900, 3438],
   ["Entrypoint", "Ai gọi", "ingestChannel", "Validate"],
   [
-    ["UploadFile", "Public API, JWT seller/admin", "DIRECT_UPLOAD", "contentType ∈ {JPG,PNG,PDF}, size ≤ 10MB"],
+    ["StoreOnBehalfOf(file, actingUserId)", "Business service nội bộ uỷ quyền từ end-user", "DIRECT_UPLOAD", "JPG/PNG/PDF ≤10MB; luôn virus-scan, không được gọi store() để né scan"],
     ["Email intake bridge", "Job nội bộ (IMAP polling), không expose API", "EMAIL_INTAKE", "size ≤ 20MB (streaming check, tránh OOM); vượt cap → email_intake_failure"],
-    ["store() nội bộ", "Service-to-service (mTLS/token)", "SYSTEM_GENERATED", "Không cần virus-scan (nội dung do hệ thống tạo)"],
+    ["store() nội bộ", "Service-to-service (mTLS/token)", "SYSTEM_GENERATED", "Chỉ nội dung hệ thống tự sinh; uploadedBy phải là serviceId"],
   ],
   { size: 17 }
 ));
@@ -205,7 +214,7 @@ push(table(
 push(H2("3.2 Pipeline xử lý async"));
 push(P("Tách hai consumer theo LOẠI CÔNG VIỆC (parse email vs virus-scan), không theo nguồn gốc file — và nối chuỗi, không chạy song song độc lập:"));
 push(codeblock([
-  "file.uploaded.direct → queue file-service.virus-scan → VirusScanConsumer → markReady/markFailed",
+  "StoreOnBehalfOf → file.uploaded.direct → queue file-service.virus-scan → VirusScanConsumer → markReady/markFailed",
   "file.email.received  → queue file-service.email-parse → EmailParseConsumer",
   "                          ├─ parse OK   → publish vào file-service.virus-scan (dùng lại) → markReady/markFailed",
   "                          └─ parse FAIL → markFailed + insert email_intake_failure",
@@ -214,23 +223,26 @@ push(P([runs("Vì sao nối chuỗi, không song song: ", { bold: true }), runs(
 push(P([runs("Email intake bridge: ", { bold: true }), runs("IMAP polling định kỳ (@Scheduled, mỗi 5 phút, Jakarta Mail) — KHÔNG webhook (webhook cần domain thật + verify DNS + public HTTPS, quá nặng cho scope). Retry 3 lần qua dead-letter-exchange + TTL. Hai DLQ khác ý nghĩa: virus-scan.dlq (lỗi hệ thống → alert dev), email-parse.dlq (định dạng lạ từ tổ chức giám định → báo Admin liên hệ gửi lại).", {})]));
 
 push(H2("3.3 Event, access control, retention"));
-push(P("Event contract: file.ready(fileId, uploadedBy, ingestChannel, contentType, fileSize) và file.failed(fileId, ..., failureReason). Idempotency key = fileId (một fileId chỉ ra đúng một file.ready/file.failed). Bắt buộc event, không polling: nếu consumer coi fileId lúc UploadFile trả về là evidence hợp lệ ngay trong khi file còn PROCESSING rồi vài giây sau FAILED (virus) — hai dịch vụ lệch state (dual-write). Event bắt buộc consumer chờ file.ready mới đổi state."));
+push(P("Event contract: file.ready(fileId, uploadedBy, ingestChannel, contentType, fileSize, emailMeta?) và file.failed(...). Mail không attachment phát file.email_notice cho inspection. Idempotency key=fileId; business consumer chỉ gắn evidence sau file.ready, không coi response StoreOnBehalfOf là file hợp lệ."));
 push(bullet([runs("Access control (download): ", { bold: true }), runs("file-service KHÔNG tự kiểm tra quyền nghiệp vụ (chỉ dịch vụ sở hữu fileId mới có kiến thức đó). Pattern proxy: dịch vụ sở hữu tự expose endpoint + validate quyền, rồi mới gọi GetFile(fileId) nội bộ (service-to-service) và proxy bytes ngược lại. GetFile không public cho end-user gọi thẳng.", {})]));
-push(bullet([runs("Retention: ", { bold: true }), runs("neo vào EUDR Điều 9 (giữ tối thiểu 5 năm) → default GIỮ vĩnh viễn, không TTL tự xoá. DeleteFile chỉ dịch vụ sở hữu gọi khi biết an toàn. Orphan cleanup qua ConfirmAttached: dịch vụ nhận fileId phải lưu vào entity của mình TRƯỚC rồi mới gọi ConfirmAttached(fileId) set attached=TRUE; file attached=FALSE quá 1 tuần → tự xoá (chưa từng có chủ, không compliance nào áp).", {})]));
+push(P("DeleteFile chỉ nhận internal service identity của owning service; legal hold do ADMIN quản trị nhưng không biến file-service thành owner nghiệp vụ. Mọi download Restricted đi qua owner và phải log read access; tombstone không làm đứt audit chain vì audit content chỉ giữ ID/hash tối giản."));
+push(bullet([runs("Retention/lifecycle: ", { bold: true }), runs("metadata có retentionUntil, legalHold, deletedAt, deletionReason. Owning service quyết định retention và gọi DeleteFile; nếu nhiều domain cùng sở hữu thì thời hạn dài nhất thắng. legalHold chặn mọi xoá. Xoá idempotent hai bước: tombstone DB trước, xoá MinIO sau; rerun tự lành. File READY attached không có TTL nội bộ; chỉ orphan attached=FALSE quá 1 tuần được cleanup.", {})]));
 push(codeblock([
   "CREATE TABLE file (",
-  "  file_id        UUID PRIMARY KEY,",
+  "  file_id        CHAR(36) PRIMARY KEY,",
   "  storage_hash   VARCHAR(64) NOT NULL,   -- MinIO tampering detection (tách signedContentHash)",
   "  uploaded_by    VARCHAR(255) NOT NULL,  -- userId hoặc serviceId",
   "  ingest_channel VARCHAR(20) NOT NULL,   -- DIRECT_UPLOAD|EMAIL_INTAKE|SYSTEM_GENERATED",
   "  content_type   VARCHAR(100) NOT NULL, file_size BIGINT NOT NULL,",
   "  status         VARCHAR(20) NOT NULL DEFAULT 'PROCESSING', -- PROCESSING|READY|FAILED",
   "  failure_reason TEXT NULL, attached BOOLEAN NOT NULL DEFAULT FALSE,",
-  "  created_at     TIMESTAMP NOT NULL DEFAULT now()",
+  "  retention_until TIMESTAMP(3) NULL, legal_hold BOOLEAN NOT NULL DEFAULT FALSE,",
+  "  deleted_at TIMESTAMP(3) NULL, deletion_reason VARCHAR(255) NULL,",
+  "  created_at     TIMESTAMP(3) NOT NULL DEFAULT now()",
   ");",
   "CREATE INDEX idx_file_attached_created ON file(attached, created_at);  -- orphan cleanup",
   "CREATE TABLE email_intake_failure (",
-  "  failure_id UUID PRIMARY KEY, file_id UUID NULL REFERENCES file(file_id),",
+  "  failure_id CHAR(36) PRIMARY KEY, file_id CHAR(36) NULL REFERENCES file(file_id),",
   "  source_mailbox VARCHAR(255) NOT NULL, failure_reason TEXT NOT NULL,",
   "  detected_at TIMESTAMP NOT NULL DEFAULT now(), reviewed_by_admin BOOLEAN NOT NULL DEFAULT FALSE",
   ");",
@@ -246,7 +258,7 @@ push(table(
   ["Commodity", "Nguồn", "Cơ chế"],
   [
     ["COFFEE, RICE", "thitruongnongsan.gov.vn (VNSAT — Bộ NN&MT), tách theo tỉnh", "Scrape tự động (Jsoup 2 bước)"],
-    ["RUBBER", "Có nguồn tham chiếu quốc tế (anfin/thitruonghanghoa/investing/VRA) — xem ghi chú L5", "Admin nhập tay (không ingest quốc tế ở scope hiện tại — trade-off đơn vị/tỷ giá)"],
+    ["RUBBER", "Có nguồn tham chiếu quốc tế (anfin/thitruonghanghoa/investing/VRA) — xem ghi chú L5", "OPERATOR/ADMIN nhập tay (không ingest quốc tế ở scope hiện tại — trade-off đơn vị/tỷ giá)"],
     ["CASHEW", "Không có nguồn mở tương đương", "Admin nhập tay, một giá quốc gia"],
   ],
   { size: 18 }
@@ -261,13 +273,13 @@ push(P("VNSAT là ASP.NET WebForms (không REST JSON), postback pattern. Jsoup 2
 push(P([runs("Read API cache-aside: ", { bold: true }), runs("GET /api/v1/prices/{commodity}/{province}?item={itemSlug} — public. Đọc Redis trước; miss → query price_history (ORDER BY capturedAt DESC LIMIT 1), trả về + ghi lại Redis. Match giá tham chiếu với Product.varietyName là best-effort: pricing-service normalize varietyName theo cùng thuật toán itemSlug — khớp thì hiện, không khớp thì im lặng (không lỗi, không block tạo listing). KHÔNG denormalize giá vào Contract/Listing — giữ tính tham khảo thuần tuý, tránh bị lợi dụng trong đàm phán.", {})]));
 push(codeblock([
   "CREATE TABLE price_history (          -- pricing_db, append-only, nguồn sự thật",
-  "  id UUID PRIMARY KEY, commodity VARCHAR(20) NOT NULL, item_name VARCHAR(255) NOT NULL,",
+  "  id CHAR(36) PRIMARY KEY, commodity VARCHAR(20) NOT NULL, item_name VARCHAR(255) NOT NULL,",
   "  province VARCHAR(50) NULL, price DECIMAL(15,2) NOT NULL,",
   "  source VARCHAR(20) NOT NULL,        -- VNSAT_SCRAPE | ADMIN_MANUAL",
   "  captured_at DATE NOT NULL, ingested_at TIMESTAMP NOT NULL",
   ");",
   "CREATE TABLE price_ingestion_failure (",
-  "  id UUID PRIMARY KEY, commodity VARCHAR(20) NOT NULL,",
+  "  id CHAR(36) PRIMARY KEY, commodity VARCHAR(20) NOT NULL,",
   "  failure_reason TEXT NOT NULL, detected_at TIMESTAMP NOT NULL DEFAULT now()",
   ");",
 ]));
@@ -283,7 +295,7 @@ push(table(
   [700, 2200, 3500, 3238],
   ["#", "Actor / Dịch vụ", "Hành động / Sự kiện", "Kết quả"],
   [
-    ["1", "SELLER → file-service", "UploadFile (ảnh cân hàng) → DIRECT_UPLOAD, status=PROCESSING", "file.uploaded.direct"],
+    ["1", "SELLER → contract-service → file-service", "Business endpoint kiểm milestone rồi StoreOnBehalfOf(actingUserId) → PROCESSING", "file.uploaded.direct"],
     ["2", "file-service", "VirusScanConsumer scan → markReady → file.ready", "status=READY"],
     ["3", "contract-service", "Consume file.ready → lưu sellerEvidenceFileId vào milestone", "Milestone SELLER_WEIGHED"],
     ["4", "contract-service → file-service", "ConfirmAttached(fileId)", "attached=TRUE (thoát orphan cleanup)"],
@@ -295,7 +307,7 @@ push(table(
   [700, 2200, 3500, 3238],
   ["#", "Actor / Dịch vụ", "Hành động / Sự kiện", "Kết quả"],
   [
-    ["1", "SELLER → file-service", "Upload KML → originalKmlFileId", "file.ready"],
+    ["1", "SELLER → product-service → file-service", "Import endpoint gọi StoreOnBehalfOf cho KML; chỉ parse sau file.ready", "originalKmlFileId"],
     ["2", "product-service", "Parse placemark → JTS validate → point-in-polygon vs declaredProvince → UPSERT PlotRegistryEntry", "Registry cập nhật; provinceMismatchFlag nếu lệch"],
     ["3", "SELLER → product-service", "CreateListing với List<registryEntryId>", "Copy registry → ProductPlot (snapshot); ≥1 plot (cấm mass balance)"],
     ["4", "pricing-service", "Match varietyName (best-effort) → hiện giá tham khảo", "Giá tham chiếu hiển thị (không denormalize)"],
@@ -308,17 +320,17 @@ push(table(
 // ============================================================
 push(H1("6. Giới hạn có chủ đích"));
 push(bullet([runs("Khai đất giả nhưng hợp lệ hình học. ", { bold: true }), runs("DB + JTS + cross-check tỉnh không đóng được — giới hạn permanent của mô hình self-declared. verificationLevel/CADASTRAL_BACKED chỉ giảm nhẹ (nền tảng không OCR đối chiếu trích lục với toạ độ).", {})]));
-push(bullet([runs("Polygon 34 tỉnh mở chưa tồn tại. ", { bold: true }), runs("Dùng GADM 63 tỉnh cũ cho cross-check → false-positive ở khu vực vừa sáp nhập; non-blocking nên chấp nhận được.", {})]));
+push(bullet([runs("Nguồn ranh giới tỉnh. ", { bold: true }), runs("Đã dùng Free-GIS-Data 34 tỉnh đúng địa giới hiện hành; còn giới hạn đây là nguồn cộng đồng sync GSO, chưa phải bản đồ pháp lý chính thức của Cục Đo đạc.", {})]));
 push(bullet([runs("Orphan cleanup phụ thuộc ConfirmAttached. ", { bold: true }), runs("Nếu dịch vụ consumer có bug quên gọi ConfirmAttached dù đã lưu fileId, file hợp lệ có thể bị xoá nhầm sau 1 tuần — cần lưu ý khi code consumer.", {})]));
 push(bullet([runs("file-service không phải lớp phòng thủ thứ 2. ", { bold: true }), runs("Access control dựa vào dịch vụ sở hữu tự validate đúng; nếu dịch vụ đó có lỗ hổng auth, file-service không double-check.", {})]));
 push(bullet([runs("Nguồn VNSAT dễ vỡ khi đổi layout. ", { bold: true }), runs("HTML/ASP.NET postback không có cơ chế tự phát hiện; chỉ dựa exception → price_ingestion_failure. rubber/cashew phụ thuộc hoàn toàn Admin nhập tay (không validation chéo).", {})]));
-push(bullet([runs("NDVI vệ tinh là proxy thô, không phải xác minh EUDR pháp lý (mới, 06/07/2026). ", { bold: true }), runs("Sentinel-2 10m resolution + ngưỡng nhị phân chỉ đủ làm tín hiệu cảnh báo tham khảo, không thay thế được dịch vụ verification EUDR chuyên dụng. Không được trình bày với VICOFA/buyer như đã \"verify EUDR\".", {})]));
+push(bullet([runs("Baseline rừng là tín hiệu, không phải kết luận pháp lý. ", { bold: true }), runs("ForTy/Natural Forests 2020 ở độ phân giải 10m là proxy hỗ trợ due diligence; không được trình bày như đã verify EUDR hoặc thay thế dịch vụ/chứng cứ pháp lý chuyên dụng.", {})]));
 
 // ============================================================
 // 7. OPEN ITEMS
 // ============================================================
 push(H1("7. Trạng thái đóng & giới hạn đã biết"));
-push(bullet([runs("Cơ chế nhận mail intake@ ", { bold: true }), runs("— file-service (chủ sở hữu) chốt IMAP polling; phần inspection (Phần 3) từng nhắc webhook. Thống nhất theo file-service (IMAP polling) khi hợp nhất tài liệu.", {})]));
+push(bullet([runs("Cơ chế nhận mail intake@ đã thống nhất. ", { bold: true }), runs("file-service sở hữu IMAP polling và phát file.email_notice/file.ready; inspection-service chỉ consume, không đọc mailbox và không dùng webhook.", {})]));
 push(bullet([runs("migration varietyName ", { bold: true }), runs("gộp chung với PR Category/ProductImage/coverImageUrl đang làm (cùng đụng bảng products), tránh 2 lần touch schema.", {})]));
 push(bullet([runs("Khả năng dùng IMAP với mailbox thật của tổ chức giám định — giới hạn đã biết. ", { bold: true }), runs("Giả định đơn giản hoá cho scope đồ án — không khảo sát/xin cấp phép được với SGS/Bureau Veritas trong phạm vi đồ án. Thiết kế không phụ thuộc chi tiết cơ chế lấy mail: nếu deployment thật dùng cơ chế khác (Inbound Parse webhook, API), chỉ đổi adapter tầng intake, không đụng logic lõi.", {})]));
 push(bullet([runs("Geo-risk verification qua vệ tinh (mới, 06/07/2026, chốt 13/07/2026). ", { bold: true }), runs("Đã đóng toàn bộ: ngưỡng NDVI tự đặt đã gỡ — thay bằng baseline ForTy/Natural Forests 2020 làm sẵn (08/07/2026); geoVerificationTimeoutHours chốt 6 giờ (application.yml); luồng EXIF re-evaluation (UC-P5) spec đầy đủ, không còn deferred. Chi tiết đầy đủ ở product-phase2-design.md §2.2.4.", {})]));
@@ -333,6 +345,6 @@ const doc = buildDoc(body, {
   headerText: "AgriContract · SDS — Phần 4",
   footerText: "SDS v1.0 · Phần 4 · Tháng 7/2026",
 });
-Packer.toBuffer(doc).then(buf => { fs.writeFileSync("/tmp/AgriContract_07_SDS_Part4_v1.docx", buf); console.log("written", buf.length); });
+Packer.toBuffer(doc).then(buf => { writeDocx("/tmp/AgriContract_07_SDS_Part4_v1.docx", buf); });
 
 }

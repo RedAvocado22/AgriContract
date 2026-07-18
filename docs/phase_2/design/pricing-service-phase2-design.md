@@ -11,6 +11,9 @@ metadata:
 
 ## 1. Bối cảnh & Scope
 
+> **Role vận hành (18/07/2026):** các use case Admin trong doc này (review/moderate/nhập liệu hằng ngày) nhận thêm role `OPERATOR` theo `data-governance-phase2-design.md` §5 — permission matrix ở đó là source of truth, doc này không lặp lại; flow/state/schema không đổi.
+
+
 **Đã loại hẳn khỏi scope:** tính giá tham chiếu từ `agreedPrice` trung bình các contract `SETTLED` nội bộ. Lý do kép — (1) platform mới, data sparse, vài chục contract đầu không đủ ý nghĩa thống kê; (2) nghiêm trọng hơn: 1 con số "giá thị trường" tính từ chính vài giao dịch trong platform có thể bị 1 buyer lớn lợi dụng — ép giá thấp vài lần đầu để tự tạo ra "giá tham chiếu" giả, rồi dùng chính con số đó ép các HTX khác — đúng nghịch lý với bài toán bất đối xứng quyền lực mà AgriContract sinh ra để giải (AgriContract_01 §1.3). Internal-average không chỉ vô dụng vì thiếu data, mà phản tác dụng nếu implement.
 
 **Chốt: pricing-service chỉ ingest external market reference price, không tự tính gì từ data nội bộ.**
@@ -93,7 +96,7 @@ Lý do lệch nhau nhiều giữa 2 commodity dù cùng 1 nguồn: VNSAT publish
 
 ```sql
 CREATE TABLE price_ingestion_failure (
-    id              UUID PRIMARY KEY,
+    id              CHAR(36) PRIMARY KEY,
     commodity       VARCHAR(20) NOT NULL,
     failure_reason  TEXT NOT NULL,
     detected_at     TIMESTAMP NOT NULL DEFAULT now()
