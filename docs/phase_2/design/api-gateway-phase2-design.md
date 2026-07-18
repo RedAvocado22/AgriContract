@@ -93,7 +93,7 @@ Gateway role gate là lớp coarse-grained; service vẫn kiểm tra role + reso
 | `POST /api/v1/security/emergency-lock` | Asymmetric signature, timestamp + nonce/replay guard | bank-service |
 | `POST /api/v1/security/emergency-unlock` | Mirror asymmetric verification; không Admin bypass | bank-service |
 
-Hai endpoint này không dùng JWT user flow và không bị filter ép `X-User-*`. Gateway preserve raw signed body/required signature headers, áp size cap nhỏ và không retry, cộng rate bucket per-IP nhỏ (đề xuất 10 req/phút — **mới 17/07/2026**: verify chữ ký bất đối xứng tốn CPU, chặn flood chữ ký rác ngay tại edge; verification thật vẫn ở bank-service). Verification mật mã cuối cùng nằm ở bank-service.
+Hai endpoint này không dùng JWT user flow và không bị filter ép `X-User-*`. Gateway preserve raw signed body, áp request cap **64 KB**, không retry, và cộng rate bucket per-IP nhỏ (đề xuất 10 req/phút — **mới 17/07/2026**: verify chữ ký bất đối xứng tốn CPU, chặn flood chữ ký rác ngay tại edge; verification thật vẫn ở bank-service). Verification mật mã cuối cùng nằm ở bank-service. Contract wire dùng ES256 và body `keyId` + `signedPayload` + `signature` theo `bank-service §3.5.2`.
 
 ### 3.5 Internal-only — không có external route
 

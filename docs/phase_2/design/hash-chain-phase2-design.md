@@ -216,6 +216,8 @@ _Tầng 2 (weekly, luôn chạy):_ `VerifyChainJob` mỗi Chủ Nhật tự tạ
 
 `GET /internal/v1/audit/records?contractId&sourceType&from&to` — read-only, service-to-service secret, **không route Gateway** (gateway §3.5). Caller Phase 2 duy nhất: `LedgerAuditReconciliationJob` của bank-service (bank §5b.1) — đối chiếu số tiền trong `audit_record.content` vs ledger, lấp lớp check "tiền đi đúng như record đã anchor chưa" mà chain verify (chỉ soát hash) không cover. Audit-service vẫn là writer duy nhất; API này không có đường ghi.
 
+For reconciliation-relevant records, `content` is a typed projection rather than an open JSON object: `{contractId, milestoneId?, settledAmount, seizedAmount, sourceEventId?, releaseLegs[], refundLegs[]}`. Each leg carries `{entryType, amount, sourceEventId}`. Level 2 records copy the explicit seller-release/buyer-refund legs from the canonical event; `milestone.settled` maps `actualAmount` to `settledAmount`; `milestone.cancelled_with_penalty` maps its penalty leg to `seizedAmount`. Zero is represented in audit projection where needed, but bank commands with zero are omitted.
+
 
 ## 5. Weekly Verify Job
 

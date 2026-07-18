@@ -48,9 +48,39 @@ Cùng gate lúc đăng ký account, fail-closed by default (`signature-phase2-de
 
 `authorizationExpiresAt` (đã có sẵn trên `User`) tái dùng được nguyên — giấy phép kiểm định cũng có ngày hết hạn, cùng cơ chế nhập tay từ giấy tờ thật, không hardcode.
 
-### 2.3 `reportHash` — giữ nguyên công thức gốc
+### 2.3 Inspection settlement result và hash commitment (chốt 18/07/2026)
 
-`services.md` mục 6: `reportHash = SHA256(content + timestamp + inspectorId)`. Với Level 1.5, `inspectorId` = `signerUserId` lấy từ JWT actor đã authenticated — công thức gốc vẫn đúng nguyên vì actor đó thật, verify được qua RBAC, không phải input tự gõ.
+Inspection-service sở hữu schema finding/result dùng chung cho Level 1.5 và Level 2:
+
+```text
+InspectionSettlementResultV1 {
+  resultSchemaVersion: "1.0",
+  measuredQuantityKg: decimal >= 0,
+  acceptedQuantityKg: decimal >= 0 and <= measuredQuantityKg,
+  qualityDisposition:
+    CONFORMING | PARTIALLY_CONFORMING | NON_CONFORMING | INCONCLUSIVE,
+  determinedAt: timestamp
+}
+```
+
+Snapshot này là kết quả normalized tối thiểu, bất biến sau khi report được `CONFIRMED`. Không mang raw file, contact PII hay nội dung report tự do. Mọi field của snapshot phải nằm trong bytes được hash commit:
+
+```text
+normalizedResult = InspectionSettlementResultV1
+resultHash = SHA256(RFC8785_canonical_json(normalizedResult))
+reportHash = SHA256(RFC8785_canonical_json({
+  reportId,
+  contractId,
+  milestoneId,
+  tier,
+  reportFileHash,
+  resultHash,
+  sourceTimestamp,
+  actorOrSourceIdentity
+}))
+```
+
+`reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByAdminId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền hoặc quyết định escrow transition.
 
 ### 2.4 Session freshness — tách config riêng khỏi Signature
 
@@ -184,10 +214,10 @@ IngestExternalInspectionReportEmail(fileReadyEvent):   // consumer file.ready
      chỉ làm tín hiệu cho bước review (raise bar domain, không chứng minh thẩm quyền
      người gửi — Admin vẫn là quyết định cuối)
   2. Lấy bytes qua GetFile(fileId) nội bộ →
-     reportHash = SHA256(content + emailMeta.receivedAt + emailMeta.senderDomain)
+     reportFileHash = SHA256(content)
      — tính NGAY khi consume event, trước khi bất kỳ Admin nào thấy report.
-     2 điểm đóng băng (storageHash bước 0 + reportHash bước này) đều nằm TRƯỚC
-     con người — giữ nguyên yêu cầu "đóng băng trước khi ai chạm vào"
+     storageHash + reportFileHash đóng băng raw bytes trước con người; reportHash cuối
+     chỉ được tính khi report CONFIRMED và đã có normalizedResult/resultHash (§2.3).
   3. Giữ fileId làm reference (file đã nằm sẵn ở file-service từ bước 0,
      không upload lại)
   4. Tìm case ID trong subject/report, lookup intake_case_id trong
@@ -217,7 +247,7 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
 
 **Publish dời sang lúc CONFIRMED, không phải lúc ingest** — tránh mail rác/gắn nhầm hợp đồng lọt vào audit trail bất biến trước khi có người xác nhận.
 
-**Fallback:** giữ nguyên use case ingest thủ công gốc (`SubmitExternalInspectionReport`, Admin tự tải và upload report, `role ADMIN`, không phải role `INSPECTOR`), đổi `ingestion_source = ADMIN_MANUAL` — dùng khi org gửi về địa chỉ liên hệ quen thuộc thay vì `intake@...`, hoặc webhook lỗi. `org` vẫn lấy từ `Contract.contractTerms.level2InspectorOrg` (không cho Admin tự gõ lại), `reportHash = SHA256(content + timestamp + org)`, `uploadedByAdminId`/`confirmed_by_admin_id` lấy từ JWT của Admin đang thao tác. Không có điểm nào trong luồng mới làm hệ thống kẹt cứng nếu tự động hoá thất bại.
+**Fallback:** giữ nguyên use case ingest thủ công gốc (`SubmitExternalInspectionReport`, Admin tự tải và upload report, `role ADMIN`, không phải role `INSPECTOR`), đổi `ingestion_source = ADMIN_MANUAL` — dùng khi org gửi về địa chỉ liên hệ quen thuộc thay vì `intake@...`, hoặc webhook lỗi. `org` vẫn lấy từ `Contract.contractTerms.level2InspectorOrg` (không cho Admin tự gõ lại); `reportFileHash = SHA256(content)` được tính ngay khi store, còn `reportHash` cuối tính theo §2.3 sau normalized confirmation. `uploadedByAdminId`/`confirmed_by_admin_id` lấy từ JWT của Admin đang thao tác.
 
 ---
 
@@ -235,7 +265,16 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
 
 **Bổ sung (17/07/2026) — transport vào chain, trước đây chưa đặt tên:** "publish audit-service"/"INSERT audit_record" ở §3.4/§3.6 chưa định nghĩa đi bằng đường nào — và inspection-service không được INSERT thẳng DB của audit-service. Chốt 2 domain event RabbitMQ, audit-service là consumer duy nhất ghi `audit_record` (cơ chế thống nhất toàn hệ thống — `hash-chain-phase2-design.md` §2.4):
 - `inspection.level2_commissioned` — publish ở bước 5 của `InitiateLevel2Inspection` (§3.4; "INSERT audit_record" ở đó đọc là *yêu cầu ghi*, thực thi qua event này), payload = content của audit record → `source_type = LEVEL2_INSPECTION_COMMISSIONED`.
-- `inspection.report_confirmed` — publish khi report thành `CONFIRMED` (Level 1.5 lúc submit hợp lệ; Level 2 lúc `ReviewPendingExternalReport` APPROVE hoặc nhánh `ADMIN_MANUAL`), payload `{reportId, tier, contractId, reportHash, inspectorId?, confirmedByAdminId?}` → audit-service map `tier` sang `INSPECTION_REPORT` / `EXTERNAL_INSPECTION_REPORT`.
+- `inspection.report_confirmed` — publish khi report thành `CONFIRMED` (Level 1.5 lúc submit hợp lệ; Level 2 lúc `ReviewPendingExternalReport` APPROVE hoặc nhánh `ADMIN_MANUAL`). Payload canonical: `{reportId, contractId, milestoneId, tier, normalizedResult: InspectionSettlementResultV1, resultHash, reportFileHash, reportHash, confirmedAt, inspectorId?, confirmedByAdminId?}`. `reportFileHash` is the minimum verification material implied by the approved requirement that contract-service recompute `reportHash`; it is a hash only, not raw file content. Audit-service map `tier` sang `INSPECTION_REPORT` / `EXTERNAL_INSPECTION_REPORT`; contract-service consume idempotently theo `eventId`/`reportId`, verify hashes và chỉ apply cho milestone `CONTESTED` có cùng `contractId`/`milestoneId`.
+
+Contract-service giữ ownership tính tiền và transition:
+
+```text
+inspectionEntitlementAmount =
+  min(batchAmount, normalizedResult.acceptedQuantityKg * agreedPrice)
+```
+
+Không áp `toleranceRate` lần thứ hai sau inspection: normalized result đã là phán quyết quantity/quality cuối của inspection-service.
 
 ---
 
@@ -285,8 +324,11 @@ CREATE TABLE inspection_report (
                                                        -- thật cho LEVEL_2, xem commission_id bên dưới.
     tier                              VARCHAR(10) NOT NULL,    -- 'LEVEL_1_5' | 'LEVEL_2'
     content                           JSON NOT NULL,   -- MySQL 8 (sửa dialect 18/07/2026)
-    report_hash                       VARCHAR(64) NOT NULL,    -- LEVEL_2 AUTO_EMAIL: tính NGAY lúc ingest,
-                                                                  -- trước khi ai (kể cả Admin) chạm vào — đóng băng
+    milestone_id                      CHAR(36) NULL,   -- bắt buộc trước khi CONFIRMED
+    report_file_hash                  VARCHAR(64) NOT NULL,
+    normalized_result                 JSON NULL,       -- InspectionSettlementResultV1; bắt buộc khi CONFIRMED
+    result_hash                       VARCHAR(64) NULL, -- SHA256 RFC8785 canonical normalized_result
+    report_hash                       VARCHAR(64) NULL,        -- bắt buộc khi CONFIRMED; commit resultHash + identity/file/timestamp/actor
     -- nhánh LEVEL_1_5 — bắt buộc:
     inspector_id                     CHAR(36) NULL,               -- = signerUserId, NOT NULL nếu tier = LEVEL_1_5
     -- nhánh LEVEL_2 — bắt buộc:
@@ -309,6 +351,7 @@ CREATE TABLE inspection_report (
     external_verification_status     VARCHAR(20) NULL,        -- 'NOT_CHECKED' | 'VERIFIED' | 'UNVERIFIED' | 'UNAVAILABLE' —
                                                                   -- optional, chỉ LEVEL_2, Admin tự điền nếu org có dịch vụ verify công khai
     external_verification_checked_at TIMESTAMP NULL,
+    confirmed_at                     TIMESTAMP NULL,
     created_at                       TIMESTAMP NOT NULL DEFAULT now()
 );
 -- Invariant (inspector_id XOR (external_org AND (confirmed_by_admin_id nếu status=CONFIRMED)))
@@ -325,7 +368,7 @@ CREATE TABLE inspection_report (
 - **External verification (SGS document verification hoặc tương đương) là thao tác tay qua web form công khai, không phải API.** Không thể là gate tự động trong `ReviewPendingExternalReport`, chỉ là field Admin điền song song lúc duyệt. **Known Limitation:** không xác nhận được trong phạm vi đồ án liệu Bureau Veritas có dịch vụ document-verification tương đương SGS hay không — nếu deployment chọn BV, dùng giá trị `UNAVAILABLE` cho field này, không block luồng duyệt.
 - **Tự động hoá tra cứu accreditation qua API là enhancement, không phải Phase 2 (Known Limitation).** 3 nguồn tra cứu (BoA-VIAS, IAF CertSearch, ILAC Signatory Search) hiện Admin tra tay; không xác nhận được BoA có API export JSON trong phạm vi đồ án — nối API là việc sau, không đổi logic duyệt (§3.2).
 - **SPF/DKIM chỉ raise bar domain gửi, không chứng minh thẩm quyền người gửi.** Admin vẫn là quyết định cuối cho tính hợp lệ của report.
-- **Endpoint duyệt (`ReviewPendingExternalReport`) không nhận file, và `reportHash` đóng băng trước khi Admin chạm vào** — đây là cơ chế kỹ thuật thật, không phải quy tắc miệng, ngăn Admin thay file report đã ingest.
+- **Endpoint duyệt (`ReviewPendingExternalReport`) không nhận file, và `reportFileHash` đóng băng trước khi Admin chạm vào**; `reportHash` cuối commit chính file hash đó cùng normalized result và attribution lúc CONFIRMED — ngăn Admin thay file hoặc sửa result ngoài hash.
 - **3-mail chỉ là passive backup**, không có active reconciliation tự động — không có bước nào chủ động so sánh bản buyer/seller nhận với bản platform xử lý, chỉ nằm đó dùng khi có tranh chấp thật cần lôi ra đối chiếu. Kế thừa đúng giới hạn "phải có người chủ động nhìn" từ `hash-chain-phase2-design.md` §6.
 - **WebAuthn/passkey cho INSPECTOR** — cùng lý do đã ghi ở `signature-phase2-design.md` §8: không đổi tier pháp lý (vẫn thiếu chứng thư CA cấp phép, Điều 22 khoản 3(đ)), chỉ nâng chất lượng bằng chứng khi tranh chấp, không nâng presumption pháp lý mặc định. Để ngoài phạm vi, có chủ đích.
 
@@ -333,7 +376,7 @@ CREATE TABLE inspection_report (
 
 ## 7. Status — Inspection Design
 
-**Chốt (03/07/2026):** Level 1.5 = actor thật, mở rộng `Signature` schema (`signerRole` thêm `INSPECTOR`, thêm `reportId`, constraint `UNIQUE(reportId)` thay vì theo milestone/dispute), KYC nội dung khác Buyer/Seller (chứng chỉ kiểm định thay vì thẩm quyền đại diện), `reportHash` giữ nguyên công thức gốc, session freshness tách riêng `inspectionAuthMaxAgeSeconds` = 1800s. Level 2 = không Signature, không RBAC; `level2InspectorOrg` NOT NULL có điều kiện trong `ContractTerms`, negotiate lúc ký, không hardcode danh sách tổ chức.
+**Chốt (03/07/2026; hash contract superseded 18/07/2026):** Level 1.5 = actor thật, nhánh signature thuộc inspection-service, KYC nội dung khác Buyer/Seller, session freshness `inspectionAuthMaxAgeSeconds` = 1800s. Level 2 = không Signature, không RBAC; `level2InspectorOrg` NOT NULL có điều kiện trong `ContractTerms`, negotiate lúc ký, không hardcode danh sách tổ chức. Hash contract hiện hành là `InspectionSettlementResultV1` + `resultHash` + revised `reportHash` ở §2.3.
 
 **Chốt bổ sung (04/07/2026) — merge addendum + fix kiến trúc:**
 - **Level 2 ingestion chuyển từ thuần thủ công sang auto-intake + human-confirm:** hòm mail platform (`intake@...`, qua IMAP polling của file-service — sửa 17/07/2026, xem §3.3) thay thế vị trí Admin trong 3-mail song song gốc (buyer/seller không đổi, §3.3). Thêm use case `InitiateLevel2Inspection` ghi nhận platform đã yêu cầu commission org đi đâu, lúc nào (§3.4). Case ID của org dùng làm join key qua bảng `level2_inspection_commission`, match tự động chỉ ở mức gợi ý, Admin xác nhận thật (§3.5). Report cuối ingest tự động, hash đóng băng ngay khi nhận, publish audit chain dời sang lúc Admin `CONFIRMED` qua `ReviewPendingExternalReport` (§3.6). Giữ ingestion thủ công gốc làm fallback (`ingestion_source = ADMIN_MANUAL`).

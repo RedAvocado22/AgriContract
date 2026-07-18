@@ -106,6 +106,15 @@ Chỉ khi **cả 2 cùng lúc** bị lộ (password lẫn quyền truy cập mai
 
 ## 6. Verify logic tại `sign()` (cập nhật 03/07/2026 — thêm OTP layer, §4.1)
 
+### 6.0 HTTP contract (authoritative path)
+
+The reconciliation API catalog is promoted to the authoritative design contract:
+
+- `POST /api/v1/contracts/{contractId}/sign/initiate` — `InitiateSign`.
+- `POST /api/v1/contracts/{contractId}/sign/verify` — `VerifyOtpAndSign`.
+
+Both routes use the existing SDS error envelope. Write requests carry the caller identity from Gateway JWT; contract-service remains the owner of authorization, OTP binding and signature state.
+
 Tách 2 bước, không còn 1 lệnh `sign()` duy nhất — buyer/seller phải qua đủ cả step-up lẫn OTP mới thật sự ký:
 
 ```

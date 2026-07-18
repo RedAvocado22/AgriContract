@@ -107,7 +107,7 @@ Bỏ `mockSellerBalance` (dual-write, không cần — xem note dưới). **`sel
 
 **Lưu ý (04/07/2026, xem `bank-service-phase2-design.md` §5):** `EscrowAccount`/`EscrowMilestone` chỉ giữ **state** (`LOCKED`/`RELEASED`/`PENALIZED`...), không tự lưu lại 1 con số tiền riêng phải đồng bộ tay với bank-service — số tiền thật là single source of truth ở `ledger_entry` bên bank-service. Giữ thêm số tiền ở đây là dual-write, đúng lỗi đã học ở Phase 1.
 
-**Cập nhật (08/07/2026) — thêm state cho Provisional Settlement (§3.2):** `EscrowMilestone.status` thêm giá trị `PROVISIONALLY_RELEASED` (giữa `LOCKED` và `SETTLED`/`RELEASED` — dùng khi milestone đã release tạm theo phán quyết Level 1.5 nhưng còn giữ buffer chờ Level 2). Thêm field `bufferAmount` (Money, nullable) — **ngoại lệ hợp lệ** cho nguyên tắc "không giữ số tiền" ở trên, vì đây là *snapshot của phán quyết* (bất biến sau khi tính ở Bước 1, không phải số dư cần đồng bộ liên tục với bank), cùng logic với `lockDurationDays` bên reputation-service.
+**Cập nhật (08/07/2026, contract freeze 18/07/2026) — thêm state cho Provisional Settlement (§3.2):** `EscrowMilestone.status` thêm giá trị `PROVISIONALLY_RELEASED` (giữa `LOCKED` và `SETTLED`/`RELEASED` — dùng khi milestone đã release tạm theo phán quyết Level 1.5 nhưng còn giữ tiền chờ Level 2). Snapshot được đổi tên thành `remainingLockedAmount` (Money, nullable) để khớp explicit event legs; đây là immutable decision/conservation snapshot, không phải competing balance.
 
 ---
 
@@ -139,6 +139,24 @@ OFFERED → NEGOTIATING → SIGNED → ACTIVE
    **Compensation cho leg đã LOCKED (sửa 18/07/2026 — bản 17/07 chuyển thẳng `ACTIVATION_FAILED` mà quên tiền buyer đang nằm trong lock):** `MarkActivationFailed` → với mọi leg đã `LOCKED`, gửi `bank.refund_requested` (compensating); `SIGNED → ACTIVATION_REFUND_PENDING` → chỉ khi mọi refund `confirmed` mới `→ ACTIVATION_FAILED` (terminal, không penalty/`lockDurationDays`). Refund fail → **đứng lại ở `ACTIVATION_REFUND_PENDING`** + alert Admin, không giả vờ đã kết thúc sạch; `LedgerAuditReconciliationJob` + invariant "contract terminal ⇒ tổng lock = 0" (verification matrix #8) là lưới bắt sót. **Không dùng timer tự động cho bước terminal** — huỷ 1 hợp đồng đã đủ 2 chữ ký cần người xác nhận, đúng nguyên tắc human-in-the-loop đã dùng cho evidence (inspection §3.6). Hệ quả cho tầng phân tích: `contract.signed` đo "đã ký", `contract.settled`/milestone events đo "đã vận hành thật" — 2 câu hỏi khác nhau, `analytics-service` không được lẫn 2 mốc này khi tính conversion rate hay tương tự.
 
 ### 3.2 Milestone-level (mới)
+
+#### 3.2.0 Authoritative HTTP action catalog
+
+The following paths are part of the authoritative contract surface:
+
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh`
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/confirm`
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/flag`
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond`
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure`
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve`
+
+Activation recovery is ADMIN-only and uses the same SDS error envelope and idempotent write policy:
+
+- `POST /api/v1/contracts/{contractId}/activation/retry-deposit-lock`
+- `POST /api/v1/contracts/{contractId}/activation/mark-failed`
+
+The recovery actions have no caller-supplied business state; the service reads the current contract/escrow projection and applies the named use case.
 
 ```
 CREATED
@@ -210,28 +228,27 @@ Nếu hết `level2BufferWindowDays` mà report Level 2 chưa `CONFIRMED` (`insp
 **3 bước dưới đây giữ nguyên mechanics, chỉ tham số hoá tỷ lệ release: thay `(1 − rate)` → `relRate` (mức buyer đã chọn ở Bước 0), và `rate` → `(1 − relRate)` ở phần buffer của seller.** Khi buyer đồng ý, `relRate = (1 − rate)` → toàn bộ số học về đúng bản cũ.
 
 **Bước 1 — Provisional settle (hết `level2BufferWindowDays`, chưa có report Level 2):**
-- Release ngay cho seller = `X15 × relRate` — dùng `X15`, **không phải** `batchAmount` (nếu `X15 < batchAmount` mà release theo `batchAmount` thì trả thừa, không đòi lại được).
-- Giữ khoá phần còn lại = `batchAmount − X15×relRate`, gồm 2 khối: `X15 × (1−relRate)` (buffer của seller, chờ Level 2 xác nhận — dày hơn khi buyer chọn sàn) + `batchAmount − X15` (phần thuộc buyer theo phán quyết 1.5 — **không** refund buyer sớm ở bước này, vì nếu Level 2 sau đó phán seller đáng nhận nhiều hơn thì đòi lại từ buyer cũng khó y hệt đòi seller).
-- `EscrowMilestone.status = PROVISIONALLY_RELEASED` (state mới, thêm vào §2.3). Field `bufferAmount` (= `batchAmount − X15×relRate`) snapshot lên `EscrowMilestone` lúc này — đây là snapshot phán quyết bất biến, **không** phải số dư phải đồng bộ tay với bank-service (không vi phạm nguyên tắc "escrow không giữ số tiền" ở `bank-service-phase2-design.md` §5, cùng logic với `lockDurationDays` bên reputation-service).
-- Ledger: `RELEASE_TO_SELLER(X15×relRate)`. Không refund gì cho buyer ở bước này.
+- Contract-service tính `level1_5EntitlementAmount = X15`, chọn `releaseRate = relRate`, rồi tính `sellerReleaseAmount = X15 × relRate` và `remainingLockedAmount = batchAmount − sellerReleaseAmount`.
+- Không refund buyer ở bước này. `EscrowMilestone.status = PROVISIONALLY_RELEASED`; `remainingLockedAmount` chỉ là snapshot immutable để kiểm tra conservation, không phải competing balance.
+- Contract-service publish `milestone.level2_provisional_settled {contractId, milestoneId, level1_5ReportId, level1_5EntitlementAmount, releaseRate, sellerReleaseAmount, remainingLockedAmount}`.
+- Escrow-service kiểm tra `sellerReleaseAmount + remainingLockedAmount = batchAmount`, sau đó chỉ phát `bank.release_requested(RELEASE_TO_SELLER, sellerReleaseAmount)` khi số tiền dương.
 
 **Lý do dùng buffer khoá sẵn thay vì ghi nợ:** seller (HTX) không có tài sản đối ứng để đòi nếu số Level 2 thật (về sau) thấp hơn số đã release tạm — không có `sellerDepositRate` bắt buộc để seize. Giữ tiền sẵn trong escrow xử lý đúng rủi ro tại nguồn, không phụ thuộc khả năng seller trả nợ sau này.
 
 **Bước 2 — Reconcile (report Level 2 `CONFIRMED` về trong `level2BufferTerminalDays`):**
-- Seller tổng cộng đáng nhận = `min(X2, batchAmount)`.
-- Bù thêm cho seller = `max(0, min(X2,batchAmount) − X15×relRate)`, lấy từ phần đang giữ.
-- Refund buyer = phần giữ còn lại sau khi bù seller.
-- **Nếu `X2 < X15×relRate`** (Level 2 phán thấp hơn số đã lỡ release ở Bước 1): seller đã nhận thừa, **không đòi lại được** — đây chính là rủi ro mà `rate` (buffer) sinh ra để hấp thụ; phần thiếu hụt do buyer chịu, đúng nguyên tắc "nghiêng về seller yếu thế hơn" đã dùng xuyên suốt (§6.2), không phải bất công ngẫu nhiên.
-- Ledger: `RELEASE_TO_SELLER(bù thêm)` + `REFUND_TO_BUYER(còn lại)`.
+- Contract-service tính `finalSellerEntitlementAmount = min(X2, batchAmount)`, `alreadyReleasedAmount`, `sellerAdditionalReleaseAmount`, `buyerRefundAmount` và `overReleaseAmount`.
+- Contract-service publish `milestone.level2_buffer_reconciled {contractId, milestoneId, level1_5ReportId, level2ReportId, finalSellerEntitlementAmount, alreadyReleasedAmount, sellerAdditionalReleaseAmount, buyerRefundAmount, overReleaseAmount}`.
+- `overReleaseAmount = max(0, alreadyReleasedAmount − finalSellerEntitlementAmount)` chỉ là immutable evidence/audit field; không tạo debit hoặc negative ledger.
+- Escrow-service kiểm tra conservation và phát các bank command có amount dương. Zero-value command bị omit.
 
 **Cập nhật (06/07/2026) — chốt hạn cứng, đóng điểm treo về buffer vô thời hạn:** thêm `level2BufferTerminalDays` (chốt 30 ngày, §8; tính từ lúc `level2BufferWindowDays` hết hạn — tổng thời gian chờ tối đa ~40 ngày trước khi có điểm dừng cứng).
 
 **Bước 3 — Terminal (hết `level2BufferTerminalDays`, report Level 2 không bao giờ về):**
-- Phán quyết 1.5 thành chung thẩm. Seller nhận nốt **`X15 × (1−relRate)`** (buffer của chính seller, không phải toàn bộ phần đang giữ). Buyer nhận **`batchAmount − X15`** (phần thuộc buyer theo 1.5, tách riêng khỏi buffer của seller — đây chính là chỗ bản cũ gộp nhầm thành "release nốt bufferAmount cho seller").
-- Ledger: `RELEASE_TO_SELLER(X15×(1−relRate))` + `REFUND_TO_BUYER(batchAmount − X15)`.
+- Phán quyết 1.5 thành chung thẩm. Contract-service publish `milestone.level2_terminal_settled {contractId, milestoneId, level1_5ReportId, finalSellerEntitlementAmount, alreadyReleasedAmount, sellerAdditionalReleaseAmount, buyerRefundAmount}`.
+- Escrow-service kiểm tra conservation rồi phát release/refund command dương; zero-value command bị omit.
 - Rủi ro số 1.5 sai lệch so với số Level 2 thật (nếu report từng về muộn) dồn hết sang buyer — chấp nhận được, đúng nguyên tắc đã dùng xuyên suốt.
 
-**Về `entryType`:** không cần enum mới ở bank-service — vẫn `RELEASE_TO_SELLER`/`REFUND_TO_BUYER`, mỗi động tác 1 `sourceEventId` riêng (đúng pattern Delta 1/2 đã dùng, `bank-service-phase2-design.md` §3.1).
+**Về `entryType`:** không cần enum mới ở bank-service — vẫn `RELEASE_TO_SELLER`/`REFUND_TO_BUYER`, mỗi động tác 1 `sourceEventId` riêng (đúng pattern Delta 1/2 đã dùng, `bank-service-phase2-design.md` §3.1). Mọi amount trong bank command phải `> 0`; không dùng số âm để biểu diễn reversal.
 
 **Chốt (13/07/2026) — 3 số cấu hình neo theo benchmark, đưa vào SDS:** cả 3 số neo theo căn cứ ngành, cấu hình `application.yml`, tinh chỉnh được khi có dữ liệu vận hành thật:
 - `level2BufferWindowDays` = **10 ngày làm việc** — neo benchmark lab test chất lượng chuẩn SCA (5 ngày làm việc/mẫu, `[REFERENCE]`) + buffer lịch hẹn/vận chuyển mẫu.
@@ -391,7 +408,7 @@ Không cần event mới riêng cho `sellerDepositRate` — tận dụng đúng 
 
 **Sửa (08/07/2026) — `milestone.buyer_confirmed` không được trigger tiền:** buyer `CONFIRM_CLEAN` → milestone `SETTLED` → contract-service publish `milestone.settled`; đây là nguồn trigger tiền DUY NHẤT. `milestone.buyer_confirmed` chỉ vào audit trail; mail trạng thái đi qua `notification.milestone_status_requested`. Escrow-service tuyệt đối không nghe event confirmed, tránh release hai lần.
 
-**Cập nhật (04/07/2026) — payload `milestone.settled` mở rộng:** thêm `lockedAmount` (= `batchAmount` gốc đã khoá) và `actualAmount` (= số tiền thật sau pro-rata Delta 1/2, §4). `escrow-service` tự tính `diff = lockedAmount - actualAmount`, bắn 2 `LedgerEntry` cùng `milestoneId` nếu `diff > 0`: `RELEASE_TO_SELLER(actualAmount)` + `REFUND_TO_BUYER(diff)`. Không cần event/entryType mới ở bank-service — chỉ là payload trước đây chưa đủ chi tiết để escrow-service tự tính được. **Bổ sung contract notification (16/07/2026):** payload còn mang `recipients[{userId,email,role}]` để audit-service — vốn là pure consumer, không Feign ngược user-service — có thể publish `notification.milestone_anchor_requested` sau khi OTS proof sẵn sàng. Các consumer tiền/analytics bỏ qua field này theo tolerant-reader.
+**Cập nhật (04/07/2026) — payload `milestone.settled` mở rộng:** payload canonical bắt buộc `{contractId, milestoneId, lockedAmount, actualAmount, recipients}`. `contract-service` tính `actualAmount`; escrow-service kiểm tra `lockedAmount >= actualAmount`, phát `RELEASE_TO_SELLER(actualAmount)` và nếu phần chênh dương thì `REFUND_TO_BUYER(lockedAmount - actualAmount)`. **Bổ sung contract notification (16/07/2026):** payload còn mang `recipients[{userId,email,role}]` để audit-service — vốn là pure consumer, không Feign ngược user-service — có thể publish `notification.milestone_anchor_requested` sau khi OTS proof sẵn sàng. Các consumer tiền/analytics bỏ qua contact field; schema không cho phép thêm PII tùy ý.
 
 **Sửa (08/07/2026) — `actualAmount` phải áp cả tolerance split của Delta 2 (§4):** `contract-service` (không phải `escrow-service`) tính `actualAmount` cuối cùng, đã áp công thức chia tolerance khi Delta 2 vượt ngưỡng (§4) — `escrow-service` chỉ nhận số cuối và tính `diff` như cơ chế sẵn có, không tự tính lại tolerance split.
 
@@ -399,9 +416,9 @@ Không cần event mới riêng cho `sellerDepositRate` — tận dụng đúng 
 
 | Loại | Tên | Publisher | Consumer(s) |
 |---|---|---|---|
-| RabbitMQ | `milestone.level2_provisional_settled` | contract-service — bắn khi hết `level2BufferWindowDays` mà report Level 2 chưa `CONFIRMED`, đã commission Level 1.5 fallback và settle tạm. Payload: `{milestoneId, provisionalAmount, bufferAmount, level1_5ReportId}` | escrow-service (release `provisionalAmount` cho seller, giữ khoá `bufferAmount`) |
-| RabbitMQ | `milestone.level2_buffer_reconciled` | contract-service — bắn khi report Level 2 thật về sau đó (`CONFIRMED`), so sánh với số 1.5 đã dùng settle tạm. Payload: `{milestoneId, bufferAmount, finalAdjustment}` | escrow-service (release phần buffer còn lại theo `finalAdjustment`) |
-| RabbitMQ | `milestone.level2_terminal_settled` (mới, 06/07/2026) | contract-service — bắn khi hết `level2BufferTerminalDays` mà report Level 2 vẫn chưa `CONFIRMED`, phán quyết Level 1.5 tự động thành chung thẩm. Payload: `{milestoneId, bufferAmount}` | escrow-service (release nốt `bufferAmount` còn khoá cho seller) |
+| RabbitMQ | `milestone.level2_provisional_settled` | contract-service — bắn khi hết `level2BufferWindowDays` mà report Level 2 chưa `CONFIRMED`, đã commission Level 1.5 fallback và settle tạm. Payload: `{contractId, milestoneId, level1_5ReportId, level1_5EntitlementAmount, releaseRate, sellerReleaseAmount, remainingLockedAmount}` | escrow-service (validate conservation, release `sellerReleaseAmount`, không refund buyer) |
+| RabbitMQ | `milestone.level2_buffer_reconciled` | contract-service — bắn khi report Level 2 thật về sau đó (`CONFIRMED`). Payload: `{contractId, milestoneId, level1_5ReportId, level2ReportId, finalSellerEntitlementAmount, alreadyReleasedAmount, sellerAdditionalReleaseAmount, buyerRefundAmount, overReleaseAmount}` | escrow-service (validate conservation, phát release/refund legs dương) |
+| RabbitMQ | `milestone.level2_terminal_settled` (mới, 06/07/2026) | contract-service — bắn khi hết `level2BufferTerminalDays` mà report Level 2 vẫn chưa `CONFIRMED`, phán quyết Level 1.5 tự động thành chung thẩm. Payload: `{contractId, milestoneId, level1_5ReportId, finalSellerEntitlementAmount, alreadyReleasedAmount, sellerAdditionalReleaseAmount, buyerRefundAmount}` | escrow-service (validate conservation, phát release/refund legs dương) |
 
 ### 7.2 Contract-level (mới, 04/07/2026; bổ sung `contract.signed` + consumer analytics-service, 06/07/2026)
 
@@ -435,7 +452,7 @@ Không cần event mới riêng cho `sellerDepositRate` — tận dụng đúng 
 | `graceDays` (giao hàng, per-`MilestoneTerm`) | `ContractTerms`/`MilestoneTerm` (per-contract) | **Mới (08/07/2026), chốt:** số ngày ân hạn sau `expectedDeliveryDate` trước khi coi seller quá hạn (§2.1, §3.2). Để per-contract vì độ nhạy cảm thời gian khác nhau theo mặt hàng (cà phê khô lâu hơn rau quả tươi) — cùng lý do `forceMajeureReportWindowDays` đã để per-contract. |
 | `level2BufferWindowDays` (10 ngày làm việc) | `application.yml` | **Chốt (13/07/2026):** neo theo benchmark lab test chất lượng chuẩn SCA (5 ngày làm việc/mẫu, `[REFERENCE]`) + buffer lịch hẹn/vận chuyển mẫu. Hết window mà chưa có report `CONFIRMED` → commission Level 1.5 fallback, settle tạm theo mechanics 3 bước (§3.2). Tinh chỉnh được khi có dữ liệu vận hành thật. |
 | `level2SafetyBufferRate` (15%) | `application.yml` | **Chốt (13/07/2026):** % `batchAmount` giữ khoá khi settle tạm theo Level 1.5, chờ report Level 2 thật đối chiếu (§3.2). Chọn mức trên của dải cân nhắc (10-15%), nghiêng bảo vệ buyer — bên gánh rủi ro nếu Level 2 lật. Tinh chỉnh được khi có variance vận hành thật. |
-| `level2BufferTerminalDays` (30 ngày) | `application.yml` | **Chốt (13/07/2026):** hết hạn tính từ lúc `level2BufferWindowDays` hết mà vẫn chưa có report `CONFIRMED` → phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer (§3.2). Điểm dừng cứng chống kẹt buffer vô thời hạn. |
+| `level2BufferTerminalDays` (30 ngày) | `application.yml` | **Chốt (13/07/2026; payload freeze 18/07):** hết hạn tính từ lúc `level2BufferWindowDays` hết mà vẫn chưa có report `CONFIRMED` → phán quyết Level 1.5 tự động thành chung thẩm; contract-service phát explicit seller additional release + buyer refund legs (§3.2). |
 | `depositLockRetryMaxAttempts` (3, backoff 5m/30m/2h) | `application.yml` | **Mới (17/07/2026):** số lần escrow-service retry khoá cọc sau `SIGNED` trước khi bắn `escrow.deposit_lock_failed` (§3.1). Invariant kỹ thuật, không cần khác theo hợp đồng. |
 | `sellerDepositRate` (mặc định `0`, optional) | `ContractTerms` (per-contract) | **Mới (06/07/2026):** thay quyết định "bỏ hẳn" trước đây — đàm phán per-contract giữa buyer/seller lúc `NEGOTIATING`, không phải invariant kỹ thuật (§2.1, §6.1). |
 | `disputeFloorReleaseRate` (mặc định `50%`, optional) | `ContractTerms` (per-contract) | **Mới (10/07/2026):** tỷ lệ **sàn** release provisional Level 2 khi buyer từ chối/im lặng opt-out (§3.2 Bước 0/1). Đàm phán per-contract, guardrail `[50%, (1 − level2SafetyBufferRate)]` (§2.1). Để per-contract vì mức chấp nhận rủi ro của từng buyer khác nhau — cùng triết lý neutral-party với `sellerDepositRate`. |
@@ -463,7 +480,7 @@ Không cần event mới riêng cho `sellerDepositRate` — tận dụng đúng 
 
 **Chỉ còn 1 điểm để ngoài phạm vi có chủ đích, không phải thiếu sót:** state machine đầy đủ của `reputation-service` ngoài phần input/trigger đã chốt — thiết kế chi tiết nằm ở `reputation-service-phase2-design.md` (session riêng, 04/07/2026).
 
-**Chốt bổ sung (06/07/2026) — provisional settlement khi `CONTESTED` escalate Level 2 (§3.2, §7.1, §8):** thêm cơ chế buffer để giải quyết bottleneck report Level 2 chậm (email/admin-confirm, `inspection-phase2-design.md` §3) mà không kẹt tiền seller vô thời hạn. Hết `level2BufferWindowDays` (10 ngày làm việc) chưa có report → commission Level 1.5 fallback, settle tạm `(1 − level2SafetyBufferRate)` của `batchAmount`, giữ khoá phần còn lại chờ đối chiếu với report thật. Dùng buffer khoá sẵn trong escrow thay vì ghi debt, vì seller không có tài sản đối ứng để đòi. `level2BufferTerminalDays` (30 ngày) đóng câu hỏi buffer xử lý sao nếu report Level 2 không bao giờ về — hết hạn thì phán quyết Level 1.5 tự động thành chung thẩm, release nốt buffer. **Cả 3 số chốt ở §8** (neo benchmark, cấu hình `application.yml`).
+**Chốt bổ sung (06/07/2026; payload freeze 18/07) — provisional settlement khi `CONTESTED` escalate Level 2 (§3.2, §7.1, §8):** hết `level2BufferWindowDays` chưa có Level 2 report → dùng Level 1.5 entitlement `X15`, release `X15 × releaseRate`, không refund buyer và giữ phần còn lại. Reconcile/terminal luôn mang explicit seller-release/buyer-refund legs; contract-service tính, escrow validates conservation, bank chỉ ghi positive commands. `level2BufferTerminalDays` giữ điểm dừng cứng 30 ngày.
 
 **Chốt bổ sung (06/07/2026) — `sellerDepositRate` optional, thay quyết định "bỏ hẳn" (§2.1, §2.3, §6.1, §6.2, §6.3):** seller cancel ở 0 milestone hoàn thành trước đây không có gì để seize (đúng cái giá của quyết định bỏ seller deposit vì viability HTX). Giải pháp: không bắt buộc, để buyer/seller tự đàm phán `sellerDepositRate > 0` nếu buyer muốn — cùng triết lý neutral-party đã dùng cho `verificationLevel`/`geoRiskLevel` (platform cấp công cụ, không áp luật chung). Mặc định vẫn `0`, giữ nguyên hiện trạng cho ai không cần. Tái dùng nguyên schema/event/entryType đã có cho `buyerDepositRate` (không cần entry mới ở `bank-service`). **Chốt (08/07/2026):** `lockDurationDays` nặng hơn cho case cancel-ở-0-milestone — **áp dụng** qua `zeroProgressMultiplier` (1.5x), ký xong bỏ ngay là tín hiệu xấu nhất + là lớp ma sát cho disintermediation risk (§6.1).
 
