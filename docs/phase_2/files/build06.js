@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { writeDocx } = require("./docx_output.js");
 const { D, T, runs, P, H1, H2, H3, bullet, numbered, quote, callout, legal, risk, src, table, spacer, cover, toc, endMark, buildDoc } = require("./acdocx.js");
 const { Packer, AlignmentType, Paragraph, TextRun, BorderStyle, ShadingType } = D;
 
@@ -28,7 +29,7 @@ push(...toc());
 // 1. SCOPE
 // ============================================================
 push(H1("1. Phạm vi phần 3"));
-push(P("Phần 3 đặc tả cụm giám định và tin cậy — ba dịch vụ tạo ra và bảo vệ bằng chứng phục vụ giải quyết tranh chấp, cưỡng chế hành vi, và tuân thủ pháp lý: inspection-service (giám định độc lập 3 cấp), reputation-service (khoá tài khoản + uy tín + tham chiếu tín dụng), audit-service (chuỗi hash bất biến, neo Bitcoin, xuất báo cáo EUDR)."));
+push(P("Phần 3 đặc tả cụm giám định và tin cậy — ba dịch vụ tạo ra và bảo vệ bằng chứng phục vụ giải quyết tranh chấp, cưỡng chế hành vi, và tuân thủ pháp lý: inspection-service (giám định độc lập 3 cấp), reputation-service (khoá tài khoản + uy tín + tham chiếu tín dụng), audit-service (chuỗi hash bất biến, neo Bitcoin, xuất gói bằng chứng hỗ trợ DDS/EUDR)."));
 push(P("Cụm này gắn vào cụm lõi (Phần 2) qua sự kiện: nhận milestone/contract event, và trả lại quyết định (khoá, phán quyết giám định) mà cụm lõi thực thi. Tuân theo chuẩn dùng chung ở Phần 1."));
 push(table(
   [2300, 7338],
@@ -36,7 +37,7 @@ push(table(
   [
     ["inspection-service", "Giám định Level 1.5 & Level 2; evidence record bất biến với reportHash; commission tổ chức Level 2. KHÔNG ra phán quyết cuối (Admin thực thi theo report)"],
     ["reputation-service", "Sổ khoá bất biến (nguồn quyết định lockout); điểm uy tín (view sống); tham chiếu tín dụng; giám sát AML. KHÔNG enforce khoá (user-service enforce)"],
-    ["audit-service", "Chuỗi hash append-only nhận hash từ các dịch vụ khác; verify định kỳ; neo Bitcoin; xuất DDS cho EUDR. KHÔNG tạo dữ liệu nghiệp vụ gốc"],
+    ["audit-service", "Chuỗi hash append-only do audit-service ghi duy nhất; dual global/per-subject chain; neo Bitcoin qua audit_anchor; xuất gói bằng chứng hỗ trợ DDS/EUDR. KHÔNG tạo dữ liệu nghiệp vụ gốc"],
   ],
   { size: 18 }
 ));
@@ -50,14 +51,14 @@ push(table(
   [1600, 4000, 4038],
   ["Cấp", "Mô hình định danh", "Cơ chế xác thực bằng chứng"],
   [
-    ["Level 1.5", "Actor thật trên nền tảng (Vinacontrol/Quatest quy mô tỉnh) — có account, login, JWT; dùng chung schema Signature", "Signature + RBAC; reportHash = SHA256(content + timestamp + inspectorId), inspectorId = signerUserId đã xác thực"],
+    ["Level 1.5", "Actor thật trên nền tảng — account, login, JWT; dùng chung cơ chế identity nhưng bảng inspector_signature riêng trong inspection_db", "Step-up + RBAC; reportHash bind signerUserId; UNIQUE(reportId), không ghi contract_db"],
     ["Level 2", "KHÔNG login, KHÔNG account (SGS/Bureau Veritas — uy tín accreditation tự thân đủ)", "Auto-intake qua hòm thư nền tảng + Admin CONFIRMED; nền tảng chỉ bảo vệ tính toàn vẹn file sau khi nhận"],
   ],
   { size: 18 }
 ));
 
 push(H2("2.1 Level 1.5 — Giám định tích hợp nền tảng"));
-push(bullet([runs("Định danh: ", { bold: true }), runs("mở rộng signerRole enum trong Signature thành BUYER | SELLER | INSPECTOR. Ràng buộc UNIQUE(contractId, signerRole) không áp cho INSPECTOR (một hợp đồng có thể phát sinh nhiều report qua nhiều lần dispute) — thay bằng field reportId với UNIQUE(reportId). Không tạo Dispute aggregate mới chỉ để có unique key.", {})]));
+push(bullet([runs("Định danh: ", { bold: true }), runs("bảng signature của contract_db giữ thuần BUYER/SELLER. inspection-service tự sở hữu inspector_signature trong inspection_db, UNIQUE(reportId), bind signerUserId/authTime/reportHash/ipAddress. Đây là cùng cơ chế identity, không phải dùng chung bảng; database-per-service cấm inspection-service ghi chéo contract_db.", {})]));
 push(bullet([runs("KYC-gate: ", { bold: true }), runs("cùng cơ chế gate lúc đăng ký fail-closed như buyer/seller, nhưng nội dung khác — xác minh chứng chỉ/giấy phép hoạt động kiểm định thương mại (không phải thẩm quyền đại diện). authorizationExpiresAt tái dùng nguyên (giấy phép kiểm định cũng có hạn).", {})]));
 push(bullet([runs("Session freshness riêng: ", { bold: true }), runs("inspectionAuthMaxAgeSeconds = 1800s (30 phút), KHÔNG dùng chung 300s của buyer/seller — INSPECTOR kiểm tra thực địa xong mới nộp report, khoảng cách step-up→submit dài hơn tự nhiên.", {})]));
 
@@ -81,22 +82,22 @@ push(H2("2.3 Use case chính"));
 uc("UC-I1", "Level 1.5 nộp inspection report", [
   ["Actor", "INSPECTOR (Level 1.5, đã KYC + login)"],
   ["Tiền điều kiện", "Milestone CONTESTED, DisputeRoutingService route = LEVEL_1_5; session freshness ≤ 1800s"],
-  ["Luồng chính", "Nộp report + file (file-service) → tính reportHash → INSERT inspection_report (tier=LEVEL_1_5) + Signature(signerRole=INSPECTOR, reportId) → publish INSPECTION_REPORT vào audit-service → contract-service verify hash, advance milestone SETTLED theo phán quyết"],
+  ["Luồng chính", "Nộp report + file đã READY → tính reportHash → INSERT inspection_report + inspector_signature trong inspection_db → publish inspection.report_confirmed(tier=LEVEL_1_5, reportHash); audit-service là writer duy nhất của AuditRecord → contract-service verify hash, advance milestone theo phán quyết"],
 ]);
 uc("UC-I2", "Commission tổ chức Level 2", [
   ["Actor", "ADMIN"],
   ["Trigger", "DisputeRoutingService route = LEVEL_2"],
-  ["Luồng chính", "Validate state cho phép escalate Level 2; đọc level2InspectorOrg (NULL → REJECT); nếu nhóm BOA_VERIFIED/ADMIN_AD_HOC bắt Admin nhập verificationReference; INSERT level2_inspection_commission(status=REQUESTED); INSERT audit_record(LEVEL2_INSPECTION_COMMISSIONED); gửi mail (SendGrid) tới org kèm 3 địa chỉ nhận report"],
+  ["Luồng chính", "Validate state cho phép escalate Level 2; đọc level2InspectorOrg (NULL → REJECT); nếu nhóm BOA_VERIFIED/ADMIN_AD_HOC bắt Admin nhập verificationReference; INSERT level2_inspection_commission(status=REQUESTED); publish inspection.level2_commissioned cho audit-service; gửi mail tới org kèm buyer, seller và intake@"],
   ["Ranh giới", "Chỉ tạo YÊU CẦU, không tạo sự đồng ý — org có nhận job hay không là quan hệ thương mại thật ngoài hệ thống"],
 ]);
 uc("UC-I3", "Xác nhận case ID (join key)", [
   ["Actor", "Hệ thống (parse best-effort) → ADMIN (xác nhận)"],
-  ["Luồng chính", "Webhook ParseCommissionAck extract case ID từ subject/body, match domain ↔ commission REQUESTED → gợi ý, KHÔNG tự gán. Admin ConfirmCommissionCaseId → status=CASE_ID_CONFIRMED"],
+  ["Luồng chính", "Consume file.email_notice từ IMAP adapter của file-service, parse best-effort case ID và match sender domain ↔ commission REQUESTED → chỉ gợi ý. OPERATOR/ADMIN ConfirmCommissionCaseId → CASE_ID_CONFIRMED"],
 ]);
 uc("UC-I4", "Tiếp nhận report Level 2 cuối + review", [
   ["Actor", "Hệ thống (ingest) → ADMIN (review)"],
-  ["Luồng chính", "IngestExternalInspectionReportEmail (webhook): tính reportHash NGAY trước khi ai chạm; upload file; lookup case ID → commission; INSERT inspection_report(status=PENDING_REVIEW, ingestion_source=AUTO_EMAIL, spf_dkim_result); KHÔNG publish audit. ReviewPendingExternalReport (Admin, KHÔNG nhận tham số file): APPROVE → CONFIRMED + publish EXTERNAL_INSPECTION_REPORT; REJECT → REJECTED"],
-  ["Fallback", "SubmitExternalInspectionReport (Admin tải & upload thủ công, ingestion_source=ADMIN_MANUAL) khi org gửi ngoài intake@ hoặc webhook lỗi"],
+  ["Luồng chính", "Consume file.ready từ IMAP/file-service: storageHash đã tính trước khi người dùng chạm, lookup case ID → commission; tính reportHash và INSERT inspection_report(PENDING_REVIEW, AUTO_EMAIL, spfDkimResult), chưa vào audit. ReviewPendingExternalReport (OPERATOR/ADMIN, không nhận file): APPROVE → CONFIRMED + publish inspection.report_confirmed(tier=LEVEL_2); REJECT → REJECTED"],
+  ["Fallback", "SubmitExternalInspectionReport (OPERATOR/ADMIN uỷ quyền StoreOnBehalfOf, ingestion_source=ADMIN_MANUAL) khi org gửi ngoài intake@ hoặc IMAP adapter lỗi"],
 ]);
 push(P([runs("Hash đóng băng trước khi có người chạm: ", { bold: true }), runs("reportHash tính ngay lúc ingest (trước cả Admin), publish vào audit dời sang lúc CONFIRMED — tránh mail rác/gắn nhầm lọt vào audit trail bất biến trước khi có người xác nhận. Endpoint review không nhận tham số file → Admin về mặt kỹ thuật không thể thay file qua đường này.", {})]));
 
@@ -106,56 +107,59 @@ push(table(
   ["Endpoint", "Vai trò", "Mô tả"],
   [
     ["POST /api/v1/inspections/level1-5/reports", "INSPECTOR", "Nộp report Level 1.5 (UC-I1)"],
-    ["POST /api/v1/inspections/level2/commissions", "ADMIN", "Commission org Level 2 (UC-I2)"],
-    ["POST /api/v1/inspections/level2/commissions/{id}/case-id", "ADMIN", "Xác nhận case ID (UC-I3)"],
-    ["POST /api/v1/inspections/level2/reports/{id}/review", "ADMIN", "Review report auto-intake (UC-I4)"],
-    ["(webhook) SendGrid Inbound Parse → intake@", "hệ thống", "Nhận ack + report Level 2"],
+    ["POST /api/v1/inspections/level2/commissions", "ADMIN/OPERATOR", "Commission org Level 2 (UC-I2)"],
+    ["POST /api/v1/inspections/level2/commissions/{id}/case-id", "ADMIN/OPERATOR", "Xác nhận case ID (UC-I3)"],
+    ["POST /api/v1/inspections/level2/reports/{id}/review", "ADMIN/OPERATOR", "Review report auto-intake (UC-I4)"],
+    ["file.email_notice / file.ready từ IMAP file-service", "hệ thống", "Nhận ack không attachment và report Level 2 đã scan"],
   ],
   { size: 17, colAlign: [null, AlignmentType.CENTER, null] }
 ));
 push(codeblock([
-  "-- signature (contract_db): mở rộng cho nhánh INSPECTOR",
-  "ALTER TABLE signature ADD COLUMN report_id UUID NULL;  -- FK LOGIC (không cross-DB)",
-  "-- signer_role: BUYER | SELLER | INSPECTOR",
-  "-- INSPECTOR: report_id NOT NULL, UNIQUE(report_id)",
-  "-- BUYER/SELLER: report_id NULL, giữ UNIQUE(contract_id, signer_role)",
-  "",
+  "-- contract_db signature giữ nguyên BUYER|SELLER; không cross-service write",
   "ALTER TABLE contract_terms ADD COLUMN level2_inspector_org VARCHAR(255) NULL;",
   "",
   "-- inspection_db",
   "CREATE TABLE inspection_report (",
-  "  report_id            UUID PRIMARY KEY,",
-  "  contract_id          UUID NULL,            -- denormalized; NULL nếu chưa match commission",
-  "  milestone_id         UUID NULL,",
+  "  report_id            CHAR(36) PRIMARY KEY,",
+  "  contract_id          CHAR(36) NULL,            -- denormalized; NULL nếu chưa match commission",
+  "  milestone_id         CHAR(36) NULL,",
   "  tier                 VARCHAR(10) NOT NULL, -- LEVEL_1_5 | LEVEL_2",
-  "  commission_id        UUID NULL,            -- Level 2 only",
-  "  inspector_user_id    UUID NULL,            -- Level 1.5 only (= signer_user_id)",
-  "  report_file_id       UUID NOT NULL,        -- ref file-service",
+  "  commission_id        CHAR(36) NULL,            -- Level 2 only",
+  "  inspector_user_id    CHAR(36) NULL,            -- Level 1.5 only (= signer_user_id)",
+  "  report_file_id       CHAR(36) NOT NULL,        -- ref file-service",
   "  report_hash          VARCHAR(64) NOT NULL,",
   "  status               VARCHAR(15) NOT NULL, -- SUBMITTED|PENDING_REVIEW|CONFIRMED|REJECTED",
   "  ingestion_source     VARCHAR(15) NOT NULL, -- PLATFORM_ACTOR|AUTO_EMAIL|ADMIN_MANUAL",
   "  spf_dkim_result      VARCHAR(20) NULL,",
   "  external_verification_status VARCHAR(20) NULL,",
-  "  confirmed_by_admin_id UUID NULL,",
+  "  confirmed_by_admin_id CHAR(36) NULL,",
   "  created_at           TIMESTAMP NOT NULL, confirmed_at TIMESTAMP NULL",
   ");",
   "",
+  "CREATE TABLE inspector_signature (",
+  "  signature_id CHAR(36) PRIMARY KEY,",
+  "  report_id CHAR(36) NOT NULL UNIQUE REFERENCES inspection_report(report_id),",
+  "  contract_id CHAR(36) NOT NULL, signer_user_id CHAR(36) NOT NULL,",
+  "  auth_time TIMESTAMP(3) NOT NULL, signed_at TIMESTAMP(3) NOT NULL,",
+  "  report_hash VARCHAR(64) NOT NULL, ip_address VARCHAR(45) NULL",
+  ");",
+  "",
   "CREATE TABLE level2_inspection_commission (",
-  "  commission_id        UUID PRIMARY KEY,",
-  "  contract_id          UUID NOT NULL,        -- FK thường, KHÔNG unique",
+  "  commission_id        CHAR(36) PRIMARY KEY,",
+  "  contract_id          CHAR(36) NOT NULL,        -- FK thường, KHÔNG unique",
   "  org                  VARCHAR(255) NOT NULL,",
   "  intake_case_id       VARCHAR(255) NULL,",
   "  status               VARCHAR(20) NOT NULL, -- REQUESTED | CASE_ID_CONFIRMED",
   "  org_verification_type VARCHAR(15) NOT NULL,-- HARDCODED_MAJOR|BOA_VERIFIED|ADMIN_AD_HOC",
   "  verification_reference VARCHAR(100) NULL,",
-  "  verified_by_admin_id UUID NULL, verified_at TIMESTAMP NULL,",
+  "  verified_by_actor_id CHAR(36) NULL, verified_at TIMESTAMP(3) NULL,",
   "  requested_at         TIMESTAMP NOT NULL, case_id_confirmed_at TIMESTAMP NULL,",
   "  UNIQUE (org, intake_case_id)",
   ");",
   "",
   "CREATE TABLE level2_inspector_allowlist (",
   "  org_name VARCHAR(255) PRIMARY KEY, org_verification_type VARCHAR(15) NOT NULL,",
-  "  accreditation_ref VARCHAR(100) NULL, added_by_admin_id UUID NOT NULL, added_at TIMESTAMP NOT NULL",
+  "  accreditation_ref VARCHAR(100) NULL, added_by_actor_id CHAR(36) NOT NULL, added_at TIMESTAMP(3) NOT NULL",
   ");",
 ]));
 
@@ -168,7 +172,7 @@ push(table(
   [2600, 7038],
   ["Vai trò", "Bản chất dữ liệu"],
   [
-    ["Sổ khoá (lock ledger)", "Bất biến, insert-only — bằng chứng pháp lý, nguồn quyết định lockout. KHÔNG thể là pure read model"],
+    ["Sổ khoá (lock ledger)", "Bất biến, insert-only — bằng chứng pháp lý, nguồn quyết định lockout. là evidence ledger sở hữu quyết định, không phải projection chỉ-đọc"],
     ["Điểm uy tín (reputation score)", "View sống, tính lại được từ lock_entry + contract.settled — phục vụ đánh giá đối tác hai chiều"],
     ["Tham chiếu tín dụng (credit reference)", "Export cho bên thứ ba (VARI) — bổ trợ, consent-based"],
   ],
@@ -176,7 +180,7 @@ push(table(
 ));
 
 push(H2("3.1 Sổ khoá và công thức lockDurationDays"));
-push(P("lockDurationDays snapshot cứng lúc tính, KHÔNG recompute sau đó — kể cả khi input (trackRecordMultiplier) đổi giá trị. Lý do: là bằng chứng pháp lý (LTM 2005 Điều 302), một con số tự đổi sau khi ghi thì mất giá trị bằng chứng."));
+push(P("lock_entry là evidence ledger bất biến: lockDurationDays và đủ bốn multiplier được snapshot lúc tính, không có status/unlockReason mutable. EXPIRED được derive theo thời gian; UNLOCKED_EARLY được derive từ lock_override_event append-only. Effective lock của user là MAX(lockedUntil) trên entry chưa hết hạn và chưa override."));
 push(P([runs("lockDurationDays = baseDays × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier", { bold: true, color: T.SUB })], { align: AlignmentType.CENTER }));
 push(table(
   [3000, 2200, 4438],
@@ -195,9 +199,9 @@ push(legal("Luật Thương mại 2005, Điều 302", "penalty debt ghi vào loc
 
 push(H2("3.2 Cưỡng chế khoá (2 tầng)"));
 push(P("Không thể chặn ở Gateway/Keycloak — Keycloak chỉ cấp JWT (identity + role), không biết business lock state. Check nằm ở đúng use case tạo nghĩa vụ mới:"));
-push(bullet([runs("CreateListing / tạo offer (product-service): ", { bold: true }), runs("fail-open. Chưa có Feign client tới user-service (thêm mới).", {})]));
-push(bullet([runs("sign() (contract-service): ", { bold: true }), runs("fail-closed, bắt buộc. Đã có UserServiceClient (Feign) — thêm lockedUntil vào response + @CircuitBreaker với fallback throw. ƯU TIÊN đóng gap circuit breaker này trước mọi Feign call khác: sign() nằm trên đường ký hợp đồng, user-service down không có breaker sẽ chặn toàn bộ nền tảng ký, không phải lỗi cục bộ.", {})]));
-push(P("Hai tầng không thừa nhau: khoá chỉ chặn tạo mới, không hồi tố hợp đồng đã ACTIVE/SIGNED. Seller sạch lúc tạo offer, dính khoá giữa đàm phán — chỉ sign() check lại mới bắt được. reputation-service publish reputation.locked/unlocked; user-service cache một field lockedUntil trên UserProfile (không gọi sync mỗi lần check — tránh dual-write, cache state flag thì ổn)."));
+push(bullet([runs("CreateListing / tạo offer (product-service): ", { bold: true }), runs("fail-closed qua user-service; dependency unavailable/response không xác định → 503, không tạo listing/offer.", {})]));
+push(bullet([runs("sign() (contract-service): ", { bold: true }), runs("fail-closed, bắt buộc. UserServiceClient kiểm verification, authorization và lockedUntil; @CircuitBreaker fallback throw có kiểm soát. user-service unavailable/response không xác định → reject, không fallback anonymous.", {})]));
+push(P("Hai tầng không thừa nhau. reputation-service publish reputation.locked/unlocked kèm lockRevision tăng dần per user, effectiveLockedUntil và occurredAt; user-service chỉ nhận revision mới hơn lastLockRevision. Khi có nhiều lock chồng nhau, unlock một entry không được clear mù toàn bộ projection."));
 
 push(H2("3.3 Tham chiếu tín dụng & AML"));
 push(P("Credit export định vị là reputation attestation, không phải nguồn chấm điểm tín dụng chính (reputation ≠ cash-flow data). Hướng đối tác: VARI (xếp hạng tín nhiệm DN nông nghiệp) — đóng vai đọc dữ liệu nền tảng rồi đưa cho ngân hàng. Chỉ chạy khi seller chủ động yêu cầu (consent rõ ràng), gate theo counterparty diversity (chỉ giao dịch 1-2 đối tác dù đủ 5+ hợp đồng sạch cũng không đủ điều kiện — giảm động cơ tạo hợp đồng giả)."));
@@ -214,32 +218,48 @@ push(table(
   ["Use case", "Mô tả"],
   [
     ["ProcessLockoutUseCase", "Consume milestone.cancelled_with_penalty → tính multiplier → INSERT lock_entry → publish reputation.locked"],
-    ["UnlockEarlyUseCase", "Admin trigger → status=UNLOCKED_EARLY + unlockReason bắt buộc → publish reputation.unlocked"],
+    ["UnlockEarlyUseCase", "Governance request APPROVED → INSERT lock_override_event; tính lại effectiveLockedUntil → publish reputation.unlocked(lockRevision)"],
     ["CheckLockStatusUseCase", "Expose cho user-service gọi Feign → trả lockedUntil hiện tại"],
     ["GetCreditExportUseCase", "Seller tự trigger (consent) → check counterparty diversity gate → JSON export"],
     ["FlagSuspiciousPatternUseCase", "Tính composite fraud score theo cặp/account (2 nhóm tín hiệu) → publish event hold khi vượt ngưỡng. Nhóm tương đối: hold giao dịch KẾ TIẾP. Nhóm tuyệt đối (consume bank.large_transaction_flagged — sửa 08/07/2026): hold ngay giao dịch hiện tại CHỈ KHI đi kèm ≥1 tín hiệu hành vi khác — không tự hold một mình"],
   ],
   { size: 18 }
 ));
+push(P("Maker-checker chỉ áp đúng hai hành động: UNLOCK_EARLY và CLEAR_ELEVATED_RISK. ADMIN|OPERATOR propose với reason; ADMIN approve/reject, bắt buộc approvedBy != proposedBy. Cả đề xuất và quyết định vào audit chain; clear AML publish reputation.elevated_risk_cleared với cả hai actor ID."));
+push(P("API: POST /api/v1/admin/reputation/actions/propose (ADMIN|OPERATOR); POST .../{id}/approve và /reject (ADMIN). ELEVATED_RISK không được lộ trong public-summary/credit export; mọi lần đọc dữ liệu AML Restricted phải audit."));
 push(codeblock([
   "-- reputation_db · DB user chỉ INSERT + SELECT (insert-only)",
   "CREATE TABLE lock_entry (",
-  "  entry_id                  UUID PRIMARY KEY,",
-  "  source_event_id           UUID NOT NULL UNIQUE,   -- idempotency key",
-  "  contract_id               UUID NOT NULL,",
-  "  user_id                   UUID NOT NULL,",
+  "  entry_id                  CHAR(36) PRIMARY KEY,",
+  "  source_event_id           CHAR(36) NOT NULL UNIQUE,   -- idempotency key",
+  "  contract_id               CHAR(36) NOT NULL,",
+  "  user_id                   CHAR(36) NOT NULL,",
   "  penalized_role            VARCHAR(10) NOT NULL,   -- BUYER | SELLER",
   "  base_days                 INT NOT NULL DEFAULT 30,",
   "  repeat_offense_multiplier DECIMAL(3,2) NOT NULL,",
   "  track_record_multiplier   DECIMAL(3,2) NOT NULL,",
-  "  lock_duration_days        INT NOT NULL,           -- snapshot lúc tính",
-  "  locked_until              TIMESTAMP NOT NULL,",
-  "  status                    VARCHAR(20) NOT NULL,   -- LOCKED|UNLOCKED_EARLY|EXPIRED",
-  "  unlock_reason             TEXT NULL,",
-  "  created_at                TIMESTAMP NOT NULL DEFAULT now()",
+  "  zero_progress_multiplier  DECIMAL(3,2) NOT NULL,",
+  "  lock_duration_days        INT NOT NULL,           -- immutable snapshot",
+  "  locked_until              TIMESTAMP(3) NOT NULL,",
+  "  created_at                TIMESTAMP(3) NOT NULL DEFAULT now()",
   ");",
   "CREATE INDEX idx_lock_entry_user ON lock_entry(user_id);",
-  "-- reputation score: KHÔNG có bảng riêng — tính từ lock_entry + contract.settled lúc cần",
+  "CREATE TABLE lock_override_event (",
+  "  event_id CHAR(36) PRIMARY KEY, lock_entry_id CHAR(36) NOT NULL REFERENCES lock_entry(entry_id),",
+  "  override_type VARCHAR(20) NOT NULL, reason TEXT NOT NULL,",
+  "  proposed_by CHAR(36) NOT NULL, approved_by CHAR(36) NOT NULL, created_at TIMESTAMP(3) NOT NULL",
+  ");",
+  "CREATE TABLE governance_action_request (",
+  "  request_id CHAR(36) PRIMARY KEY, action_type VARCHAR(30) NOT NULL, target_id VARCHAR(100) NOT NULL,",
+  "  status VARCHAR(15) NOT NULL, reason TEXT NOT NULL, proposed_by CHAR(36) NOT NULL, approved_by CHAR(36) NULL,",
+  "  proposed_at TIMESTAMP(3) NOT NULL, decided_at TIMESTAMP(3) NULL",
+  ");",
+  "CREATE TABLE pair_risk_state (",
+  "  buyer_id CHAR(36) NOT NULL, seller_id CHAR(36) NOT NULL, status VARCHAR(20) NOT NULL,",
+  "  detected_at TIMESTAMP(3) NULL, review_due_at TIMESTAMP(3) NULL, source_event_id CHAR(36) NULL,",
+  "  PRIMARY KEY (buyer_id, seller_id)",
+  ");",
+  "-- lock_entry/lock_override_event DB principal chỉ INSERT+SELECT; pair_risk_state là projection mutable",
 ]));
 
 push(H2("3.5 Đối xứng hoá — buyer reputation hiển thị cho seller + chống flag-abuse (mới, 08/07/2026)"));
@@ -270,31 +290,36 @@ push(table(
   ],
   { size: 17, colAlign: [null, AlignmentType.CENTER, null] }
 ));
-push(P("Ngoài ra: Contract.signedContentHash (lúc sign) và reportHash (INSPECTOR submit) — dùng chung schema AuditRecord."));
+push(P("Contract.signedContentHash và reportHash đi vào cột sourceHash của AuditRecord qua domain event; recordHash là chain-integrity hash canonical khác vai trò và verify riêng."));
 
-push(H2("4.2 Dual chain trên một bảng"));
-push(P("Không tách hai bảng cho global chain và per-contract chain (tốn kém, trùng lặp). Một bảng, hai cột prevHash khác mục đích:"));
+push(H2("4.2 Dual chain global + per-subject và anchor riêng"));
+push(P("Một audit_record nối global chain và chain theo subjectType/subjectId. Audit-service là writer duy nhất; content minimal hoá PII. OTS proof không update vào record cũ mà lưu ở audit_anchor append-only riêng."));
 push(codeblock([
   "CREATE TABLE audit_record (",
-  "  record_id          UUID PRIMARY KEY,",
-  "  contract_id        UUID NOT NULL,",
-  "  source_type        VARCHAR(50) NOT NULL,",
-  "  source_event_type  VARCHAR(100) NOT NULL,   -- vd 'milestone.settled'",
-  "  content            JSON NOT NULL,           -- payload gốc",
-  "  record_hash        VARCHAR(64) NOT NULL,    -- SHA256(content + prev_hash_global)",
-  "  prev_hash_global   VARCHAR(64),             -- NULL nếu record đầu toàn hệ thống",
-  "  prev_hash_contract VARCHAR(64),             -- NULL nếu record đầu của contract này",
-  "  ots_proof          TEXT,                    -- NULL trừ event vào chain (§4.3)",
-  "  created_at         TIMESTAMP NOT NULL DEFAULT now()",
+  "  record_id CHAR(36) PRIMARY KEY,",
+  "  subject_type VARCHAR(20) NOT NULL, -- CONTRACT|USER_PAIR|SYSTEM",
+  "  subject_id VARCHAR(100) NOT NULL,",
+  "  source_type VARCHAR(50) NOT NULL, source_event_type VARCHAR(100) NOT NULL,",
+  "  source_hash VARCHAR(64) NULL, -- signedContentHash/reportHash của artefact nguồn",
+  "  content JSON NOT NULL, -- MySQL 8, minimalized, không contact/name/address",
+  "  record_hash VARCHAR(64) NOT NULL,",
+  "  prev_hash_global VARCHAR(64) NULL, prev_hash_subject VARCHAR(64) NULL,",
+  "  created_at TIMESTAMP(3) NOT NULL",
   ");",
-  "CREATE INDEX idx_audit_contract ON audit_record(contract_id, created_at);",
-  "-- DB user chỉ INSERT + SELECT — không UPDATE/DELETE",
+  "CREATE INDEX idx_audit_subject ON audit_record(subject_type, subject_id, created_at);",
+  "CREATE TABLE audit_anchor (",
+  "  anchor_id CHAR(36) PRIMARY KEY, record_id CHAR(36) NOT NULL, anchored_hash VARCHAR(64) NOT NULL,",
+  "  anchor_type VARCHAR(20) NOT NULL, proof BLOB NOT NULL, created_at TIMESTAMP(3) NOT NULL",
+  ");",
+  "-- audit DB principal chỉ INSERT + SELECT; không UPDATE/DELETE",
 ]));
-push(P([runs("Hai kiểu verify: ", { bold: true }), runs("per-contract (WHERE contract_id, theo prev_hash_contract) — export bằng chứng gọn cho một vụ (VIAC/toà), tự đủ. Global (theo prev_hash_global, đọc toàn bảng) — phát hiện xoá nguyên cụm record của một contract, thứ mà per-contract chain đứng một mình không phát hiện được.", {})]));
+push(P([runs("Hai kiểu verify: ", { bold: true }), runs("per-subject theo (subjectType, subjectId, prevHashSubject) cho một vụ/cặp/system; global theo prevHashGlobal để phát hiện xoá cả cụm subject. Concurrency của global head phải serialize bằng lock/sequence.", {})]));
 push(callout("Lưu ý concurrency (Spring):", "tính prev_hash_global cần đọc record cuối toàn bảng; nhiều contract insert đồng thời cần SELECT ... FOR UPDATE trên row cuối (pessimistic lock) hoặc một sequence riêng, tránh race làm hai insert tính ra cùng prev_hash_global và gãy chain. Với quy mô B2B forward contract (tần suất thấp), serialize mức này không phải bottleneck.", "note"));
+push(P("recordHash = SHA256(canonicalJson({recordId, subjectType, subjectId, sourceType, sourceEventType, content, prevHashGlobal, prevHashSubject, createdAt})); canonicalization: key sort, UTF-8, no whitespace, UTC millisecond, decimal fixed-scale, giữ null key."));
+push(P("Ba-way equality cho chữ ký: Contract.signedContentHash = audit_record.source_hash = hash trong email. record_hash cố ý khác signedContentHash và chỉ được recompute theo công thức canonical."));
 
 push(H2("4.3 Đa vị trí + neo email + OpenTimestamps"));
-push(P("Ba nơi lưu hash phải khớp tuyệt đối: contract-service DB, audit-service DB, và email gửi buyer/seller lúc sign — nơi thứ ba nằm NGOÀI nền tảng (hộp thư cá nhân), ngoài tầm với của cả Admin có quyền root. Email cũng cung cấp timestamp độc lập (do hệ thống email bên thứ ba ghi, nền tảng không tự lùi ngày được)."));
+push(P("Ba nơi của sourceHash chữ ký phải khớp: Contract.signedContentHash, audit_record.source_hash và hash trong email. Email là bản sao ngoài nền tảng; recordHash/audit_anchor bảo vệ tính toàn vẹn chain và được kiểm riêng."));
 push(P([runs("OpenTimestamps (OTS) — neo Bitcoin, 2 tầng trigger: ", { bold: true }), runs("(1) event-triggered: mỗi event vào chain gọi OTS API lấy .ots cho record_hash (đã cuốn theo toàn bộ lịch sử qua prev_hash_global → là commitment cho toàn chain). (2) weekly luôn chạy: VerifyChainJob mỗi Chủ nhật tự tạo OTS cho head hiện tại kể cả tuần không có event vào chain — đảm bảo trần cứng cửa sổ tấn công ≤ 7 ngày. OTS bắt được cascade tampering (xoá + sửa lại toàn bộ prevHash phía sau để chain tự nhất quán) mà verify tự-so-với-chính-nó không phát hiện. Miễn phí, không cần ví crypto. Gửi .ots cho buyer/seller CHỈ tại milestone.settled (tránh noise email ở bước trung gian).", {})]));
 
 push(H2("4.4 VerifyChainJob + alert routing"));
@@ -303,7 +328,7 @@ push(numbered("Đọc toàn bộ audit_record theo created_at; tính lại recor
 push(numbered("Lấy anchoredHash (record_hash gần nhất đã OTS-anchor); query SELECT 1 WHERE record_hash = anchoredHash — cascade tampering bất kỳ điểm nào sẽ làm giá trị này biến mất khỏi bảng (chỉ một query đủ)."));
 push(numbered("Tạo OTS mới cho head hiện tại (tầng 2) làm anchor cho lần verify tuần sau."));
 push(numbered("Khớp 100% + anchoredHash còn tồn tại → WEEKLY_VERIFY_OK → DigestJob gửi digest cho Software Buyer. Ngược lại → WEEKLY_VERIFY_FAILED → flow alert."));
-push(P([runs("Alert routing khi fail — không để một người làm gatekeeper: ", { bold: true }), runs("verify fail → hệ thống tự động bắn SONG SONG (không qua bước duyệt của ai) tới Admin (điều tra kỹ thuật) VÀ nhiều địa chỉ liên hệ phía Software Buyer (không chỉ một người). Nếu chính Admin là người sửa data, cơ chế \"báo Admin rồi đợi Admin điều tra\" sẽ bị chặn vĩnh viễn — nên bỏ bước gatekeeper đó. Buyer/seller từng hợp đồng chỉ được báo SAU khi Admin khoanh vùng đúng contract_id bị ảnh hưởng (không tự động — thông tin nhạy cảm cần chính xác).", {})]));
+push(P([runs("Alert routing khi fail — không để một người làm gatekeeper: ", { bold: true }), runs("verify fail → hệ thống tự động bắn SONG SONG (không qua bước duyệt của ai) tới Admin (điều tra kỹ thuật) VÀ nhiều địa chỉ liên hệ phía Software Buyer (không chỉ một người). Nếu chính Admin là người sửa data, cơ chế \"báo Admin rồi đợi Admin điều tra\" sẽ bị chặn vĩnh viễn — nên bỏ bước gatekeeper đó. Buyer/seller từng hợp đồng chỉ được báo SAU khi Admin khoanh vùng đúng subject/contract bị ảnh hưởng (không tự động — thông tin nhạy cảm cần chính xác).", {})]));
 
 push(P([runs("External Verifier self-service watchdog (08/07/2026): ", { bold: true }), runs("ngoài VerifyChainJob nội bộ, expose GET /security/audit-hash (chỉ-đọc, auth nhẹ — hash không phải bí mật) để tổ chức vận hành platform (Software Buyer, không cột cứng VICOFA) tự query record_hash và đối soát với bản hash nhận qua email anchor, bằng lịch riêng ngoài tầm Admin. Phát hiện lệch → ký lệnh emergency-lock (bank-service §4.5) đóng băng toàn hệ thống. Đây là lần đầu phép đối chiếu chủ động không phụ thuộc DUY NHẤT vào job nội bộ — thu hẹp lỗ hổng “phải có người chủ động nhìn” ở §6, dù không đóng hoàn toàn (verifier vẫn phải chịu query; collusion Admin+verifier là giới hạn cố hữu trusted-operator).", {})]));
 push(table(
@@ -316,12 +341,14 @@ push(table(
     ["EXTERNAL_INSPECTION_REPORT", "Report Level 2 đã CONFIRMED — không actor login (SPF/DKIM + Admin confirm)"],
     ["LEVEL2_INSPECTION_COMMISSIONED", "Chỉ ghi YÊU CẦU commission — không phải kết quả"],
     ["EXTERNAL_VERIFIER_KEY_REGISTERED", "Đăng ký/đổi public key External Verifier — root-of-trust kill switch, chống Admin lén swap key (08/07/2026)"],
-    ["SECURITY_LOCK_TRIGGERED / _UNLOCK_", "Quyết định đóng/mở băng toàn hệ thống — kill switch tự nó cũng tamper-evident (08/07/2026)"],
+    ["SECURITY_LOCK_TRIGGERED / SECURITY_UNLOCK_TRIGGERED", "Quyết định đóng/mở băng toàn hệ thống"],
+    ["STRUCTURING_REPORT", "SuspiciousTransactionReport append-only từ bank.suspicious_report_created"],
+    ["AML_RISK_CLEARED", "Quyết định maker-checker gỡ ELEVATED_RISK cho USER_PAIR"],
   ],
   { size: 18 }
 ));
-push(P("Không gộp chung các loại report dù cùng mục đích nghiệp vụ — sức nặng bằng chứng khác nhau thật (actor đã KYC vs kết quả xác nhận vs chỉ yêu cầu); gộp chung một nhãn là che giấu khác biệt evidentiary mà hội đồng sẽ hỏi. Xuất DDS (EUDR): verify chain trước, rồi xuất PDF/CSV on-demand từ audit trail của các hợp đồng liên quan."));
-push(legal("Luật GDĐT 2023, Điều 14.2", "Chuỗi hash append-only + DB INSERT-only + neo độc lập (email, Bitcoin) là hiện thực hoá kỹ thuật của yêu cầu \"bảo toàn tính nguyên vẹn\" — cơ sở để audit trail có giá trị chứng cứ và hợp lệ cho kiểm toán EUDR."));
+push(P("Không gộp chung các loại report dù cùng mục đích nghiệp vụ — sức nặng bằng chứng khác nhau thật (actor đã KYC vs kết quả xác nhận vs chỉ yêu cầu); gộp chung một nhãn là che giấu khác biệt evidentiary mà hội đồng sẽ hỏi. Xuất gói bằng chứng hỗ trợ DDS/EUDR: verify chain trước, rồi xuất PDF/CSV on-demand; không tuyên bố đây là DDS hoàn chỉnh."));
+push(legal("Luật GDĐT 2023, khoản 2 Điều 14", "Chuỗi hash append-only + DB INSERT-only + neo độc lập (email, Bitcoin) là hiện thực hoá kỹ thuật của yêu cầu \"bảo toàn tính nguyên vẹn\" — cơ sở để audit trail có giá trị chứng cứ và hợp lệ cho kiểm toán EUDR."));
 
 // ============================================================
 // 5. SEQUENCE FLOWS
@@ -334,7 +361,7 @@ push(table(
   [
     ["1", "BUYER → contract-service", "FLAG_ISSUE → CONTESTED → DisputeRoutingService route=LEVEL_1_5", "Milestone chờ giám định"],
     ["2", "INSPECTOR", "Kiểm tra thực địa, nộp report + file (≤1800s sau step-up)", "reportHash tính từ actor đã KYC"],
-    ["3", "inspection-service", "INSERT inspection_report + Signature(reportId) → publish INSPECTION_REPORT", "audit-service nối chain"],
+    ["3", "inspection-service", "INSERT inspection_report + inspector_signature → publish inspection.report_confirmed", "audit-service nối chain"],
     ["4", "contract-service", "Verify reportHash → advance milestone SETTLED theo phán quyết", "escrow release theo kết quả; bên thua chịu phí"],
   ],
   { size: 17, colAlign: [AlignmentType.CENTER, null, null, null] }
@@ -344,11 +371,11 @@ push(table(
   [700, 2300, 3400, 3238],
   ["#", "Actor / Dịch vụ", "Hành động / Sự kiện", "Kết quả"],
   [
-    ["1", "ADMIN → inspection-service", "InitiateLevel2Inspection: đọc level2InspectorOrg, verify allowlist, INSERT commission(REQUESTED)", "audit: LEVEL2_INSPECTION_COMMISSIONED"],
+    ["1", "ADMIN/OPERATOR → inspection-service", "InitiateLevel2Inspection: đọc level2InspectorOrg, verify allowlist, INSERT commission", "publish inspection.level2_commissioned"],
     ["2", "Hệ thống", "Gửi mail tới org kèm 3 địa chỉ (buyer, seller, intake@)", "Yêu cầu đã gửi (không phải đồng ý)"],
-    ["3", "org → intake@ (webhook)", "Ack → ParseCommissionAck gợi ý case ID → Admin ConfirmCaseId", "status=CASE_ID_CONFIRMED"],
-    ["4", "org → intake@ (webhook)", "Report cuối → reportHash tính NGAY → PENDING_REVIEW", "Chưa vào audit"],
-    ["5", "ADMIN", "ReviewPendingExternalReport APPROVE → CONFIRMED → publish EXTERNAL_INSPECTION_REPORT", "audit nối chain; milestone SETTLED theo report"],
+    ["3", "file-service IMAP → file.email_notice", "Ack → parse gợi ý case ID → OPERATOR/ADMIN ConfirmCaseId", "CASE_ID_CONFIRMED"],
+    ["4", "file-service IMAP → file.ready", "Attachment đã hash/scan → inspection tính reportHash → PENDING_REVIEW", "Chưa vào audit"],
+    ["5", "ADMIN/OPERATOR", "ReviewPendingExternalReport APPROVE → CONFIRMED → inspection.report_confirmed", "audit nối chain; milestone theo report"],
   ],
   { size: 17, colAlign: [AlignmentType.CENTER, null, null, null] }
 ));
@@ -358,8 +385,8 @@ push(table(
   ["#", "Actor / Dịch vụ", "Hành động / Sự kiện", "Kết quả"],
   [
     ["1", "contract-service", "Milestone bị cancel-có-penalty → milestone.cancelled_with_penalty", "Mang penalizedRole + input rate"],
-    ["2", "reputation-service", "ProcessLockout: tính multiplier → INSERT lock_entry (insert-only) → publish reputation.locked", "lockDurationDays snapshot bất biến"],
-    ["3", "user-service", "Consume reputation.locked → cache lockedUntil trên UserProfile", "Không gọi sync mỗi lần check"],
+    ["2", "reputation-service", "ProcessLockout: tính multiplier → INSERT lock_entry (insert-only) → publish reputation.locked(lockRevision, occurredAt)", "lockDurationDays snapshot bất biến"],
+    ["3", "user-service", "Consume reputation.locked → set lockedUntil nếu lockRevision mới hơn lastLockRevision", "Không gọi sync mỗi lần check"],
     ["4", "contract-service", "Lần sign() tiếp theo → Feign CheckLockStatus (fail-closed + circuit breaker)", "lockedUntil > now → chặn ký"],
   ],
   { size: 17, colAlign: [AlignmentType.CENTER, null, null, null] }
@@ -391,6 +418,6 @@ const doc = buildDoc(body, {
   headerText: "AgriContract · SDS — Phần 3",
   footerText: "SDS v1.0 · Phần 3 · Tháng 7/2026",
 });
-Packer.toBuffer(doc).then(buf => { fs.writeFileSync("/tmp/AgriContract_06_SDS_Part3_v1.docx", buf); console.log("written", buf.length); });
+Packer.toBuffer(doc).then(buf => { writeDocx("/tmp/AgriContract_06_SDS_Part3_v1.docx", buf); });
 
 }

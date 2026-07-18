@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { writeDocx } = require("./docx_output.js");
 const { D, cover, tocRange, partDivider, endMark, buildDoc, setHeadingOffset } = require("./acdocx.js");
 const { Packer } = D;
 
@@ -9,7 +10,9 @@ const { Packer } = D;
 // offset at push()-time (module load time), not lazily.
 setHeadingOffset(1);
 
+process.env.AGRICONTRACT_SDS_MERGED = "1";
 const p1 = require("./build04.js").body;
+delete process.env.AGRICONTRACT_SDS_MERGED;
 const p2 = require("./build05.js").body;
 const p3 = require("./build06.js").body;
 const p4 = require("./build07.js").body;
@@ -51,6 +54,5 @@ const doc = buildDoc(body, {
   footerText: "SDS v1.0 · Bản đầy đủ · Tháng 7/2026",
 });
 Packer.toBuffer(doc).then(buf => {
-  fs.writeFileSync("/tmp/AgriContract_SDS_Full_v1.docx", buf);
-  console.log("written", buf.length);
+  writeDocx("/tmp/AgriContract_SDS_Full_v1.docx", buf);
 });

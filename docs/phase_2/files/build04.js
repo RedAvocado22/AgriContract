@@ -1,6 +1,9 @@
 const fs = require("fs");
+const { writeDocx } = require("./docx_output.js");
 const { D, T, runs, P, H1, H2, H3, bullet, numbered, quote, callout, legal, risk, src, table, spacer, cover, toc, endMark, buildDoc } = require("./acdocx.js");
 const { Packer, AlignmentType, Paragraph, TextRun, BorderStyle, ShadingType } = D;
+
+const IS_MERGED = process.env.AGRICONTRACT_SDS_MERGED === "1";
 
 const body = [];
 const push = (...x) => x.forEach(e => body.push(e));
@@ -26,16 +29,29 @@ push(...toc());
 // ============================================================
 push(H1("Về tài liệu này"));
 push(P("Software Design Specification (SDS) mô tả thiết kế chi tiết của hệ thống AgriContract ở mức đủ để hiện thực hoá bằng mã nguồn — chi tiết hơn tài liệu Kiến trúc (mô tả cấu trúc tổng thể) và tài liệu Giải pháp (mô tả nghiệp vụ và mô hình kinh doanh)."));
-push(P("Tài liệu được chia thành nhiều phần để dễ theo dõi và bảo trì. Phần 1 (tài liệu này) đặt nền tảng chung mà mọi phần sau gác lên: phạm vi, thuật ngữ, actors, các chuẩn thiết kế xuyên suốt (API, sự kiện, dữ liệu, lỗi, bảo mật), mô hình dữ liệu tổng thể ở mức khái niệm, và yêu cầu phi chức năng. Các phần tiếp theo mô tả thiết kế chi tiết từng dịch vụ: use case, sơ đồ trình tự (sequence), đặc tả API và lược đồ dữ liệu ở mức bảng."));
-push(table(
-  [3000, 6638],
-  ["Phần", "Nội dung"],
-  [
-    ["Phần 1 (tài liệu này)", "Nền tảng & chuẩn dùng chung: giới thiệu, actors, chuẩn API/sự kiện/dữ liệu/lỗi/bảo mật, mô hình dữ liệu tổng, yêu cầu phi chức năng"],
-    ["Phần 2 → n (kế tiếp)", "Thiết kế chi tiết theo cụm dịch vụ: use case, sequence, API spec, schema từng dịch vụ"],
-  ],
-  { size: 18 }
-));
+if (IS_MERGED) {
+  push(P("Tài liệu này gồm năm phần hợp nhất. Phần 1 đặt nền tảng chung: phạm vi, thuật ngữ, actors, các chuẩn thiết kế xuyên suốt (API, sự kiện, dữ liệu, lỗi, bảo mật), mô hình dữ liệu tổng thể và yêu cầu phi chức năng; các phần 2–5 tiếp nối ngay trong cùng file với thiết kế chi tiết từng cụm dịch vụ."));
+  push(table(
+    [3000, 6638],
+    ["Phần", "Nội dung"],
+    [
+      ["Phần 1 — Nền tảng", "Giới thiệu, actors, chuẩn API/sự kiện/dữ liệu/lỗi/bảo mật, mô hình dữ liệu tổng và yêu cầu phi chức năng"],
+      ["Phần 2–5 — Tiếp nối trong tài liệu", "Use case, sequence, API spec, schema và verification matrix theo từng cụm dịch vụ"],
+    ],
+    { size: 18 }
+  ));
+} else {
+  push(P("Tài liệu được chia thành nhiều phần để dễ theo dõi và bảo trì. Phần 1 (tài liệu này) đặt nền tảng chung mà mọi phần sau gác lên: phạm vi, thuật ngữ, actors, các chuẩn thiết kế xuyên suốt (API, sự kiện, dữ liệu, lỗi, bảo mật), mô hình dữ liệu tổng thể ở mức khái niệm, và yêu cầu phi chức năng. Các phần tiếp theo mô tả thiết kế chi tiết từng dịch vụ: use case, sơ đồ trình tự (sequence), đặc tả API và lược đồ dữ liệu ở mức bảng."));
+  push(table(
+    [3000, 6638],
+    ["Phần", "Nội dung"],
+    [
+      ["Phần 1 (tài liệu này)", "Nền tảng & chuẩn dùng chung: giới thiệu, actors, chuẩn API/sự kiện/dữ liệu/lỗi/bảo mật, mô hình dữ liệu tổng, yêu cầu phi chức năng"],
+      ["Phần 2–5 (tài liệu kế tiếp)", "Thiết kế chi tiết theo cụm dịch vụ: use case, sequence, API spec, schema từng dịch vụ"],
+    ],
+    { size: 18 }
+  ));
+}
 
 // ============================================================
 // 1. INTRODUCTION
@@ -62,7 +78,7 @@ push(table(
     ["VNSAT", "Nguồn giá nông sản của Bộ NN&MT (thitruongnongsan.gov.vn) mà pricing-service scrape"],
     ["JTS", "Java Topology Suite — thư viện kiểm tra tính hợp lệ hình học của polygon"],
     ["OTS", "OpenTimestamps — neo hash lên Bitcoin làm bằng chứng thời gian độc lập"],
-    ["DDS", "Due Diligence Statement — bản khai thẩm định EUDR, xuất từ audit trail"],
+    ["DDS", "Due Diligence Statement — bản khai thẩm định EUDR; AgriContract chỉ xuất gói bằng chứng hỗ trợ DDS"],
   ],
   { size: 18 }
 ));
@@ -91,7 +107,7 @@ push(table(
   { size: 18 }
 ));
 push(H2("2.3 Actors và vai trò"));
-push(P("Năm tầng người dùng ánh xạ sang bốn vai trò Keycloak dùng để phân quyền tại runtime. Software Buyer (bên triển khai) không phải một vai trò runtime riêng — họ vận hành hệ thống thông qua tài khoản ADMIN. Escrow Holder (ngân hàng) không phải người dùng nền tảng mà là điểm tích hợp hệ thống."));
+push(P("Các stakeholder nghiệp vụ không ánh xạ một-một sang role runtime. Keycloak có năm role BUYER, SELLER, INSPECTOR, OPERATOR và ADMIN. OPERATOR xử lý thao tác vận hành hằng ngày có thể đảo ngược; ADMIN giữ quyết định rủi ro cao, security/audit và bước approve maker-checker. External Verifier và System là actor kỹ thuật; Software Buyer là chủ thể tổ chức, không phải role runtime."));
 push(table(
   [2200, 2200, 5238],
   ["Actor", "Vai trò Keycloak", "Quyền hạn chính"],
@@ -99,7 +115,8 @@ push(table(
     ["Bên mua (Platform Buyer)", "BUYER", "Tạo offer, đàm phán, khoá tiền ký quỹ, xác nhận nhận hàng, cancel/dispute theo quyền"],
     ["Bên bán / HTX (Platform Seller)", "SELLER", "Đăng listing, đàm phán, ký hợp đồng, cân/giao hàng, nhận thanh toán"],
     ["Giám định (Level 1.5)", "INSPECTOR", "Nhận assignment, nộp inspection report có hash; không phán xử"],
-    ["Quản trị vận hành", "ADMIN", "Xác minh KYC, thực thi giải ngân theo report, xử lý tranh chấp Level 1; không override report"],
+    ["Vận hành hằng ngày", "OPERATOR", "KYC, review/moderation, nhập giá thủ công; có thể propose governance nhưng không tự approve"],
+    ["Quản trị rủi ro cao", "ADMIN", "Approve/reject maker-checker; security, audit, analytics admin; fallback cho thao tác vận hành"],
     ["Ngân hàng (Escrow Holder)", "— (tích hợp hệ thống)", "Giữ tiền, thực thi lệnh lock/release/seize/refund từ escrow-service"],
   ],
   { size: 18 }
@@ -114,7 +131,7 @@ push(P("Các chuẩn dưới đây bắt buộc áp dụng cho mọi dịch vụ
 push(H2("3.1 Chuẩn API REST"));
 push(bullet([runs("Điểm vào duy nhất: ", { bold: true }), runs("mọi request từ ngoài đi qua API Gateway (:8080); client không gọi trực tiếp port dịch vụ.", {})]));
 push(bullet([runs("Versioning & path: ", { bold: true }), runs("tiền tố /api/v1/{resource}, danh từ số nhiều, phân cấp theo tài nguyên (vd /api/v1/contracts/{id}/milestones).", {})]));
-push(bullet([runs("Xác thực: ", { bold: true }), runs("Authorization: Bearer {JWT}; Gateway validate, xoá mọi X-User-* do client tự gửi rồi tiêm X-User-Id/X-User-Email/X-User-Role từ JWT. Public match theo method + exact path; protected route authenticated mặc định; /internal/** không route.", {})]));
+push(bullet([runs("Xác thực: ", { bold: true }), runs("Authorization: Bearer {JWT}; Gateway validate JWT, xoá Authorization/X-User-*/internal secret do client gửi rồi tiêm đúng X-User-Id, X-User-Role, X-Correlation-Id và X-Gateway-Secret. X-Api-Key của route audit-hash được giữ nguyên. Public match theo method + exact path; protected route authenticated mặc định; /internal/** không route.", {})]));
 push(bullet([runs("Phân trang: ", { bold: true }), runs("query params page, size, sort; response bọc content + metadata (page, size, totalElements, totalPages).", {})]));
 push(bullet([runs("Idempotency: ", { bold: true }), runs("thao tác ghi liên quan tiền hoặc trạng thái nhạy cảm nhận header Idempotency-Key hoặc dùng khoá nghiệp vụ tương đương.", {})]));
 push(P("Cấu trúc phản hồi lỗi chuẩn (error envelope) — đồng nhất mọi dịch vụ:"));
@@ -131,6 +148,7 @@ push(codeblock([
 ]));
 
 push(H2("3.2 Chuẩn sự kiện (RabbitMQ)"));
+push(P("DLQ replay giữ nguyên eventId và payload; không sửa trực tiếp DB để ‘chữa’ message. Với tiền/security/evidence, OPERATOR đề xuất replay và ADMIN approve; message không thể replay được chuyển PARKED kèm reason. RabbitMQ không phải nguồn lịch sử và không backup: recovery dựa trên transactional outbox + queue backlog."));
 push(bullet([runs("Envelope bắt buộc: ", { bold: true }), runs("mỗi message mang eventId (UUID) và occurredAt (ISO-8601) ở top-level, cùng aggregateId liên quan.", {})]));
 push(bullet([runs("Routing key: ", { bold: true }), runs("theo convention {aggregate}.{actor}_{past_tense_verb} (vd milestone.buyer_confirmed).", {})]));
 push(bullet([runs("Exchange: ", { bold: true }), runs("topic exchange theo aggregate; một dead-letter exchange (fanout) nhận message fail sau 3 lần retry.", {})]));
@@ -139,6 +157,7 @@ push(bullet([runs("Consume an toàn: ", { bold: true }), runs("khử trùng lặ
 push(bullet([runs("Tương thích ngược: ", { bold: true }), runs("consumer là tolerant reader — bỏ qua field lạ, không vỡ khi payload thêm field mới (event schema versioning).", {})]));
 
 push(H2("3.3 Chuẩn dữ liệu"));
+push(P("Mỗi enum/state machine có đúng một owner service. Dịch vụ khác chỉ giữ projection hoặc giá trị trong event contract, không tự định nghĩa enum cạnh tranh. Snapshot đã ký và artefact evidence là immutable; dữ liệu mutable chỉ đổi qua use case có actor attribution."));
 push(table(
   [2900, 6738],
   ["Quy tắc", "Chi tiết"],
@@ -146,7 +165,7 @@ push(table(
     ["Khoá chính", "UUID cho mọi aggregate/entity chính"],
     ["Tham chiếu cross-service", "Plain UUID, KHÔNG REFERENCES cross-database; integrity giữ ở application layer"],
     ["Tiền tệ", "DECIMAL(15,2), đơn vị VNĐ; số dư luôn derive từ ledger, không lưu sẵn"],
-    ["Bảng append-only", "ledger_entry, audit_record, lock_entry, price_history, negotiation/domain events — chỉ INSERT/SELECT, không UPDATE/DELETE"],
+    ["Bảng append-only", "ledger_entry, audit_record, audit_anchor, lock_entry, lock_override_event, price_history, negotiation/domain events — chỉ INSERT/SELECT, không UPDATE/DELETE"],
     ["Cột audit", "created_at bắt buộc; updated_at chỉ ở entity mutable"],
     ["Dữ liệu không gian", "GEOMETRY, SRID 4326; validate hình học qua JTS ở tầng ứng dụng"],
     ["Snapshot bất biến", "ContractTerms, milestoneSchedule, ProductPlot, level2InspectorOrg snapshot lúc tạo/ký — không đổi theo nguồn gốc sau này"],
@@ -166,7 +185,9 @@ push(table(
     ["404", "Không tìm thấy tài nguyên", "contractId không tồn tại"],
     ["409", "Conflict — vi phạm ràng buộc trạng thái/optimistic lock", "Ký hợp đồng đã SIGNED; version mismatch"],
     ["422", "Không xử lý được về mặt nghiệp vụ", "Cancel milestone đã SETTLED"],
-    ["500", "Lỗi hệ thống", "Downstream service không phản hồi (circuit breaker mở)"],
+    ["500", "Lỗi hệ thống nội bộ", "Unhandled exception không thuộc lỗi nghiệp vụ"],
+    ["503", "Service Unavailable", "Dependency bắt buộc (KYC/lock/provider OTP) không sẵn sàng; fail-closed"],
+    ["504", "Gateway Timeout", "Downstream vượt timeout định tuyến"],
   ],
   { size: 18, colAlign: [AlignmentType.CENTER, null, null] }
 ));
@@ -174,10 +195,18 @@ push(table(
 push(H2("3.5 Bảo mật xuyên suốt"));
 push(bullet([runs("Xác thực tập trung: ", { bold: true }), runs("Keycloak cấp JWT RS256; Gateway validate qua JWKS, strip/overwrite identity headers, inject correlation ID + gateway secret; downstream chỉ tin context đi qua ranh giới này.", {})]));
 push(bullet([runs("Phân quyền theo vai trò: ", { bold: true }), runs("RBAC ở từng dịch vụ; ngoài role còn kiểm tra ownership (vd chỉ buyer của hợp đồng mới confirm được).", {})]));
-push(bullet([runs("Ranh giới nội bộ: ", { bold: true }), runs("giao tiếp service-to-service siết bằng X-Internal-Secret, tiến hoá lên mTLS.", {})]));
+push(bullet([runs("Ranh giới nội bộ: ", { bold: true }), runs("giao tiếp service-to-service siết bằng service secret/mTLS; downstream chỉ tin identity headers khi X-Gateway-Secret hợp lệ.", {})]));
 push(bullet([runs("Bảo toàn dữ liệu nhạy cảm: ", { bold: true }), runs("không log số dư/giao dịch; audit trail bất biến làm evidence khi điều tra.", {})]));
-push(P("Route policy Gateway: public chỉ các GET reference/catalog được liệt kê tường minh; protected route authenticated mặc định; /api/v1/admin/** và /api/v1/inspector/** gate role thô; /internal/** không có external route. Emergency lock/unlock dùng chữ ký External Verifier, không có Admin bypass. Gateway không enforce ownership/KYC/reputation lock — các quyết định đó thuộc domain service."));
+push(P("Route policy Gateway: public chỉ GET catalog/listing, price và GET security/audit-hash được liệt kê exact method/path; reputation public-summary là authenticated. Daily admin paths cho ADMIN|OPERATOR; reputation propose cho ADMIN|OPERATOR nhưng approve/reject, security, audit và analytics admin chỉ ADMIN; /api/v1/inspector/** gate INSPECTOR; /internal/** và notification API không có external route. Emergency lock/unlock dùng chữ ký External Verifier, không có Admin bypass. Gateway không enforce ownership/KYC/reputation lock — các quyết định đó thuộc domain service."));
 push(legal("Nghị định 52/2024/NĐ-CP, Điều 8 Khoản 4", "Nghiêm cấm tiết lộ thông tin số dư và giao dịch của khách hàng. RBAC + không-log-nhạy-cảm + mTLS là biện pháp kỹ thuật đáp ứng yêu cầu này."));
+push(H2("3.6 Quản trị dữ liệu, maker-checker và trust boundary"));
+push(P("Không tạo governance-service. Mỗi domain service chịu trách nhiệm policy trên dữ liệu mình sở hữu; audit-service là writer duy nhất của audit DB và bank-service là source of truth duy nhất cho tiền. Threat model gồm cả hạ tầng Admin độc hại: protected branch/CI approval, image digest pin, secret không bake vào image, quyền DB tối thiểu và External Verifier + OTS là các lớp giảm thiểu; prototype không tuyên bố chống được khi CI, runtime, DB và key policy cùng bị compromise."));
+push(table([2600, 3100, 3938], ["Hành động", "Maker", "Checker / invariant"], [
+  ["Mở khoá sớm", "OPERATOR hoặc ADMIN propose", "ADMIN approve/reject; approvedBy ≠ proposedBy; ghi governance_action_request + lock_override_event"],
+  ["Clear ELEVATED_RISK", "OPERATOR hoặc ADMIN propose", "ADMIN approve/reject; approvedBy ≠ proposedBy; publish override event cho audit"],
+], { size: 17 }));
+push(H2("3.7 Retention, legal hold và deletion workflow"));
+push(P("Retention matrix thuộc data governance: hợp đồng/ledger/audit 10 năm; KYC 5 năm sau khi quan hệ chấm dứt; evidence EUDR ít nhất 5 năm; domain giữ file lâu nhất thắng. legalHold do ADMIN đặt và chặn mọi xoá. File deletion hai bước idempotent: tombstone deletedAt/deletionReason trước, xoá blob MinIO sau; lifecycle job của owning service gọi DeleteFile. Audit content tối giản, không chứa PII để source record vẫn có thể xoá/anonymize theo workflow."));
 
 // ============================================================
 // 4. CONCEPTUAL DATA MODEL
@@ -190,14 +219,14 @@ push(table(
   [
     ["UserProfile", "user-service", "Keycloak sub (nội bộ Keycloak)"],
     ["Product, Listing, PlotRegistryEntry, ProductPlot", "product-service", "sellerId → user; originalKmlFileId, cadastralExtractFileId → file"],
-    ["Contract, Milestone, Signature", "contract-service", "buyerId/sellerId → user; listingId → product; sellerEvidenceFileId/buyerEvidenceFileId → file; reportId → inspection (FK logic)"],
+    ["Contract, Milestone, Signature, SignatureOtp", "contract-service", "buyerId/sellerId → user; listingId → product; evidenceFileId → file; signature chỉ BUYER/SELLER; OTP bind user/contract/role/terms hash"],
     ["EscrowAccount, EscrowMilestone", "escrow-service", "contractId → contract; milestoneId → contract.milestone"],
     ["LedgerEntry", "bank-service", "contractId, milestoneId, userId; sourceEventId (idempotency)"],
-    ["InspectionReport, Level2Commission", "inspection-service", "contractId, milestoneId; signerUserId → user; reportFileId → file"],
-    ["LockEntry, ReputationScore", "reputation-service", "userId → user; contractId; sourceEventId"],
-    ["File", "file-service", "uploadedBy (userId hoặc serviceId)"],
+    ["InspectionReport, InspectorSignature, Level2Commission", "inspection-service", "contractId, milestoneId; signerUserId → user; reportFileId → file"],
+    ["LockEntry, LockOverrideEvent, GovernanceActionRequest, PairRiskState", "reputation-service", "userId/pair → user; contractId; sourceEventId"],
+    ["File", "file-service", "uploadedBy; retentionUntil; legalHold; tombstone deletedAt/deletionReason"],
     ["PriceQuote", "pricing-service", "— (không tham chiếu cross-service)"],
-    ["AuditRecord", "audit-service", "contractId; sourceEventId; content (JSON payload gốc)"],
+    ["AuditRecord, AuditAnchor", "audit-service", "subjectType/subjectId; sourceEventType; sourceHash; canonical recordHash; prevHashSubject"],
     ["NotificationLog", "notification-service", "eventId; recipient userId/email; notificationType; templateVersion"],
     ["dim_contract, fact_*, agg_*", "analytics-service", "contractId (denormalized từ event)"],
   ],
@@ -209,18 +238,19 @@ push(P([runs("Nguyên tắc bảo toàn integrity không có FK cross-DB: ", { b
 // 5. NON-FUNCTIONAL REQUIREMENTS
 // ============================================================
 push(H1("5. Yêu cầu phi chức năng"));
+push(P("Khôi phục sau sự cố: backup MySQL hằng ngày; bank/audit dùng binlog để đạt RPO mục tiêu ≤15 phút; MinIO mirror/versioning. Sau restore phải chạy VerifyChainJob và LedgerAuditReconciliationJob pass trước khi mở traffic; maintenance mode đặt tại Gateway/deployment, không lạm dụng system_lock ngân hàng."));
 push(table(
   [2500, 7138],
   ["Nhóm", "Yêu cầu & cơ chế đáp ứng"],
   [
     ["Tính đúng đắn giao dịch", "Nhất quán mạnh trong phạm vi một dịch vụ (DB transaction + optimistic lock @Version); nhất quán cuối (eventual) giữa các dịch vụ qua Outbox + idempotency. Đường tiền tệ không dùng eventual consistency mà đợi confirmation event"],
-    ["Khả năng kiểm toán & tuân thủ", "Audit trail append-only, hash chain đa lớp, neo email + Bitcoin; retention ≥ 5 năm theo EUDR; xuất DDS (PDF/CSV) on-demand"],
+    ["Khả năng kiểm toán & tuân thủ", "AuditRecord/AuditAnchor append-only, sourceHash tách recordHash, neo email + OTS; retention theo ma trận + legal hold; xuất gói bằng chứng DDS-supporting PDF/CSV"],
     ["Bảo mật", "Keycloak RBAC + ownership check; JWT RS256; X-Internal-Secret → mTLS; không log dữ liệu nhạy cảm; hash chống sửa DB"],
     ["Khả năng mở rộng", "Stateless service phía sau Gateway; database-per-service cho phép scale độc lập; RabbitMQ tách tải async khỏi request đồng bộ"],
     ["Tính sẵn sàng & chịu lỗi", "Circuit breaker (Resilience4j) trên Feign; retry + DLX cho message; job nền (scheduler) tự sống sót qua lỗi, không kéo sập"],
     ["Hiệu năng đọc", "CQRS read model (analytics) + pre-compute @Scheduled; Redis cache cho giá tham chiếu; tránh query tổng hợp nặng real-time"],
     ["Khả năng bảo trì", "DDD rich model, ranh giới dịch vụ rõ; chuẩn API/event/dữ liệu thống nhất; Flyway migration versioned per-service"],
-    ["Khả năng quan sát (observability)", "Correlation/trace id xuyên request; hướng tiến hoá: Zipkin + Sleuth (tracing), ELK (log), Prometheus + Grafana (metrics)"],
+    ["Khả năng quan sát (observability)", "Correlation/trace id xuyên request; Micrometer Tracing với OpenTelemetry hoặc Brave, export sang Zipkin/OTLP; ELK cho log; Prometheus + Grafana cho metrics"],
   ],
   { size: 18 }
 ));
@@ -228,13 +258,15 @@ push(table(
 // ============================================================
 // 6. LIMITATIONS / NEXT
 // ============================================================
-push(H1("6. Giới hạn của phần này và nội dung kế tiếp"));
-push(P("Phần 1 chỉ đặt nền tảng và chuẩn chung; các nội dung sau thuộc phạm vi các phần kế tiếp và chưa được đặc tả ở đây:"));
+push(H1(IS_MERGED ? "6. Cách đọc các phần tiếp theo" : "6. Giới hạn của phần này và nội dung kế tiếp"));
+push(P(IS_MERGED
+  ? "Phần 1 đặt nền tảng và chuẩn chung; các nội dung dưới đây được đặc tả tại các phần 2–5 ngay sau phần này:"
+  : "Phần 1 chỉ đặt nền tảng và chuẩn chung; các nội dung sau thuộc phạm vi các phần kế tiếp và chưa được đặc tả ở đây:"));
 push(bullet("Use case chi tiết và sơ đồ trình tự (sequence) cho từng luồng nghiệp vụ của mỗi dịch vụ."));
 push(bullet("Đặc tả API mức endpoint (request/response schema, mã lỗi cụ thể) cho từng dịch vụ."));
 push(bullet("Lược đồ dữ liệu mức bảng (DDL đầy đủ, index, ràng buộc) cho từng dịch vụ."));
 push(bullet("Chi tiết cấu hình theo môi trường (application.yml) và các tham số có thể chỉnh (thresholds, windows, rates)."));
-push(callout("Ghi chú.", "Các giả định mô phỏng (bank-service, tiếp nhận report Level 2) và các giới hạn đã biết cần xác nhận nghiệp vụ (vd checklist KYC theo loại hình doanh nghiệp, payload event mang commodity cho analytics) sẽ được đánh dấu rõ tại phần dịch vụ tương ứng.", "note"));
+push(callout("Ghi chú.", "Các giả định mô phỏng (bank-service, tiếp nhận report Level 2) và các giới hạn cần xác nhận nghiệp vụ được đánh dấu rõ tại phần dịch vụ tương ứng; các quyết định đã đóng không được liệt kê lại như điểm treo.", "note"));
 
 module.exports = { body };
 
@@ -246,6 +278,6 @@ const doc = buildDoc(body, {
   headerText: "AgriContract · SDS — Phần 1",
   footerText: "SDS v1.0 · Phần 1 · Tháng 7/2026",
 });
-Packer.toBuffer(doc).then(buf => { fs.writeFileSync("/tmp/AgriContract_04_SDS_Part1_v1.docx", buf); console.log("written", buf.length); });
+Packer.toBuffer(doc).then(buf => { writeDocx("/tmp/AgriContract_04_SDS_Part1_v1.docx", buf); });
 
 }

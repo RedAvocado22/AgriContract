@@ -77,11 +77,13 @@ Dùng chung 1 enum cho cả 3 channel (không tách nhánh riêng theo channel) 
 
 | Entrypoint          | Ai gọi                                                                                                              | `ingestChannel`    | Validate trước khi nhận                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
-| `UploadFile(file)`  | Public API, JWT seller/admin                                                                                        | `DIRECT_UPLOAD`    | `contentType` ∈ {JPG, PNG, PDF}, `fileSize` ≤ **10MB** (chốt 05/07/2026)                       |
+| `StoreOnBehalfOf(file, actingUserId)` — **đổi từ `UploadFile` public, 17/07/2026** | Business service (service-to-service, mTLS/service token) uỷ quyền từ end-user đã qua JWT ở business endpoint; `uploadedBy = actingUserId` truyền tường minh | `DIRECT_UPLOAD`    | `contentType` ∈ {JPG, PNG, PDF}, `fileSize` ≤ **10MB** (chốt 05/07/2026) — giữ nguyên validate + virus-scan |
 | Email intake bridge | Scheduled job nội bộ (§4.1), không expose API                                                                       | `EMAIL_INTAKE`     | `fileSize` ≤ **20MB** (chốt review pass 2, 05/07/2026 — cao hơn `DIRECT_UPLOAD` vì PDF report SGS/BV thường nhiều trang/nhúng ảnh chứng chỉ), check **streaming** trong lúc `EmailParseConsumer` đang đọc MIME part, không load hết vào memory rồi mới check — tránh OOM nếu mailbox bị compromise hoặc bên gửi nhầm file khủng. Vượt cap → lỗi nghiệp vụ, route `email_intake_failure` (không phải lỗi dev) |
 | `store()` nội bộ    | Service-to-service (mTLS/service token, không phải JWT user) — VD `audit-service` gọi khi `GenerateEUDRReport` xong | `SYSTEM_GENERATED` | Không cần virus-scan (nội dung do chính hệ thống tạo, tin được)                                |
 
 Core logic (tính `storageHash`, lưu MinIO, insert `File` metadata) dùng chung 1 hàm nội bộ cho cả 3 entrypoint — không trùng lặp code, chỉ khác lớp validate/auth phía trước.
+
+**Sửa (17/07/2026) — đóng mâu thuẫn với `api-gateway-phase2-design.md` §3.5/§5.2:** Gateway không expose file-service ra ngoài; mọi upload của end-user đi qua business endpoint của service sở hữu ngữ cảnh (product-service nhận KML/trích lục kèm tham số nghiệp vụ, contract-service nhận evidence gắn milestone). Hợp lý — các use case đó vốn cần file *đi kèm* business params, upload raw rời rạc chỉ đẻ orphan + 2 round-trip. Entrypoint `DIRECT_UPLOAD` vì vậy đổi từ public `UploadFile` thành `StoreOnBehalfOf` nội bộ, **giữ nguyên toàn bộ semantics DIRECT_UPLOAD** (virus-scan, cap 10MB, whitelist contentType). Ranh giới Hướng B (§2.1) không đổi: channel vẫn do entrypoint quyết định — business service **không được** gọi `store()`/`SYSTEM_GENERATED` cho file gốc từ end-user để né scan; `store()` chỉ dành cho file hệ thống tự sinh, và `uploadedBy` của `SYSTEM_GENERATED` bắt buộc là serviceId (validate được), không phải userId.
 
 ---
 
@@ -113,15 +115,21 @@ Retry: **3 lần**, backoff cố định qua RabbitMQ dead-letter-exchange + TTL
 
 ### 4.1 Email intake bridge
 
-**Chốt (05/07/2026):** dùng **IMAP polling định kỳ** (Spring `@Scheduled`, mỗi 5 phút, thư viện Jakarta Mail), không dùng webhook (AWS SES/Mailgun inbound parse) — webhook cần domain thật + verify DNS + public HTTPS endpoint, quá nặng cho scope đồ án. Job poll mailbox `intake@...`, mỗi mail mới → extract MIME attachment → lưu file thô (`ingestChannel = EMAIL_INTAKE`, `status = PROCESSING`) → publish `file.email.received`.
+**Chốt (05/07/2026):** dùng **IMAP polling định kỳ** (Spring `@Scheduled`, mỗi 5 phút, thư viện Jakarta Mail), không dùng webhook (AWS SES/Mailgun inbound parse) — webhook cần domain thật + verify DNS + public HTTPS endpoint, quá nặng cho scope đồ án. Job poll mailbox `intake@...`, mỗi mail mới → extract MIME attachment → lưu file thô (`ingestChannel = EMAIL_INTAKE`, `status = PROCESSING`) → publish `file.email.received`. **Bổ sung (17/07/2026):** mail **không có attachment** (VD ack/case-ID reply từ org — inspection §3.5) không tạo `File` record — bridge publish event nhẹ `file.email_notice {senderDomain, spfDkimResult, subject, snippet, receivedAt}` cho inspection-service dùng gợi ý match case ID; không lưu bytes, không qua scan.
 
 ---
 
 ## 5. Event Contract
 
 ```
-file.ready   (fileId, uploadedBy, ingestChannel, contentType, fileSize)
-file.failed  (fileId, uploadedBy, ingestChannel, failureReason)
+file.ready         (fileId, uploadedBy, ingestChannel, contentType, fileSize,
+                    emailMeta? {senderDomain, spfDkimResult, subject, receivedAt})
+                    -- emailMeta chỉ có khi ingestChannel = EMAIL_INTAKE (17/07/2026 —
+                    -- phục vụ inspection-service tính reportHash + match case ID,
+                    -- inspection §3.6); consumer khác bỏ qua theo tolerant-reader
+file.failed        (fileId, uploadedBy, ingestChannel, failureReason)
+file.email_notice  (senderDomain, spfDkimResult, subject, snippet, receivedAt)
+                    -- mail không attachment, xem §4.1 (17/07/2026) — không có File record
 ```
 
 Không đưa `storageHash` vào payload — service khác không cần biết hash, chỉ cần biết fileId dùng được hay không.
@@ -146,7 +154,10 @@ Không đưa `storageHash` vào payload — service khác không cần biết ha
 
 **Nguyên tắc: file-service không tự quyết retention theo nghiệp vụ (đúng agnostic), chỉ cung cấp cơ chế, để service sở hữu tự quyết khi nào an toàn để xoá.**
 
-- **Default: giữ vĩnh viễn.** Không có TTL/cronjob tự xoá file `READY` đã `attached = TRUE`.
+- **Default: giữ vĩnh viễn** — nhưng từ 18/07/2026 "vĩnh viễn" là default khi CHƯA có retention policy, không phải luật: retention matrix `data-governance-phase2-design.md` §8 là source of truth (KYC 5 năm sau khi quan hệ chấm dứt, evidence theo hợp đồng 10 năm...). Execution:
+  - `File` metadata thêm: `retentionUntil` (nullable — NULL = chưa có policy/giữ vô hạn), `legalHold` (boolean — ADMIN set khi có tranh chấp/điều tra, **chặn mọi xoá** kể cả hết retention), `deletedAt`, `deletionReason`.
+  - **Owning service** (biết nghiệp vụ) chạy scheduled lifecycle job: xác định file hết retention theo domain của mình → gọi `DeleteFile`; file-service không tự quyết (vẫn agnostic nghiệp vụ). File thuộc nhiều domain (evidence vừa KYC vừa hợp đồng) → **retention dài nhất thắng**.
+  - Xoá 2 bước idempotent: (1) DB tombstone `deletedAt`+`deletionReason` trước, (2) xoá blob MinIO sau; lệch giữa 2 bước (blob xoá, DB fail hoặc ngược lại) → job re-run tự lành vì cả 2 bước đều idempotent. Không có TTL/cronjob nào bên trong file-service tự xoá file `READY` đã `attached = TRUE`.
 - **`DeleteFile(fileId)`** — API tường minh, chỉ được gọi bởi chính service đang sở hữu `fileId` đó, khi service đó (biết rõ retention rule nghiệp vụ của riêng nó) xác định đã an toàn để xoá. File-service không bao giờ tự khởi xướng.
 - **Orphan cleanup — cơ chế `ConfirmAttached(fileId)`, không dùng heuristic đoán:** service nhận `fileId` từ `store()`/`UploadFile` phải tự lưu `fileId` vào entity của mình **trước**, thành công thì mới gọi `ConfirmAttached(fileId)` set `attached = TRUE`. Nếu service kia crash giữa chừng (nhận `fileId` nhưng chưa kịp lưu) → không bao giờ gọi `ConfirmAttached` → file vẫn `attached = FALSE`. Cùng pattern "không set state trước khi có confirmation" đã dùng ở bank-service, áp ngược cho chính file-service. File `attached = FALSE` quá **1 tuần** → coi là mồ côi, tự động xoá — không có compliance nào áp lên file chưa từng có chủ.
 - **File cũ bị ghi đè khi re-import/upload lại** (`cadastralExtractFileId` qua `UploadCadastralExtract`, `originalKmlFileId` qua re-import KML) — **không** rơi vào nhánh orphan, vì đã từng được `ConfirmAttached = TRUE`. Giữ nguyên theo policy "default giữ vĩnh viễn" — đây là **chủ đích**, không phải bug: giữ được lịch sử "trích lục/KML nào từng gắn với entry này trước khi bị thay", có giá trị audit trail.
@@ -157,7 +168,7 @@ Không đưa `storageHash` vào payload — service khác không cần biết ha
 
 ```sql
 CREATE TABLE file (
-    file_id           UUID PRIMARY KEY,
+    file_id           CHAR(36) PRIMARY KEY,
     storage_hash      VARCHAR(64) NOT NULL,   -- MinIO tampering detection, tách biệt signedContentHash/reportHash
     uploaded_by       VARCHAR(255) NOT NULL,  -- userId hoặc serviceId, plain, không FK cross-service
     ingest_channel    VARCHAR(20) NOT NULL,   -- DIRECT_UPLOAD | EMAIL_INTAKE | SYSTEM_GENERATED — quyết định bởi entrypoint, không phải caller tự khai
@@ -172,8 +183,8 @@ CREATE INDEX idx_file_status ON file(status);
 CREATE INDEX idx_file_attached_created ON file(attached, created_at);  -- phục vụ query orphan cleanup
 
 CREATE TABLE email_intake_failure (
-    failure_id      UUID PRIMARY KEY,
-    file_id         UUID NULL REFERENCES file(file_id),  -- NULL nếu fail trước khi tạo được file record (VD parse MIME lỗi hoàn toàn)
+    failure_id      CHAR(36) PRIMARY KEY,
+    file_id         CHAR(36) NULL REFERENCES file(file_id),  -- NULL nếu fail trước khi tạo được file record (VD parse MIME lỗi hoàn toàn)
     source_mailbox  VARCHAR(255) NOT NULL,
     failure_reason  TEXT NOT NULL,
     detected_at     TIMESTAMP NOT NULL DEFAULT now(),
@@ -202,8 +213,10 @@ CREATE TABLE email_intake_failure (
 
 **Known Limitation (không block thiết kế):** khả năng dùng IMAP polling với mailbox thật của SGS/Bureau Veritas không khảo sát/xin cấp phép được trong phạm vi đồ án — giữ làm giả định đơn giản hoá. Thiết kế không phụ thuộc chi tiết cơ chế lấy mail cụ thể; nếu deployment thật dùng cơ chế khác (Inbound Parse webhook, API...), chỉ đổi adapter tầng intake, không đụng logic lõi.
 
+**Cập nhật (17/07/2026):** (1) entrypoint `DIRECT_UPLOAD` đổi từ public `UploadFile` sang `StoreOnBehalfOf` nội bộ cho business service uỷ quyền — đóng mâu thuẫn với gateway §3.5, giữ nguyên virus-scan/cap/whitelist, chặn đường né scan qua `store()`. (2) `file.ready` mang thêm `emailMeta` cho `EMAIL_INTAKE`; thêm `file.email_notice` cho mail không attachment — hoàn thiện handshake với inspection-service (inspection §3.3/§3.5/§3.6 cập nhật cùng ngày).
+
 File-service — **ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
 
 ---
 
-_Design session: 05/07/2026 · Review pass 2 (fix virus-scan gap + storage key + size cap): 05/07/2026 · Cập nhật 13/07/2026 (giả định IMAP mailbox SGS/BV chuyển thành Known Limitation) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**_
+_Design session: 05/07/2026 · Review pass 2 (fix virus-scan gap + storage key + size cap): 05/07/2026 · Cập nhật 13/07/2026 (giả định IMAP mailbox SGS/BV chuyển thành Known Limitation) · Cập nhật 17/07/2026 (UploadFile → StoreOnBehalfOf uỷ quyền; emailMeta trên file.ready + file.email_notice cho inspection handshake) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**_
