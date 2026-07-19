@@ -66,13 +66,22 @@ CREATE TABLE dim_contract (
    );
    CREATE INDEX idx_fact_milestone_time ON fact_milestone_performance(resolved_at);
 
-   -- Bảng Fact cho Contract Cancellation
-   CREATE TABLE fact_contract_cancellation (
+   -- Bảng Fact cho Contract Termination (SỬA 19/07/2026 — thay fact_contract_cancellation:
+   -- đo "người bấm nút" (initiated_by) là đo NHẦM "người default" — người yêu cầu chấm dứt
+   -- không đồng nghĩa người vi phạm (milestone-escrow §6.0). Tách 3 khái niệm để metric
+   -- default-rate/cancellation-rate không vu oan bên yếu):
+   CREATE TABLE fact_contract_termination (
        fact_id                 CHAR(36) PRIMARY KEY,
        contract_id             CHAR(36) NOT NULL,
-       initiated_by            VARCHAR(10) NOT NULL, -- BUYER / SELLER
-       cancelled_at            TIMESTAMP NOT NULL
+       termination_type        VARCHAR(35) NOT NULL, -- MUTUAL_TERMINATION | MUTUAL_REPLACEMENT |
+                                                      -- TERMINATION_FOR_BREACH | TERMINATION_FOR_FORCE_MAJEURE |
+                                                      -- ACTIVATION_FAILURE
+       requested_by            VARCHAR(10) NOT NULL, -- BUYER / SELLER / SYSTEM — ai bấm nút
+       final_breaching_role    VARCHAR(10) NULL,     -- BUYER / SELLER / NULL — ai LỖI theo attribution
+       breach_reason_code      VARCHAR(30) NULL,     -- taxonomy milestone-escrow §6.4.1
+       terminated_at           TIMESTAMP NOT NULL
    );
+   CREATE INDEX idx_fact_termination_time ON fact_contract_termination(terminated_at);
 
    -- Bảng Fact cho Contract Settlement (mới, 06/07/2026 — bug fix)
    -- Lý do bắt buộc phải có bảng riêng: fact_milestone_performance là granularity
@@ -97,8 +106,14 @@ CREATE TABLE dim_contract (
        month_id                VARCHAR(7) NOT NULL,  -- Format 'YYYY-MM'
        commodity               VARCHAR(50) NOT NULL,
        total_contracts_settled INT NOT NULL DEFAULT 0,
-       total_contracts_cancelled INT NOT NULL DEFAULT 0,
-       cancellation_rate       DECIMAL(5,4) NOT NULL DEFAULT 0,
+       -- SỬA 19/07/2026: tách "cancelled" gộp thành 4 cột — mutual không phải default,
+       -- gộp chung làm cancellation_rate cao giả tạo và không nói được AI vi phạm:
+       total_mutual_exits      INT NOT NULL DEFAULT 0,  -- MUTUAL_TERMINATION + MUTUAL_REPLACEMENT
+       total_seller_breaches   INT NOT NULL DEFAULT 0,  -- final_breaching_role = SELLER
+       total_buyer_breaches    INT NOT NULL DEFAULT 0,  -- final_breaching_role = BUYER
+       total_no_fault_exits    INT NOT NULL DEFAULT 0,  -- FM + ACTIVATION_FAILURE
+       seller_breach_rate      DECIMAL(5,4) NOT NULL DEFAULT 0,
+       buyer_breach_rate       DECIMAL(5,4) NOT NULL DEFAULT 0,
        force_majeure_incidents INT NOT NULL DEFAULT 0,
        total_value_settled     DECIMAL(15,2) NOT NULL DEFAULT 0,
        escrow_efficiency_rate  DECIMAL(5,4) NOT NULL DEFAULT 0, -- (actual_amount / locked_amount) toàn tháng
@@ -152,22 +167,23 @@ Mỗi khi nhận event từ RabbitMQ, pipeline xử lý phải đi qua bước c
     * *Chiến lược:* Ghi incremental, không group ngay. Nhanh và triệt tiêu table lock contention.
 * **Nhận `milestone.force_majeure_resolved` (chỉ ghi nhận khi APPROVED):**
     * *Hành động (sửa 06/07/2026 — bug race condition):* Event này luôn tới **trước** khi milestone đạt trạng thái cuối, nên `fact_milestone_performance` gần như chắc chắn **chưa có row** để `UPDATE`. Thử `UPDATE fact_milestone_performance SET has_force_majeure = TRUE WHERE milestone_id = X` trước; nếu `rows affected = 0` → `INSERT` vào `pending_force_majeure_flag` (§2.4) để chờ merge lúc `INSERT` fact row thật (2 bước trên/dưới mục này).
-* **Nhận `milestone.cancelled_with_penalty`:**
+* **Nhận `milestone.cancelled_with_penalty` (lưu ý 19/07/2026 — event này giờ CHỈ bắn sau attribution, milestone-escrow §7.1/§6.4; tần suất sẽ thấp hơn thiết kế cũ vì Delta 1 không còn tự bắn):**
     * *Hành động:* Cùng logic merge staging như `milestone.settled` ở trên. `INSERT` vào `fact_milestone_performance` với `status = CANCELLED`, `actual_amount = 0`, kiểm tra + merge `pending_force_majeure_flag` trước khi insert.
 
-### 3.3 Nhóm Event "Contract Level — Settlement/Cancellation"
+### 3.3 Nhóm Event "Contract Level — Settlement/Termination" (đổi tên 19/07/2026)
 *(Nguồn: milestone-escrow-phase2-design.md §7.2)*
 
 * **Nhận `contract.settled` (mới, 06/07/2026 — bug fix, trước đây không consume event này):**
     * *Hành động:* `INSERT` vào `fact_contract_settlement`. Đây là nguồn **duy nhất** đúng để đếm "hợp đồng đã hoàn tất" ở granularity Contract — không được suy ra từ `fact_milestone_performance` (đó là granularity Milestone, xem lý do tại §2.2).
-* **Nhận `contract.cancelled` (mang `initiatedBy`):**
-    * *Hành động:* `INSERT` vào `fact_contract_cancellation`.
+* **Nhận `contract.terminated` (SỬA 19/07/2026 — thay `contract.cancelled`; payload mang `terminationType`/`requestedBy`/`finalBreachingRole`/`breachReasonCode?`):**
+    * *Hành động:* `INSERT` vào `fact_contract_termination` với đủ 3 khái niệm tách bạch. **Không map `requestedBy` vào cột "người vi phạm"** — đó chính là bug đo nhầm đã sửa.
+* *(Sửa 19/07 lần 2 — BỎ consumer `remedy.finalized`: `contract.terminated` giờ mang thẳng `breachReasonCode`/`remedyDecisionId` trong payload nên analytics đọc một event là đủ; bớt một consumer, bớt một đường eventual-consistency phải test.)*
 
 ### 3.4 Batch Job `@Scheduled` (Pre-compute)
 
 **Chốt (06/07/2026):** Job `MonthlyAggregationJob` chạy lúc **1:00 AM mỗi ngày** (off-peak, trước giờ `VerifyChainJob` của audit-service 2:00 AM để tránh dẫm chân tài nguyên DB nội bộ nếu triển khai chung node).
-* *Cách chạy:* Quét dữ liệu ngày hôm qua từ **`fact_contract_settlement` + `fact_contract_cancellation`** (JOIN với `dim_contract` để lấy `commodity` — granularity Contract, cho `total_contracts_settled`/`total_contracts_cancelled`) **và** từ `fact_milestone_performance` (JOIN `dim_contract`, granularity Milestone, cho `total_value_settled`/`escrow_efficiency_rate`/`force_majeure_incidents`) — 2 nguồn khác granularity, cộng dồn (upsert) vào đúng cột tương ứng của dòng `agg_monthly_commodity_stats` tháng hiện tại. *(Sửa 06/07/2026: bản gốc chỉ quét `fact_milestone_performance`, khiến `total_contracts_settled` bị tính sai — xem §2.2/§3.3.)*
-* *Tính Rate:* `cancellation_rate = total_contracts_cancelled / (total_contracts_settled + total_contracts_cancelled)`, cả 2 số hạng lấy từ `fact_contract_settlement`/`fact_contract_cancellation`, không lẫn với số liệu milestone. Tính và ghi đè thẳng vào cột, API sau này chỉ việc `SELECT` và trả về O(1).
+* *Cách chạy:* Quét dữ liệu ngày hôm qua từ **`fact_contract_settlement` + `fact_contract_termination`** (JOIN với `dim_contract` để lấy `commodity` — granularity Contract) **và** từ `fact_milestone_performance` (JOIN `dim_contract`, granularity Milestone, cho `total_value_settled`/`escrow_efficiency_rate`/`force_majeure_incidents`) — 2 nguồn khác granularity, cộng dồn (upsert) vào đúng cột tương ứng của dòng `agg_monthly_commodity_stats` tháng hiện tại. Phân loại termination vào 4 cột theo `termination_type` + `final_breaching_role` (§2.2).
+* *Tính Rate (SỬA 19/07/2026 — tách rate theo attribution, không còn 1 cancellation_rate gộp):* `seller_breach_rate = total_seller_breaches / (total_contracts_settled + total_seller_breaches + total_buyer_breaches)`; `buyer_breach_rate` mirror. **Mutual exits và no-fault KHÔNG vào mẫu số breach rate như "vi phạm"** — gộp chung sẽ thổi phồng "tỷ lệ bẻ kèo" bằng cả những cặp chia tay thiện chí, đo sai đúng cái metric mà hiệp hội dựa vào để đánh giá lòng tin thị trường.
 
 ### 3.5 Batch Job AML — `AmlPatternScanJob` (mới, 10/07/2026 — đóng gap structuring chậm §9 reputation-service)
 
@@ -209,10 +225,10 @@ HAVING COUNT(*) >= 5;                     -- min 5 hợp đồng near-threshold 
 
 Các API này phục vụ Dashboard của Admin/Hiệp hội, nên được Redis cache với TTL 1 giờ (dữ liệu phân tích vĩ mô không cần fresh tới từng giây).
 
-### 4.1. Báo cáo Tỷ lệ bẻ kèo theo Ngành hàng
-Đo lường lòng tin vào hợp đồng forward. Chỉ số cancellation cao ở một ngành hàng có thể cảnh báo Hiệp hội về biến động giá thị trường khắc nghiệt hoặc cấu trúc hợp đồng có vấn đề.
+### 4.1. Báo cáo Termination theo Ngành hàng (SỬA 19/07/2026 — thay "Tỷ lệ bẻ kèo" gộp)
+Đo lường lòng tin vào hợp đồng forward — nhưng đo đúng: breach rate tách theo bên vi phạm (attribution), mutual/no-fault báo riêng, không gộp thành một "tỷ lệ bẻ kèo" vu cả những cặp chia tay thiện chí.
 
-* `GET /api/v1/analytics/cancellations?year={YYYY}`
+* `GET /api/v1/analytics/terminations?year={YYYY}`
 * **Response Shape:**
     ```json
     {
@@ -221,12 +237,12 @@ Các API này phục vụ Dashboard của Admin/Hiệp hội, nên được Redi
         {
           "commodity": "COFFEE",
           "totalSettled": 120,
-          "totalCancelled": 15,
-          "cancellationRate": 0.1111,
-          "breakdown": {
-            "buyerInitiated": 10,
-            "sellerInitiated": 5
-          }
+          "sellerBreaches": 9,
+          "buyerBreaches": 4,
+          "mutualExits": 6,
+          "noFaultExits": 2,
+          "sellerBreachRate": 0.0677,
+          "buyerBreachRate": 0.0301
         }
       ]
     }
@@ -283,11 +299,11 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 
 ## 6. Status — Analytics-service Design
 
-**Chốt (06/07/2026, cách gọi sửa 18/07/2026):** `analytics-service` là event-driven projection/CQRS read-model kiêm derived-signal producer (không critical path, không sync ngược core), không phụ thuộc đồng bộ vào service nào. Áp dụng mô hình Star Schema thu nhỏ: `fact` tables (lưu event thô incremental, giải quyết nghẽn ghi) + `agg` tables (pre-computed định kỳ 1:00 AM bằng `@Scheduled`, giải quyết nghẽn đọc/tính toán %). Bắt buộc có bảng Log Idempotency theo `message_id` để tránh at-least-once làm lặp số. Metric tập trung hoàn toàn vào B2B value (cancellation, force majeure, escrow effectiveness). Chấp nhận độ trễ (data lag) và trống data quá khứ lúc mới deploy làm tradeoff.
+**Chốt (06/07/2026, cách gọi sửa 18/07/2026):** `analytics-service` là event-driven projection/CQRS read-model kiêm derived-signal producer (không critical path, không sync ngược core), không phụ thuộc đồng bộ vào service nào. Áp dụng mô hình Star Schema thu nhỏ: `fact` tables (lưu event thô incremental, giải quyết nghẽn ghi) + `agg` tables (pre-computed định kỳ 1:00 AM bằng `@Scheduled`, giải quyết nghẽn đọc/tính toán %). Bắt buộc có bảng Log Idempotency theo `message_id` để tránh at-least-once làm lặp số. Metric tập trung hoàn toàn vào B2B value (termination theo attribution — sửa 19/07/2026, force majeure, escrow effectiveness). Chấp nhận độ trễ (data lag) và trống data quá khứ lúc mới deploy làm tradeoff.
 
 **Sửa (06/07/2026, rà soát lại sau khi đóng session lần đầu) — 4 vấn đề phát hiện, cả 4 đã fix trong bản này:**
 1. `total_contracts_settled` không thể tính đúng từ `fact_milestone_performance` (sai granularity: Milestone ≠ Contract) → thêm `fact_contract_settlement`, populate từ event `contract.settled` (§2.2, §3.3).
-2. `analytics-service` chưa được đăng ký làm consumer của `contract.settled`/`contract.cancelled` trong Event Catalog gốc (`milestone-escrow-phase2-design.md` §7.2) dù tự ý consume — đã thêm vào bảng consumer ở file đó.
+2. `analytics-service` chưa được đăng ký làm consumer của `contract.settled`/`contract.terminated` (tên cũ `contract.cancelled`) trong Event Catalog gốc (`milestone-escrow-phase2-design.md` §7.2) dù tự ý consume — đã thêm vào bảng consumer ở file đó.
 3. `dim_contract` chưa từng được wire vào ingest pipeline nào — thêm event mới `contract.signed` (`milestone-escrow-phase2-design.md` §7.2) + bước ingest §3.1.
 4. `has_force_majeure` gần như luôn `FALSE` do race condition (event `resolved` luôn tới trước khi fact row tồn tại) → thêm bảng staging `pending_force_majeure_flag` (§2.4), merge 2 chiều lúc `INSERT`.
 
@@ -299,4 +315,4 @@ Analytics-service — **ĐÓNG SESSION HOÀN TOÀN, service cuối cùng của P
 
 ---
 
-*Design session: 06/07/2026 · Rà soát + fix 4 bug: 06/07/2026 · Cập nhật 13/07/2026 (gỡ câu điều kiện thừa ở Status — mapping commodity đã đóng từ 08/07, không còn điểm treo) · Chưa code · **Đã đóng kiến trúc Phase 2 tổng thể — sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Design session: 06/07/2026 · Rà soát + fix 4 bug: 06/07/2026 · Cập nhật 13/07/2026 (gỡ câu điều kiện thừa ở Status) · Cập nhật 19/07/2026 (đợt 6 — fact_contract_termination thay fact_contract_cancellation: tách terminationType/requestedBy/finalBreachingRole; agg tách seller/buyer breach rate khỏi mutual/no-fault; API /terminations thay /cancellations; consume contract.terminated — review lần 2: payload mang breachReasonCode/remedyDecisionId trực tiếp, bỏ consumer remedy.finalized) · Chưa code · **Đã đóng kiến trúc Phase 2 tổng thể — sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
