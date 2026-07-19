@@ -1,113 +1,114 @@
 # AgriContract Phase 2 Integration Map
 
-Status: contract freeze draft generated from the authoritative Phase 2 design Markdown on 2026-07-18.
+Status: synchronized with the frozen Phase 2 design set and Verification Matrix on 2026-07-20.
 
-## Source precedence and counting
+## Source precedence
 
-1. `docs/phase_2/design/*.md` owns business rules, state, APIs, events, invariants, security, and service ownership.
-2. `docs/phase_2/design/verification-matrix-phase2.md` owns mandatory invariant tests.
-3. DOCX files are reconciliation material only.
-4. Current source code is the migration baseline and does not override Phase 2 design.
+1. Latest Phase 2 design Markdown.
+2. `verification-matrix-phase2.md`.
+3. Contract/API/event documents.
+4. Planning documents.
+5. Phase 1 code is an implementation baseline only.
 
-The architecture contains 12 business services. `api-gateway` is an edge component and is not counted as a thirteenth business service. Signature is a `contract-service` feature. Hash-chain is an `audit-service` capability.
+The architecture contains 12 business services. `api-gateway` is an edge component, signature is owned by `contract-service`, and hash-chain is owned by `audit-service`.
 
-## Integration map
+## Service ownership
 
-| Service | System of record / responsibility | Synchronous dependencies | Publishes | Consumes | Phase 1 disposition | Owner |
-|---|---|---|---|---|---|---|
-| `user-service` | Profile, KYC, authorization expiry, lock projection | Keycloak; internal user lookup callers | `notification.user_kyc_result_requested`, `notification.user_lock_changed_requested` | `reputation.locked`, `reputation.unlocked` | Reuse profile foundation; refactor public/internal DTOs, roles and lock revision | Long (P2) |
-| `product-service` | Product, category, listing, plot/geolocation | Internal eligibility lookup to user-service | Existing category events; no new golden-flow event is frozen here | Reputation lock/eligibility projection only where explicitly implemented | Reuse CRUD; refactor eligibility to fail closed and add geolocation | Long (P2) |
-| `contract-service` | ContractTerms snapshot, Contract, Milestone, buyer/seller Signature, OTP challenge; inspection settlement money calculation | Internal user lookup; synchronous OTP email API; file proxy | Canonical contract/milestone events, `notification.contract_anchor_requested`, activation notifications | `escrow.deposit_locked`, `escrow.deposit_lock_failed`, `inspection.report_confirmed` | Major refactor from single-delivery Phase 1 | Cuong (P1) |
-| `escrow-service` | Escrow state projections and orchestration; never the money source | None on the critical event path | `bank.*_requested`, `escrow.deposit_locked`, `escrow.deposit_lock_failed` | `contract.signed`, `contract.settled`, `contract.cancelled`, canonical `milestone.*`, `bank.*_completed`, `bank.*_failed` | Refactor two-phase escrow; legacy amount records are reference-only | Cuong (P1) |
-| `bank-service` | Append-only ledger, system lock, verifier nonce/key, AML reports | Internal audit read for reconciliation only | `bank.*_completed`, `bank.*_failed`, `bank.large_transaction_flagged`, `bank.suspicious_report_created`, security audit events | Canonical `bank.*_requested`, `analytics.structuring_pattern_detected` | Build new | Cuong (P1) |
-| `inspection-service` | Level 1.5 reports/signatures; Level 2 commission and human confirmation | File-service through events/proxy; user eligibility for Level 1.5 | `inspection.level2_commissioned`, `inspection.report_confirmed` | `file.ready`, `file.failed`, `file.email_notice`; dispute commissioning trigger | Build new | P4 |
-| `reputation-service` | Insert-only lock ledger, live score, elevated-risk decisions | None required on transaction critical path | `reputation.locked`, `reputation.unlocked`, `reputation.elevated_risk_cleared` | `contract.settled`, `milestone.settled`, `milestone.cancelled_with_penalty`, `milestone.dispute_resolved`, `bank.large_transaction_flagged`, `analytics.structuring_pattern_detected` | Build new | P4 |
-| `audit-service` | Sole writer of append-only `audit_record` and `audit_anchor`; dual hash chain, typed money projection and OTS proof | No write API; internal read API for bank reconciliation | `notification.milestone_anchor_requested`, audit digest/failure commands defined by notification design | Canonical source domain events in hash-chain design section 2.4 | Build new; contract/test preparation delegated to P4 with P1 approval; no generic audit-ingest command | Cuong (P1) |
-| `file-service` | Blob and technical metadata, virus scanning, intake and retention mechanics | MinIO, ClamAV, IMAP | `file.ready`, `file.failed`, `file.email_notice` | Internal storage commands and `file.email.received` pipeline messages | Build new | P5 |
-| `pricing-service` | Reference price quote and manual price attribution | External scrape sources where available | No golden-flow event is frozen | None on golden-flow critical path | Build new; T3/manual-entry cut allowed | Node (P3) |
-| `analytics-service` | CQRS read models and AML pattern scan | None on transaction critical path | `analytics.structuring_pattern_detected` | `contract.signed`, settlement/cancellation and milestone events from its design ingest catalog | Build new; short-outage catch-up only | Node (P3) |
-| `notification-service` | Notification delivery log and templates | Email provider | No business decision events; processes `notification.*_requested` | Canonical notification commands; synchronous OTP endpoint | Reuse delivery/log foundation; refactor ingress and dedup | Node (P3) |
-
-## Gateway trust boundary
-
-- Strip client-supplied `X-User-Id`, `X-User-Role`, and `X-Gateway-Secret`; inject identity derived from JWT.
-- Do not route `/internal/**` externally.
-- `GET /api/v1/security/audit-hash` routes to audit-service and uses `X-Api-Key` plus rate limiting, not JWT.
-- Emergency lock/unlock route to bank-service with asymmetric signature validation and no automatic retry.
-- Business ownership and state authorization remain in the owning service.
-
-Sources: `api-gateway-phase2-design.md` sections 2-5; Verification Matrix 12-14.
-
-## Canonical golden-flow interactions
-
-| Step | Producer | Contract | Consumer | Evidence / invariant |
+| Service | System of record / responsibility | Publishes | Consumes | Phase 1 disposition |
 |---|---|---|---|---|
-| Eligibility | contract-service | `GET /internal/v1/users/{userId}` | user-service | Fail closed; Verification Matrix 19 and 21b |
-| OTP delivery | contract-service | `POST /internal/v1/notifications/otp-email` | notification-service | No delayed background retry; Matrix 20 |
-| Fully signed | contract-service | `contract.signed` | escrow, analytics, audit | Same terms hash; Matrix 3, 11c, 11f |
-| Deposit request | escrow-service | `bank.lock_requested` | bank-service | One request per leg; Matrix 1, 6, 11, 11b |
-| Deposit confirmation | bank-service | `bank.lock_completed` or `bank.lock_failed` | escrow-service | Escrow does not set state before confirmation |
-| Activation | escrow-service | `escrow.deposit_locked` | contract-service | `SIGNED -> ACTIVE` only after required legs lock |
-| Delivery evidence | contract-service | `milestone.seller_weighed`, `milestone.buyer_confirmed` | audit-service | Source measurements are immutable |
-| Settlement | contract-service | `milestone.settled` | escrow, reputation, analytics, audit | `lockedAmount` and `actualAmount`; no double release |
-| Bank settlement | escrow-service | canonical `bank.release_requested` / `bank.refund_requested` | bank-service | Append-only ledger and idempotency |
-| Dispute decision | contract-service | `milestone.dispute_resolved` | reputation-service | Abuse signal only; payload fixed by catalog |
-| Inspection evidence/decision | inspection-service | `inspection.report_confirmed` | audit-service and contract-service | `InspectionSettlementResultV1`, `resultHash`, revised `reportHash`; contract-service verifies hashes and applies entitlement only to matching `CONTESTED` milestone |
-| Contract completion | contract-service | `contract.settled` | escrow, reputation, analytics | Terminal lock total must be zero |
-| Reconciliation | bank-service | internal audit read API | audit-service | Matrix 5, 8 and 25 |
+| `user-service` | Profile, KYC, role/eligibility and persisted lock projection | User notification commands | `reputation.locked`, `reputation.unlocked` | Refactor DTO split, roles, fail-closed lookup and monotonic lock revision |
+| `product-service` | Product, category, listing, plot/geolocation and risk signals | Existing product/category events | User eligibility/lock projection where designed | Reuse CRUD; add plot and yield signals without turning them into automatic rejection |
+| `contract-service` | ContractTerms/LegalProfile, Contract, Milestone, signatures, `BreachCase`, `AttributionDecision`, remedy calculation and termination lifecycle | `contract.signed`, milestone facts, `breach.reported`, `remedy.finalized`, `contract.terminated`, notification commands | Escrow funding results and inspection decisions | Replace the Phase 1 cancel/single-delivery model |
+| `escrow-service` | Deposit and milestone funding orchestration; projection only, never remedy calculator or money source | `bank.*_requested`, escrow funding result events | `contract.signed`, milestone settlement instructions, `remedy.finalized`, `bank.*_completed`, `bank.*_failed` | Add funding retry/cure, partial-lock refund and remedy-leg orchestration |
+| `bank-service` | Append-only ledger, system lock, verifier nonce/key and reconciliation | `bank.*_completed`, `bank.*_failed`, AML/security facts | Canonical `bank.*_requested`, analytics structuring signal | New service; persist event, fund and remedy identities |
+| `inspection-service` | Level 1.5 reports/signatures and Level 2 commission/confirmation | Inspection decisions and notification commands | File readiness and frozen commissioning inputs | New service |
+| `reputation-service` | Immutable completion/dispute facts, insert-only lock ledger, query-time score and pair-risk projection | `reputation.locked`, `reputation.unlocked`, risk-clear events | Positive facts; negative consequences only from `remedy.finalized`; `analytics.structuring_pattern_detected` updates `pair_risk_state` projection | New service; RabbitMQ is not the historical store; Phase 2 does not enforce pair-risk settlement blocking |
+| `audit-service` | Sole writer of append-only `audit_record`/`audit_anchor`, dual hash chain and OTS anchoring | Audit notification commands | Canonical source events directly | Add `sourceEventId` dedup and durable anchor outbox/retry |
+| `file-service` | Blob, technical metadata, virus scan, intake, retention and legal hold | `file.ready`, `file.failed`, `file.email_notice` | Storage/intake commands | New service |
+| `pricing-service` | Reference price quote and manual price attribution | No frozen golden-flow event | None on the critical path | New service |
+| `analytics-service` | CQRS facts, monthly aggregates and AML scan | `analytics.structuring_pattern_detected` | Contract/milestone/remedy lifecycle facts including `contract.terminated` | Recompute and overwrite every touched month bucket |
+| `notification-service` | Notification delivery log and templates; synchronous OTP delivery | No business decision event | `notification.*_requested` commands only | Refactor ingress, templates and recipient/type dedup |
 
-## Audit ingestion ownership
+## Canonical interaction map
 
-Audit-service consumes canonical domain events directly and is the only writer of `audit_record`. There is no `audit.record_ingest_requested`, generic audit write event, or audit write API. The canonical source-event mapping is owned by `hash-chain-phase2-design.md` section 2.4.
+| Flow | Producer | Contract | Consumer | Required invariant |
+|---|---|---|---|---|
+| Eligibility | contract/product | `GET /internal/v1/users/{userId}` | user | Fail closed on unavailable/locked user |
+| OTP | contract | `POST /internal/v1/notifications/otp-email` | notification | No delayed send after failed synchronous request |
+| Fully signed | contract | `contract.signed` | escrow, analytics, audit | Both signatures bind the same immutable terms hash |
+| Initial deposit | escrow | `bank.lock_requested` | bank | One source event per command and one unique remedy/funding leg |
+| Funding result | bank | `bank.lock_completed` / `bank.lock_failed` | escrow | Delivery obligation starts only after `LOCKED` |
+| Funding failure | escrow | `escrow.milestone_funding_failed` and notification command | contract, notification | Retry/cure; refund any partial lock; use `effectiveDeliveryDeadline` |
+| Evidence | contract/inspection/file | canonical milestone, inspection and file events | audit and owning consumers | Evidence replay is a no-op by `sourceEventId` |
+| Attribution A | contract | direct `AttributionDecision` (`breachCaseId = null`, `decisionSource = SYSTEM`) | remedy calculator | Only after objective rule is satisfied |
+| Attribution B | contract | `breach.reported`; `REPORTED -> UNDER_REVIEW -> RESOLVED` | contract workflow | Allegation has no money/reputation consequence |
+| Consequence | contract | `remedy.finalized` | escrow, reputation, audit | Sole trigger for money legs and negative reputation; analytics and notification consume lifecycle/command projections |
+| Money command | escrow | canonical `bank.*_requested` with `sourceEventId`, `fundType`, `remedyDecisionId`, `remedyLegId` | bank | `sourceEventId` blocks command replay; `remedyLegId` blocks duplicate leg |
+| Termination | contract | `contract.terminated` | audit, analytics | Lifecycle only; notification receives `notification.contract_terminated_requested`, not the domain event |
+| Completion | contract | `contract.settled` | reputation, analytics | Positive history/lifecycle only; no money trigger |
+| Reconciliation | bank / contract | typed internal audit read plus existing `/internal/v1/bank/ledger` filtered by `contractId` | audit / bank | Bank detects ledger/audit mismatch; contract verifies every expected remedy leg and zero remaining lock before terminal transition |
 
-Canonical domain schemas are in `contracts/events/golden-flow-events.yaml`; internal delivery commands with recipient routing data are separated into `contracts/events/notification-commands.yaml`.
+## Attribution and termination boundary
 
-## Foundation audit
+- `requestedBy` is audit context only and never implies breach.
+- `allegedBreachingRole` exists only before the decision is final.
+- `finalBreachingRole` is nullable and is the only role usable for sanctions.
+- `finalBreachingRole = null` forbids contractual-penalty legs and reputation lock creation.
+- Canonical termination types are `WITHDRAW_OFFER`, `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, and `ACTIVATION_FAILURE`.
+- Buyer non-receipt is direct system attribution only after the notice/window expires and objective delivery evidence exists; otherwise it enters `BreachCase` review.
 
-### Reuse
+## Mutual replacement sequence
 
-- Maven multi-module structure, Spring layering, repository abstractions, basic controller/security scaffolding.
-- Existing contract/escrow transactional outbox and poller concepts, subject to envelope and idempotency refactor.
-- User profile registration, product/category/listing baseline, notification log and consumer test structure.
+1. Create and sign the replacement while the old contract remains non-terminal.
+2. After the replacement is `SIGNED`, move the old contract to `REPLACEMENT_PENDING` and start refunding its remaining locks.
+3. A refund interruption leaves the old contract in `SUPERSEDE_REFUND_PENDING`; it is not yet `SUPERSEDED`.
+4. Mark the old contract `SUPERSEDED` only after all old locks are zero and link both contract IDs.
+5. A later activation failure of the replacement follows its normal `ACTIVATION_FAILURE` path and never rolls back the old contract history.
 
-### Refactor
+## Settlement and termination completion
 
-- Contract state machine and immutable terms/signature storage.
-- Event envelope and PII minimization.
-- User roles and internal/public DTO split.
-- Gateway routes and identity-header boundary.
-- Escrow into milestone/deposit state orchestration with bank confirmations.
+1. Last-milestone completion or final termination attribution persists the existing `AttributionDecision`/`RemedyDecision` and publishes `remedy.finalized`.
+2. Escrow consumes bank results and retries failed/missing legs; contract-service does not consume those result events.
+3. Contract-service's idempotent completion reconciler reads the existing internal bank ledger by `contractId`, checks the expected `remedyDecisionId`/`remedyLegId` set, and computes remaining lock from append-only entries.
+4. Only a complete leg set plus remaining lock `0.00` permits `SETTLED`/`TERMINATED` and their lifecycle event. A bank failure leaves the contract non-terminal.
 
-### Reference-only
+## Audit and notification boundary
 
-- Phase 1 escrow transaction amounts as a money source.
-- Legacy event payloads containing buyer/seller email.
-- `confirm-deposit`, arbitration and single-delivery endpoints where they conflict with milestone escrow.
+- Audit consumes canonical domain events directly; there is no generic audit-write command or API.
+- `audit_record.source_event_id` is unique. The record retains `sourceEventId`, `causationId`, and `correlationId`.
+- OTS anchoring uses a durable outbox/retry mechanism. Replaying the same source event creates no second record, anchor or evidence email.
+- Notification messages are commands, separate from domain events. Termination templates use `terminationType`, `finalBreachingRole`, and remedy outcome, never requester attribution.
 
-### Remove
+## Phase 1 migration and compatibility
 
-- `confirmDelivery`, `ContractDeliveredEvent`, `contract.delivered`, and consumers tied only to single-delivery Phase 1.
-- Dual-write balance/amount fields that compete with the bank ledger.
-- Cross-service database writes or foreign keys.
+### Remove or retire
 
-### Build new
+- Remove `CancelContractUseCase`, `cancel(initiatedBy)`, the `/cancel` route, `contract.cancelled`, and every old consumer/template tied to that event.
+- Remove `confirmDelivery`, `ContractDeliveredEvent`, `contract.delivered`, and consumers tied only to the single-delivery flow.
+- Retire `SEIZE_PENALTY` and any consumer that calculates remedy or infers fault locally.
+- Stop escrow money consumers of `contract.settled`/`contract.terminated` and reputation consumers other than `remedy.finalized` for negative outcomes.
+- Remove dual-write amount/balance fields that compete with the bank ledger.
 
-- Bank ledger/security/reconciliation, audit/hash-chain, inspection, reputation, file, pricing and analytics services.
+### Database migration and backfill
 
-## OC resolution status
+- Contract DB: add LegalProfile, breach/attribution/remedy tables, remedy-leg identity, replacement links/states, milestone funding status/delay/effective deadline and outbox indexes.
+- Bank DB: add `source_event_id`, `fund_type`, `remedy_decision_id`, `remedy_leg_id`, `entry_type`, `amount`; unique indexes on source command and remedy leg, not on remedy decision alone.
+- Reputation DB: add immutable completion/dispute facts and unique negative lock identity by `remedy_decision_id`; do not persist a precomputed score.
+- Audit DB: add unique `source_event_id`, causation/correlation columns and durable anchor-outbox state.
+- Analytics DB: add termination facts for type/requester/final role/reason and replace increment-only month jobs with full touched-bucket overwrite.
+- Notification DB: add event/type/recipient/template/provider/failure metadata with Phase 1-safe defaults; backfill `recipient_email = legacy:{user_id}` before replacing `uq_event_user` with unique `(event_id, recipient_email, notification_type)`.
+- Phase 1 `CANCELLED` rows migrate to the read projection `TERMINATED` without publishing a new canonical event; `terminationType`/`finalBreachingRole` remain null when evidence is insufficient, while `cancelledBy` may be retained only as requester audit data. Do not replay automatic negative consequences.
 
-| OC | Classification | Resolution | Source |
-|---|---|---|---|
-| OC-01 | Design defines use cases; approved decision promotes exact paths | Resolved with `POST /api/v1/contracts/{contractId}/sign/initiate` and `POST /api/v1/contracts/{contractId}/sign/verify`; paths are now authoritative Markdown. | `signature-phase2-design.md` section 6.0 |
-| OC-02 | Design defines request/confirmation pattern; consolidated catalog supplies all names | Resolved with `bank.lock_completed`/`_failed`, `bank.release_completed`/`_failed`, `bank.seize_completed`/`_failed`, and `bank.refund_completed`/`_failed`; shared result payload is mirrored across operations. | `bank-service-phase2-design.md` section 3; SDS Event Catalog `docs/phase_2/files/build05.js` section 4.2 |
-| OC-03 | Design exists; complete payload missing | Resolved: `contract.settled` carries existing buyer/seller IDs; `contract.cancelled` carries `{contractId, initiatedBy}`. | `milestone-escrow-phase2-design.md` sections 6.3 and 7.2; existing `ContractSettledEvent` |
-| OC-04 | Design exists; contract was overlooked | Resolved with `GET /internal/v1/audit/records?contractId&sourceType&from&to` and typed reconciliation content `{contractId,milestoneId,settledAmount,seizedAmount,releaseLegs,refundLegs}`. | `hash-chain-phase2-design.md` sections 3 and 4.5; `bank-service-phase2-design.md` section 5b.1 |
-| OC-05 | Design names behavior; approved decision promotes exact REST paths | Resolved with the milestone action catalog and activation recovery paths in authoritative Markdown. | `milestone-escrow-phase2-design.md` section 3.2.0 |
-| OC-06 | Design explicitly defines a routing-data exception | Resolved without moving notification routing into the domain event: `milestone.settled` carries `recipients` because audit-service cannot Feign user-service; audit-service then emits `notification.milestone_anchor_requested`, which is the actual notification command. | `milestone-escrow-phase2-design.md` §7.1; `hash-chain-phase2-design.md` §4.3; `notification-service-phase2-design.md` §2.1, §4 |
-| OC-07 | State prose exists; complete enum table missing | Resolved with `PROVISIONALLY_RELEASED`, `RELEASED`, `PENALIZED`, `REFUNDED` and activation recovery states; `REFUNDED_PARTIAL` is not canonicalized from SDS-only material. | `milestone-escrow-phase2-design.md` sections 2.3, 3.1 and 3.2 |
-| OC-08 | No enum is required by design | Resolved as a derived OTP lifecycle from persisted timestamps/counters; no status enum is added. | `signature-phase2-design.md` sections 4.1, 6 and 7 |
-| OC-09 | Design behavior exists; shared wire format is in SDS, not Markdown | Resolved by retaining the SDS error envelope and freezing the six approved External Verifier codes/statuses. | `error-catalog.md`; `bank-service-phase2-design.md` section 3.5.2 |
-| OC-10 | Genuine cross-service contract gap | Resolved with `InspectionSettlementResultV1`, `milestoneId`, `resultHash`, revised `reportHash`, entitlement formula and idempotent matching `CONTESTED` transition. | `inspection-phase2-design.md` §§2.3, 4-5; `milestone-escrow-phase2-design.md` §3.2 |
-| OC-11 | Design behavior exists; approved decision freezes wire | Resolved with ES256 body, RFC 8785 signing, exact action paths, replay window, nonce and canonical error codes. | `bank-service-phase2-design.md` sections 3.5.1-3.5.2; `api-gateway-phase2-design.md` section 3.4 |
+### Deployment order
 
-Deferred implementation-time decisions are recorded in `docs/contracts/open-questions.md`.
+1. Deploy additive columns, enums, event-envelope support and tolerant consumers.
+2. Deploy new `remedy.finalized` consumers and idempotency indexes before enabling its producer.
+3. Cut producers to the canonical events, then stop legacy publishers and consumers.
+4. Backfill immutable facts/identities and reconcile terminal locks.
+5. Remove compatibility reads and legacy columns only after replay and matrix fixtures pass.
+
+## Resolved contract notes
+
+- Signature and milestone action paths already frozen by their owner designs remain authoritative.
+- The legacy `/cancel` endpoint is retired. Explicit withdraw, mutual termination/replacement, breach review/resolve and termination execution paths are frozen in `contracts/openapi/golden-flow-api.yaml` and mirrored by the milestone owner design.
+- Notification routing data remains in notification commands; approved recipient data on an evidence event is only the explicit hash-chain design exception.
