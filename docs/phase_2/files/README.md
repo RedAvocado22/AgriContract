@@ -1,5 +1,7 @@
 # AgriContract — Script sinh tài liệu DOCX
 
+The bank-service and reputation-service design files use their original filenames as the single current source; there are no split `-final`/`.superseded` variants.
+
 Toàn bộ tài liệu DOCX được sinh từ source code bằng `docx.js`. Không chỉnh sửa thủ công file Word output.
 
 ## Yêu cầu môi trường
