@@ -47,6 +47,9 @@ Không tách 3 vai trò này thành 3 service riêng trong Phase 2 (over-enginee
 CREATE TABLE lock_entry (
     entry_id                CHAR(36) PRIMARY KEY,
     source_event_id          CHAR(36) NOT NULL UNIQUE,
+    remedy_decision_id       CHAR(36) NOT NULL UNIQUE,  -- 19/07 lần 4: invariant "một quyết định ≤ 1 lock" (matrix 11o)
+                                                       -- phải đứng ở SCHEMA, không chỉ ở prose — source_event_id chặn
+                                                       -- redeliver cùng event, cột này chặn 2 event KHÁC nhau cùng decision
     contract_id              CHAR(36) NOT NULL,
     user_id                  CHAR(36) NOT NULL,
     penalized_role           VARCHAR(10) NOT NULL,   -- BUYER | SELLER
@@ -115,7 +118,27 @@ CREATE TABLE pair_risk_state (
 
 ### 2.2 Reputation Score (view sống — không lưu riêng)
 
-Không có bảng riêng lưu sẵn con số. Mọi truy vấn (completion count, clean rate) tính trực tiếp từ `lock_entry` (phần vi phạm) + input event `contract.settled` (phần hoàn thành) tại thời điểm cần — lý do xem §5.2.
+Không có bảng riêng lưu sẵn **con số score** — score vẫn derive lúc query (§5.2). Nhưng (**sửa 19/07 lần 3**) "tính trực tiếp từ event" là prose không chạy được: event không nằm trong RAM vĩnh viễn, RabbitMQ không phải historical database — restart/ack xong là mất dữ liệu để tính completion count. Phải persist **immutable facts** (không phải score):
+
+```sql
+CREATE TABLE completed_contract_fact (
+  contract_id      CHAR(36) PRIMARY KEY,
+  buyer_id         CHAR(36) NOT NULL,
+  seller_id        CHAR(36) NOT NULL,
+  settled_at       DATETIME(6) NOT NULL,
+  source_event_id  CHAR(36) NOT NULL UNIQUE   -- từ contract.settled, dedup redelivery
+);
+CREATE TABLE dispute_outcome_fact (
+  milestone_id        CHAR(36) PRIMARY KEY,
+  contract_id         CHAR(36) NOT NULL,
+  flagged_by_user_id  CHAR(36) NOT NULL,
+  resolution_favors   VARCHAR(10) NOT NULL,    -- BUYER | SELLER
+  resolved_at         DATETIME(6) NOT NULL,
+  source_event_id     CHAR(36) NOT NULL UNIQUE -- từ milestone.dispute_resolved
+);
+```
+
+Truy vấn (completion count, clean rate, tỷ lệ flag-rồi-thua) tính từ `lock_entry` + 2 bảng facts này tại thời điểm cần — insert-only, cùng triết lý ledger, không dual-write score.
 
 ---
 
@@ -209,7 +232,7 @@ Lý do 2 tầng không thừa nhau: khoá chỉ chặn **tạo mới**, không h
 |---|---|---|---|
 | `milestone.dispute_resolved` (mới, 08/07/2026 — đã có trong `milestone-escrow-phase2-design.md` §7.1) | Tín hiệu hành vi | `contract-service` — bắn khi `DisputeRoutingService` (3-tier) ra phán quyết cho milestone từng `CONTESTED`. Payload: `{milestoneId, flaggedBy: BUYER, resolutionFavors: BUYER\|SELLER}` (chỉ buyer flag được ở state machine hiện tại — nếu sau này seller cũng có quyền flag, mở rộng field `flaggedBy`) | `reputation-service` đếm tỷ lệ `resolutionFavors = SELLER` trên tổng số lần buyer đó từng `FLAG_ISSUE` — tỷ lệ cao (flag rồi thua nhiều lần) là tín hiệu buyer lạm dụng, hiển thị trong `public-summary` để seller thấy trước khi ký |
 
-Dùng đúng bộ máy reputation đã có (view sống, tính từ event, không bảng riêng, §2.2/§5.2) — chỉ thêm 1 loại tín hiệu đầu vào, không phải cơ chế mới.
+Dùng đúng bộ máy reputation đã có (view sống — score derive lúc query từ `lock_entry` + facts tables §2.2, không lưu sẵn score, §5.2) — chỉ thêm 1 loại tín hiệu đầu vào (`dispute_outcome_fact`), không phải cơ chế mới.
 
 **Tổng kết B4:** đối xứng hoá reputation (dữ liệu đã có, chỉ thêm chiều hiển thị) + framing 2 deposit rate là công cụ 2 chiều (đã đúng cơ chế, chỉ cần nói rõ) + tín hiệu chống flag-abuse (nhỏ, tái dùng hạ tầng sẵn có). Không phải known-limitation cần chấp nhận — là hoàn chỉnh hoá luận điểm gốc "bảo vệ bên yếu thế" cho đúng cả 2 chiều.
 
@@ -232,7 +255,7 @@ Thiết kế:
 
 ## 7. Use Case Changes
 
-- **`ProcessLockoutUseCase`** — consume `remedy.finalized` / `contract.terminated` có `finalBreachingRole` (**sửa 19/07/2026** — không còn consume `milestone.cancelled_with_penalty` trực tiếp, §3), qua gate `breachReasonCode` §4.3, tính `repeatOffenseMultiplier` + `trackRecordMultiplier` + `zeroProgressMultiplier`, ghi `lock_entry` mới (insert-only), publish `reputation.locked`.
+- **`ProcessLockoutUseCase`** — consume **`remedy.finalized` DUY NHẤT** (**sửa 19/07 lần 4** — bản trước còn ghi "/ `contract.terminated`", mâu thuẫn trực tiếp với §3 đã gỡ terminated khỏi input chế tài); chỉ chạy khi `reputationEligible = true` (không tự suy từ reason — §4.3); idempotent theo `remedyDecisionId` (`remedy_decision_id UNIQUE`, §2.1); tính `repeatOffenseMultiplier` + `trackRecordMultiplier` + `zeroProgressMultiplier`, ghi `lock_entry` mới (insert-only), publish `reputation.locked`.
 - **`UnlockEarlyUseCase`** — chạy khi `governance_action_request` được APPROVE (two-person rule §7-schema): **INSERT `lock_override_event`** (không UPDATE `lock_entry` — sửa 18/07/2026, bảng đó bất biến), **tính lại effective lock còn lại của user từ các `lock_entry` chưa hết hạn và chưa có override**, rồi publish `reputation.unlocked {eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}` — `lockRevision` (18/07/2026) là sequence tăng dần per user do reputation cấp (đếm event lock/unlock đã phát cho user), user-service persist để ordering sống qua restart; `reputation.locked` cũng mang field này. **Sửa 17/07/2026:** payload cũ chỉ mang `unlockedAt`, khiến projection bên user-service "clear" mù và mở khoá nhầm khi user có nhiều lock chồng nhau — source of truth phải tự tính, projection chỉ set theo (xem `user-service-phase2-design.md` §2.2). `reputation.locked` cũng thêm `occurredAt` cùng lý do ordering. Dùng cho nhánh 2, 3 ở §5. **Maker-checker (18/07/2026, governance §5.3):** unlock sớm không còn đơn phương — OPERATOR propose (reason bắt buộc, trạng thái `PROPOSED`) → ADMIN approve/reject; ADMIN không tự approve đề xuất của chính mình. Payload thêm `proposedByOperatorId` + `approvedByAdminId`; cả propose lẫn approve vào audit chain.
 - **`CheckLockStatusUseCase`** — expose cho `user-service` gọi qua Feign (§6.1), trả `lockedUntil` hiện tại của 1 `userId`.
 - **`GetCreditExportUseCase`** — seller tự trigger (consent-based, §6.3), check counterparty diversity gate trước khi trả JSON export.
