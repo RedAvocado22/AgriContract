@@ -1,12 +1,12 @@
 ---
 name: bank-service-phase2-design
-description: "Bank-service — mock legal custody cho tiền, mô hình FBO/ledger thay vì account-per-contract. Nguồn: design session 03/07/2026, cập nhật 04/07/2026, 08/07/2026 (tách entryType 2 loại cọc, mapping Provisional Settlement Level 2, bank.large_transaction_flagged đúng ngưỡng/chủ thể pháp lý)."
+description: "Bank-service — mock legal custody cho tiền, mô hình FBO/ledger thay vì account-per-contract. Nguồn: design session 03/07/2026, cập nhật 04/07/2026, 08/07/2026 (tách entryType 2 loại cọc, mapping Provisional Settlement Level 2, bank.large_transaction_flagged), 19/07/2026 (tách SEIZE_PENALTY → DEPOSIT_FORFEITURE/CONTRACTUAL_PENALTY/DAMAGES_COMPENSATION theo 3 chế tài luật VN; trigger contract.terminated theo finalBreachingRole)."
 status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
   extends: "services.md § bank-service (8086)"
-  related: "milestone-escrow-phase2-design.md §2.1, §2.3, §6, §6.3, §7 (nguồn amount cần lock/release/seize + 2 event cấp Contract mới); AgriContract_02_GiaiPhap_MoHinh_v5.docx Tầng 5 (Escrow Holder — Ngân hàng), §3.3 (superseded, xem Known Limitations)"
+  related: "milestone-escrow-phase2-design.md §2.1, §2.1b (LegalProfile), §2.3, §6, §6.4 (BreachCase), §6.7, §6b, §7 (nguồn amount cần lock/release/seize + 2 event cấp Contract mới); AgriContract_02_GiaiPhap_MoHinh_v5.docx Tầng 5 (Escrow Holder — Ngân hàng), §3.3 (superseded, xem Known Limitations)"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -32,15 +32,25 @@ Số dư (buyer còn bao nhiêu, đang khoá bao nhiêu cho hợp đồng nào) 
 | `entryId` | UUID | |
 | `sourceEventId` | UUID | ID của event gốc kích hoạt entry này (từ Outbox message escrow-service gửi sang) — dùng làm idempotency key, xem §4 |
 | `contractId` | UUID | Bắt buộc — tách hợp đồng này với hợp đồng khác |
-| `milestoneId` | UUID, nullable | **NULL nếu là cọc cấp Contract** (`buyerDepositRate` hoặc `sellerDepositRate` — khoá 1 lần lúc SIGNED, không thuộc milestone nào — release/seize qua `contract.settled`/`contract.cancelled`, §3.2), có giá trị nếu là `batchAmount` của 1 milestone cụ thể (`milestone.settled`/`milestone.cancelled_with_penalty`, §3.1) — 2 loại khoá này đá vào 2 field khác nhau của `ContractTerms` (`milestone-escrow-phase2-design.md` §2.1), không được gộp chung nếu không sẽ không tách được milestone 3 đã settle với milestone 4 vẫn đang khoá |
+| `milestoneId` | UUID, nullable | **NULL nếu là cọc cấp Contract** (`buyerDepositRate` hoặc `sellerDepositRate` — khoá 1 lần lúc SIGNED, không thuộc milestone nào — release/seize qua `contract.settled`/`contract.terminated`, §3.2), có giá trị nếu là `batchAmount` của 1 milestone cụ thể (`milestone.settled`/`milestone.cancelled_with_penalty`, §3.1) — 2 loại khoá này đá vào 2 field khác nhau của `ContractTerms` (`milestone-escrow-phase2-design.md` §2.1), không được gộp chung nếu không sẽ không tách được milestone 3 đã settle với milestone 4 vẫn đang khoá |
 | `userId` | UUID | Buyer hoặc seller, tuỳ `entryType` |
-| `entryType` | Enum | `LOCK_BUYER_DEPOSIT` \| `LOCK_SELLER_DEPOSIT` \| `LOCK_MILESTONE` \| `RELEASE_TO_SELLER` \| `SEIZE_PENALTY` \| `REFUND_TO_BUYER` (**sửa 08/07/2026** — tách `LOCK_DEPOSIT` cũ thành 2 giá trị, xem ghi chú dưới) |
+| `entryType` | Enum | `LOCK_BUYER_DEPOSIT` \| `LOCK_SELLER_DEPOSIT` \| `LOCK_MILESTONE` \| `RELEASE_TO_SELLER` \| `REFUND_TO_BUYER` \| `DEPOSIT_FORFEITURE` \| `CONTRACTUAL_PENALTY` \| `DAMAGES_COMPENSATION` (**sửa 08/07/2026** — tách `LOCK_DEPOSIT` cũ thành 2 giá trị; **sửa 19/07/2026** — tách `SEIZE_PENALTY` cũ thành 3 remedyType, xem ghi chú dưới) |
+| `fundType` | Enum (**mới 19/07/2026 lần 2**) | `BUYER_DEPOSIT` \| `SELLER_DEPOSIT` \| `MILESTONE_PAYMENT` — `entryType` một mình trộn operation với semantics: `RELEASE_TO_SELLER` vừa có thể là **tiền bán hàng** (fund = MILESTONE_PAYMENT) vừa có thể là **trả lại cọc của chính seller** (fund = SELLER_DEPOSIT). Statement export (§5b.2) và `LedgerAuditReconciliationJob` (§5b.1) cần biết tiền thuộc quỹ nào mà không đoán semantics từ `entryType` + `milestoneId` |
+| `remedyDecisionId` | UUID, nullable (**mới 19/07/2026 lần 2**) | Trỏ về `remedy.finalized.remedyDecisionId` sinh ra entry này — `NULL` cho lock/release thường (không phải chế tài). Cho phép reconcile "một quyết định → đúng một bộ legs" (matrix 11o) và statement giải thích được từng khoản seize thuộc phán quyết nào |
 | `amount` | Money | |
 | `createdAt` | Timestamp | |
 
 `UNIQUE(sourceEventId)` — chặn duplicate xử lý cùng 1 event 2 lần (xem §4).
 
 **Sửa (08/07/2026) — comment schema sai + không phân biệt được 2 loại cọc từ ledger thô:** comment cũ (`bank-service-phase2-design.md` §6 + SDS) ghi *"`milestoneId = NULL` = `buyerDepositRate`"* — sai từ 06/07/2026 khi `sellerDepositRate` optional ra đời, vì seller deposit cũng lock với `milestoneId = NULL`. Có **2 khoản `LOCK` cấp Contract** cùng `milestoneId = NULL`, trước đây phân biệt được qua `userId` (biết ai là buyer/seller của contract) **nhưng** bank-service tự nó agnostic — không biết `userId` nào là buyer/seller nếu chỉ đọc ledger thô, phải tra ngược sang contract-service mới biết. Ngược tinh thần "bằng chứng tự đứng" (ledger tự giải thích được, không cần tra chéo service khác) đã theo suốt thiết kế. **Chốt:** tách `entryType` thành `LOCK_BUYER_DEPOSIT`/`LOCK_SELLER_DEPOSIT` thay vì chung `LOCK_DEPOSIT` — ledger tự giải thích được ngay, không cần biết `userId` là ai. Enum thêm 1 giá trị, rẻ hơn phương án thêm cột `deposit_party` riêng.
+
+**Sửa (19/07/2026) — tách `SEIZE_PENALTY` thành 3 remedyType, cùng lý do "ledger tự giải thích được" đã dùng cho 2 lần tách trước:** `SEIZE_PENALTY` gộp chung là mù về pháp lý — luật Việt Nam có **3 chế tài tiền khác nhau, trần khác nhau** (`milestone-escrow-phase2-design.md` §2.1b), và một entry `SEIZE_PENALTY` không nói được nó là khoản nào → không đặt được cap đúng chỗ, không chặn được **double recovery** (thu trùng một tổn thất qua nhiều khoản). Tách:
+
+- `DEPOSIT_FORFEITURE` — mất cọc (BLDS 2015 Điều 328, **không** cap 8%). Seize `buyerDepositRate`/`sellerDepositRate` khi bên đó là `finalBreachingRole`.
+- `CONTRACTUAL_PENALTY` — phạt vi phạm (LTM 2005 Điều 300–301, **cap 8% giá trị phần nghĩa vụ bị vi phạm** — validate ở contract-service lúc `sign()` qua `LegalProfile`, bank chỉ ghi số đã tính). Seize theo `buyerPenaltyRate`/`sellerPenaltyRate` × batchAmount phần bị vi phạm.
+- `DAMAGES_COMPENSATION` — bồi thường thiệt hại (LTM Điều 302, không cap nhưng phải chứng minh thiệt hại thật; điều kiện theo `damagesPolicy` của LegalProfile (milestone-escrow §2.1b — với `COMMERCIAL_CUMULATIVE_IF_PROVEN` chỉ cần phán quyết/bằng chứng thiệt hại) — không tự sinh từ tỷ lệ).
+
+`REFUND_TO_BUYER`/`RELEASE_TO_SELLER` sẵn có tiếp tục dùng cho mọi hoàn tiền **không mang tính phạt** (cọc về chủ khi mutual/FM/technical-fail, refund leg activation/funding fail) — không đẻ tên mới cho nghĩa đã có. **Bank vẫn "dumb"**: contract-service (remedy calculator, sau `remedy.finalized`) tính legs + chịu trách nhiệm cap/chống-double-recovery; escrow-service validate conservation; bank chỉ ghi entry theo `entryType` + amount dương nhận được — đúng phân vai §3.3 đã có.
 
 ---
 
@@ -85,17 +95,18 @@ Nếu diff == 0 (giao đủ, không shortfall):
 
 Mỗi request có `sourceEventId` riêng (idempotency key, §4) dù cùng phát sinh từ 1 `milestone.settled` — 2 `LedgerEntry` là 2 hành động tiền độc lập, không phải 1 hành động ghi 2 dòng.
 
-### 3.2 Ledger entries từ `buyerDepositRate` — `contract.settled` / `contract.cancelled` (mới, 04/07/2026)
+### 3.2 Ledger entries từ `buyerDepositRate` — `contract.settled` / `contract.terminated` (mới, 04/07/2026; **sửa 19/07/2026** — `contract.cancelled` thay bằng `contract.terminated`, trigger theo `finalBreachingRole` không phải `initiatedBy`)
 
-**Bối cảnh:** `buyerDepositRate` là khoá cấp Contract, không gắn milestone nào — cần 2 event cấp Contract riêng để trigger, đã thêm vào Event Catalog (`milestone-escrow-phase2-design.md` §6.3, §7.2):
+**Bối cảnh:** `buyerDepositRate` là khoá cấp Contract, không gắn milestone nào — trigger qua event cấp Contract (`milestone-escrow-phase2-design.md` §6.7, §7.2). **Nguyên tắc mới (19/07):** người bấm nút chấm dứt ≠ người vi phạm; ledger seize theo **`finalBreachingRole`** đã attribution (`BreachCase` §6.4 bên milestone-escrow), không suy từ ai khởi xướng:
 
-| Event nhận | `entryType` ghi vào ledger | `userId` | `milestoneId` |
+| Event nhận | `entryType` cho `buyerDepositRate` | `entryType` cho `sellerDepositRate` (nếu > 0) | `milestoneId` |
 |---|---|---|---|
-| `contract.settled` (hợp đồng hoàn tất bình thường) | `REFUND_TO_BUYER` | buyerId | `NULL` |
-| `contract.cancelled` (initiatedBy=SELLER) | `REFUND_TO_BUYER` | buyerId | `NULL` |
-| `contract.cancelled` (initiatedBy=BUYER) | `SEIZE_PENALTY` | buyerId | `NULL` |
+| `contract.settled` (hoàn tất bình thường) | `REFUND_TO_BUYER` | `RELEASE_TO_SELLER` | `NULL` |
+| `contract.terminated` (`finalBreachingRole=NULL` — mutual/FM/replacement/technical) | `REFUND_TO_BUYER` | `RELEASE_TO_SELLER` (về chủ, không seize) | `NULL` |
+| `contract.terminated` (`finalBreachingRole=SELLER`) | `REFUND_TO_BUYER` | `DEPOSIT_FORFEITURE` (offset vào penalty debt) | `NULL` |
+| `contract.terminated` (`finalBreachingRole=BUYER`) | `DEPOSIT_FORFEITURE` (chuyển seller) | `RELEASE_TO_SELLER` | `NULL` |
 
-Không cần `entryType` mới ngoài phần đã tách ở §2 (08/07/2026) — enum hiện tại (`LOCK_BUYER_DEPOSIT` lúc `SIGNED`, rồi `RELEASE_TO_SELLER`/`SEIZE_PENALTY`/`REFUND_TO_BUYER` tuỳ kết quả) đã đủ diễn tả trọn vòng đời của `buyerDepositRate`. Tương tự, `sellerDepositRate` dùng `LOCK_SELLER_DEPOSIT` lúc `SIGNED`.
+**Phân vai event (sửa 19/07 lần 2 — chặn double-consume):** bảng trên mô tả *kết quả ledger* theo nhánh; nhưng **đường kích duy nhất** cho mọi lệnh tiền termination là `remedy.finalized` (escrow đọc `remedyLegs` — mỗi leg mang `{remedyType, fundType, amount, role}` — rồi phát `bank.*_requested` kèm `remedyDecisionId`). `contract.terminated` KHÔNG kích lệnh tiền nào — nếu cả 2 event cùng kích, `sourceEventId` khác nhau làm idempotency không chặn được seize/refund trùng. `breach.reported` không có consumer nào ở tầng tiền (allegation chưa attribution). Vòng đời `buyerDepositRate`: `LOCK_BUYER_DEPOSIT` lúc `SIGNED` → một trong các entry trên. `sellerDepositRate` tương tự với `LOCK_SELLER_DEPOSIT`.
 
 ### 3.3 Ledger entries từ Provisional Settlement Level 2 — 3 event mới (08/07/2026)
 
@@ -247,7 +258,7 @@ CREATE TABLE ledger_entry (
     contract_id        CHAR(36) NOT NULL,
     milestone_id       CHAR(36) NULL,               -- NULL = cọc cấp Contract (buyer hoặc seller, phân biệt qua entry_type — sửa 08/07/2026, xem §2), có giá trị = batchAmount của milestone đó
     user_id            CHAR(36) NOT NULL,
-    entry_type         VARCHAR(20) NOT NULL,    -- LOCK_BUYER_DEPOSIT | LOCK_SELLER_DEPOSIT | LOCK_MILESTONE | RELEASE_TO_SELLER | SEIZE_PENALTY | REFUND_TO_BUYER
+    entry_type         VARCHAR(30) NOT NULL,    -- LOCK_BUYER_DEPOSIT | LOCK_SELLER_DEPOSIT | LOCK_MILESTONE | RELEASE_TO_SELLER | REFUND_TO_BUYER | DEPOSIT_FORFEITURE | CONTRACTUAL_PENALTY | DAMAGES_COMPENSATION (19/07/2026 — tách SEIZE_PENALTY, §2; VARCHAR nới 30 cho DAMAGES_COMPENSATION)
     amount             DECIMAL(15,2) NOT NULL,
     created_at         TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -304,7 +315,7 @@ CREATE TABLE used_nonce (
 
 **Chốt bổ sung (04/07/2026):** ledger mechanics cho 2 luồng trước đây chưa map rõ:
 - **Delta 1/2 pro-rata** (§3.1) — payload `milestone.settled` mang `lockedAmount`/`actualAmount`, escrow-service tự tính diff, bắn cặp `RELEASE_TO_SELLER` + `REFUND_TO_BUYER` (chỉ khi `diff > 0`) cùng `milestoneId`.
-- **`buyerDepositRate`** (§3.2) — 2 event cấp Contract mới (`contract.settled`, `contract.cancelled`, xem `milestone-escrow-phase2-design.md` §6.3) map thẳng vào `REFUND_TO_BUYER`/`SEIZE_PENALTY` với `milestoneId = NULL`, không cần `entryType` mới.
+- **`buyerDepositRate`** (§3.2) — 2 event cấp Contract mới (`contract.settled`, `contract.cancelled`, xem `milestone-escrow-phase2-design.md` §6.3) map thẳng vào `REFUND_TO_BUYER`/`SEIZE_PENALTY` với `milestoneId = NULL`, không cần `entryType` mới. *(19/07/2026: `contract.cancelled` → `contract.terminated`; `SEIZE_PENALTY` → `DEPOSIT_FORFEITURE`; mục milestone-escrow nay là §6.7 — bảng hiện hành ở §3.2 bản mới.)*
 
 **Chốt bổ sung (10/07/2026) — consume `analytics.structuring_pattern_detected`, báo cáo giao dịch khả nghi (§3.4b):** bank-service thêm 1 consumer mới cho event batch AML từ analytics-service, tạo `SuspiciousTransactionReport` (append-only) + hash audit (`source_type: STRUCTURING_REPORT`). Đây là nghĩa vụ báo cáo giao dịch **đáng ngờ** (STR, Luật PCRT 2022 Điều 4/Điều 26), tách khỏi báo cáo giá trị lớn ở §3.4 — 2 nghĩa vụ khác nhau, cùng chủ thể pháp lý giữ tiền. Không hold (batch hồi cứu, giao dịch đã settle; chặn tương lai của cặp là việc `ELEVATED_RISK` bên reputation-service). Idempotent theo `(buyerId, sellerId, windowEnd)`. Scope đồ án: bản ghi sẵn sàng export đúng field STR, chưa nối cổng Cục PCRT thật — thêm adapter sau, không đổi logic.
 
@@ -323,8 +334,14 @@ CREATE TABLE used_nonce (
 
 **Cập nhật (17/07/2026):** (1) đường đọc `audit-hash` chuyển về audit-service — bank giữ đúng 2 đường lock/unlock (§3.5.1); (2) đặt tên transport vào chain: `bank.security_lock_changed`, `bank.verifier_key_registered`, `bank.suspicious_report_created` — audit-service consume, bank không INSERT thẳng `audit_record` (hash-chain §2.4).
 
+**Chốt bổ sung (19/07/2026) — remedyType theo attribution (đợt 6, từ file research ScholarFirst):**
+- **Tách `SEIZE_PENALTY` → `DEPOSIT_FORFEITURE` / `CONTRACTUAL_PENALTY` / `DAMAGES_COMPENSATION`** (§2) — 3 chế tài luật VN trần khác nhau (BLDS 328 không cap / LTM 301 cap 8% phần bị vi phạm / LTM 302 chứng minh thật); ledger tự nói được mỗi khoản seize bù cho cái gì, chặn double recovery. Cap validate ở contract-service (`LegalProfile`), bank giữ vai "dumb ledger".
+- **§3.2 trigger đổi `contract.cancelled` → `contract.terminated`**, seize theo `finalBreachingRole` (attribution từ `BreachCase`), không theo `initiatedBy` — người bấm nút ≠ người vi phạm. `finalBreachingRole = NULL` (mutual/FM/supersede/technical) → mọi cọc về chủ, không seize.
+- **Milestone funding lock (milestone-escrow §6b)** dùng nguyên pattern `bank.lock_requested`/`lock_failed` sẵn có (§3) — không cần API/entryType mới; retry/fail policy là việc của escrow-service.
+- Consumer mới ở tầng tiền cho `remedy.finalized` (qua escrow) — `breach.reported` KHÔNG có consumer nào ở tầng tiền (invariant: allegation chưa final không đụng ledger). **Review lần 2 (19/07):** ledger thêm `fundType` (BUYER_DEPOSIT/SELLER_DEPOSIT/MILESTONE_PAYMENT — RELEASE_TO_SELLER hết mơ hồ tiền-hàng vs trả-cọc-seller) + `remedyDecisionId` nullable; `contract.terminated` KHÔNG kích lệnh tiền — `remedy.finalized` là đường duy nhất, remedyLegs mang fundType.
+
 Bank-service — **ĐÓNG SESSION HOÀN TOÀN**: ledger mechanics + Kill Switch (§3.5) đều đã đóng, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.
 
 ---
 
-*Design session: 03/07/2026 · Cập nhật: 04/07/2026 (ledger mechanics cho Delta 1/2 + buyerDepositRate) · Cập nhật: 08/07/2026 sáng (rà soát end-to-end: tách entryType 2 loại cọc — B6; mapping Provisional Settlement Level 2 — A3; thêm bank.large_transaction_flagged đúng ngưỡng/chủ thể pháp lý — A5) · Cập nhật: 08/07/2026 chiều (thêm §3.5 Emergency Lock Kill Switch cho External Verifier + system_lock/used_nonce schema + wallet_snapshot scaling note) · Cập nhật: 13/07/2026 (review §3.5 end-to-end, đồng bộ source_type với hash-chain §2.3 — đóng session hoàn toàn) · Cập nhật 17/07/2026 (audit-hash về audit-service; 3 domain event transport vào chain) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Design session: 03/07/2026 · Cập nhật: 04/07/2026 (ledger mechanics cho Delta 1/2 + buyerDepositRate) · Cập nhật: 08/07/2026 sáng (rà soát end-to-end: tách entryType 2 loại cọc — B6; mapping Provisional Settlement Level 2 — A3; thêm bank.large_transaction_flagged đúng ngưỡng/chủ thể pháp lý — A5) · Cập nhật: 08/07/2026 chiều (thêm §3.5 Emergency Lock Kill Switch cho External Verifier + system_lock/used_nonce schema + wallet_snapshot scaling note) · Cập nhật: 13/07/2026 (review §3.5 end-to-end, đồng bộ source_type với hash-chain §2.3 — đóng session hoàn toàn) · Cập nhật 17/07/2026 (audit-hash về audit-service; 3 domain event transport vào chain) · Cập nhật 19/07/2026 (đợt 6 — tách SEIZE_PENALTY thành 3 remedyType theo chế tài luật; trigger contract.terminated theo finalBreachingRole) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***

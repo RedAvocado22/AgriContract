@@ -1,12 +1,12 @@
 ---
 name: reputation-service-phase2-design
-description: "Reputation-service — lock ledger bất biến + reputation score, phục vụ lockout enforcement, đánh giá đối tác hai chiều, và credit reference export. Nguồn: design session 04/07/2026, cập nhật 06/07/2026 (AML: thêm nhóm tín hiệu tuyệt đối theo ngưỡng luật định), 08/07/2026 (hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse)."
+description: "Reputation-service — lock ledger bất biến + reputation score, phục vụ lockout enforcement, đánh giá đối tác hai chiều, và credit reference export. Nguồn: design session 04/07/2026, cập nhật 06/07/2026 (AML: thêm nhóm tín hiệu tuyệt đối theo ngưỡng luật định), 08/07/2026 (hold tuyệt đối cần tín hiệu hành vi; đối xứng hoá buyer/seller + chống flag-abuse), 19/07/2026 (consume theo attribution — review lần 2: remedy.finalized là input negative DUY NHẤT, gỡ contract.terminated khỏi tầng chế tài chặn double-lock; gate đọc reputationEligible flag + remedy_decision_id UNIQUE, §3/§4.3)."
 status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
   extends: "services.md § reputation-service (8088)"
-  related: "milestone-escrow-phase2-design.md §6/§7; bank-service-phase2-design.md §4; inspection-phase2-design.md; user-service-phase2-design.md §2.2/§3"
+  related: "milestone-escrow-phase2-design.md §6 (taxonomy/BreachCase §6.4)/§7; bank-service-phase2-design.md §4; inspection-phase2-design.md; user-service-phase2-design.md §2.2/§3"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -30,7 +30,7 @@ Không tách 3 vai trò này thành 3 service riêng trong Phase 2 (over-enginee
 | Field | Loại | Ghi chú |
 |---|---|---|
 | `entryId` | UUID | |
-| `sourceEventId` | UUID | Idempotency key — ID của event gốc kích hoạt (`milestone.cancelled_with_penalty`). `UNIQUE`, cùng pattern `bank-service` đã dùng. |
+| `sourceEventId` | UUID | Idempotency key cấp event. **19/07 lần 2:** nguồn duy nhất là `remedy.finalized`; thêm cột `remedy_decision_id` UNIQUE — chốt nghiệp vụ "một quyết định ≤ 1 lock" đứng ở tầng DB, mạnh hơn dedup theo eventId (redelivery cùng event thì eventId chặn; 2 event khác nhau cùng quyết định thì `remedy_decision_id` chặn). |
 | `contractId` | UUID | |
 | `userId` | UUID | Người bị khoá (buyer hoặc seller, tuỳ `penalizedRole`) |
 | `penalizedRole` | Enum (`BUYER`, `SELLER`) | 1 event duy nhất phân biệt qua field này, không tách 2 event riêng — công thức `lockDurationDays` áp dụng y hệt cho cả 2 bên, chỉ đổi input rate |
@@ -123,8 +123,9 @@ Không có bảng riêng lưu sẵn con số. Mọi truy vấn (completion count
 
 | Event | Loại | Nguồn | Trạng thái |
 |---|---|---|---|
-| `milestone.cancelled_with_penalty` | Negative | `contract-service`, đã có trong Event Catalog milestone-escrow §7.1 | Sẵn sàng dùng |
-| `contract.settled` | Positive | `contract-service` (`ContractSettledEvent`), đã tồn tại trong code Phase 1 | **Đã fix (04/07/2026) — xem cập nhật KI-1 ở §10.** Guard `Contract.settle()` được sửa để chạy từ `ACTIVE`, và `escrow-service` cũng consume event này để release `buyerDepositRate` — xem `milestone-escrow-phase2-design.md` §3.1, §6.3, §7.2. |
+| `remedy.finalized` (**sửa 19/07/2026 — nguồn negative CHÍNH, thay `milestone.cancelled_with_penalty` trực tiếp**) | Negative | `contract-service` — bắn khi `BreachCase` `RESOLVED` (milestone-escrow §6.4, §7.2). Payload mang `finalBreachingRole` + `breachReasonCode` + `decisionSource` | **Gate cứng (sửa 19/07 lần 2 — đọc flag, không tự suy từ reason):** chỉ tạo `lock_entry` khi payload có **`reputationEligible = true`** (contract-service quyết qua remedy calculator — milestone-escrow §6.4.1/§7.2; bảng §4.3 dưới là default mapping để hiểu, không phải logic consumer tự chạy). Idempotency **theo `remedyDecisionId`** (một quyết định ≤ 1 lock — matrix 11o), không chỉ theo eventId. Allegation (`breach.reported`) KHÔNG BAO GIỜ là input. |
+| ~~`contract.terminated`~~ (**GỠ khỏi input chế tài — 19/07 lần 2**) | — | — | **Reputation KHÔNG consume `contract.terminated` nữa.** Trước đó cả `remedy.finalized` lẫn `contract.terminated` cùng là input negative → cùng một breach có thể sinh **2 `lock_entry`** (sourceEventId khác nhau, UNIQUE không chặn được). `remedy.finalized` là nguồn DUY NHẤT (dòng trên); `contract.terminated` chỉ đi audit/analytics/notification (milestone-escrow §7.2). |
+| `contract.settled` | Positive | `contract-service` (`ContractSettledEvent`), đã tồn tại trong code Phase 1 | **Đã fix (04/07/2026) — xem cập nhật KI-1 ở §10.** Guard `Contract.settle()` được sửa để chạy từ `ACTIVE`, và `escrow-service` cũng consume event này để release `buyerDepositRate` — xem `milestone-escrow-phase2-design.md` §3.1, §6.7, §7.2. |
 | `milestone.dispute_resolved` (mới, 08/07/2026) | Tín hiệu hành vi (flag-abuse) | `contract-service` — bắn khi `DisputeRoutingService` ra phán quyết cho milestone `CONTESTED` | **Đã có trong Event Catalog `milestone-escrow-phase2-design.md` §7.1 (cập nhật 18/07/2026 — bỏ trạng thái "cần thêm").** Xem §6.1b. |
 | `bank.large_transaction_flagged` (mới, 08/07/2026) | Tín hiệu AML (1 phần input composite score) | `bank-service` (`bank-service-phase2-design.md` §3.4) | Không tự trigger hold — chỉ hold khi đi kèm ≥1 tín hiệu hành vi khác, xem §8 mục 2. |
 
@@ -132,7 +133,7 @@ Không có bảng riêng lưu sẵn con số. Mọi truy vấn (completion count
 
 ## 4. Multiplier Formulas
 
-**⟢ SOURCE OF TRUTH cho công thức `lockDurationDays` là mục này (reputation-service §4).** Trước đây công thức được "chốt" ở `milestone-escrow-phase2-design.md` §6.1 và copy sang đây — nay đảo lại đúng chủ sở hữu: `reputation-service` là nơi tính và implement công thức này, nên nó chốt số ở đây. `milestone-escrow` §6.1 chỉ giữ **input/trigger** (khi nào bắn `milestone.cancelled_with_penalty`, vì sao tách penalty debt khỏi số ngày khoá) và tham chiếu về mục này cho baseline. Nếu 2 file lệch nhau về con số → bản ở đây thắng.
+**⟢ SOURCE OF TRUTH cho công thức `lockDurationDays` là mục này (reputation-service §4).** Trước đây công thức được "chốt" ở `milestone-escrow-phase2-design.md` §6.1 và copy sang đây — nay đảo lại đúng chủ sở hữu: `reputation-service` là nơi tính và implement công thức này, nên nó chốt số ở đây. `milestone-escrow` §6.3.1 (số mục mới 19/07/2026, cũ §6.1) chỉ giữ **input/trigger** (khi nào `remedy.finalized`/`milestone.cancelled_with_penalty` sau-attribution kích lockout, vì sao tách penalty debt khỏi số ngày khoá) và tham chiếu về mục này cho baseline. Nếu 2 file lệch nhau về con số → bản ở đây thắng.
 
 ```
 lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier
@@ -143,7 +144,7 @@ lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultipl
 | `baseDays` | 30 | Cố định |
 | `repeatOffenseMultiplier` | 1x / 2x / 3x | Lần vi phạm thứ mấy trong `repeatOffenseLookbackMonths` gần nhất (§4.2) |
 | `trackRecordMultiplier` | 0.7x / 1.0x / 1.3x | Dưới 5 hợp đồng hoàn thành: mặc định 1.0x. Đủ 5 trở lên: tính theo % sạch thật (0.7x nếu track record tốt, 1.3x nếu kém) — không time window (§4.1) |
-| `zeroProgressMultiplier` | 1.5x / 1.0x | **Mới (08/07/2026):** 1.5x khi cancel lúc **0 milestone nào từng `SETTLED`** (ký xong bỏ ngay — tín hiệu xấu nhất, cũng là lớp ma sát cho disintermediation risk); 1.0x cho mọi trường hợp còn lại. Chốt tại `milestone-escrow-phase2-design.md` §6.1. |
+| `zeroProgressMultiplier` | 1.5x / 1.0x | **Mới (08/07/2026); siết điều kiện 19/07/2026:** 1.5x khi breach lúc **0 milestone nào từng `SETTLED`** **VÀ** `breachReasonCode` thuộc nhóm strategic (§4.3) — ký xong bỏ ngay *một cách cố ý* mới là tín hiệu xấu nhất + ma sát disintermediation. **KHÔNG áp** khi zero-progress do mutual/FM/activation-failure/buyer-caused (những đường này vốn không tạo `lock_entry` cho bên kia — §3, §4.3). 1.0x cho mọi trường hợp còn lại. Trigger chốt tại `milestone-escrow-phase2-design.md` §6.3.1. |
 
 ### 4.1 `trackRecordMultiplier` — KHÔNG có time window
 
@@ -152,6 +153,17 @@ lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultipl
 ### 4.2 `repeatOffenseMultiplier` — CÓ time window 24 tháng
 
 Đo hành vi **tiêu cực** (vi phạm) — ngược lại với §4.1, khoảng cách dài giữa 2 lần vi phạm mang ý nghĩa thật (seller đã sửa hành vi), nên chỉ đếm vi phạm trong 24 tháng gần nhất, không cộng dồn vĩnh viễn.
+
+### 4.3 Gate `breachReasonCode` — reputation chỉ phạt hành vi cố ý (mới, 19/07/2026)
+
+Lý do tồn tại của gate: cùng một *kết quả* (không giao / giao thiếu / hợp đồng chấm dứt) có nhiều *nguyên nhân* khác nhau về lỗi (milestone-escrow §6.4.1); reputation là hình phạt hành vi nên chỉ áp cho nguyên nhân **cố ý/chiến lược**:
+
+| `breachReasonCode` (từ `remedy.finalized`) | Tạo `lock_entry`? |
+|---|---|
+| `SIDE_SELLING`, `NON_DELIVERY` (cố ý), `LATE_DELIVERY` (không lý do), `WRONGFUL_REJECTION`, `FUNDING_FAILURE` (buyer, sau cure window), `FAILURE_TO_RECEIVE`, `LATE_PAYMENT` | **Có** — đúng role bị kết luận |
+| `PRODUCTION_SHOCK_NON_FM` | **KHÔNG lock** (`reputationEligible = false` luôn) — sốc sản lượng chưa đủ FM pháp lý nhưng không phải cố ý phá. Penalty tiền là chuyện riêng của flag `penaltyEligible` (LegalProfile/phán quyết quyết, milestone-escrow §6.4.1) — 2 quyết định độc lập, reputation không suy từ việc có/không có penalty |
+| `FORCE_MAJEURE`, `MUTUAL_EXIT`, `ACTIVATION_FAILURE` | **KHÔNG** — no-fault, `finalBreachingRole = NULL`, event không tới được tầng này |
+| Allegation bị bác (case `RESOLVED` với `finalBreachingRole = NULL`) | **KHÔNG** cho bên bị cáo buộc; tỷ lệ flag-rồi-thua của bên cáo buộc vẫn đếm qua `milestone.dispute_resolved` (§6.1b) |
 
 ---
 
@@ -178,7 +190,7 @@ Check phải nằm ở đúng use case tạo nghĩa vụ mới:
 - **`CreateListing` (product-service) / tạo offer** — **fail-closed (sửa 18/07/2026, round 2 — đồng bộ user-service §3):** user-service down → 503; fail-open cũ cho người đang khoá lách đúng lúc dependency chết. Feign client tới `user-service` cần thêm mới.
 - **`sign()` (contract-service)** — fail-closed, bắt buộc. Đã có sẵn `UserPort`/`UserServiceClient` (Feign) — chỉ cần thêm `lockedUntil` vào response `UserInfo` + `@CircuitBreaker` với fallback throw (services.md gap #1, **ưu tiên đóng gap này trước tất cả Feign call khác trong Phase 2** — chốt 04/07/2026 ở `inspection-phase2-design.md`/session review: `sign()` fail-closed nằm trên đường ký hợp đồng, `user-service` down không có breaker sẽ chặn toàn bộ platform ký hợp đồng, không phải lỗi cục bộ 1 case).
 
-Lý do 2 tầng không thừa nhau: khoá chỉ chặn **tạo mới**, không hồi tố hợp đồng đã ACTIVE/SIGNED (milestone-escrow §6.1 mục 2). Seller sạch lúc tạo offer, dính khoá giữa chừng đàm phán — chỉ `sign()` check lại mới bắt được; `CreateListing`-only sẽ bỏ sót case này.
+Lý do 2 tầng không thừa nhau: khoá chỉ chặn **tạo mới**, không hồi tố hợp đồng đã ACTIVE/SIGNED (milestone-escrow §6.3.1 mục 2 — số mục mới 19/07/2026). Seller sạch lúc tạo offer, dính khoá giữa chừng đàm phán — chỉ `sign()` check lại mới bắt được; `CreateListing`-only sẽ bỏ sót case này.
 
 `reputation-service` publish event (`reputation.locked`/`reputation.unlocked`), `user-service` cache 1 field trên `UserProfile` (không gọi sync mỗi lần cần check) — tránh dual-write, đúng bài học đã rút từ `bank-service` §5 (cache state flag là ổn, cache số tiền mới là dual-write).
 
@@ -189,7 +201,7 @@ Lý do 2 tầng không thừa nhau: khoá chỉ chặn **tạo mới**, không h
 **Tin tốt: dữ liệu đã có sẵn, chỉ thiếu chiều hiển thị.** `lock_entry` (§2.1) **đã** insert-only cho cả `penalizedRole = BUYER` lẫn `SELLER` từ đầu — dữ liệu "buyer này từng bùng mấy lần, lock bao lâu" đã tồn tại, không cần cơ chế mới. Chỉ cần:
 
 1. **Endpoint mới `GET /api/v1/reputation/{userId}/public-summary`** — query theo đúng `userId` (không phân biệt buyer hay seller gọi), trả reputation score + lock history cho user đã đăng nhập (**17/07/2026:** authenticated qua Gateway, không còn public no-auth — mọi bên cần xem đối tác đều đã login, hạ exposure scraping lock-history; vẫn không cần consent như `credit-export` §6.3, vì đây là thông tin đối tác cần biết *trước khi* quyết định ký, không phải hồ sơ tín dụng riêng tư). Seller dùng endpoint này để xem uy tín buyer trước khi nhận offer/đàm phán — đối xứng thật với việc buyer xem seller lúc chọn listing.
-2. **Framing lại `buyerDepositRate`/`sellerDepositRate` là công cụ 2 chiều theo mức tin tưởng** (đã đúng về cơ chế ở `milestone-escrow-phase2-design.md` §2.1/§6.1, chỉ cần nói rõ ra): seller mới, gặp buyer lạ, xem `public-summary` thấy buyer có track record xấu → seller có quyền đàm phán `buyerDepositRate` cao hơn 5% mặc định lúc `NEGOTIATING` — không phải chỉ buyer mới có quyền đòi cọc seller.
+2. **Framing lại `buyerDepositRate`/`sellerDepositRate` là công cụ 2 chiều theo mức tin tưởng** (đã đúng về cơ chế ở `milestone-escrow-phase2-design.md` §2.1/§6.3.1, chỉ cần nói rõ ra): seller mới, gặp buyer lạ, xem `public-summary` thấy buyer có track record xấu → seller có quyền đàm phán `buyerDepositRate` cao hơn 5% mặc định lúc `NEGOTIATING` — không phải chỉ buyer mới có quyền đòi cọc seller.
 
 **Tín hiệu mới — chống buyer lạm dụng `FLAG_ISSUE` vô cớ (mới, 08/07/2026):** lỗ thật seller chưa được bảo vệ — buyer có thể flag bừa để ép seller vào dispute/kéo dài mà không mất gì (chi phí giám định do bên thua chịu, §8 milestone-escrow, nhưng buyer có thể chấp nhận rủi ro đó để gây áp lực). Thêm 1 input event mới:
 
@@ -220,7 +232,7 @@ Thiết kế:
 
 ## 7. Use Case Changes
 
-- **`ProcessLockoutUseCase`** — consume `milestone.cancelled_with_penalty`, tính `repeatOffenseMultiplier` + `trackRecordMultiplier`, ghi `lock_entry` mới (insert-only), publish `reputation.locked`.
+- **`ProcessLockoutUseCase`** — consume `remedy.finalized` / `contract.terminated` có `finalBreachingRole` (**sửa 19/07/2026** — không còn consume `milestone.cancelled_with_penalty` trực tiếp, §3), qua gate `breachReasonCode` §4.3, tính `repeatOffenseMultiplier` + `trackRecordMultiplier` + `zeroProgressMultiplier`, ghi `lock_entry` mới (insert-only), publish `reputation.locked`.
 - **`UnlockEarlyUseCase`** — chạy khi `governance_action_request` được APPROVE (two-person rule §7-schema): **INSERT `lock_override_event`** (không UPDATE `lock_entry` — sửa 18/07/2026, bảng đó bất biến), **tính lại effective lock còn lại của user từ các `lock_entry` chưa hết hạn và chưa có override**, rồi publish `reputation.unlocked {eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}` — `lockRevision` (18/07/2026) là sequence tăng dần per user do reputation cấp (đếm event lock/unlock đã phát cho user), user-service persist để ordering sống qua restart; `reputation.locked` cũng mang field này. **Sửa 17/07/2026:** payload cũ chỉ mang `unlockedAt`, khiến projection bên user-service "clear" mù và mở khoá nhầm khi user có nhiều lock chồng nhau — source of truth phải tự tính, projection chỉ set theo (xem `user-service-phase2-design.md` §2.2). `reputation.locked` cũng thêm `occurredAt` cùng lý do ordering. Dùng cho nhánh 2, 3 ở §5. **Maker-checker (18/07/2026, governance §5.3):** unlock sớm không còn đơn phương — OPERATOR propose (reason bắt buộc, trạng thái `PROPOSED`) → ADMIN approve/reject; ADMIN không tự approve đề xuất của chính mình. Payload thêm `proposedByOperatorId` + `approvedByAdminId`; cả propose lẫn approve vào audit chain.
 - **`CheckLockStatusUseCase`** — expose cho `user-service` gọi qua Feign (§6.1), trả `lockedUntil` hiện tại của 1 `userId`.
 - **`GetCreditExportUseCase`** — seller tự trigger (consent-based, §6.3), check counterparty diversity gate trước khi trả JSON export.
@@ -315,8 +327,14 @@ Fix đã chốt tại `inspection-phase2-design.md` §3.2: allowlist 3 nhóm (ma
 
 **Cập nhật (17/07/2026):** (1) `reputation.unlocked` payload đổi — mang `effectiveLockedUntil` (nullable) tính lại từ các `lock_entry` còn `LOCKED` + `occurredAt` (cả locked lẫn unlocked) — đóng bug projection user-service mở khoá nhầm khi user có nhiều lock chồng nhau (§7). (2) Gỡ `ELEVATED_RISK` publish `reputation.elevated_risk_cleared` cho audit chain, `source_type = AML_RISK_CLEARED` (§8 mục 6, hash-chain §2.4). (3) `public-summary` chuyển authenticated ở Gateway (§6.1b).
 
+**Chốt bổ sung (19/07/2026) — consume theo attribution (đợt 6, từ file research ScholarFirst):**
+- **Input negative đổi nguồn (§3):** `remedy.finalized` + `contract.terminated` (chỉ khi `finalBreachingRole != NULL`) thay cho `milestone.cancelled_with_penalty`/`contract.cancelled` trực tiếp. Người bấm nút chấm dứt ≠ người vi phạm — reputation chỉ phạt theo attribution cuối, không theo initiatedBy. `breach.reported` (allegation) KHÔNG BAO GIỜ là input.
+- **Gate `breachReasonCode` (§4.3):** chỉ nhóm strategic tạo `lock_entry`; `PRODUCTION_SHOCK_NON_FM` không lock; mutual/FM/activation/allegation-bị-bác không lock. `zeroProgressMultiplier` siết điều kiện — chỉ áp strategic zero-progress.
+- **Review lần 2 (19/07):** gỡ `contract.terminated` khỏi input chế tài (double-lock risk — 2 event, 2 sourceEventId, UNIQUE không chặn); gate đổi sang đọc `reputationEligible` flag từ payload thay tự suy reason; thêm `remedy_decision_id` UNIQUE ở `lock_entry` — một quyết định ≤ 1 lock đứng ở tầng DB.
+- Đối xứng giữ nguyên: buyer bị lock qua cùng cơ chế khi `finalBreachingRole = BUYER` (`FUNDING_FAILURE` sau cure window là Rổ A, máy tự attribution — milestone-escrow §6b).
+
 Reputation-service — **ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** Không có điểm treo số liệu: ngưỡng 500 triệu là số luật định thật; `elevatedRiskReviewMonths` chốt 6 tháng (`application.yml`, tinh chỉnh được khi có dữ liệu vận hành thật). KI-3 (`email` IDOR) đã RESOLVED bởi user-service §4.1 — 18/07/2026. VICOFA lever giữ ở Known Limitation §9 (giả định thể chế ngoài scope đồ án).
 
 ---
 
-*Design session: 04/07/2026 · Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Cập nhật: 08/07/2026 (rà soát end-to-end: hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service — A5; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse — B4) · Cập nhật: 13/07/2026 (KI-3 ghi rõ thành must-fix ở user-service, không block; VICOFA lever giữ ở Known Limitation §9) · Cập nhật 17/07/2026 (effectiveLockedUntil + occurredAt trên lock events; reputation.elevated_risk_cleared cho audit chain; public-summary authenticated) · Review pass 18/07/2026 (lock_entry bất biến thật + lock_override_event; zero_progress_multiplier vào snapshot; governance_action_request + pair_risk_state; lockRevision; KI-3/dispute_resolved đánh dấu RESOLVED) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Design session: 04/07/2026 · Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Cập nhật: 08/07/2026 (rà soát end-to-end: hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service — A5; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse — B4) · Cập nhật: 13/07/2026 (KI-3 ghi rõ thành must-fix ở user-service, không block; VICOFA lever giữ ở Known Limitation §9) · Cập nhật 17/07/2026 (effectiveLockedUntil + occurredAt trên lock events; reputation.elevated_risk_cleared cho audit chain; public-summary authenticated) · Review pass 18/07/2026 (lock_entry bất biến thật + lock_override_event; zero_progress_multiplier vào snapshot; governance_action_request + pair_risk_state; lockRevision; KI-3/dispute_resolved đánh dấu RESOLVED) · Cập nhật 19/07/2026 (đợt 6 — consume remedy.finalized/contract.terminated theo finalBreachingRole; gate breachReasonCode §4.3) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
