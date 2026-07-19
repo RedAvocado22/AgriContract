@@ -167,10 +167,14 @@ InitiateLevel2Inspection(contractId):
   5. INSERT audit_record (contract_id, source_type = LEVEL2_INSPECTION_COMMISSIONED,
      content = {commissionId, intakeAddress: "intake@agricontract.vn",
                 buyerEmail, sellerEmail, org}, timestamp = now())
-  6. Publish `notification.level2_commission_requested` tới notification-service,
-     payload `{eventId, commissionId, orgEmail, buyerEmail, sellerEmail,
-     intakeAddress, contractContext}`. Notification gửi mail transactional tới org
-     và bản xác nhận cho buyer/seller; inspection-service không gọi SendGrid trực tiếp.
+  6. Publish `notification.level2_commission_requested` tới notification-service bằng
+     executable command envelope `{eventId, eventType, eventVersion, occurredAt,
+     producer, aggregateId, correlationId, causationId, payload}`; `payload` chính xác là
+     `{commissionId, contractId, recipients:[{userId,email,role}], org,
+     intakeAddress, contractContext}`. Recipient của org dùng `userId = null`, role
+     `INSPECTOR`; buyer/seller dùng canonical user IDs. Notification gửi mail
+     transactional tới org và bản xác nhận cho buyer/seller; inspection-service không
+     gọi SendGrid trực tiếp.
 ```
 
 **Ranh giới rõ ràng, không tự huyễn:** bước 6 chỉ tạo ra *yêu cầu*, không tạo ra *sự đồng ý*. SGS/Bureau Veritas có thật sự nhận job, lên lịch, cử người đi kiểm định hay không vẫn là quan hệ thương mại thật ngoài hệ thống (báo giá, PO, lịch hẹn) — không automate được, và không cần automate, vì đó không phải nơi tạo ra bằng chứng. Cái audit record ở bước 5 chứng minh **platform đã yêu cầu gửi đi đâu, lúc nào** — không chứng minh org có làm đúng theo yêu cầu đó.

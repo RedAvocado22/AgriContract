@@ -5,11 +5,13 @@ description: >-
   Common envelope for canonical RabbitMQ domain events and notification commands.
   eventId is the transport identity and DLQ replay key. For bank command events,
   payload.sourceEventId MUST equal eventId; bank-service uses that value as the
-  ledger idempotency key. Result events have a new eventId, preserve the original
-  sourceEventId in payload, and set causationId to the request eventId. aggregateId
-  identifies the source aggregate that produced the event. subject, when an
-  authoritative design defines it, identifies the separate audit/business subject
-  and need not equal aggregateId.
+  replay idempotency key. Remedy-driven bank commands also carry remedyDecisionId
+  for grouping and remedyLegId as the unique money-leg identity; remedyDecisionId
+  is never unique by itself because one decision may contain multiple legs. Result
+  events have a new eventId, preserve the original sourceEventId in payload, and set
+  causationId to the request eventId. aggregateId identifies the source aggregate
+  that produced the event. subject, when an authoritative design defines it,
+  identifies the separate audit/business subject and need not equal aggregateId.
 type: object
 required:
   - eventId
@@ -80,6 +82,8 @@ x-agricontract-rules:
   derivedEvents: "Result/confirmation schemas mark x-requires-causation=true; root events omit/null causationId and producers never fabricate one."
   bankRequests: "payload.sourceEventId must equal envelope eventId."
   bankResults: "Result payload.sourceEventId preserves the request eventId and envelope causationId equals that request eventId."
+  remedyBankLegs: "For commands derived from remedy.finalized, remedyDecisionId groups the decision and remedyLegId uniquely identifies one leg; ordinary non-remedy commands use null for both fields."
+  auditIngestion: "Audit consumers persist eventId as sourceEventId and preserve causationId/correlationId; replay is a no-op and must not create another record, anchor, or evidence email."
   replay: "DLQ replay must preserve the original eventId and payload."
   pii: "Canonical domain events omit unnecessary contact PII; notification commands may carry recipient email as internal routing data."
   source: "data-governance-phase2-design.md section 8b and approved contract-freeze corrections."

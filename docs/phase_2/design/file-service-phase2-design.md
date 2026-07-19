@@ -177,10 +177,19 @@ CREATE TABLE file (
     status            VARCHAR(20) NOT NULL DEFAULT 'PROCESSING',  -- PROCESSING | READY | FAILED
     failure_reason    TEXT NULL,              -- chỉ có giá trị khi status = FAILED
     attached          BOOLEAN NOT NULL DEFAULT FALSE,  -- xem §7, orphan cleanup
-    created_at        TIMESTAMP NOT NULL DEFAULT now()
+    retention_until   TIMESTAMP NULL,          -- NULL = no finite policy / keep indefinitely
+    legal_hold        BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_at        TIMESTAMP NULL,          -- governance tombstone; blob deletion follows
+    deletion_reason   TEXT NULL,
+    created_at        TIMESTAMP NOT NULL DEFAULT now(),
+    CONSTRAINT ck_file_deletion_metadata CHECK (
+      (deleted_at IS NULL AND deletion_reason IS NULL)
+      OR (deleted_at IS NOT NULL AND deletion_reason IS NOT NULL AND length(trim(deletion_reason)) > 0)
+    )
 );
 CREATE INDEX idx_file_status ON file(status);
 CREATE INDEX idx_file_attached_created ON file(attached, created_at);  -- phục vụ query orphan cleanup
+CREATE INDEX idx_file_retention ON file(legal_hold, retention_until, deleted_at);
 
 CREATE TABLE email_intake_failure (
     failure_id      CHAR(36) PRIMARY KEY,

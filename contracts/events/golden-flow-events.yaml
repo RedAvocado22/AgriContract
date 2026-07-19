@@ -20,6 +20,26 @@ $defs:
   uuid:
     type: string
     format: uuid
+  nullableUuid:
+    oneOf:
+      - $ref: "#/$defs/uuid"
+      - type: "null"
+  fundType:
+    enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]
+  ledgerEntryType:
+    enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE, RELEASE_TO_SELLER, REFUND_TO_BUYER, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]
+  remedyType:
+    enum: [NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]
+  breachingRole:
+    oneOf:
+      - enum: [BUYER, SELLER]
+      - type: "null"
+  breachReasonCode:
+    enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, NON_CONFORMING_QUALITY, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
+  nullableBreachReasonCode:
+    oneOf:
+      - $ref: "#/$defs/breachReasonCode"
+      - type: "null"
   inspectionSettlementResultV1:
     type: object
     required: [resultSchemaVersion, measuredQuantityKg, acceptedQuantityKg, qualityDisposition, determinedAt]
@@ -107,12 +127,15 @@ $defs:
           producer: {const: escrow-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE]}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
             additionalProperties: false
@@ -130,12 +153,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, ledgerEntryId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE]}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               ledgerEntryId: {$ref: "#/$defs/uuid"}
@@ -155,12 +181,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, failureReason]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE]}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               failureReason: {type: string, minLength: 1}
@@ -178,12 +207,15 @@ $defs:
           producer: {const: escrow-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {const: RELEASE_TO_SELLER}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
             additionalProperties: false
@@ -199,12 +231,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, ledgerEntryId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {const: RELEASE_TO_SELLER}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               ledgerEntryId: {$ref: "#/$defs/uuid"}
@@ -221,12 +256,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, failureReason]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {const: RELEASE_TO_SELLER}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               failureReason: {type: string, minLength: 1}
@@ -243,12 +281,15 @@ $defs:
           producer: {const: escrow-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
-              entryType: {const: SEIZE_PENALTY}
+              entryType: {enum: [DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/uuid"}
+              remedyLegId: {$ref: "#/$defs/uuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
             additionalProperties: false
@@ -264,12 +305,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, ledgerEntryId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
-              entryType: {const: SEIZE_PENALTY}
+              entryType: {enum: [DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/uuid"}
+              remedyLegId: {$ref: "#/$defs/uuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               ledgerEntryId: {$ref: "#/$defs/uuid"}
@@ -286,12 +330,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, failureReason]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
-              entryType: {const: SEIZE_PENALTY}
+              entryType: {enum: [DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/uuid"}
+              remedyLegId: {$ref: "#/$defs/uuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               failureReason: {type: string, minLength: 1}
@@ -308,12 +355,15 @@ $defs:
           producer: {const: escrow-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {const: REFUND_TO_BUYER}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
             additionalProperties: false
@@ -329,12 +379,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, ledgerEntryId]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, ledgerEntryId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {const: REFUND_TO_BUYER}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               ledgerEntryId: {$ref: "#/$defs/uuid"}
@@ -351,12 +404,15 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, userId, entryType, amount, sourceEventId, failureReason]
+            required: [contractId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, sourceEventId, failureReason]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]}
               userId: {$ref: "#/$defs/uuid"}
               entryType: {const: REFUND_TO_BUYER}
+              fundType: {$ref: "#/$defs/fundType"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegId: {$ref: "#/$defs/nullableUuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
               sourceEventId: {$ref: "#/$defs/uuid"}
               failureReason: {type: string, minLength: 1}
@@ -380,27 +436,135 @@ $defs:
               sellerId: {$ref: "#/$defs/uuid"}
             additionalProperties: false
         x-publisher: contract-service
-        x-consumers: [escrow-service, reputation-service, analytics-service]
+        x-consumers: [reputation-service, analytics-service]
         x-source: milestone-escrow-phase2-design.md section 7.2; existing ContractSettledEvent
         x-verification-matrix: [8]
-  contractCancelled:
+        x-side-effect-boundary: Lifecycle/positive-history event only. Normal completion first emits the existing SYSTEM/no-fault remedy.finalized owner-return legs; this event is published only after all expected legs reconcile and remaining lock is zero, and must not be consumed by escrow-service for money.
+  contractTerminated:
     allOf:
       - $ref: "./event-envelope.yaml"
       - type: object
         properties:
-          eventType: {const: contract.cancelled}
+          eventType: {const: contract.terminated}
           producer: {const: contract-service}
           payload:
             type: object
-            required: [contractId, initiatedBy]
+            required: [contractId, terminationType, requestedBy, finalBreachingRole, breachReasonCode, remedyDecisionId, breachCaseId, affectedMilestoneIds, supersededByContractId, replacesContractId]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
-              initiatedBy: {enum: [BUYER, SELLER]}
+              terminationType: {enum: [WITHDRAW_OFFER, MUTUAL_TERMINATION, MUTUAL_REPLACEMENT, TERMINATION_FOR_BREACH, TERMINATION_FOR_FORCE_MAJEURE, ACTIVATION_FAILURE]}
+              requestedBy: {enum: [BUYER, SELLER, SYSTEM]}
+              finalBreachingRole: {$ref: "#/$defs/breachingRole"}
+              breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              breachCaseId: {$ref: "#/$defs/nullableUuid"}
+              affectedMilestoneIds:
+                type: array
+                uniqueItems: true
+                items: {$ref: "#/$defs/uuid"}
+              supersededByContractId: {$ref: "#/$defs/nullableUuid"}
+              replacesContractId: {$ref: "#/$defs/nullableUuid"}
             additionalProperties: false
         x-publisher: contract-service
-        x-consumers: [escrow-service, analytics-service]
-        x-source: milestone-escrow-phase2-design.md sections 6.3 and 7.2
-        x-verification-matrix: [8]
+        x-consumers: [audit-service, analytics-service]
+        x-source: milestone-escrow-phase2-design.md sections 6.1, 6.6, 6.7 and 7.2
+        x-verification-matrix: [8, 11h, 11i, 11l, 11p, 26g]
+        x-side-effect-boundary: Lifecycle/audit/analytics/notification only. Escrow and reputation MUST NOT consume this event for consequences.
+        x-nullability: finalBreachingRole and breachReasonCode are null for mutual, force-majeure and technical no-fault outcomes. Supersede pointers are non-null only for MUTUAL_REPLACEMENT.
+        x-terminal-guard: Except pre-sign WITHDRAW_OFFER, publish only after the expected remedyDecisionId/remedyLegId set is complete in the bank ledger and remaining contract lock is zero.
+  breachReported:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: breach.reported}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [breachCaseId, contractId, milestoneId, requestedBy, allegedBreachingRole, breachReasonCode, severity]
+            additionalProperties: false
+            properties:
+              breachCaseId: {$ref: "#/$defs/uuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/nullableUuid"}
+              requestedBy: {enum: [BUYER, SELLER, SYSTEM]}
+              allegedBreachingRole:
+                oneOf:
+                  - enum: [BUYER, SELLER]
+                  - type: "null"
+              breachReasonCode: {$ref: "#/$defs/breachReasonCode"}
+              severity: {enum: [MINOR, MATERIAL]}
+        x-publisher: contract-service
+        x-consumers: [audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 6.4 and 7.2
+        x-verification-matrix: [11g, 26e, 26h]
+        x-side-effect-boundary: Allegation only; no bank or reputation consumer is permitted.
+  remedyFinalized:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: remedy.finalized}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
+            additionalProperties: false
+            allOf:
+              - if:
+                  properties: {finalBreachingRole: {type: "null"}}
+                  required: [finalBreachingRole]
+                then:
+                  properties:
+                    penaltyEligible: {const: false}
+                    reputationEligible: {const: false}
+                    remedyLegs:
+                      items:
+                        properties:
+                          remedyType: {enum: [NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND]}
+              - if:
+                  properties: {penaltyEligible: {const: false}}
+                  required: [penaltyEligible]
+                then:
+                  properties:
+                    remedyLegs:
+                      items:
+                        properties:
+                          remedyType: {not: {const: CONTRACTUAL_PENALTY}}
+            properties:
+              remedyDecisionId: {$ref: "#/$defs/uuid"}
+              attributionDecisionId: {$ref: "#/$defs/uuid"}
+              breachCaseId: {$ref: "#/$defs/nullableUuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              buyerId: {$ref: "#/$defs/uuid"}
+              sellerId: {$ref: "#/$defs/uuid"}
+              affectedMilestoneIds:
+                type: array
+                uniqueItems: true
+                items: {$ref: "#/$defs/uuid"}
+              finalBreachingRole: {$ref: "#/$defs/breachingRole"}
+              breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
+              decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
+              penaltyEligible: {type: boolean}
+              reputationEligible: {type: boolean}
+              remedyLegs:
+                type: array
+                items:
+                  type: object
+                  required: [remedyLegId, remedyType, fundType, role, amount]
+                  additionalProperties: false
+                  properties:
+                    remedyLegId: {$ref: "#/$defs/uuid"}
+                    remedyType: {$ref: "#/$defs/remedyType"}
+                    fundType: {$ref: "#/$defs/fundType"}
+                    role: {enum: [BUYER, SELLER]}
+                    amount: {$ref: "#/$defs/money"}
+        x-publisher: contract-service
+        x-consumers: [escrow-service, reputation-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 6.4b, 6.7 and 7.2
+        x-verification-matrix: [11g, 11i, 11j, 11k, 11m, 11o, 11q, 26f, 26h]
+        x-side-effect-boundary: Sole canonical trigger for termination/remedy money legs and reputation lock, including normal-completion return of contract-level deposits.
+        x-idempotency: remedyLegId is unique per bank leg; remedyDecisionId groups all legs and is unique for at most one reputation lock.
   milestoneSettled:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -428,7 +592,7 @@ $defs:
                   additionalProperties: false
             additionalProperties: false
         x-publisher: contract-service
-        x-consumers: [escrow-service, reputation-service, analytics-service, audit-service]
+        x-consumers: [escrow-service, analytics-service, audit-service]
         x-source: milestone-escrow-phase2-design.md section 7.1
         x-verification-matrix: [1, 8]
         x-pii-exception: recipients.email is explicitly required for the later anchor notification; broker TTL and log redaction apply.
@@ -441,10 +605,12 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [milestoneId, flaggedBy, resolutionFavors]
+            required: [contractId, milestoneId, flaggedBy, flaggedByUserId, resolutionFavors]
             properties:
+              contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {$ref: "#/$defs/uuid"}
               flaggedBy: {const: BUYER}
+              flaggedByUserId: {$ref: "#/$defs/uuid"}
               resolutionFavors: {enum: [BUYER, SELLER]}
             additionalProperties: false
         x-publisher: contract-service
@@ -658,16 +824,39 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [contractId, milestoneId, cancelledBy, seizedAmount]
+            required: [contractId, milestoneId, remedyDecisionId, finalBreachingRole, breachReasonCode, penaltyAmount]
             additionalProperties: false
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {$ref: "#/$defs/uuid"}
-              cancelledBy: {enum: [BUYER, SELLER]}
-              seizedAmount: {$ref: "#/$defs/money"}
+              remedyDecisionId: {$ref: "#/$defs/uuid"}
+              finalBreachingRole: {enum: [BUYER, SELLER]}
+              breachReasonCode: {$ref: "#/$defs/breachReasonCode"}
+              penaltyAmount: {$ref: "#/$defs/money"}
         x-publisher: contract-service
-        x-consumers: [escrow-service, reputation-service, analytics-service, audit-service]
-        x-source: milestone-escrow-phase2-design.md sections 6.1-6.2 and 7.1
+        x-consumers: [analytics-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 6.4, 6.7 and 7.1
+        x-side-effect-boundary: Observational milestone outcome only. Money and reputation are already triggered by remedy.finalized and must not be consumed here.
+        x-verification-matrix: [11g, 11n, 26e]
+  escrowMilestoneFundingFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: escrow.milestone_funding_failed}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, reason]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              reason: {type: string, minLength: 1}
+        x-publisher: escrow-service
+        x-consumers: [contract-service]
+        x-source: milestone-escrow-phase2-design.md section 6b and 7.1
+        x-verification-matrix: [11m]
   reputationLocked:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -677,13 +866,14 @@ $defs:
           producer: {const: reputation-service}
           payload:
             type: object
-            required: [userId, lockedUntil, reasonCode, lockRevision]
+            required: [userId, lockedUntil, reasonCode, lockRevision, occurredAt]
             additionalProperties: false
             properties:
               userId: {$ref: "#/$defs/uuid"}
               lockedUntil: {type: string, format: date-time}
               reasonCode: {type: string}
               lockRevision: {type: integer, minimum: 1}
+              occurredAt: {type: string, format: date-time}
         x-publisher: reputation-service
         x-consumers: [user-service]
         x-source: user-service-phase2-design.md sections 2.2 and 7
@@ -696,13 +886,14 @@ $defs:
           producer: {const: reputation-service}
           payload:
             type: object
-            required: [userId, effectiveLockedUntil, reasonCode, lockRevision]
+            required: [userId, effectiveLockedUntil, reasonCode, lockRevision, occurredAt]
             additionalProperties: false
             properties:
               userId: {$ref: "#/$defs/uuid"}
               effectiveLockedUntil: {oneOf: [{type: string, format: date-time}, {type: "null"}]}
               reasonCode: {type: string}
               lockRevision: {type: integer, minimum: 1}
+              occurredAt: {type: string, format: date-time}
         x-publisher: reputation-service
         x-consumers: [user-service]
         x-source: user-service-phase2-design.md sections 2.2 and 7
@@ -719,7 +910,7 @@ $defs:
             additionalProperties: false
             properties:
               fileId: {$ref: "#/$defs/uuid"}
-              uploadedBy: {$ref: "#/$defs/uuid"}
+              uploadedBy: {type: string, minLength: 1}
               ingestChannel: {enum: [DIRECT_UPLOAD, EMAIL_INTAKE, SYSTEM_GENERATED]}
               contentType: {type: string}
               fileSize: {type: integer, minimum: 0}
@@ -740,7 +931,7 @@ $defs:
             additionalProperties: false
             properties:
               fileId: {$ref: "#/$defs/uuid"}
-              uploadedBy: {$ref: "#/$defs/uuid"}
+              uploadedBy: {type: string, minLength: 1}
               ingestChannel: {enum: [DIRECT_UPLOAD, EMAIL_INTAKE, SYSTEM_GENERATED]}
               failureReason: {type: string}
         x-publisher: file-service
@@ -791,15 +982,16 @@ $defs:
           producer: {const: bank-service}
           payload:
             type: object
-            required: [entryId, contractId, userId, amount, entryType, createdAt]
+            required: [transferId, contractId, userId, amount, transferType, occurredAt]
             additionalProperties: false
             properties:
-              entryId: {$ref: "#/$defs/uuid"}
+              transferId: {$ref: "#/$defs/uuid"}
+              relatedEntryId: {$ref: "#/$defs/nullableUuid"}
               contractId: {$ref: "#/$defs/uuid"}
               userId: {$ref: "#/$defs/uuid"}
               amount: {$ref: "#/$defs/positiveMoney"}
-              entryType: {type: string}
-              createdAt: {type: string, format: date-time}
+              transferType: {type: string, minLength: 1}
+              occurredAt: {type: string, format: date-time}
         x-publisher: bank-service
         x-consumers: [reputation-service, audit-service]
         x-source: bank-service-phase2-design.md section 3.4
@@ -921,7 +1113,9 @@ oneOf:
   - $ref: "#/$defs/bankRefundCompleted"
   - $ref: "#/$defs/bankRefundFailed"
   - $ref: "#/$defs/contractSettled"
-  - $ref: "#/$defs/contractCancelled"
+  - $ref: "#/$defs/contractTerminated"
+  - $ref: "#/$defs/breachReported"
+  - $ref: "#/$defs/remedyFinalized"
   - $ref: "#/$defs/milestoneSettled"
   - $ref: "#/$defs/milestoneDisputeResolved"
   - $ref: "#/$defs/milestoneLevel2ProvisionalSettled"
@@ -934,6 +1128,7 @@ oneOf:
   - $ref: "#/$defs/milestoneForceMajeureClaimed"
   - $ref: "#/$defs/milestoneForceMajeureResolved"
   - $ref: "#/$defs/milestoneCancelledWithPenalty"
+  - $ref: "#/$defs/escrowMilestoneFundingFailed"
   - $ref: "#/$defs/reputationLocked"
   - $ref: "#/$defs/reputationUnlocked"
   - $ref: "#/$defs/fileReady"

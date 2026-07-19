@@ -46,11 +46,15 @@ All other domain failures retain the SDS envelope and their HTTP class from the 
 | OTP expired/locked/invalid or challenge binding mismatch | `403` or `409` as defined by the signature use case | New challenge only | contract-service | Matrix 20, 21b |
 | Dependency unavailable on eligibility gate | `503` | Caller may retry with idempotency | user-service callers | Matrix 19, 21f |
 | Bank/escrow transient failure | Event retry; API reports controlled failure | Retry failed leg/event only | escrow/bank | Matrix 1, 6, 11, 11b |
+| Milestone funding failure | `FUNDING_FAILED`; seller clock remains paused | Retry failed funding leg; buyer cure window applies only to buyer-caused failure | escrow/contract | Matrix 11m |
 | Kill switch active | Controlled bank command failure | No retry until unlock | bank-service | Matrix 9 |
-| Duplicate/replay | `200`/no-op for idempotent duplicate, or controlled conflict if state differs | Reuse original eventId only | Every consumer; bank/notification rules | Matrix 1, 6, 7, 24 |
+| Duplicate/replay | `200`/no-op for idempotent duplicate, or controlled conflict if state differs | Reuse original eventId only; preserve payload | Every consumer; bank/notification/audit rules | Matrix 1, 6, 7, 11o, 11q, 24 |
+| Allegation not final | Controlled `409`/domain rejection; no money/reputation command | Resolve `BreachCase` or create Rổ A AttributionDecision first | contract-service | Matrix 11g, 26e, 26h |
+| Legal penalty cap / incompatible damages policy | `400` validation failure | Correct `LegalProfile`/rates/evidence | contract-service remedy calculator | Matrix 11j, 11k |
+| Supersede/refund pending conflict | `409`; state remains pending | Retry only outstanding refund/activation leg | contract/escrow/bank | Matrix 11l, 11p |
 | File virus/parse failure | File becomes `FAILED`; business attachment cannot advance | Correct source and resubmit | file-service | Matrix 15 |
 | File legal hold / retention deletion denied | Controlled rejection, file remains | No deletion retry while hold exists | file-service | Matrix 21d, 21e |
-| Audit tamper/reconciliation mismatch | Operational alert; never mutate old evidence | Repair by append-only correction or investigation | audit/bank | Matrix 4, 5, 11d, 11e, 11f |
+| Audit tamper/reconciliation mismatch | Operational alert; never mutate old evidence | Repair by append-only correction or investigation | audit/bank | Matrix 4, 5, 11d, 11e, 11f, 11q |
 | Maker-checker violation | `403`/`409` | New proposal by a different actor | governance/reputation | Matrix 16, 17 |
 
 ## Resolution
