@@ -2,38 +2,78 @@ $schema: "https://json-schema.org/draft/2020-12/schema"
 $id: "https://agricontract.local/contracts/events/notification-commands.yaml"
 title: AgriContract Canonical Notification Commands
 description: >-
-  Internal notification commands only. Recipient email is permitted here as
-  routing data required by notification-service design; canonical domain events
-  omit unnecessary contact PII.
+  Internal notification commands only. Recipient email is routing data owned by
+  the publisher; notification-service validates, renders, sends and deduplicates.
+  Domain events remain canonical for business state and side effects.
 type: object
 oneOf:
-  - $ref: "#/$defs/contractAnchorRequested"
-  - $ref: "#/$defs/contractActivationFailedRequested"
-  - $ref: "#/$defs/milestoneStatusRequested"
-  - $ref: "#/$defs/milestoneAnchorRequested"
-  - $ref: "#/$defs/securityLockChangedRequested"
-  - $ref: "#/$defs/reconciliationMismatchRequested"
-  - $ref: "#/$defs/userKycResultRequested"
-  - $ref: "#/$defs/userLockChangedRequested"
-  - $ref: "#/$defs/verifierKeyAnchorRequested"
+  - {$ref: "#/$defs/contractAnchorRequested"}
+  - {$ref: "#/$defs/contractActivationFailedRequested"}
+  - {$ref: "#/$defs/contractTerminatedRequested"}
+  - {$ref: "#/$defs/breachNoticeRequested"}
+  - {$ref: "#/$defs/remedyFinalizedRequested"}
+  - {$ref: "#/$defs/milestoneFundingStatusRequested"}
+  - {$ref: "#/$defs/milestoneStatusRequested"}
+  - {$ref: "#/$defs/milestoneAnchorRequested"}
+  - {$ref: "#/$defs/level2CommissionRequested"}
+  - {$ref: "#/$defs/auditDigestRequested"}
+  - {$ref: "#/$defs/auditFailureRequested"}
+  - {$ref: "#/$defs/securityLockChangedRequested"}
+  - {$ref: "#/$defs/reconciliationMismatchRequested"}
+  - {$ref: "#/$defs/userKycResultRequested"}
+  - {$ref: "#/$defs/userLockChangedRequested"}
+  - {$ref: "#/$defs/verifierKeyAnchorRequested"}
 $defs:
+  uuid: {type: string, format: uuid}
+  nullableUuid:
+    oneOf: [{$ref: "#/$defs/uuid"}, {type: "null"}]
   commandEnvelope:
     type: object
     required: [eventId, eventType, eventVersion, occurredAt, producer, aggregateId, correlationId, payload]
+    additionalProperties: false
     properties:
-      eventId: {type: string, format: uuid}
-      eventType: {type: string}
+      eventId: {$ref: "#/$defs/uuid"}
+      eventType: {type: string, pattern: "^notification\\.[a-z0-9_]+_requested$"}
       eventVersion: {type: integer, minimum: 1}
       occurredAt: {type: string, format: date-time}
       producer: {type: string, minLength: 1}
       aggregateId: {type: string, minLength: 1}
-      correlationId: {type: string, format: uuid}
-      causationId: {type: [string, "null"], format: uuid}
+      correlationId: {$ref: "#/$defs/uuid"}
+      causationId: {$ref: "#/$defs/nullableUuid"}
       payload: {type: object}
+  recipients:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [userId, email, role]
+      additionalProperties: false
+      properties:
+        userId: {$ref: "#/$defs/nullableUuid"}
+        email: {type: string, format: email}
+        role: {enum: [BUYER, SELLER, ADMIN, OPERATOR, INSPECTOR, SOFTWARE_BUYER]}
+  money:
+    type: string
+    pattern: "^[0-9]+\\.[0-9]{2}$"
+  remedyLeg:
+    type: object
+    required: [remedyLegId, remedyType, fundType, role, amount]
     additionalProperties: false
+    properties:
+      remedyLegId: {$ref: "#/$defs/uuid"}
+      remedyType: {enum: [NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
+      fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]}
+      role: {enum: [BUYER, SELLER]}
+      amount: {$ref: "#/$defs/money"}
+  breachReasonCode:
+    enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, NON_CONFORMING_QUALITY, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
+  nullableBreachReasonCode:
+    oneOf: [{$ref: "#/$defs/breachReasonCode"}, {type: "null"}]
   contractAnchorRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.contract_anchor_requested}
@@ -43,43 +83,173 @@ $defs:
             required: [contractId, recipients, contractTermsSnapshot, signedContentHash, signedAt]
             additionalProperties: false
             properties:
-              contractId: {type: string, format: uuid}
+              contractId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
               contractTermsSnapshot: {type: object}
               signedContentHash: {type: string, pattern: "^[a-f0-9]{64}$"}
               signedAt: {type: string, format: date-time}
-  contractActivationFailedRequested:
+  contractTerminatedRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.contract_terminated_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, recipients, terminationType, requestedBy, finalBreachingRole, breachReasonCode, remedyDecisionId, breachCaseId, affectedMilestoneIds, supersededByContractId, replacesContractId, remedyLegs]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              recipients: {$ref: "#/$defs/recipients"}
+              terminationType: {enum: [WITHDRAW_OFFER, MUTUAL_TERMINATION, MUTUAL_REPLACEMENT, TERMINATION_FOR_BREACH, TERMINATION_FOR_FORCE_MAJEURE, ACTIVATION_FAILURE]}
+              requestedBy: {enum: [BUYER, SELLER, SYSTEM]}
+              finalBreachingRole:
+                oneOf: [{enum: [BUYER, SELLER]}, {type: "null"}]
+              breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
+              remedyDecisionId: {$ref: "#/$defs/nullableUuid"}
+              breachCaseId: {$ref: "#/$defs/nullableUuid"}
+              affectedMilestoneIds: {type: array, uniqueItems: true, items: {$ref: "#/$defs/uuid"}}
+              supersededByContractId: {$ref: "#/$defs/nullableUuid"}
+              replacesContractId: {$ref: "#/$defs/nullableUuid"}
+              remedyLegs: {type: array, items: {$ref: "#/$defs/remedyLeg"}}
+  contractActivationFailedRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.contract_activation_failed_requested}
           producer: {const: contract-service}
           payload:
             type: object
-            required: [contractId, recipients]
+            required: [contractId, recipients, failedLeg, buyerDepositState, sellerDepositState, nextActions]
             additionalProperties: false
             properties:
-              contractId: {type: string, format: uuid}
+              contractId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
-  milestoneStatusRequested:
+              failedLeg: {enum: [BUYER, SELLER, BOTH]}
+              buyerDepositState: {type: string}
+              sellerDepositState: {type: string}
+              nextActions: {type: array, items: {enum: [RETRY_DEPOSIT_LOCK, MARK_ACTIVATION_FAILED]}}
+  breachNoticeRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.breach_notice_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [breachCaseId, contractId, recipients, breachReasonCode, severity, evidenceRefs]
+            additionalProperties: false
+            properties:
+              breachCaseId: {$ref: "#/$defs/uuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              recipients: {$ref: "#/$defs/recipients"}
+              breachReasonCode: {type: string}
+              severity: {enum: [MINOR, MATERIAL]}
+              evidenceRefs: {type: array, items: {type: string}}
+  remedyFinalizedRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.remedy_finalized_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, recipients, finalBreachingRole, breachReasonCode, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
+            additionalProperties: false
+            allOf:
+              - if:
+                  properties: {finalBreachingRole: {type: "null"}}
+                  required: [finalBreachingRole]
+                then:
+                  properties:
+                    penaltyEligible: {const: false}
+                    reputationEligible: {const: false}
+                    remedyLegs:
+                      items:
+                        properties:
+                          remedyType: {enum: [NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND]}
+              - if:
+                  properties: {penaltyEligible: {const: false}}
+                  required: [penaltyEligible]
+                then:
+                  properties:
+                    remedyLegs:
+                      items:
+                        properties:
+                          remedyType: {not: {const: CONTRACTUAL_PENALTY}}
+            properties:
+              remedyDecisionId: {$ref: "#/$defs/uuid"}
+              attributionDecisionId: {$ref: "#/$defs/uuid"}
+              breachCaseId: {$ref: "#/$defs/nullableUuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              buyerId: {$ref: "#/$defs/uuid"}
+              sellerId: {$ref: "#/$defs/uuid"}
+              affectedMilestoneIds: {type: array, uniqueItems: true, items: {$ref: "#/$defs/uuid"}}
+              recipients: {$ref: "#/$defs/recipients"}
+              finalBreachingRole:
+                oneOf: [{enum: [BUYER, SELLER]}, {type: "null"}]
+              breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
+              decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
+              penaltyEligible: {type: boolean}
+              reputationEligible: {type: boolean}
+              remedyLegs: {type: array, items: {$ref: "#/$defs/remedyLeg"}}
+  milestoneFundingStatusRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.milestone_funding_status_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, recipients, statusType]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              recipients: {$ref: "#/$defs/recipients"}
+              statusType: {enum: [FUNDING_REMINDER, FUNDING_FAILED, FUNDING_CURE_DEADLINE]}
+              deadline: {type: [string, "null"], format: date-time}
+              reason: {type: [string, "null"]}
+  milestoneStatusRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.milestone_status_requested}
           producer: {const: contract-service}
           payload:
             type: object
-            required: [contractId, milestoneId, recipients]
+            required: [contractId, milestoneId, recipients, statusType]
             additionalProperties: false
             properties:
-              contractId: {type: string, format: uuid}
-              milestoneId: {type: string, format: uuid}
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
+              statusType: {enum: [WEIGHED, CONFIRMED, FLAGGED, FORCE_MAJEURE, LEVEL2_OPTOUT_REQUESTED, BUYER_RECEIVE_REMINDER, PENALTY, PROVISIONAL_LEVEL2]}
+              deadline: {type: [string, "null"], format: date-time}
+              statusData: {type: object}
   milestoneAnchorRequested:
+    x-publisher: audit-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.milestone_anchor_requested}
@@ -89,15 +259,69 @@ $defs:
             required: [contractId, milestoneId, recipients, recordHash, otsProof, settlementSummary]
             additionalProperties: false
             properties:
-              contractId: {type: string, format: uuid}
-              milestoneId: {type: string, format: uuid}
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
               recordHash: {type: string, pattern: "^[a-f0-9]{64}$"}
               otsProof: {type: string}
               settlementSummary: {type: object}
-  securityLockChangedRequested:
+  level2CommissionRequested:
+    x-publisher: inspection-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.level2_commission_requested}
+          producer: {const: inspection-service}
+          payload:
+            type: object
+            required: [commissionId, contractId, recipients, org, intakeAddress]
+            additionalProperties: false
+            properties:
+              commissionId: {$ref: "#/$defs/uuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              recipients: {$ref: "#/$defs/recipients"}
+              org: {type: string}
+              intakeAddress: {type: string, format: email}
+              contractContext: {type: object}
+  auditDigestRequested:
+    x-publisher: audit-service
+    x-consumers: [notification-service]
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.audit_digest_requested}
+          producer: {const: audit-service}
+          payload:
+            type: object
+            required: [recipients, recordHash]
+            additionalProperties: false
+            properties:
+              recipients: {$ref: "#/$defs/recipients"}
+              recordHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+  auditFailureRequested:
+    x-publisher: audit-service
+    x-consumers: [notification-service]
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.audit_failure_requested}
+          producer: {const: audit-service}
+          payload:
+            type: object
+            required: [recipients, failureSummary]
+            additionalProperties: false
+            properties:
+              recipients: {$ref: "#/$defs/recipients"}
+              failureSummary: {type: object}
+  securityLockChangedRequested:
+    x-publisher: bank-service
+    x-consumers: [notification-service]
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.security_lock_changed_requested}
@@ -112,23 +336,27 @@ $defs:
               reason: {type: string}
               timestamp: {type: string, format: date-time}
   reconciliationMismatchRequested:
+    x-publisher: bank-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.reconciliation_mismatch_requested}
           producer: {const: bank-service}
           payload:
             type: object
-            required: [contractId, recipients]
+            required: [contractId, recipients, mismatchSummary]
             additionalProperties: false
             properties:
-              contractId: {type: string, format: uuid}
+              contractId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
               mismatchSummary: {type: object}
   userKycResultRequested:
+    x-publisher: user-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.user_kyc_result_requested}
@@ -138,15 +366,17 @@ $defs:
             required: [userId, recipientEmail, organizationName, result, decidedAt]
             additionalProperties: false
             properties:
-              userId: {type: string, format: uuid}
+              userId: {$ref: "#/$defs/uuid"}
               recipientEmail: {type: string, format: email}
               organizationName: {type: string}
               result: {enum: [VERIFIED, REJECTED]}
               reason: {type: string}
               decidedAt: {type: string, format: date-time}
   userLockChangedRequested:
+    x-publisher: user-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.user_lock_changed_requested}
@@ -156,14 +386,16 @@ $defs:
             required: [userId, recipientEmail, action, reasonCode]
             additionalProperties: false
             properties:
-              userId: {type: string, format: uuid}
+              userId: {$ref: "#/$defs/uuid"}
               recipientEmail: {type: string, format: email}
               action: {enum: [LOCKED, UNLOCKED]}
               effectiveUntil: {type: [string, "null"], format: date-time}
               reasonCode: {type: string}
   verifierKeyAnchorRequested:
+    x-publisher: bank-service
+    x-consumers: [notification-service]
     allOf:
-      - $ref: "#/$defs/commandEnvelope"
+      - {$ref: "#/$defs/commandEnvelope"}
       - type: object
         properties:
           eventType: {const: notification.verifier_key_anchor_requested}
@@ -174,15 +406,4 @@ $defs:
             additionalProperties: false
             properties:
               recipientEmail: {type: string, format: email}
-              publicKeyFingerprint: {type: string}
-  recipients:
-    type: array
-    minItems: 1
-    items:
-      type: object
-      required: [userId, email, role]
-      additionalProperties: false
-      properties:
-        userId: {type: string, format: uuid}
-        email: {type: string, format: email}
-        role: {enum: [BUYER, SELLER, ADMIN, OPERATOR, INSPECTOR]}
+              publicKeyFingerprint: {type: string, minLength: 1}
