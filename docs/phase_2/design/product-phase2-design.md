@@ -1,6 +1,6 @@
 ---
 name: product-phase2-design
-description: "Product-service — Farm Plot Geolocation cho EUDR compliance (Phase 2). Nguồn: design session 02/07/2026, cập nhật 04/07/2026 (Plot Registry + GEOMETRY/JTS validation), 05/07/2026 (province cross-check, varietyName), 06/07/2026 (geo-risk verification qua vệ tinh — chưa đóng)."
+description: "Product-service — Farm Plot Geolocation cho EUDR compliance (Phase 2). Nguồn: design session 02/07/2026, cập nhật 04/07/2026 (Plot Registry + GEOMETRY/JTS validation), 05/07/2026 (province cross-check, varietyName), 06/07/2026 (geo-risk verification qua vệ tinh; điểm treo ngưỡng NDVI đã GỠ 08/07/2026 — chuyển sang baseline ForTy/Natural Forests làm sẵn, §2.2.4)."
 status: DESIGNED — chưa code.
 metadata:
   type: design

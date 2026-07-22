@@ -8,11 +8,11 @@ toc-title: "Mục lục"
 
 # **Tóm tắt điều hành**
 
-Kiến trúc mục tiêu gồm **12 business services** và `api-gateway` ở lớp biên. Signature/OTP thuộc `contract-service`; hash chain/anchor thuộc `audit-service`; gateway không được tính như business service. Hệ thống dùng database-per-service, transactional outbox và at-least-once messaging, nhưng đặt guard mạnh hơn trên đường tiền: bank ledger là nguồn sự thật duy nhất, mỗi money leg có idempotency key riêng, và lifecycle terminal chỉ được commit sau ledger reconciliation + zero remaining lock.
+Kiến trúc mục tiêu gồm **12 business services** và `api-gateway` ở lớp biên. Signature/OTP thuộc `contract-service`; hash chain/anchor thuộc `audit-service`; gateway không được tính như business service. Hệ thống dùng database-per-service, transactional outbox và at-least-once messaging, nhưng đặt guard mạnh hơn trên đường tiền: bank ledger là sổ tiền authoritative, mỗi money leg có idempotency key riêng, và lifecycle terminal chỉ được commit sau ledger reconciliation + zero remaining lock.
 
 Ranh giới quan trọng nhất là **decision trước consequence**. `requestedBy`, allegation và final attribution được tách. `remedy.finalized` là event canonical duy nhất kích hoạt money consequences và negative reputation. `contract.settled`/`contract.terminated` chỉ phản ánh lifecycle/audit/analytics; bank và reputation không được consume chúng để release/seize/lock.
 
-Kiến trúc áp dụng các control zero-trust-oriented tại edge, internal route và External Verifier, nhưng không claim full Zero Trust. Bank thật, CA signature, external inspection production và một số DR/data integration vẫn ngoài phạm vi Phase 2 implementation.
+Kiến trúc áp dụng các control zero-trust-oriented tại edge, internal route và External Verifier, nhưng không claim mô hình Zero Trust toàn diện. Bank thật, CA signature, external inspection production và một số DR/data integration vẫn ngoài phạm vi Phase 2 implementation.
 
 # **1. Context, phạm vi và nguyên tắc**
 
@@ -23,7 +23,7 @@ External actors gồm Buyer, Seller, Inspector, Admin, Operator, External Verifi
 ## **1.2 Nguyên tắc kiến trúc**
 
 - Business capability ownership rõ và database-per-service; không cross-service DB access.
-- Rich aggregate/state transition; không để controller/repository tự sửa state.
+- Rich aggregate/state transition; không để controller hoặc tầng truy cập dữ liệu tự sửa state.
 - Outbox cùng local transaction; consumer idempotent; DLQ replay giữ event ID gốc.
 - Số tiền chỉ authoritative ở bank ledger. escrow/contract giữ projection, expected legs và state, không tạo balance thứ hai.
 - Decision side effect có canonical boundary; lifecycle/notification/analytics không được trở thành đường phạt song song.
@@ -48,8 +48,8 @@ Gateway không route `/internal/**`; downstream không tin `X-User-*` do client 
 | user-service | Identity, KYC, role, eligibility và lock projection | user_db | user KYC/lock commands; internal eligibility API | Không sở hữu reputation ledger |
 | product-service | Plot registry, product/listing, commodity gate, geo/yield risk | product_db | user eligibility; file.ready | Plot là seller-owned; overlap là signal |
 | contract-service | Contract, milestone, signature/OTP, attribution, remedy, termination | contract_db | REST commands; domain events; internal user/OTP | Owner duy nhất của business decision và lifecycle |
-| escrow-service | Projection escrow và chuyển remedy legs thành bank commands | escrow_db | contract.signed, remedy.finalized, milestone outcomes, bank results | Không là source of truth số tiền |
-| bank-service | Append-only monetary ledger, lock/release/refund/seize, security lock | bank_db | bank.*_requested; structuring signal; external verifier | Single source of truth cho tiền |
+| escrow-service | Projection escrow và chuyển remedy legs thành bank commands | escrow_db | contract.signed, remedy.finalized, milestone outcomes, bank results | Không sở hữu sổ tiền authoritative |
+| bank-service | Append-only monetary ledger, lock/release/refund/seize, security lock | bank_db | bank.*_requested; structuring signal; external verifier | Sở hữu sổ tiền authoritative |
 | inspection-service | Level 1.5/2 commission, result/report hash, confirmation | inspection_db | contract/milestone commands, file.ready | Không ra phán quyết pháp lý |
 | reputation-service | Immutable completion/dispute/lock facts và derived score | reputation_db | remedy.finalized, settled facts, risk signals | Negative consequence chỉ từ remedy.finalized |
 | audit-service | Append-only dual hash chain, anchor, verify, evidence query | audit_db | evidence/security/domain events | Không sửa source facts; dedup source_event_id |
@@ -115,73 +115,73 @@ Contract-service không consume bank result trực tiếp để quyết định 
 
 ## **5.2 Domain/bank event catalog**
 
-| Event | Producer | Consumers | Boundary/nguồn |
+| Event | Producer | Consumers | Side-effect boundary |
 |---|---|---|---|
-| contract.signed | contract-service | escrow-service, analytics-service, audit-service | milestone-escrow-phase2-design.md section 7.2 |
-| escrow.deposit_locked | escrow-service | contract-service, escrow-service | milestone-escrow-phase2-design.md section 7.2 |
-| escrow.deposit_lock_failed | escrow-service | contract-service | milestone-escrow-phase2-design.md sections 3.1 and 7.2 |
-| bank.lock_requested | escrow-service | bank-service | bank-service-phase2-design.md section 3 |
-| bank.lock_completed | bank-service | escrow-service | bank-service-phase2-design.md section 3 |
-| bank.lock_failed | bank-service | escrow-service | bank-service-phase2-design.md section 3 |
-| bank.release_requested | escrow-service | bank-service | bank-service-phase2-design.md sections 3.1 and 3.3; SDS Event Catalog 4.2 |
-| bank.release_completed | bank-service | escrow-service | bank-service-phase2-design.md section 3; SDS Event Catalog 4.2 |
-| bank.release_failed | bank-service | escrow-service | bank-service-phase2-design.md section 3; SDS Event Catalog 4.2 |
-| bank.seize_requested | escrow-service | bank-service | bank-service-phase2-design.md sections 3 and 3.2; SDS Event Catalog 4.2 |
-| bank.seize_completed | bank-service | escrow-service | bank-service-phase2-design.md section 3; SDS Event Catalog 4.2 |
-| bank.seize_failed | bank-service | escrow-service | bank-service-phase2-design.md section 3; SDS Event Catalog 4.2 |
-| bank.refund_requested | escrow-service | bank-service | bank-service-phase2-design.md sections 3.1-3.3; SDS Event Catalog 4.2 |
-| bank.refund_completed | bank-service | escrow-service | bank-service-phase2-design.md section 3; SDS Event Catalog 4.2 |
-| bank.refund_failed | bank-service | escrow-service | bank-service-phase2-design.md section 3; SDS Event Catalog 4.2 |
+| contract.signed | contract-service | escrow-service, analytics-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| escrow.deposit_locked | escrow-service | contract-service, escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| escrow.deposit_lock_failed | escrow-service | contract-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.lock_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.lock_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.lock_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.release_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.release_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.release_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.seize_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.seize_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.seize_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.refund_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.refund_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.refund_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
 | contract.settled | contract-service | reputation-service, analytics-service | Lifecycle/positive-history event only. Normal completion first emits the existing SYSTEM/no-fault remedy.finalized owner-return legs; this event is published only after all expected legs reconcile and remaining lock is zero, and must not be consumed by escrow-service for money. |
 | contract.terminated | contract-service | audit-service, analytics-service | Lifecycle/audit/analytics/notification only. Escrow and reputation MUST NOT consume this event for consequences. |
 | breach.reported | contract-service | audit-service | Allegation only; no bank or reputation consumer is permitted. |
 | remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | Sole canonical trigger for termination/remedy money legs and reputation lock, including normal-completion return of contract-level deposits. |
-| milestone.settled | contract-service | escrow-service, analytics-service, audit-service | milestone-escrow-phase2-design.md section 7.1 |
-| milestone.dispute_resolved | contract-service | reputation-service | milestone-escrow-phase2-design.md section 7.1 |
-| milestone.level2_provisional_settled | contract-service | escrow-service | milestone-escrow-phase2-design.md section 7.1 |
-| milestone.level2_buffer_reconciled | contract-service | escrow-service | milestone-escrow-phase2-design.md section 7.1 |
-| milestone.level2_terminal_settled | contract-service | escrow-service | milestone-escrow-phase2-design.md section 7.1 |
-| inspection.report_confirmed | inspection-service | audit-service, contract-service | inspection-phase2-design.md section 4; milestone-escrow-phase2-design.md section 3.2; approved OQ-02 |
-| milestone.seller_weighed | contract-service | file-service, audit-service | milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1 |
-| milestone.buyer_confirmed | contract-service | audit-service | milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1 |
-| milestone.flagged | contract-service |  | milestone-escrow-phase2-design.md sections 3.2 and 7.1 |
-| milestone.force_majeure_claimed | contract-service | audit-service | milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1 |
-| milestone.force_majeure_resolved | contract-service | escrow-service, audit-service | milestone-escrow-phase2-design.md sections 3.2 and 7.1 |
+| milestone.settled | contract-service | escrow-service, analytics-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.dispute_resolved | contract-service | reputation-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.level2_provisional_settled | contract-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.level2_buffer_reconciled | contract-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.level2_terminal_settled | contract-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| inspection.report_confirmed | inspection-service | audit-service, contract-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.seller_weighed | contract-service | file-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.buyer_confirmed | contract-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.flagged | contract-service |  | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.force_majeure_claimed | contract-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| milestone.force_majeure_resolved | contract-service | escrow-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
 | milestone.cancelled_with_penalty | contract-service | analytics-service, audit-service | Observational milestone outcome only. Money and reputation are already triggered by remedy.finalized and must not be consumed here. |
-| escrow.milestone_funding_failed | escrow-service | contract-service | milestone-escrow-phase2-design.md section 6b and 7.1 |
-| reputation.locked | reputation-service | user-service | user-service-phase2-design.md sections 2.2 and 7 |
-| reputation.unlocked | reputation-service | user-service | user-service-phase2-design.md sections 2.2 and 7 |
-| file.ready | file-service | contract-service, inspection-service | file-service-phase2-design.md section 5 |
-| file.failed | file-service | contract-service, inspection-service | file-service-phase2-design.md section 5 |
-| bank.security_lock_changed | bank-service | audit-service | bank-service-phase2-design.md sections 3.5.4 and 3.5.7 |
-| bank.verifier_key_registered | bank-service | audit-service | bank-service-phase2-design.md section 3.5.6 |
-| bank.large_transaction_flagged | bank-service | reputation-service, audit-service | bank-service-phase2-design.md section 3.4 |
-| bank.suspicious_report_created | bank-service | audit-service | bank-service-phase2-design.md section 3.4b |
-| analytics.structuring_pattern_detected | analytics-service | reputation-service, bank-service | analytics-service-phase2-design.md section 3.5 |
-| reputation.elevated_risk_cleared | reputation-service | audit-service | reputation-service-phase2-design.md section 8 |
-| inspection.level2_commissioned | inspection-service | audit-service | inspection-phase2-design.md sections 3.4 and 4 |
-| file.email_notice | file-service | inspection-service | file-service-phase2-design.md sections 4.1 and 5 |
+| escrow.milestone_funding_failed | escrow-service | contract-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| reputation.locked | reputation-service | user-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| reputation.unlocked | reputation-service | user-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| file.ready | file-service | contract-service, inspection-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| file.failed | file-service | contract-service, inspection-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.security_lock_changed | bank-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.verifier_key_registered | bank-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.large_transaction_flagged | bank-service | reputation-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| bank.suspicious_report_created | bank-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| analytics.structuring_pattern_detected | analytics-service | reputation-service, bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| reputation.elevated_risk_cleared | reputation-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| inspection.level2_commissioned | inspection-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| file.email_notice | file-service | inspection-service | Canonical contract; consumer follows the side-effect boundary described in this document |
 
 ## **5.3 Notification command catalog**
 
 | Command | Producer | Consumer | Payload required |
 |---|---|---|---|
-| contractAnchorRequested | contract-service | notification-service |  |
-| contractActivationFailedRequested | contract-service | notification-service |  |
-| contractTerminatedRequested | contract-service | notification-service |  |
-| breachNoticeRequested | contract-service | notification-service |  |
-| remedyFinalizedRequested | contract-service | notification-service |  |
-| milestoneFundingStatusRequested | contract-service | notification-service |  |
-| milestoneStatusRequested | contract-service | notification-service |  |
-| milestoneAnchorRequested | audit-service | notification-service |  |
-| level2CommissionRequested | inspection-service | notification-service |  |
-| auditDigestRequested | audit-service | notification-service |  |
-| auditFailureRequested | audit-service | notification-service |  |
-| securityLockChangedRequested | bank-service | notification-service |  |
-| reconciliationMismatchRequested | bank-service | notification-service |  |
-| userKycResultRequested | user-service | notification-service |  |
-| userLockChangedRequested | user-service | notification-service |  |
-| verifierKeyAnchorRequested | bank-service | notification-service |  |
+| notification.contract_anchor_requested | contract-service | notification-service | `contractId`, `recipients`, `contractTermsSnapshot`, `signedContentHash`, `signedAt` |
+| notification.contract_activation_failed_requested | contract-service | notification-service | `contractId`, `recipients`, `failedLeg`, `buyerDepositState`, `sellerDepositState`, `nextActions` |
+| notification.contract_terminated_requested | contract-service | notification-service | `contractId`, `recipients`, `terminationType`, `requestedBy`, `finalBreachingRole`, `breachReasonCode`, `remedyDecisionId`, `breachCaseId`, `affectedMilestoneIds`, `supersededByContractId`, `replacesContractId`, `remedyLegs` |
+| notification.breach_notice_requested | contract-service | notification-service | `breachCaseId`, `contractId`, `recipients`, `breachReasonCode`, `severity`, `evidenceRefs` |
+| notification.remedy_finalized_requested | contract-service | notification-service | `remedyDecisionId`, `attributionDecisionId`, `breachCaseId`, `contractId`, `buyerId`, `sellerId`, `affectedMilestoneIds`, `recipients`, `finalBreachingRole`, `breachReasonCode`, `decisionSource`, `penaltyEligible`, `reputationEligible`, `remedyLegs` |
+| notification.milestone_funding_status_requested | contract-service | notification-service | `contractId`, `milestoneId`, `recipients`, `statusType` |
+| notification.milestone_status_requested | contract-service | notification-service | `contractId`, `milestoneId`, `recipients`, `statusType` |
+| notification.milestone_anchor_requested | audit-service | notification-service | `contractId`, `milestoneId`, `recipients`, `recordHash`, `otsProof`, `settlementSummary` |
+| notification.level2_commission_requested | inspection-service | notification-service | `commissionId`, `contractId`, `recipients`, `org`, `intakeAddress` |
+| notification.audit_digest_requested | audit-service | notification-service | `recipients`, `recordHash` |
+| notification.audit_failure_requested | audit-service | notification-service | `recipients`, `failureSummary` |
+| notification.security_lock_changed_requested | bank-service | notification-service | `recipients`, `action`, `reason`, `timestamp` |
+| notification.reconciliation_mismatch_requested | bank-service | notification-service | `contractId`, `recipients`, `mismatchSummary` |
+| notification.user_kyc_result_requested | user-service | notification-service | `userId`, `recipientEmail`, `organizationName`, `result`, `decidedAt` |
+| notification.user_lock_changed_requested | user-service | notification-service | `userId`, `recipientEmail`, `action`, `reasonCode` |
+| notification.verifier_key_anchor_requested | bank-service | notification-service | `recipientEmail`, `publicKeyFingerprint` |
 
 # **6. Data architecture và invariant storage**
 
@@ -230,11 +230,11 @@ JWT cho user; service auth cho internal. Gateway coarse role; service owner fine
 
 ## **8.2 External Verifier emergency control**
 
-ES256 public key baked/deploy-time, RFC 8785 canonicalization, timestamp ±300s, nonce persist, action binding. Lock active làm mọi `bank.*_requested` fail. Unlock mirror lock; không Admin bypass. Đây là một control khẩn cấp hẹp, không phải full Zero Trust.
+ES256 public key baked/deploy-time, RFC 8785 canonicalization, timestamp ±300s, nonce persist, action binding. Lock active làm mọi `bank.*_requested` fail. Unlock mirror lock; không Admin bypass. Đây là một control khẩn cấp hẹp, không phải mô hình Zero Trust toàn diện.
 
 ## **8.3 Evidence scope**
 
-Audit hash chứng minh record không bị sửa sau commit; content/report hash chứng minh artefact bytes/normalized result; OTP chứng minh challenge holder hoàn tất thao tác; không lớp nào tự chứng minh thẩm quyền pháp lý, sự thật ngoài đời hoặc tính hợp pháp của điều khoản.
+Audit hash hỗ trợ kiểm tra record có bị sửa sau commit hay không; content/report hash hỗ trợ kiểm tra artefact bytes/normalized result; OTP ghi nhận challenge holder đã hoàn tất thao tác. Không lớp nào tự chứng minh dữ liệu đầu vào đúng, người thao tác có thẩm quyền pháp lý hoặc điều khoản hợp pháp; giá trị chứng cứ phụ thuộc độ tin cậy, tính toàn vẹn và khả năng xác định chủ thể trong bối cảnh giao dịch. [27]
 
 ## **8.4 Retention/DR**
 
@@ -255,7 +255,7 @@ Môi trường mục tiêu dùng container, MySQL per service/schema, RabbitMQ, 
 
 # **10. API surface overview**
 
-OpenAPI frozen có 41 paths. Bảng dưới là ownership-level catalog; request/response schema chi tiết nằm trong SDS.
+OpenAPI frozen có 41 paths và 42 operations. Bảng dưới trình bày ownership-level catalog, request schema và auth/role; JSON error dùng `ErrorEnvelope` gồm `timestamp`, `status`, `error`, `code`, `message`, `path`, `traceId`. Endpoint không khai báo security riêng kế thừa bearer JWT; `/internal/**` dùng `serviceAuth`, audit hash dùng `X-Api-Key`, emergency lock/unlock chỉ nhận signed request của External Verifier.
 
 | Method | Path | Owner | Operation | Request | Auth/role |
 |---|---|---|---|---|---|
@@ -296,20 +296,49 @@ OpenAPI frozen có 41 paths. Bảng dưới là ownership-level catalog; request
 | GET | /internal/v1/users/{userId} | user-service | getInternalUserInfo | — | serviceAuth |
 | POST | /internal/v1/notifications/otp-email | notification-service | sendOtpEmail | OtpEmailRequest | serviceAuth |
 | GET | /internal/v1/audit/records | audit-service | getAuditRecordsForReconciliation | — | serviceAuth |
-| GET | /api/v1/security/audit-hash | audit-service | getAuditHash | — | JWT |
+| GET | /api/v1/security/audit-hash | audit-service | getAuditHash | — | X-Api-Key |
 | POST | /api/v1/security/emergency-lock | bank-service | emergencyLock | ExternalVerifierRequest | External Verifier |
 | POST | /api/v1/security/emergency-unlock | bank-service | emergencyUnlock | ExternalVerifierRequest | External Verifier |
 | GET | /api/v1/escrows/statements | escrow-service | exportEscrowStatement | — | JWT |
 | GET | /internal/v1/bank/ledger | bank-service | getInternalLedgerEntries | — | serviceAuth |
 
-# **11. Known limitations và Future Work**
+# **11. Current Scope**
 
-- Bank/custodian, external inspection, CA signature, email/OAuth/source pricing là adapter/mocks cần production integration.
-- Full mTLS/service mesh, multi-region HA, HSM/KMS, external immutable storage policy và automated cold rebuild không phải Phase 2 completed capability.
-- Full contract amendment, partial mutual termination, quality-indexed settlement và automated legal rule engine nằm ngoài scope; replacement là cơ chế hiện tại.
-- Geo/yield/AML signals không auto convict/hold; external legal/EUDR validation vẫn cần.
-- Analytics catch-up được bảo đảm từ queue backlog cho outage ngắn, không claim rebuild mọi history từ empty DB.
+Phase 2 hiện thực hoá boundary của 12 business services, API Gateway, database-per-service, event envelope, outbox/idempotency, contract–escrow–bank golden flow, inspection, reputation, audit/evidence, product geolocation, file intake, external reference pricing, user governance, notification và analytics projection. Các state, event, endpoint, schema và side-effect boundary trong tài liệu là contract thiết kế để triển khai; chúng không phải bằng chứng rằng toàn bộ capability đã chạy production.
 
-# **12. Source-of-truth index**
+# **12. Known Limitations**
 
-Thiết kế chi tiết được đồng bộ từ toàn bộ design service, Verification Matrix, state machine/integration/enum/error/golden-flow contract, OpenAPI, event/notification schemas và implementation plan ngày 20/07/2026. Khi có mâu thuẫn, design mới nhất và Verification Matrix được ưu tiên; source code chỉ là baseline triển khai.
+- Bank/custodian thật, CA signature, tổ chức inspection production, provider pricing và OpenTimestamps production chưa được tích hợp trong Phase 2; bank-service là ledger/adapter mô phỏng.
+- Full mTLS/service mesh, HSM/KMS độc lập, multi-region HA, deployment attestation và cold rebuild analytics chưa thuộc phạm vi implementation.
+- Geo/yield/AML/overlap chỉ là tín hiệu hỗ trợ review; traceability phụ thuộc chất lượng dữ liệu, chi phí và quy trình due diligence, nên không tự kết luận gian lận, sự thật địa chính, compliance EUDR hay trách nhiệm pháp lý. [21], [22], [30]
+- OTP là một phương thức xác nhận điện tử; giá trị chứng cứ và thẩm quyền đại diện vẫn cần đánh giá theo giao dịch, định danh và tài liệu thực tế. [27]
+- Phân loại tiền cọc, penalty, damages, licensing boundary và mẫu hợp đồng cần legal validation; việc tách custody khỏi platform không tự chứng minh compliance. [28], [29], [45], [46]
+- Hệ thống không bảo vệ tuyệt đối trước collusion của các trust domain hoặc hạ tầng bị compromise đồng thời; zero-trust-oriented controls chỉ giảm implicit trust tại các boundary đã nêu.
+- Analytics/notification có eventual consistency; queue backlog chỉ hỗ trợ catch-up outage ngắn, không phải cold rebuild toàn bộ lịch sử.
+
+# **13. Future Work**
+
+- Tích hợp custodian/ngân hàng thật, đối soát và báo cáo AML theo adapter đã đóng băng.
+- Tích hợp CA/WebAuthn, production inspection/accreditation và adapter email/provider phù hợp deployment.
+- Tách separation-of-duties hạ tầng, mTLS/KMS/HSM, deployment attestation và DR/scale production.
+- Thiết kế riêng cho ContractVersion amendment sau ký, full notice–cure–remedy state machine, quality-indexed settlement, payment/security package đầy đủ và partial mutual termination.
+- Tự động hoá nguồn giá cao su quốc tế sau khi có chuẩn hoá đơn vị/tỷ giá; logistics/3PL tracking chỉ khi có đối tác thật.
+- Hoàn thiện cross-border/ND13 assessment, DSAR và các chính sách vận hành ngoài prototype.
+
+# **14. Danh mục nguồn tham khảo**
+
+[21] A. Kashyap et al., “Traceability Adoption Barriers in Digital Food Supply Chain to Achieve Food Security and Sustainability,” Bus. Strategy Environ., vol. 35, no. 1, 2025, doi: 10.1002/bse.70177.
+
+[22] V. Guye, P. Meyfroidt, and E. z. Ermgassen, “The Need for Improved Public Transparency in the Era of Due Diligence Regulations,” Regulation & Governance, 2026, doi: 10.1111/rego.70142.
+
+[27] Quốc hội Việt Nam, Luật Giao dịch điện tử số 20/2023/QH15, 2023.
+
+[28] Chính phủ Việt Nam, Nghị định 52/2024/NĐ-CP, 2024.
+
+[29] Chính phủ Việt Nam, Nghị định 340/2025/NĐ-CP, 2025.
+
+[30] European Parliament and Council, Regulation (EU) 2023/1115, consolidated Dec. 26, 2025.
+
+[45] Quốc hội Việt Nam, Bộ luật Dân sự số 91/2015/QH13, 2015.
+
+[46] Quốc hội Việt Nam, Luật Thương mại số 36/2005/QH11, 2005.

@@ -10,15 +10,15 @@ toc-title: "Mục lục"
 
 AgriContract là contract layer cho giao dịch nông sản B2B: hợp đồng điện tử, cọc và milestone escrow qua custody boundary, giao nhận/giám định, attribution/remedy, reputation và audit evidence. Thiết kế Phase 2 thay mô hình “huỷ một nút rồi phạt” bằng taxonomy chấm dứt và decision chain rõ ràng. Tiền và uy tín không phản ứng trực tiếp với allegation hoặc lifecycle event; chúng chỉ phản ứng với quyết định cuối cùng canonical.
 
-Tài liệu này mô tả mô hình người dùng, golden flow, giá trị và giới hạn ở mức nghiệp vụ. API, event wire contract, schema, idempotency và migration chi tiết nằm trong Architecture/SDS. Mọi capability được mô tả là target design; tích hợp ngân hàng/giám định production và legal validation vẫn là giới hạn.
+Tài liệu này mô tả mô hình người dùng, golden flow, giá trị, các quy tắc nghiệp vụ và giới hạn ở mức nghiệp vụ. Các quyết định về API, event, schema, idempotency và migration được tóm lược đủ trong phạm vi tài liệu này; mọi capability được mô tả là target design, còn tích hợp ngân hàng/giám định production và legal validation vẫn là giới hạn.
 
 # **1. Định nghĩa sản phẩm**
 
-AgriContract là nền tảng số hoá hợp đồng mua bán nông sản B2B với cơ chế tiền cọc và tiền phong toả do ngân hàng giữ. Hợp đồng không bị phủ nhận giá trị pháp lý chỉ vì được giao kết và lưu trữ bằng phương tiện điện tử; hiệu lực vẫn phụ thuộc các điều kiện chung của giao dịch, pháp luật về hợp đồng và quy định có liên quan.
+AgriContract là nền tảng số hoá hợp đồng mua bán nông sản B2B với cơ chế tiền cọc và tiền phong toả do custodian/tổ chức tín dụng phù hợp giữ theo mô hình pilot. Hợp đồng không bị phủ nhận giá trị pháp lý chỉ vì được giao kết và lưu trữ bằng phương tiện điện tử; hiệu lực vẫn phụ thuộc các điều kiện chung của giao dịch, pháp luật về hợp đồng và quy định có liên quan. [27]
 
 **Phạm vi giới hạn có chủ đích ở tầng hợp đồng.** AgriContract không xử lý logistics, không phải sàn thương mại điện tử, không thay thế hệ thống kế toán doanh nghiệp. Phần mềm giải quyết một vấn đề cụ thể — thiếu cơ chế thực thi workflow theo điều kiện trong giao dịch forward contract nông sản B2B — và không có tham vọng giải quyết toàn bộ chuỗi cung ứng.
 
-> **Căn cứ pháp lý — Luật GDĐT 2023, Điều 8, Điều 14 và Điều 34–36.** Thông tin không bị phủ nhận giá trị pháp lý chỉ vì ở dạng thông điệp dữ liệu; việc giao kết và thực hiện hợp đồng điện tử vẫn phải tuân thủ pháp luật về hợp đồng và quy định liên quan. Audit trail có thể được sử dụng làm chứng cứ, với giá trị phụ thuộc độ tin cậy của phương thức tạo lập, gửi, nhận, lưu trữ và bảo toàn tính toàn vẹn.
+> **Căn cứ pháp lý — Luật GDĐT 2023, Điều 8, Điều 14 và Điều 34–36.** Thông tin không bị phủ nhận giá trị pháp lý chỉ vì ở dạng thông điệp dữ liệu; việc giao kết và thực hiện hợp đồng điện tử vẫn phải tuân thủ pháp luật về hợp đồng và quy định liên quan. Audit trail có thể được sử dụng làm chứng cứ, với giá trị phụ thuộc độ tin cậy của phương thức tạo lập, gửi, nhận, lưu trữ và bảo toàn tính toàn vẹn. [27]
 
 # **2. Năm tầng người dùng**
 
@@ -31,10 +31,10 @@ Nền tảng có năm nhóm người dùng với quan hệ pháp lý và quyền
 | Tầng 1 — Software Buyer | Hiệp hội ngành hàng (VICOFA, VRA, VINACAS) hoặc doanh nghiệp thu mua lớn (Intimex, Phúc Sinh Group, XNK 2/9 Đắk Lắk) | Trả phí license/subscription — nguồn doanh thu của nền tảng. Triển khai cho cộng đồng thành viên; chỉ định OPERATOR vận hành hằng ngày và ADMIN kiểm soát hành động rủi ro cao |
 | Tầng 2 — Platform Buyer | Doanh nghiệp thu mua, tập đoàn xuất khẩu nông sản (nhiều trường hợp trùng Tầng 1) | Khởi tạo offer và đàm phán điều khoản; khoá tiền ký quỹ trước khi bên bán giao hàng; xác nhận nhận hàng để kích hoạt giải ngân |
 | Tầng 3 — Platform Seller | Hợp tác xã nông sản, nông hộ liên kết, doanh nghiệp cung ứng nguyên liệu | Đăng listing sau khi được xác minh; đàm phán và ký hợp đồng điện tử; giao hàng và nhận thanh toán. Nhóm được cơ chế ký quỹ bảo vệ trực tiếp nhất |
-| Tầng 4 — INSPECTOR | Tổ chức giám định được Nhà nước công nhận: Vinacontrol, Quatest, SGS, Bureau Veritas, Intertek | Nhân chứng chuyên môn độc lập, không phải người phán xử. Xác định số lượng/chất lượng tại điểm giao nhận; nộp inspection report có hash xác thực, không sửa được sau khi submit |
-| Tầng 5 — Escrow Holder | Ngân hàng thương mại được NHNN cấp phép (Agribank/BIDV) | Không phải người dùng nền tảng. Giữ tiền thật; nền tảng chỉ gửi lệnh khoá/giải ngân/phạt. Cấu trúc này loại bỏ rủi ro vi phạm quy định trung gian thanh toán |
+| Tầng 4 — INSPECTOR | Tổ chức giám định được Nhà nước công nhận: Vinacontrol, Quatest, SGS, Bureau Veritas, Intertek | Nhân chứng chuyên môn độc lập, không phải người phán xử. Xác định số lượng/chất lượng tại điểm giao nhận; nộp inspection report với cam kết hash để phát hiện thay đổi sau khi submit |
+| Tầng 5 — Escrow Holder | Custodian/tổ chức tín dụng được phép theo mô hình pilot | Không phải người dùng nền tảng. Custodian giữ tiền thật; nền tảng chỉ gửi lệnh khoá/giải ngân theo điều kiện đã xác định. Cấu trúc này có thể giúp phân định custody khỏi platform, nhưng không tự kết luận mô hình đã đáp ứng mọi yêu cầu cấp phép [28], [29] |
 
-**Vì sao bán cho hiệp hội, không bán trực tiếp cho HTX.** HTX nhỏ không mua phần mềm. Hiệp hội hoặc doanh nghiệp thu mua lớn triển khai nền tảng, thành viên của họ sử dụng. Cách này cũng giải quyết bài toán niềm tin: HTX không cần tin một startup mới — họ tin VICOFA/VRA đã triển khai nền tảng. Khi ngân hàng giữ tiền, niềm tin hoàn toàn độc lập với uy tín thương hiệu của nền tảng.
+**Giả thuyết kênh phân phối qua hiệp hội.** Nghiên cứu về HTX Việt Nam ghi nhận khác biệt về quy mô, năng lực quản trị và nguồn lực; willingness-to-pay và năng lực mua phần mềm của nhóm HTX nhỏ chưa được kiểm chứng. Vì vậy mô hình đề xuất là để hiệp hội hoặc doanh nghiệp thu mua lớn làm anchor buyer, sau đó đo adoption, WTP và mức hỗ trợ vận hành của HTX trong pilot. [15], [16]
 
 ### **Xử lý xung đột lợi ích khi Tầng 1 và Tầng 2 trùng nhau**
 
@@ -43,9 +43,9 @@ Khi doanh nghiệp thu mua vừa mua license vừa là bên mua hàng trên nề
 1.  Tranh chấp giá trị lớn hoặc hàng hoá phức tạp bắt buộc kích hoạt INSPECTOR độc lập — OPERATOR/ADMIN được ủy quyền chỉ thực thi kết quả giám định, không được ra phán quyết độc lập.
 
 
-2.  Mọi quyết định vận hành của OPERATOR/ADMIN được ghi vào audit trail không thể xoá/sửa sau khi submit; hành động override bị đánh dấu vĩnh viễn.
+2.  Mọi quyết định vận hành của OPERATOR/ADMIN được ghi vào audit trail append-only; hành động override được đánh dấu và có thể phát hiện nếu dữ liệu bị thay đổi.
 
-Khuyến nghị vận hành: ưu tiên triển khai qua hiệp hội ngành hàng — bên trung lập, không có lợi ích đối lập với Buyer hay Seller trong từng giao dịch — để loại bỏ xung đột lợi ích ngay từ mô hình phân phối.
+Khuyến nghị vận hành: có thể thử triển khai qua hiệp hội ngành hàng, nhưng không mặc định hiệp hội luôn trung lập hoặc loại bỏ xung đột lợi ích; mỗi pilot cần ghi nhận vai trò, quyền truy cập và cơ chế recusal cụ thể.
 
 # **3. Luồng giao dịch Phase 2**
 
@@ -113,7 +113,7 @@ Tổ chức Level 2 phải phù hợp allowlist/accreditation rule theo hợp đ
 
 # **5. Uy tín và cơ chế khoá tài khoản**
 
-Reputation không phạt theo allegation, `contract.terminated`, hành vi bấm nút hay event milestone quan sát. **Input tiêu cực duy nhất** là `remedy.finalized` với `reputationEligible = true` và attribution đã final. User bị ảnh hưởng được xác định trực tiếp từ `buyerId`/`sellerId` cùng `finalBreachingRole` trong payload.
+Reputation không phạt theo allegation, `contract.terminated`, hành vi bấm nút hay event milestone quan sát. **Input tiêu cực duy nhất** là `remedy.finalized` với `reputationEligible = true` và attribution đã final. User bị ảnh hưởng được xác định trực tiếp từ `buyerId`/`sellerId` cùng `finalBreachingRole` trong payload. Reputation là tín hiệu từ các fact đã ghi nhận, có thể chịu bias, cold-start và dispute; không phải thước đo hoàn hảo về uy tín hay sự thật. [18], [20]
 
 `lock_entry` là insert-only, unique theo `remedy_decision_id`; một decision tạo tối đa một lock. Mở khoá sớm dùng override append-only và maker-checker, không UPDATE record lịch sử. user-service nhận projection với `lockRevision` tăng đơn điệu và lưu `last_lock_revision` để không bị event cũ ghi đè sau restart. Completion/dispute facts được lưu bất biến; score được tính khi query, không persist như chân lý cố định.
 
@@ -133,13 +133,13 @@ Notification-service nhận **notification command riêng**, không được dù
 
 `LegalProfile` gồm `governingLaw`, `contractType`, `maxContractualPenaltyRate` và `damagesPolicy`. Với `VN_COMMERCIAL_LAW`, thiết kế áp trần contractual penalty 8% cho phần nghĩa vụ bị vi phạm. Ba policy bồi thường được tách: `COMMERCIAL_CUMULATIVE_IF_PROVEN`, `CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE`, `EXPRESS_PENALTY_ONLY`.
 
-Phân loại deposit theo BLDS Điều 328, tiền phong toả/ký quỹ tại tổ chức tín dụng theo Điều 330 và quan hệ penalty–damages phải được legal validation cho mẫu hợp đồng pilot. Hệ thống không tự suy “cọc = phạt” và không coi mọi chấm dứt là breach.
+Phân loại deposit theo BLDS Điều 328, tiền phong toả/ký quỹ tại tổ chức tín dụng theo Điều 330 và quan hệ penalty–damages phải được legal validation cho mẫu hợp đồng pilot. Hệ thống không tự suy “cọc = phạt” và không coi mọi chấm dứt là breach. [45], [46]
 
 ## **7.2 Governance và trust boundary**
 
 Role Phase 2: `BUYER`, `SELLER`, `ADMIN`, `INSPECTOR`, `OPERATOR`. Maker-checker chỉ áp ở hai điểm high-risk đã thiết kế; người đề xuất không tự approve. Gateway xác thực coarse-grained và strip identity header; owner service chịu ownership/fine-grained authorization. `/internal/**` không có route external và các use case ký/listing/offer fail-closed khi user-service unavailable.
 
-External Verifier dùng ES256, canonical JSON, nonce persist và cửa sổ timestamp; lock/unlock đi trực tiếp bank-service, không có Admin bypass hay gateway retry. Đây là **zero-trust-oriented control tại một boundary**, không phải kiến trúc full Zero Trust. Nếu verifier key holder và các operator liên quan thông đồng, rủi ro vẫn tồn tại.
+External Verifier dùng ES256, canonical JSON, nonce persist và cửa sổ timestamp; lock/unlock đi trực tiếp bank-service, không có Admin bypass hay gateway retry. Đây là **zero-trust-oriented control tại một boundary**, không phải mô hình Zero Trust toàn diện. Nếu verifier key holder và các operator liên quan thông đồng, rủi ro vẫn tồn tại.
 
 # **8. Ba lớp giá trị**
 
@@ -167,69 +167,48 @@ Pilot nên bắt đầu từ một anchor buyer có mạng lưới HTX/supplier 
 
 **Người yêu cầu chấm dứt có bị phạt không?** Không mặc định. `requestedBy` và `finalBreachingRole` là hai field khác nhau; sanction chỉ dựa trên quyết định cuối.
 
-**Có blockchain/Zero Trust không?** Không claim blockchain hay full Zero Trust. Thiết kế dùng hash chain/anchor và một số control zero-trust-oriented phù hợp trusted-operator model.
+**Có blockchain/Zero Trust không?** Không claim blockchain hay mô hình Zero Trust toàn diện. Thiết kế dùng hash chain/anchor và một số control zero-trust-oriented phù hợp trusted-operator model.
 
 **Tại sao event-driven nhưng không double money?** Transactional outbox + source event id + `remedyLegId` unique + consumer idempotency; terminal lifecycle còn có reconciliation guard và zero-lock invariant.
 
-# **12. Giới hạn và phạm vi ngoài**
+# **12. Current Scope**
+
+Phase 2 bao phủ contract layer cho giao dịch nông sản B2B: listing/offer, terms và hai chữ ký, buyer/seller deposit, milestone funding, delivery/inspection, attribution/remedy, reputation, audit/evidence, notification, pricing tham chiếu, file intake, governance và các projection analytics liên quan. Luồng canonical phân biệt `requestedBy`, allegation và `finalBreachingRole`; money/reputation chỉ phản ứng với `remedy.finalized`; terminal lifecycle yêu cầu expected remedy legs hoàn tất và remaining lock bằng `0.00`.
+
+# **13. Known Limitations**
 
 - 12 business services, API/event/schema và Verification Matrix là thiết kế implementation-ready, chưa phải code/production đã chứng minh.
 - Không tích hợp ngân hàng thật, CA chữ ký số, tổ chức inspection production, đối tác tín dụng hoặc cold rebuild analytics trong Phase 2 hiện tại.
 - Không có full amendment; thay đổi sau ký dùng mutual replacement saga. Mutual termination chỉ cho toàn bộ remaining scope.
 - Không tự xử lý logistics, kế toán, bảo hiểm, due-diligence statement EUDR hay phán quyết pháp lý.
-- Baseline rừng, plot overlap và yield anomaly là signal/review support; không auto kết luận gian lận.
+- Baseline rừng, plot overlap và yield anomaly là signal/review support; không tự kết luận gian lận hoặc factual truth.
 - Pricing scrape/manual có rủi ro độ trễ/nguồn; không phải indexed settlement engine đã hoàn chỉnh.
-- External verifier emergency lock là control hẹp; không xoá rủi ro thông đồng và không thay DR/segregation of duties.
+- External verifier emergency lock là control hẹp; không loại bỏ rủi ro thông đồng và không thay DR/separation of duties.
 - Data retention/cross-border/PII, mẫu contract và legal classification phải được validation trước deployment thật.
 
-# **13. Danh mục nguồn tham khảo**
+# **14. Future Work**
 
-### **Văn bản pháp luật**
+- Productionize custodian/ngân hàng, CA/WebAuthn, inspection/accreditation, email/price adapters và OpenTimestamps anchoring.
+- Bổ sung ContractVersion amendment, notice–cure–remedy đầy đủ, quality-indexed settlement và payment/security package mở rộng.
+- Hoàn thiện mTLS/KMS/HSM, separation of duties, deployment attestation, DR/scale và cross-border/ND13 controls.
+- Tự động hoá giá cao su quốc tế sau khi chốt chuẩn hoá đơn vị/tỷ giá; tích hợp logistics/3PL khi có đối tác thật.
 
-- Luật Giao dịch Điện tử 2023 (Luật 20/2023/QH15, hiệu lực 1/7/2024).
+# **15. Danh mục nguồn tham khảo**
 
-- Nghị định 52/2024/NĐ-CP — Thanh toán không dùng tiền mặt; Nghị định 52/2013/NĐ-CP — Thương mại điện tử.
+[15] T. T. Nguyen et al., “Female leadership, internet use, and performance of agricultural cooperatives in Vietnam,” Ann. Public Cooperative Econ., vol. 94, no. 3, 2023, doi: 10.1111/apce.12434.
 
-- Nghị định 98/2018/NĐ-CP — Liên kết sản xuất và tiêu thụ nông sản.
+[16] A. T. Duong, “Unveiling the role of government support: Empirical studies on the performance of cooperatives in Vietnam,” Ann. Public Cooperative Econ., vol. 96, no. 3, 2025, doi: 10.1111/apce.70001.
 
-- Luật Trọng tài Thương mại 2010 (Luật 54/2010/QH12).
+[18] G. Burtch, Y. Hong, and S. Kumar, “When Does Dispute Resolution Substitute for a Reputation System?,” Prod. Oper. Manag., vol. 30, no. 6, 2020, doi: 10.1111/poms.13341.
 
-- Bộ luật Dân sự 2015 — Điều 328, 330, 142, 403, 156, 351.
+[20] J. R. Wolf and W. A. Muhanna, “Feedback Mechanisms, Judgment Bias, and Trust Formation in Online Auctions,” Decision Sciences, vol. 42, no. 1, 2011, doi: 10.1111/j.1540-5915.2010.00301.x.
 
-- Luật Thương mại 2005 — Điều 300, 302.
+[27] Quốc hội Việt Nam, Luật Giao dịch điện tử số 20/2023/QH15, 2023.
 
-- Nghị định 88/2019/NĐ-CP — Xử phạt vi phạm hành chính lĩnh vực tiền tệ.
+[28] Chính phủ Việt Nam, Nghị định 52/2024/NĐ-CP, 2024.
 
-### **Án lệ & tổ chức pháp lý**
+[29] Chính phủ Việt Nam, Nghị định 340/2025/NĐ-CP, 2025.
 
-- Bản án 15/2021/KDTM-ST — Toà án quận Nam Từ Liêm, Hà Nội.
+[45] Quốc hội Việt Nam, Bộ luật Dân sự số 91/2015/QH13, 2015.
 
-- VIAC — Thống kê tranh chấp 2024 (475 vụ, kỷ lục).
-
-### **Thị trường & nghiên cứu**
-
-- VTV.vn — Giá cà phê tăng, làn sóng phá vỡ hợp đồng (17/4/2024).
-
-- Báo Pháp Luật TP.HCM — Nghịch lý xuất khẩu cà phê Việt (4/4/2026).
-
-- Vietnam.vn — Banks partner with the digital agricultural supply chain (1/4/2026).
-
-- Agribank — Chương trình tín dụng chuỗi giá trị nông nghiệp 2024.
-
-- VCCI — Báo cáo Kinh tế tư nhân 2025 (75,5% doanh nghiệp cần tài sản thế chấp để tiếp cận tín dụng).
-
-- EC Regulation (EU) 2025/2650 — EUDR timeline (23/12/2025).
-
-- European Commission — EUDR Information System; Understand Due Diligence (truy cập 7/2026).
-
-- Alemu, D., Guinan, A. & Hermanson, J. (2021), DOI 10.1080/09614524.2020.1860194.
-
-- Macchiavello, R. (2022), DOI 10.1146/annurev-economics-051420-110722.
-
-- Ewusi Koomson, J. et al. (2022), DOI 10.1080/14728028.2022.2079007.
-
-- Tefera, D. A. & Bijman, J. (2021), DOI 10.1186/s40100-021-00198-0.
-
-- Abreham, G. et al. (2025), DOI 10.1080/23311932.2025.2551263.
-
-
+[46] Quốc hội Việt Nam, Luật Thương mại số 36/2005/QH11, 2005.
