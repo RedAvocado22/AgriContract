@@ -9,11 +9,11 @@ Không chỉnh sửa thủ công file Word output.
 ## Sinh đúng 4 deliverable
 
 ```bash
-npm install
+python3 validate_final.py
 bash build_all.sh
 ```
 
-Kết quả trong `generated/`:
+Kết quả được copy trực tiếp vào `docs/phase_2`:
 
 - `AgriContract_01_PhanTichThiTruong_final.docx`
 - `AgriContract_02_GiaiPhap_MoHinh_final.docx`
@@ -21,6 +21,10 @@ Kết quả trong `generated/`:
 - `AgriContract_SDS_final.docx`
 
 `build04.js` đến `build08.js` chỉ là module nội bộ chia SDS theo cụm nội dung. Chúng không sinh các file `SDS Part...`; `build_sds_full.js` ghép chúng thành một SDS duy nhất.
+
+`build_all.sh` dùng `/tmp/agricontract-doc-sync` (có thể đổi bằng `AGRICONTRACT_TMP_DIR`) cho DOCX trung gian, kiểm tra contract trước khi build, xác nhận cả bốn DOCX đều chứa Current Scope/Known Limitations/Future Work, rồi copy đúng bốn file final vào `docs/phase_2`. Không tạo DOCX Part hoặc bản phụ.
+
+Sau build, kiểm tra trực quan bằng LibreOffice/PDF renderer trong thư mục tạm; không chỉnh sửa thủ công DOCX output. Có thể chạy lại `python3 validate_final.py` trước và sau mỗi lần chỉnh nội dung.
 
 ## Vai trò file
 
