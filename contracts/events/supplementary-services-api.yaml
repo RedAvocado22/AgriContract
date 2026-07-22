@@ -1,0 +1,251 @@
+openapi: 3.0.3
+info:
+  title: AgriContract Supplementary Service API (non–golden-flow surfaces)
+  version: 1.0.0
+  description: >-
+    REST surfaces for the five services that sit OUTSIDE the frozen golden-flow
+    transport contract (golden-flow-api.yaml): product, pricing, analytics,
+    inspection (report submission) and file (internal only). These services are
+    primarily event-driven; their events are frozen in golden-flow-events.yaml.
+    This file formalizes the REST entry points each service design already
+    specifies. Every write requires Idempotency-Key; JWT identity is
+    authoritative; role/ownership denial returns 403; the shared 409 error
+    envelope covers state/duplicate conflicts (same envelope as golden-flow).
+    Sources: product-, pricing-, analytics-, inspection-, file-service
+    phase-2 designs. Detailed request/response DTOs are owned by each service
+    design; this catalog fixes path, method, owner, auth and idempotency.
+servers:
+  - url: /
+paths:
+
+  # ---------- product-service (public: seller/buyer create) ----------
+  /api/v1/plots:
+    post:
+      operationId: registerPlot
+      summary: Register a farm plot (KML import or manual pin); async geo-risk check follows
+      description: >-
+        Source product-service design §2.2. KML_IMPORT (POLYGON) or MANUAL_PIN
+        (POINT only). Geo-risk verification runs async; a plot with
+        geoVerificationStatus=PENDING cannot back a listing until CHECKED.
+      x-owner: product-service
+      x-auth: SELLER
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Plot registry entry created (geo-risk PENDING) }
+        "400": { description: Validation failure }
+        "403": { description: Role/ownership denied }
+        "503": { description: Dependency (user eligibility) unavailable }
+
+  /api/v1/listings:
+    post:
+      operationId: createListing
+      summary: Create a listing from an approved plot/product
+      description: >-
+        Source product-service design §4. Fails closed when user-service is
+        unavailable or actor is not KYC-valid / reputation-locked. Rejected when
+        the selected plot is still geoVerificationStatus=PENDING (EUDR
+        commodities coffee/rubber only; rice/cashew skip the geo gate).
+      x-owner: product-service
+      x-auth: SELLER
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Listing created }
+        "400": { description: Validation failure (e.g. plot geo PENDING) }
+        "403": { description: Role/ownership denied or reputation-locked }
+        "503": { description: user-service unavailable (fail closed) }
+    get:
+      operationId: searchListings
+      summary: Search/filter listings
+      description: Source product-service design; file-service §note defers listing search to product-service query params.
+      x-owner: product-service
+      x-auth: JWT
+      responses:
+        "200": { description: Listing page }
+
+  /api/v1/listings/{listingId}/offers:
+    post:
+      operationId: createOffer
+      summary: Buyer creates an offer against a listing
+      description: >-
+        Source product-service design §4. Fails closed on user-service outage /
+        actor not eligible. The accepted offer becomes the contract seed
+        (createContract in golden-flow-api.yaml consumes listingId).
+      x-owner: product-service
+      x-auth: BUYER
+      parameters:
+        - { name: listingId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Offer created }
+        "400": { description: Validation failure }
+        "403": { description: Role/ownership denied or reputation-locked }
+        "503": { description: user-service unavailable (fail closed) }
+
+  # ---------- pricing-service (public reference prices) ----------
+  /api/v1/prices/{commodity}/{province}:
+    get:
+      operationId: getPriceQuote
+      summary: Latest reference price for a commodity/province
+      description: >-
+        Source pricing-service design §4. Public, no auth (reference data).
+        item query param is required for RICE (multiple varieties), optional for
+        COFFEE. Cache-aside on Redis with MySQL price_history as source of truth.
+      x-owner: pricing-service
+      x-auth: public
+      parameters:
+        - { name: commodity, in: path, required: true, schema: { type: string, enum: [COFFEE, RICE, RUBBER, CASHEW] } }
+        - { name: province, in: path, required: true, schema: { type: string } }
+        - { name: item, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: Price quote }
+        "404": { description: No quote for commodity/province/item }
+  /api/v1/prices/{commodity}/{province}/items:
+    get:
+      operationId: listPriceItems
+      summary: List available item names for a commodity/province (autocomplete)
+      description: Source pricing-service design §4; feeds product-service varietyName autocomplete.
+      x-owner: pricing-service
+      x-auth: public
+      parameters:
+        - { name: commodity, in: path, required: true, schema: { type: string, enum: [COFFEE, RICE, RUBBER, CASHEW] } }
+        - { name: province, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Item name list }
+  /api/v1/prices/manual:
+    post:
+      operationId: recordManualPrice
+      summary: Admin records a manual reference price
+      description: Source pricing-service design §3.2. Writes price_history with source=ADMIN_MANUAL, province=NULL.
+      x-owner: pricing-service
+      x-auth: ADMIN
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Manual price recorded }
+        "403": { description: Not ADMIN }
+
+  # ---------- analytics-service (dashboard reads, Admin/Association) ----------
+  /api/v1/analytics/terminations:
+    get:
+      operationId: getTerminationAnalytics
+      summary: Termination breakdown by type/requester/final role
+      description: Source analytics-service design §4. Redis-cached (TTL 1h). Eventual consistency; no historical backfill before deploy.
+      x-owner: analytics-service
+      x-auth: ADMIN
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Termination analytics }
+        "403": { description: Not ADMIN/Association }
+  /api/v1/analytics/escrow-effectiveness:
+    get:
+      operationId: getEscrowEffectiveness
+      summary: Escrow effectiveness metrics for a month
+      description: Source analytics-service design §4. Redis-cached (TTL 1h).
+      x-owner: analytics-service
+      x-auth: ADMIN
+      parameters:
+        - { name: month, in: query, required: true, schema: { type: string, description: "YYYY-MM" } }
+      responses:
+        "200": { description: Escrow effectiveness metrics }
+        "403": { description: Not ADMIN/Association }
+  /api/v1/analytics/force-majeure-trends:
+    get:
+      operationId: getForceMajeureTrends
+      summary: Force-majeure claim trends for a year
+      description: Source analytics-service design §4. Redis-cached (TTL 1h).
+      x-owner: analytics-service
+      x-auth: ADMIN
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Force-majeure trend metrics }
+        "403": { description: Not ADMIN/Association }
+
+  # ---------- inspection-service (Level 1.5 report submission) ----------
+  /api/v1/inspections/{contractId}/milestones/{milestoneId}/reports:
+    post:
+      operationId: submitInspectionReport
+      summary: INSPECTOR submits a Level 1.5 report with signature commitment
+      description: >-
+        Source inspection-service design §2-3. Report body hashed; INSPECTOR
+        signature persisted in inspector_signature (inspection DB) with
+        UNIQUE(report_id) and step-up/session-freshness identity. Level 2
+        commissioning is Admin/system-triggered (InitiateLevel2Inspection) via
+        the contract/milestone dispute flow, not a public route.
+      x-owner: inspection-service
+      x-auth: INSPECTOR
+      parameters:
+        - { name: contractId, in: path, required: true, schema: { type: string } }
+        - { name: milestoneId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Report recorded and signed }
+        "403": { description: Not an authorized INSPECTOR for this commission }
+        "409": { description: Report already signed (UNIQUE report_id) }
+
+  # ---------- file-service (INTERNAL ONLY — gateway does not expose) ----------
+  /internal/v1/files:
+    post:
+      operationId: storeOnBehalfOf
+      summary: Business service stores an end-user file on behalf of an actor (DIRECT_UPLOAD)
+      description: >-
+        Source file-service design §2.1/§3 (StoreOnBehalfOf, 17/07). Service-to-
+        service only (mTLS/service token); gateway never exposes file-service.
+        uploadedBy=actingUserId passed explicitly; virus-scan + 10MB cap +
+        contentType whitelist enforced; ingestChannel fixed to DIRECT_UPLOAD by
+        the entrypoint (caller cannot self-declare SYSTEM_GENERATED).
+      x-owner: file-service
+      x-auth: service-to-service
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "202": { description: Accepted; file PROCESSING (file.ready/file.failed follows) }
+        "400": { description: contentType/size validation failure }
+        "403": { description: Not a trusted service principal }
+  /internal/v1/files/{fileId}:
+    get:
+      operationId: getFile
+      summary: Fetch file bytes (service-to-service or owner/Admin)
+      description: Source file-service design §3. Not public; owning service proxies to end-users.
+      x-owner: file-service
+      x-auth: service-to-service
+      parameters:
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: File bytes }
+        "403": { description: Not owner/service/Admin }
+        "404": { description: Not found or not READY }
+    delete:
+      operationId: deleteFile
+      summary: Owning service requests deletion (explicit; blocked by legal hold)
+      description: Source file-service design §3. Two-step tombstone+blob delete; legalHold rejects.
+      x-owner: file-service
+      x-auth: service-to-service
+      parameters:
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deletion accepted }
+        "409": { description: Legal hold active — deletion denied }
+  /internal/v1/files/{fileId}/confirm-attached:
+    post:
+      operationId: confirmAttached
+      summary: Owning service confirms it persisted the fileId (orphan-cleanup guard)
+      description: Source file-service design §3. Sets attached=TRUE; unconfirmed files >1 week are orphan-cleaned.
+      x-owner: file-service
+      x-auth: service-to-service
+      parameters:
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Marked attached }
+        "404": { description: Unknown fileId }
+
+components:
+  schemas:
+    ErrorEnvelope:
+      description: Shared error envelope, identical to golden-flow (timestamp,status,error,code,message,path,traceId).
+      type: object
