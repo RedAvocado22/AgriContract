@@ -48,7 +48,7 @@ paths:
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
-      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ContractTermsRequest'}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ContractTermsInput'}}}}
       responses: {'200': {description: Contract terms updated before first signature, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}, '409': {$ref: '#/components/responses/Conflict'}}
   /api/v1/contracts/{contractId}/sign/initiate:
     x-service-owner: contract-service
@@ -316,6 +316,54 @@ paths:
         - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       responses: {'204': {description: Retry accepted for the failed funding leg.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/propose:
+    x-service-owner: contract-service
+    post:
+      operationId: proposeMilestonePriceAdjustment
+      summary: Propose a bounded milestone unit price before funding
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Creates or replaces the single pending proposal before the milestone funding
+        request is emitted. JWT authenticates the proposer; OTP is not used because
+        the signed price band already authorizes the bounded runtime selection.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PriceAdjustmentProposalRequest'}}}}
+      responses:
+        '201': {description: Pending proposal created or replaced, content: {application/json: {schema: {$ref: '#/components/schemas/PendingPriceAdjustment'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409':
+          description: Price is outside the signed band, funding was already requested, or an adjustment was already accepted.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/{proposalId}/accept:
+    x-service-owner: contract-service
+    post:
+      operationId: acceptMilestonePriceAdjustment
+      summary: Accept the counterparty's bounded milestone price proposal
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Counterparty-only authenticated accept. The immutable accepted record is
+        created and milestone.price_adjusted is published; ContractTerms and
+        signedContentHash remain unchanged.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: proposalId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200': {description: Adjustment accepted, content: {application/json: {schema: {$ref: '#/components/schemas/AcceptedPriceAdjustment'}}}}
+        '403':
+          description: Proposer attempted self-accept or caller is not a participant.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: Proposal is stale, funding was already requested, or another adjustment was already accepted.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
   /api/v1/users/register:
     x-service-owner: user-service
     post:
@@ -512,19 +560,25 @@ components:
       type: object
       required: [listingId, terms]
       additionalProperties: false
+      x-validation: terms.qualityTerms.commodity must equal the authoritative Category.commodity resolved from listingId; the client cannot override goodsTerms.
       properties:
         listingId: {type: string, format: uuid}
-        terms: {$ref: '#/components/schemas/ContractTermsRequest'}
-    ContractTermsRequest:
+        terms: {$ref: '#/components/schemas/ContractTermsInput'}
+    ContractTermsBase:
       type: object
-      required: [agreedPrice, milestoneSchedule, toleranceRate, shortfallPenaltyThreshold, buyerPenaltyRate, sellerPenaltyRate, forceMajeureReportWindowDays, buyerConfirmWindowDays, buyerDepositRate, disputeFloorReleaseRate, sellerDepositRate, legalProfile]
-      additionalProperties: false
+      required: [agreedPrice, currency, milestoneSchedule, qualityTerms, deliveryTerms, inspectionTerms, priceBand, priceAdjustmentRule, toleranceRate, shortfallPenaltyThreshold, buyerPenaltyRate, sellerPenaltyRate, forceMajeureReportWindowDays, buyerConfirmWindowDays, buyerDepositRate, disputeFloorReleaseRate, sellerDepositRate, legalProfile]
       properties:
-        agreedPrice: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        agreedPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', description: Signed base unit price used when a milestone has no accepted bounded adjustment.}
+        currency: {type: string, const: VND}
         milestoneSchedule:
           type: array
           minItems: 1
           items: {$ref: '#/components/schemas/MilestoneTermRequest'}
+        qualityTerms: {$ref: '#/components/schemas/QualityTerms'}
+        deliveryTerms: {$ref: '#/components/schemas/DeliveryTerms'}
+        inspectionTerms: {$ref: '#/components/schemas/InspectionTerms'}
+        priceBand: {$ref: '#/components/schemas/PriceBand'}
+        priceAdjustmentRule: {$ref: '#/components/schemas/PriceAdjustmentRule'}
         toleranceRate: {type: number, minimum: 0, maximum: 0.10}
         shortfallPenaltyThreshold: {type: number, minimum: 0.03, maximum: 0.15}
         buyerPenaltyRate: {type: number, minimum: 0, maximum: 1, description: Must be <= legalProfile.maxContractualPenaltyRate; 8% by default for VN_COMMERCIAL_LAW.}
@@ -536,6 +590,26 @@ components:
         sellerDepositRate: {type: number, minimum: 0, maximum: 1}
         level2InspectorOrg: {type: [string, 'null']}
         legalProfile: {$ref: '#/components/schemas/LegalProfile'}
+    ContractTermsInput:
+      description: Negotiated terms accepted by create/PATCH. goodsTerms and totalContractValue are server-derived and rejected if supplied.
+      x-validation: qualityTerms.commodity must equal the immutable goodsTerms.commodity already attached to the draft; a mismatch is rejected before signature.
+      allOf:
+        - {$ref: '#/components/schemas/ContractTermsBase'}
+      unevaluatedProperties: false
+    ContractTermsSnapshot:
+      description: Full immutable terms returned by the server and canonicalized into signedContentHash.
+      allOf:
+        - {$ref: '#/components/schemas/ContractTermsBase'}
+        - type: object
+          required: [goodsTerms, totalContractValue]
+          properties:
+            goodsTerms: {$ref: '#/components/schemas/GoodsTermsSnapshot'}
+            totalContractValue:
+              type: string
+              pattern: '^[0-9]+\.[0-9]{2}$'
+              readOnly: true
+              description: Server-derived agreedPrice multiplied by total committed quantity; deposits always use this nominal value.
+      unevaluatedProperties: false
     LegalProfile:
       type: object
       required: [governingLaw, contractType, maxContractualPenaltyRate, damagesPolicy]
@@ -554,9 +628,291 @@ components:
         committedQuantity: {type: number, exclusiveMinimum: 0}
         expectedDeliveryDate: {type: string, format: date}
         graceDays: {type: integer, minimum: 0}
+    PlotRefSnapshot:
+      type: object
+      required: [registryEntryId, householdLabel, geometryType, geometryHash, verificationLevel]
+      additionalProperties: false
+      properties:
+        registryEntryId: {type: string, format: uuid}
+        householdLabel: {type: string, minLength: 1}
+        geometryType: {enum: [POINT, POLYGON]}
+        geometryHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+        verificationLevel: {enum: [SELF_DECLARED, CADASTRAL_BACKED]}
+    PlotBackedOriginSnapshot:
+      type: object
+      required: [regionText, plotRefs]
+      additionalProperties: false
+      properties:
+        regionText: {type: string, minLength: 1}
+        plotRefs: {type: array, minItems: 1, items: {$ref: '#/components/schemas/PlotRefSnapshot'}}
+    RegionOnlyOriginSnapshot:
+      type: object
+      required: [regionText, plotRefs]
+      additionalProperties: false
+      properties:
+        regionText: {type: string, minLength: 1}
+        plotRefs: {type: array, maxItems: 0, items: {$ref: '#/components/schemas/PlotRefSnapshot'}}
+    TraceabilitySnapshot:
+      type: object
+      required: [evidencePackageId, packageHash]
+      additionalProperties: false
+      properties:
+        evidencePackageId: {type: string, format: uuid}
+        packageHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+    GoodsTermsCommon:
+      type: object
+      required: [commodity, listingId, productId, categoryId, categoryName, productName, unitOfMeasure, originSnapshot]
+      properties:
+        commodity: {enum: [COFFEE, RICE, RUBBER, CASHEW]}
+        listingId: {type: string, format: uuid}
+        productId: {type: string, format: uuid}
+        categoryId: {type: string, format: uuid}
+        categoryName: {type: string, minLength: 1}
+        productName: {type: string, minLength: 1}
+        unitOfMeasure: {type: string, const: KG}
+    CoffeeGoodsTerms:
+      allOf:
+        - {$ref: '#/components/schemas/GoodsTermsCommon'}
+        - type: object
+          properties:
+            commodity: {const: COFFEE}
+            originSnapshot: {$ref: '#/components/schemas/PlotBackedOriginSnapshot'}
+            traceabilitySnapshot:
+              oneOf: [{$ref: '#/components/schemas/TraceabilitySnapshot'}, {type: 'null'}]
+      unevaluatedProperties: false
+    RiceGoodsTerms:
+      allOf:
+        - {$ref: '#/components/schemas/GoodsTermsCommon'}
+        - type: object
+          required: [varietyName]
+          properties:
+            commodity: {const: RICE}
+            varietyName: {type: string, minLength: 1}
+            originSnapshot: {$ref: '#/components/schemas/RegionOnlyOriginSnapshot'}
+      unevaluatedProperties: false
+    RubberGoodsTerms:
+      allOf:
+        - {$ref: '#/components/schemas/GoodsTermsCommon'}
+        - type: object
+          properties:
+            commodity: {const: RUBBER}
+            originSnapshot: {$ref: '#/components/schemas/PlotBackedOriginSnapshot'}
+            traceabilitySnapshot:
+              oneOf: [{$ref: '#/components/schemas/TraceabilitySnapshot'}, {type: 'null'}]
+      unevaluatedProperties: false
+    CashewGoodsTerms:
+      allOf:
+        - {$ref: '#/components/schemas/GoodsTermsCommon'}
+        - type: object
+          properties:
+            commodity: {const: CASHEW}
+            originSnapshot: {$ref: '#/components/schemas/RegionOnlyOriginSnapshot'}
+      unevaluatedProperties: false
+    GoodsTermsSnapshot:
+      oneOf:
+        - {$ref: '#/components/schemas/CoffeeGoodsTerms'}
+        - {$ref: '#/components/schemas/RiceGoodsTerms'}
+        - {$ref: '#/components/schemas/RubberGoodsTerms'}
+        - {$ref: '#/components/schemas/CashewGoodsTerms'}
+      discriminator:
+        propertyName: commodity
+        mapping:
+          COFFEE: '#/components/schemas/CoffeeGoodsTerms'
+          RICE: '#/components/schemas/RiceGoodsTerms'
+          RUBBER: '#/components/schemas/RubberGoodsTerms'
+          CASHEW: '#/components/schemas/CashewGoodsTerms'
+    CoffeeQualitySpec:
+      type: object
+      required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
+      additionalProperties: false
+      properties:
+        commodity: {const: COFFEE}
+        type: {enum: [ARABICA, ROBUSTA]}
+        moisturePercent: {type: number, minimum: 0, maximum: 100}
+        foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
+        blackBrokenBeansPercent: {type: number, minimum: 0, maximum: 100}
+      example: {commodity: COFFEE, type: ROBUSTA, moisturePercent: 12.5, foreignMatterPercent: 0.5, blackBrokenBeansPercent: 5.0}
+    RiceQualitySpec:
+      type: object
+      required: [commodity, varietyName, brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
+      additionalProperties: false
+      properties:
+        commodity: {const: RICE}
+        varietyName: {type: string, minLength: 1}
+        brokenPercent: {type: number, minimum: 0, maximum: 100}
+        moisturePercent: {type: number, minimum: 0, maximum: 100}
+        chalkyKernelPercent: {type: number, minimum: 0, maximum: 100}
+        foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
+        purityPercent: {type: number, minimum: 0, maximum: 100}
+      example: {commodity: RICE, varietyName: ST25, brokenPercent: 5.0, moisturePercent: 14.0, chalkyKernelPercent: 3.0, foreignMatterPercent: 0.2, purityPercent: 98.0}
+    RubberQualitySpec:
+      type: object
+      required: [commodity, grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
+      additionalProperties: false
+      properties:
+        commodity: {const: RUBBER}
+        grade: {enum: [SVR_3L, SVR_5, SVR_10, SVR_20]}
+        dirtPercent: {type: number, minimum: 0, maximum: 100}
+        ashPercent: {type: number, minimum: 0, maximum: 100}
+        volatileMatterPercent: {type: number, minimum: 0, maximum: 100}
+        nitrogenPercent: {type: number, minimum: 0, maximum: 100}
+        plasticityRetentionIndex: {type: number, minimum: 0, maximum: 100}
+      example: {commodity: RUBBER, grade: SVR_10, dirtPercent: 0.08, ashPercent: 0.6, volatileMatterPercent: 0.8, nitrogenPercent: 0.6, plasticityRetentionIndex: 50}
+    CashewQualitySpec:
+      type: object
+      required: [commodity, grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
+      additionalProperties: false
+      properties:
+        commodity: {const: CASHEW}
+        grade: {enum: [W180, W210, W240, W320, W450]}
+        moisturePercent: {type: number, minimum: 0, maximum: 100}
+        defectiveKernelPercent: {type: number, minimum: 0, maximum: 100}
+        foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
+        kernelOutturnLbsPer80Kg: {type: number, minimum: 0, maximum: 80}
+      example: {commodity: CASHEW, grade: W320, moisturePercent: 5.0, defectiveKernelPercent: 8.0, foreignMatterPercent: 0.5, kernelOutturnLbsPer80Kg: 48}
+    NumericDeviationPolicy:
+      type: object
+      required: [direction, tolerance, penalty, reject, discountRate]
+      additionalProperties: false
+      properties:
+        direction: {enum: [MAXIMUM, MINIMUM]}
+        tolerance: {type: number, minimum: 0}
+        penalty: {type: number, minimum: 0}
+        reject: {type: number, minimum: 0}
+        discountRate: {type: number, minimum: 0, maximum: 1}
+      x-invariant: tolerance must be less than or equal to penalty, and penalty must be less than reject.
+    ExactMatchRejectPolicy:
+      type: object
+      required: [rejectOnMismatch]
+      additionalProperties: false
+      properties:
+        rejectOnMismatch: {const: true}
+    CoffeeQualityDeviationPolicy:
+      type: object
+      required: [type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
+      additionalProperties: false
+      properties:
+        type: {$ref: '#/components/schemas/ExactMatchRejectPolicy'}
+        moisturePercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        foreignMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        blackBrokenBeansPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+    RiceQualityDeviationPolicy:
+      description: Only measurable numeric keys are allowed; varietyName is intentionally absent.
+      type: object
+      required: [brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
+      additionalProperties: false
+      properties:
+        brokenPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        moisturePercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        chalkyKernelPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        foreignMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        purityPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+    RubberQualityDeviationPolicy:
+      type: object
+      required: [grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
+      additionalProperties: false
+      properties:
+        grade: {$ref: '#/components/schemas/ExactMatchRejectPolicy'}
+        dirtPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        ashPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        volatileMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        nitrogenPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        plasticityRetentionIndex: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+    CashewQualityDeviationPolicy:
+      type: object
+      required: [grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
+      additionalProperties: false
+      properties:
+        grade: {$ref: '#/components/schemas/ExactMatchRejectPolicy'}
+        moisturePercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        defectiveKernelPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        foreignMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        kernelOutturnLbsPer80Kg: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+    CoffeeQualityTerms:
+      type: object
+      required: [commodity, committedSpec, deviationPolicy]
+      additionalProperties: false
+      properties:
+        commodity: {const: COFFEE}
+        committedSpec: {$ref: '#/components/schemas/CoffeeQualitySpec'}
+        deviationPolicy: {$ref: '#/components/schemas/CoffeeQualityDeviationPolicy'}
+    RiceQualityTerms:
+      type: object
+      required: [commodity, committedSpec, deviationPolicy]
+      additionalProperties: false
+      properties:
+        commodity: {const: RICE}
+        committedSpec: {$ref: '#/components/schemas/RiceQualitySpec'}
+        deviationPolicy: {$ref: '#/components/schemas/RiceQualityDeviationPolicy'}
+    RubberQualityTerms:
+      type: object
+      required: [commodity, committedSpec, deviationPolicy]
+      additionalProperties: false
+      properties:
+        commodity: {const: RUBBER}
+        committedSpec: {$ref: '#/components/schemas/RubberQualitySpec'}
+        deviationPolicy: {$ref: '#/components/schemas/RubberQualityDeviationPolicy'}
+    CashewQualityTerms:
+      type: object
+      required: [commodity, committedSpec, deviationPolicy]
+      additionalProperties: false
+      properties:
+        commodity: {const: CASHEW}
+        committedSpec: {$ref: '#/components/schemas/CashewQualitySpec'}
+        deviationPolicy: {$ref: '#/components/schemas/CashewQualityDeviationPolicy'}
+    QualityTerms:
+      oneOf:
+        - {$ref: '#/components/schemas/CoffeeQualityTerms'}
+        - {$ref: '#/components/schemas/RiceQualityTerms'}
+        - {$ref: '#/components/schemas/RubberQualityTerms'}
+        - {$ref: '#/components/schemas/CashewQualityTerms'}
+      discriminator:
+        propertyName: commodity
+        mapping:
+          COFFEE: '#/components/schemas/CoffeeQualityTerms'
+          RICE: '#/components/schemas/RiceQualityTerms'
+          RUBBER: '#/components/schemas/RubberQualityTerms'
+          CASHEW: '#/components/schemas/CashewQualityTerms'
+    DeliveryTerms:
+      type: object
+      required: [deliveryResponsibility, riskTransferPoint, titleTransferPoint, transportCostBearer, unloadingCostBearer]
+      additionalProperties: false
+      properties:
+        deliveryResponsibility: {enum: [SELLER_DELIVERS, BUYER_COLLECTS]}
+        riskTransferPoint: {enum: [SELLER_DISPATCH, BUYER_RECEIPT, BUYER_ACCEPTANCE]}
+        titleTransferPoint: {enum: [FULL_PAYMENT, BUYER_RECEIPT, BUYER_ACCEPTANCE]}
+        transportCostBearer: {enum: [BUYER, SELLER, SHARED]}
+        unloadingCostBearer: {enum: [BUYER, SELLER, SHARED]}
+      description: Signed allocation rules only; runtime addresses and carriers are intentionally excluded.
+    InspectionTerms:
+      type: object
+      required: [requirement, requiredTier, reportDueBusinessDays, inspectionCostResponsibility]
+      additionalProperties: false
+      properties:
+        requirement: {enum: [NONE_UNLESS_DISPUTED, MANDATORY_BEFORE_SETTLEMENT]}
+        requiredTier: {enum: [LEVEL_1_5, LEVEL_2]}
+        reportDueBusinessDays: {type: integer, minimum: 1, maximum: 30}
+        inspectionCostResponsibility: {const: LOSER_PAYS, description: The only Phase 2 policy; final allocation follows the quality disposition rather than requestedBy.}
+      x-invariant: level2InspectorOrg must be non-null when requiredTier is LEVEL_2.
+    PriceBand:
+      type: object
+      required: [minimumUnitPrice, maximumUnitPrice]
+      additionalProperties: false
+      properties:
+        minimumUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
+        maximumUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
+      x-invariant: minimumUnitPrice <= agreedPrice <= maximumUnitPrice.
+    PriceAdjustmentRule:
+      type: object
+      required: [acceptanceMode, cutoff, maximumAcceptedAdjustmentsPerMilestone]
+      additionalProperties: false
+      properties:
+        acceptanceMode: {const: BOTH_ACCEPT}
+        cutoff: {const: BEFORE_FUNDING_REQUEST}
+        maximumAcceptedAdjustmentsPerMilestone: {const: 1}
     ContractResponse:
       type: object
-      required: [contractId, listingId, buyerId, sellerId, status, terms, milestones]
+      required: [contractId, listingId, buyerId, sellerId, status, terms, signedContentHash, milestones]
       additionalProperties: false
       properties:
         contractId: {type: string, format: uuid}
@@ -564,13 +920,16 @@ components:
         buyerId: {type: string, format: uuid}
         sellerId: {type: string, format: uuid}
         status: {enum: [OFFERED, NEGOTIATING, SIGNED, ACTIVE, REPLACEMENT_PENDING, SUPERSEDE_REFUND_PENDING, ACTIVATION_REFUND_PENDING, SETTLED, TERMINATED, WITHDRAWN, SUPERSEDED, ACTIVATION_FAILED]}
-        terms: {$ref: '#/components/schemas/ContractTermsRequest'}
+        terms: {$ref: '#/components/schemas/ContractTermsSnapshot'}
+        signedContentHash:
+          type: [string, 'null']
+          pattern: '^[a-f0-9]{64}$'
         milestones:
           type: array
           items: {$ref: '#/components/schemas/MilestoneResponse'}
     MilestoneResponse:
       type: object
-      required: [milestoneId, milestoneIndex, status, fundingStatus, committedQuantity, batchAmount, expectedDeliveryDate, graceDays, fundingDelayBusinessDays, effectiveDeliveryDeadline]
+      required: [milestoneId, milestoneIndex, status, fundingStatus, committedQuantity, batchAmount, effectiveUnitPrice, acceptedPriceAdjustment, expectedDeliveryDate, graceDays, fundingDelayBusinessDays, effectiveDeliveryDeadline]
       additionalProperties: false
       properties:
         milestoneId: {type: string, format: uuid}
@@ -578,11 +937,49 @@ components:
         status: {enum: [CREATED, IN_PROGRESS, SELLER_WEIGHED, BUYER_RECEIVED, AWAITING_SELLER_RESPONSE, CONTESTED, FORCE_MAJEURE_PENDING_REVIEW, SETTLED]}
         fundingStatus: {enum: [FUNDING_PENDING, LOCKED, FUNDING_FAILED]}
         committedQuantity: {type: number, exclusiveMinimum: 0}
-        batchAmount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        batchAmount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', description: Funding amount fixed when the request is emitted; committedQuantity multiplied by effectiveUnitPrice.}
+        effectiveUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
+        acceptedPriceAdjustment:
+          oneOf: [{$ref: '#/components/schemas/AcceptedPriceAdjustment'}, {type: 'null'}]
         expectedDeliveryDate: {type: string, format: date}
         graceDays: {type: integer, minimum: 0}
         fundingDelayBusinessDays: {type: integer, minimum: 0}
         effectiveDeliveryDeadline: {type: string, format: date}
+    PriceAdjustmentProposalRequest:
+      type: object
+      required: [proposedUnitPrice]
+      additionalProperties: false
+      properties:
+        proposedUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', description: Must be within the signed inclusive price band.}
+    PendingPriceAdjustment:
+      type: object
+      required: [proposalId, contractId, milestoneId, proposedUnitPrice, currency, proposerId, proposedAt, status]
+      additionalProperties: false
+      properties:
+        proposalId: {type: string, format: uuid}
+        contractId: {type: string, format: uuid}
+        milestoneId: {type: string, format: uuid}
+        proposedUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
+        currency: {const: VND}
+        proposerId: {type: string, format: uuid}
+        proposedAt: {type: string, format: date-time}
+        status: {const: PENDING}
+    AcceptedPriceAdjustment:
+      type: object
+      required: [adjustmentId, proposalId, contractId, milestoneId, baseUnitPrice, effectiveUnitPrice, currency, proposerId, accepterId, proposedAt, acceptedAt]
+      additionalProperties: false
+      properties:
+        adjustmentId: {type: string, format: uuid}
+        proposalId: {type: string, format: uuid}
+        contractId: {type: string, format: uuid}
+        milestoneId: {type: string, format: uuid}
+        baseUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
+        effectiveUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
+        currency: {const: VND}
+        proposerId: {type: string, format: uuid}
+        accepterId: {type: string, format: uuid}
+        proposedAt: {type: string, format: date-time}
+        acceptedAt: {type: string, format: date-time}
     BreachCase:
       type: object
       required: [breachCaseId, contractId, milestoneId, requestedBy, allegedBreachingRole, breachReasonCode, severity, evidenceFileIds, finalBreachingRole, decisionSource, status]
@@ -608,7 +1005,7 @@ components:
       additionalProperties: false
       properties:
         listingId: {type: string, format: uuid}
-        terms: {$ref: '#/components/schemas/ContractTermsRequest'}
+        terms: {$ref: '#/components/schemas/ContractTermsInput'}
     BreachCaseReportRequest:
       type: object
       required: [milestoneId, allegedBreachingRole, breachReasonCode, severity, evidenceFileIds]
@@ -665,8 +1062,23 @@ components:
         status: {enum: [PROPOSED, APPROVED, REJECTED]}
     AttributionDecision:
       type: object
-      required: [attributionDecisionId, breachCaseId, decisionSource, finalBreachingRole, breachReasonCode, evidenceRefs]
+      required: [attributionDecisionId, breachCaseId, decisionSource, finalBreachingRole, breachReasonCode, qualityDisposition, evidenceRefs]
       additionalProperties: false
+      allOf:
+        - if:
+            properties: {qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING]}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {type: 'null'}
+              breachReasonCode: {type: 'null'}
+        - if:
+            properties: {qualityDisposition: {const: NON_CONFORMING}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {const: SELLER}
+              breachReasonCode: {const: QUALITY_BELOW_COMMITTED}
       properties:
         attributionDecisionId: {type: string, format: uuid}
         breachCaseId: {type: [string, 'null'], format: uuid}
@@ -674,10 +1086,12 @@ components:
         finalBreachingRole:
           oneOf: [{enum: [BUYER, SELLER]}, {type: 'null'}]
         breachReasonCode: {$ref: '#/components/schemas/NullableBreachReasonCode'}
+        qualityDisposition:
+          oneOf: [{enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING]}, {type: 'null'}]
         evidenceRefs: {type: array, items: {type: string}}
     RemedyDecision:
       type: object
-      required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
+      required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, qualityDisposition, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
       additionalProperties: false
       allOf:
         - if:
@@ -700,6 +1114,24 @@ components:
                 items:
                   properties:
                     remedyType: {not: {const: CONTRACTUAL_PENALTY}}
+        - if:
+            properties: {qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING]}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {type: 'null'}
+              breachReasonCode: {type: 'null'}
+              penaltyEligible: {const: false}
+              reputationEligible: {const: false}
+        - if:
+            properties: {qualityDisposition: {const: NON_CONFORMING}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {const: SELLER}
+              breachReasonCode: {const: QUALITY_BELOW_COMMITTED}
+              penaltyEligible: {const: true}
+              reputationEligible: {const: true}
       properties:
         remedyDecisionId: {type: string, format: uuid}
         attributionDecisionId: {type: string, format: uuid}
@@ -711,6 +1143,8 @@ components:
         finalBreachingRole:
           oneOf: [{enum: [BUYER, SELLER]}, {type: 'null'}]
         breachReasonCode: {$ref: '#/components/schemas/NullableBreachReasonCode'}
+        qualityDisposition:
+          oneOf: [{enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING]}, {type: 'null'}]
         decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
         penaltyEligible: {type: boolean}
         reputationEligible: {type: boolean}
@@ -724,9 +1158,9 @@ components:
         remedyType: {enum: [NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
         fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]}
         role: {enum: [BUYER, SELLER]}
-        amount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        amount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
     BreachReasonCode:
-      enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, NON_CONFORMING_QUALITY, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
+      enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, QUALITY_BELOW_COMMITTED, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
     NullableBreachReasonCode:
       oneOf:
         - {$ref: '#/components/schemas/BreachReasonCode'}
@@ -797,6 +1231,7 @@ components:
       properties:
         sellerDeclaredWeight: {type: number, minimum: 0}
         sellerEvidenceFileId: {type: string, format: uuid}
+        deliveryCertificateFileId: {type: string, format: uuid, description: Optional batch certificate used only as delivery/dispute evidence; never parsed as actual quality metrics.}
       additionalProperties: false
     BuyerReceivedRequest:
       type: object
@@ -804,6 +1239,7 @@ components:
       properties:
         buyerReceivedWeight: {type: number, minimum: 0}
         buyerEvidenceFileId: {type: string, format: uuid}
+        deliveryCertificateFileId: {type: string, format: uuid, description: Optional batch certificate used only as delivery/dispute evidence; never parsed as actual quality metrics.}
       additionalProperties: false
     ForceMajeureClaimRequest:
       type: object
@@ -845,8 +1281,8 @@ components:
       properties:
         contractId: {type: string, format: uuid}
         milestoneId: {type: [string, 'null'], format: uuid}
-        settledAmount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
-        seizedAmount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        settledAmount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
+        seizedAmount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
         sourceEventId: {type: [string, 'null'], format: uuid}
         releaseLegs: {type: array, items: {$ref: '#/components/schemas/MoneyLeg'}}
         refundLegs: {type: array, items: {$ref: '#/components/schemas/MoneyLeg'}}
@@ -866,7 +1302,7 @@ components:
         fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]}
         remedyDecisionId: {type: [string, 'null'], format: uuid}
         remedyLegId: {type: [string, 'null'], format: uuid}
-        amount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+        amount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
         sourceEventId: {type: string, format: uuid}
     LedgerEntryList:
       type: array
@@ -884,7 +1320,7 @@ components:
           fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]}
           remedyDecisionId: {type: [string, 'null'], format: uuid}
           remedyLegId: {type: [string, 'null'], format: uuid}
-          amount: {type: string, pattern: '^[0-9]+\\.[0-9]{2}$'}
+          amount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$'}
           createdAt: {type: string, format: date-time}
     ExternalVerifierRequest:
       type: object

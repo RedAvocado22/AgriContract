@@ -1,6 +1,6 @@
 # Verification Matrix Traceability
 
-This table covers all 55 rows in `verification-matrix-phase2.md`. Each row maps to a dependency-ordered implementation task; the task must cite the authoritative design section and fixture before it can pass its release gate.
+This table covers all 55 rows in `verification-matrix-phase2.md` plus the signed goods/quality/delivery/pricing additions frozen on 2026-07-23. Each row maps to a dependency-ordered implementation task; the task must cite the authoritative design section and fixture before it can pass its release gate.
 
 | Matrix row | Contract surface / invariant | Planned task | Fixture / exit |
 |---|---|---|---|
@@ -59,7 +59,23 @@ This table covers all 55 rows in `verification-matrix-phase2.md`. Each row maps 
 | 26g | Analytics stores final role separately from requester | T11 | Termination fact fields and mutual exclusion |
 | 26h | Exonerated allegation has no negative consequence | T3/T4/T8 | Resolved null role, refund/release only |
 | 26i | Pending inspection blocks auto-confirm | T7 | Timer applies only to `BUYER_RECEIVED` |
+| 27 | Declared/committed/actual quality unions cover four commodities | T2/T7/T12 | Four valid variants and all commodity/spec mismatches rejected |
+| 27b | Rice variety is identity, not an actual/deviation metric | T2/T7/T12 | `varietyName` accepted in goods/committed spec and rejected in rice actual/policy |
+| 27c | Goods snapshot is independent from mutable source records | T2/T12 | Listing/Product/Category/Plot edit/delete leaves stored snapshot and hash unchanged |
+| 27d | Every new signed field is hash committed; legacy policy is explicit | T2 | Nested-field mutation changes hash; first signature locks PATCH; signed legacy reads, incomplete legacy draft cannot sign |
+| 27e | Quality disposition is deterministic | T4/T7 | Recompute from `signedContentHash` committed spec/deviation policy and `resultHash` actuals; subjective reviewer input cannot change result |
+| 27f | Inspection requirement does not add milestone state | T3/T7 | Clean optional flow creates no report; mandatory guard blocks settlement in `BUYER_RECEIVED`/`CONTESTED` until confirmed report |
+| 27g | Bounded milestone price acceptance is authenticated and cutoff-safe | T2/T6/T9/T11 | In/out-band, self-accept, stale/cutoff, immutable accept event and unchanged signed hash |
+| 27h | Funding uses effective price while deposits remain nominal | T5/T6 | Base fallback, accepted-price funding amount, no settlement true-up, deposit unchanged for upward/downward adjustment |
+| 27i | Quality disposition maps exactly to attribution/remedy | T3/T4/T5/T8 | Conforming has null role/no consequences; partial max discount once/no punitive reputation; non-conforming is Seller + `QUALITY_BELOW_COMMITTED` with rejected-milestone refund/policy penalties; inconclusive emits no money |
+| 27j | Exact quality rejection is commodity-limited | T2/T7/T12 | Coffee `type` and rubber/cashew `grade` mismatch reject; rice remains numeric-only |
+| 27k | Quantity precedence prevents double tolerance | T4/T5/T7 | Clean path keeps Delta 1/Delta 2; inspected/contested path uses accepted quantity × effective price with safety cap and no second Delta 2 |
+| 27l | Delivery certificate is evidence only | T2/T7/T10 | Optional seller/buyer certificate refs are not parsed into actual metrics, `resultHash` or disposition and cannot replace a confirmed report |
+| 27m | Quality money conserves per fund source | T4/T5/T9 | `MILESTONE_PAYMENT` legs sum to `batchAmount`; penalty and seller-deposit forfeiture reconcile separately; penalty base is affected milestone value |
+| 27n | Quality resolution has one idempotent money trigger | T4/T5/T7 | Replay `remedy.finalized` is a no-op by leg identity and no `milestone.settled` is emitted/consumed for the same resolution |
+| 27o | Inspection cost policy is signed and deterministic | T2/T4/T7 | Only `LOSER_PAYS` validates; conforming assigns Buyer, partial/non-conforming Seller, inconclusive defers until final result |
+| 27p | Quality reject remains milestone-scoped | T3/T4 | `NON_CONFORMING` fails only the affected milestone and does not auto-terminate; alternate bargain requires supersede |
 
 ## Release rule
 
-The release gate is the complete set above, not a 39-row subset. A task is incomplete when its payload, idempotency key, nullability, owner or migration note differs from the corresponding source design.
+The release gate is the complete set above, not the earlier matrix subset. A task is incomplete when its payload, idempotency key, nullability, owner or migration note differs from the corresponding source design.

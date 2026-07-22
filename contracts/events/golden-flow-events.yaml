@@ -35,22 +35,98 @@ $defs:
       - enum: [BUYER, SELLER]
       - type: "null"
   breachReasonCode:
-    enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, NON_CONFORMING_QUALITY, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
+    enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, QUALITY_BELOW_COMMITTED, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
   nullableBreachReasonCode:
     oneOf:
       - $ref: "#/$defs/breachReasonCode"
       - type: "null"
+  finalQualityDisposition:
+    oneOf:
+      - enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING]
+      - type: "null"
+  coffeeActualMetrics:
+    type: object
+    required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
+    additionalProperties: false
+    properties:
+      commodity: {const: COFFEE}
+      type: {enum: [ARABICA, ROBUSTA]}
+      moisturePercent: {type: number, minimum: 0, maximum: 100}
+      foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
+      blackBrokenBeansPercent: {type: number, minimum: 0, maximum: 100}
+    examples:
+      - {commodity: COFFEE, type: ROBUSTA, moisturePercent: 13.0, foreignMatterPercent: 0.7, blackBrokenBeansPercent: 5.5}
+  riceActualMetrics:
+    description: varietyName is intentionally absent; rice identity cannot cause inspection rejection.
+    type: object
+    required: [commodity, brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
+    additionalProperties: false
+    properties:
+      commodity: {const: RICE}
+      brokenPercent: {type: number, minimum: 0, maximum: 100}
+      moisturePercent: {type: number, minimum: 0, maximum: 100}
+      chalkyKernelPercent: {type: number, minimum: 0, maximum: 100}
+      foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
+      purityPercent: {type: number, minimum: 0, maximum: 100}
+    examples:
+      - {commodity: RICE, brokenPercent: 6.0, moisturePercent: 14.2, chalkyKernelPercent: 3.5, foreignMatterPercent: 0.3, purityPercent: 97.5}
+  rubberActualMetrics:
+    type: object
+    required: [commodity, grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
+    additionalProperties: false
+    properties:
+      commodity: {const: RUBBER}
+      grade: {enum: [SVR_3L, SVR_5, SVR_10, SVR_20]}
+      dirtPercent: {type: number, minimum: 0, maximum: 100}
+      ashPercent: {type: number, minimum: 0, maximum: 100}
+      volatileMatterPercent: {type: number, minimum: 0, maximum: 100}
+      nitrogenPercent: {type: number, minimum: 0, maximum: 100}
+      plasticityRetentionIndex: {type: number, minimum: 0, maximum: 100}
+    examples:
+      - {commodity: RUBBER, grade: SVR_10, dirtPercent: 0.09, ashPercent: 0.65, volatileMatterPercent: 0.85, nitrogenPercent: 0.62, plasticityRetentionIndex: 48}
+  cashewActualMetrics:
+    type: object
+    required: [commodity, grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
+    additionalProperties: false
+    properties:
+      commodity: {const: CASHEW}
+      grade: {enum: [W180, W210, W240, W320, W450]}
+      moisturePercent: {type: number, minimum: 0, maximum: 100}
+      defectiveKernelPercent: {type: number, minimum: 0, maximum: 100}
+      foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
+      kernelOutturnLbsPer80Kg: {type: number, minimum: 0, maximum: 80}
+    examples:
+      - {commodity: CASHEW, grade: W320, moisturePercent: 5.3, defectiveKernelPercent: 8.5, foreignMatterPercent: 0.6, kernelOutturnLbsPer80Kg: 47.5}
+  actualQualityMetrics:
+    oneOf:
+      - $ref: "#/$defs/coffeeActualMetrics"
+      - $ref: "#/$defs/riceActualMetrics"
+      - $ref: "#/$defs/rubberActualMetrics"
+      - $ref: "#/$defs/cashewActualMetrics"
   inspectionSettlementResultV1:
     type: object
-    required: [resultSchemaVersion, measuredQuantityKg, acceptedQuantityKg, qualityDisposition, determinedAt]
+    required: [resultSchemaVersion, measuredQuantityKg, acceptedQuantityKg, measurementStatus, actualQualityMetrics, determinedAt]
     additionalProperties: false
+    allOf:
+      - if:
+          properties: {measurementStatus: {const: INCONCLUSIVE}}
+          required: [measurementStatus]
+        then:
+          required: [inconclusiveReasons]
+          properties:
+            inconclusiveReasons: {}
     properties:
       resultSchemaVersion: {const: "1.0"}
       measuredQuantityKg: {type: number, minimum: 0}
       acceptedQuantityKg: {type: number, minimum: 0}
-      qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING, INCONCLUSIVE]}
+      measurementStatus: {enum: [COMPLETE, INCONCLUSIVE]}
+      actualQualityMetrics: {$ref: "#/$defs/actualQualityMetrics"}
+      inconclusiveReasons:
+        type: array
+        minItems: 1
+        items: {type: string, minLength: 1}
       determinedAt: {type: string, format: date-time}
-    x-invariant: acceptedQuantityKg must be less than or equal to measuredQuantityKg.
+    x-invariant: acceptedQuantityKg must be <= measuredQuantityKg; inconclusiveReasons is required when measurementStatus is INCONCLUSIVE.
   baseEnvelope:
     $ref: "./event-envelope.yaml"
   contractSigned:
@@ -508,7 +584,7 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
+            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, qualityDisposition, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
             additionalProperties: false
             allOf:
               - if:
@@ -531,6 +607,24 @@ $defs:
                       items:
                         properties:
                           remedyType: {not: {const: CONTRACTUAL_PENALTY}}
+              - if:
+                  properties: {qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING]}}
+                  required: [qualityDisposition]
+                then:
+                  properties:
+                    finalBreachingRole: {type: "null"}
+                    breachReasonCode: {type: "null"}
+                    penaltyEligible: {const: false}
+                    reputationEligible: {const: false}
+              - if:
+                  properties: {qualityDisposition: {const: NON_CONFORMING}}
+                  required: [qualityDisposition]
+                then:
+                  properties:
+                    finalBreachingRole: {const: SELLER}
+                    breachReasonCode: {const: QUALITY_BELOW_COMMITTED}
+                    penaltyEligible: {const: true}
+                    reputationEligible: {const: true}
             properties:
               remedyDecisionId: {$ref: "#/$defs/uuid"}
               attributionDecisionId: {$ref: "#/$defs/uuid"}
@@ -544,6 +638,7 @@ $defs:
                 items: {$ref: "#/$defs/uuid"}
               finalBreachingRole: {$ref: "#/$defs/breachingRole"}
               breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
+              qualityDisposition: {$ref: "#/$defs/finalQualityDisposition"}
               decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
               penaltyEligible: {type: boolean}
               reputationEligible: {type: boolean}
@@ -562,9 +657,14 @@ $defs:
         x-publisher: contract-service
         x-consumers: [escrow-service, reputation-service, audit-service]
         x-source: milestone-escrow-phase2-design.md sections 6.4b, 6.7 and 7.2
-        x-verification-matrix: [11g, 11i, 11j, 11k, 11m, 11o, 11q, 26f, 26h]
-        x-side-effect-boundary: Sole canonical trigger for termination/remedy money legs and reputation lock, including normal-completion return of contract-level deposits.
+        x-verification-matrix: [11g, 11i, 11j, 11k, 11m, 11o, 11q, 26f, 26h, 27i, 27m, 27n, 27p]
+        x-side-effect-boundary: Sole canonical trigger for termination/remedy money legs and reputation lock, including every final quality-dispute resolution and normal-completion return of contract-level deposits.
         x-idempotency: remedyLegId is unique per bank leg; remedyDecisionId groups all legs and is unique for at most one reputation lock.
+        x-quality-invariant: >-
+          A final quality resolution has exactly one affected milestone. MILESTONE_PAYMENT
+          legs sum to that milestone's batchAmount; contractual penalty and deposit
+          forfeiture reconcile against their own fund sources. NON_CONFORMING penalty
+          base is effectiveUnitPrice multiplied by committedQuantity, never totalContractValue.
   milestoneSettled:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -594,8 +694,9 @@ $defs:
         x-publisher: contract-service
         x-consumers: [escrow-service, analytics-service, audit-service]
         x-source: milestone-escrow-phase2-design.md section 7.1
-        x-verification-matrix: [1, 8]
+        x-verification-matrix: [1, 8, 27n]
         x-pii-exception: recipients.email is explicitly required for the later anchor notification; broker TTL and log redaction apply.
+        x-side-effect-boundary: Clean-path settlement only. A quality dispute resolved through AttributionDecision and RemedyDecision must not emit milestone.settled for the same resolution.
   milestoneDisputeResolved:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -688,6 +789,30 @@ $defs:
         x-consumers: [escrow-service]
         x-source: milestone-escrow-phase2-design.md section 7.1
         x-invariant: final seller/refund legs conserve the original batch amount.
+  milestonePriceAdjusted:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.price_adjusted}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, baseUnitPrice, effectiveUnitPrice, currency, proposerId, accepterId, acceptedAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              baseUnitPrice: {$ref: "#/$defs/money"}
+              effectiveUnitPrice: {$ref: "#/$defs/money"}
+              currency: {const: VND}
+              proposerId: {$ref: "#/$defs/uuid"}
+              accepterId: {$ref: "#/$defs/uuid"}
+              acceptedAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [audit-service, analytics-service]
+        x-source: milestone-escrow-phase2-design.md section 6c
+        x-contract-note: Published only after counterparty JWT accept and before funding request; it selects within signed priceBand and never changes ContractTerms or signedContentHash.
   inspectionReportConfirmed:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -716,11 +841,16 @@ $defs:
         x-source: inspection-phase2-design.md section 4; milestone-escrow-phase2-design.md section 3.2; approved OQ-02
         x-contract-note: >-
           contract-service deduplicates by eventId/reportId, verifies resultHash and
-          reportHash, and applies the immutable result only to the matching CONTESTED
-          milestone. It computes min(batchAmount, acceptedQuantityKg * agreedPrice)
-          and does not apply tolerance a second time. No raw content or file is carried.
+          reportHash, and applies the immutable result only to the matching milestone
+          in BUYER_RECEIVED or CONTESTED. Inspection-service owns quantity and typed
+          actual metrics only. Contract-service deterministically computes disposition
+          from signed committed terms and hashed actuals. A final quality dispute uses
+          AttributionDecision -> RemedyDecision -> remedy.finalized and never emits
+          milestone.settled for the same resolution. PARTIALLY_CONFORMING applies the
+          maximum single discount once; NON_CONFORMING refunds the rejected milestone
+          and uses QUALITY_BELOW_COMMITTED. INCONCLUSIVE emits no attribution or money.
         x-hash-contract:
-          resultHash: SHA256(RFC8785 canonical JSON of normalizedResult)
+          resultHash: SHA256(RFC8785 canonical JSON of normalizedResult, including every actualQualityMetrics field)
           reportHash: SHA256(RFC8785 canonical JSON of report identity, reportFileHash, resultHash, confirmedAt and actor/source identity)
   milestoneSellerWeighed:
     allOf:
@@ -738,6 +868,7 @@ $defs:
               milestoneId: {$ref: "#/$defs/uuid"}
               sellerDeclaredWeight: {type: number, minimum: 0}
               sellerEvidenceFileId: {$ref: "#/$defs/uuid"}
+              deliveryCertificateFileId: {$ref: "#/$defs/uuid"}
         x-publisher: contract-service
         x-consumers: [file-service, audit-service]
         x-source: milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1
@@ -757,6 +888,7 @@ $defs:
               milestoneId: {$ref: "#/$defs/uuid"}
               buyerReceivedWeight: {type: number, minimum: 0}
               buyerEvidenceFileId: {$ref: "#/$defs/uuid"}
+              deliveryCertificateFileId: {$ref: "#/$defs/uuid"}
         x-publisher: contract-service
         x-consumers: [audit-service]
         x-source: milestone-escrow-phase2-design.md sections 2.2, 3.2 and 7.1
@@ -1121,6 +1253,7 @@ oneOf:
   - $ref: "#/$defs/milestoneLevel2ProvisionalSettled"
   - $ref: "#/$defs/milestoneLevel2BufferReconciled"
   - $ref: "#/$defs/milestoneLevel2TerminalSettled"
+  - $ref: "#/$defs/milestonePriceAdjusted"
   - $ref: "#/$defs/inspectionReportConfirmed"
   - $ref: "#/$defs/milestoneSellerWeighed"
   - $ref: "#/$defs/milestoneBuyerConfirmed"
