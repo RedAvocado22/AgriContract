@@ -66,9 +66,11 @@ $defs:
       role: {enum: [BUYER, SELLER]}
       amount: {$ref: "#/$defs/money"}
   breachReasonCode:
-    enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, NON_CONFORMING_QUALITY, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
+    enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, QUALITY_BELOW_COMMITTED, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
   nullableBreachReasonCode:
     oneOf: [{$ref: "#/$defs/breachReasonCode"}, {type: "null"}]
+  finalQualityDisposition:
+    oneOf: [{enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING]}, {type: "null"}]
   contractAnchorRequested:
     x-publisher: contract-service
     x-consumers: [notification-service]
@@ -152,7 +154,7 @@ $defs:
               breachCaseId: {$ref: "#/$defs/uuid"}
               contractId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
-              breachReasonCode: {type: string}
+              breachReasonCode: {$ref: "#/$defs/breachReasonCode"}
               severity: {enum: [MINOR, MATERIAL]}
               evidenceRefs: {type: array, items: {type: string}}
   remedyFinalizedRequested:
@@ -166,7 +168,7 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, recipients, finalBreachingRole, breachReasonCode, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
+            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, recipients, finalBreachingRole, breachReasonCode, qualityDisposition, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
             additionalProperties: false
             allOf:
               - if:
@@ -189,6 +191,24 @@ $defs:
                       items:
                         properties:
                           remedyType: {not: {const: CONTRACTUAL_PENALTY}}
+              - if:
+                  properties: {qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING]}}
+                  required: [qualityDisposition]
+                then:
+                  properties:
+                    finalBreachingRole: {type: "null"}
+                    breachReasonCode: {type: "null"}
+                    penaltyEligible: {const: false}
+                    reputationEligible: {const: false}
+              - if:
+                  properties: {qualityDisposition: {const: NON_CONFORMING}}
+                  required: [qualityDisposition]
+                then:
+                  properties:
+                    finalBreachingRole: {const: SELLER}
+                    breachReasonCode: {const: QUALITY_BELOW_COMMITTED}
+                    penaltyEligible: {const: true}
+                    reputationEligible: {const: true}
             properties:
               remedyDecisionId: {$ref: "#/$defs/uuid"}
               attributionDecisionId: {$ref: "#/$defs/uuid"}
@@ -201,10 +221,12 @@ $defs:
               finalBreachingRole:
                 oneOf: [{enum: [BUYER, SELLER]}, {type: "null"}]
               breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
+              qualityDisposition: {$ref: "#/$defs/finalQualityDisposition"}
               decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
               penaltyEligible: {type: boolean}
               reputationEligible: {type: boolean}
               remedyLegs: {type: array, items: {$ref: "#/$defs/remedyLeg"}}
+            x-quality-notification-invariant: qualityDisposition is non-null for a quality resolution and is rendered together with finalBreachingRole; requestedBy is never used as blame.
   milestoneFundingStatusRequested:
     x-publisher: contract-service
     x-consumers: [notification-service]

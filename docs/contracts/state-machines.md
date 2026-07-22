@@ -1,6 +1,6 @@
 # AgriContract Phase 2 State Machines
 
-Sources: milestone escrow §§3-7, signature §§3-7, bank §§2-4, reputation §§2-4, file §2, notification §3, and the 55-row Verification Matrix.
+Sources: milestone escrow §§2-8d, product §8b, inspection §2.3/§4, signature §§3-7, bank §§2-4, reputation §§2-4, file §2, notification §3, and the verification traceability contract.
 
 ## Contract lifecycle
 
@@ -44,6 +44,7 @@ Both -> RemedyDecision -> remedy.finalized
 - Buyer non-receipt is Rổ A only with objective delivery evidence after notice/window expiry; otherwise it is Rổ B.
 - `finalBreachingRole = null` is no-fault and produces no negative consequence.
 - `remedy.finalized` is the sole money/reputation consequence trigger. `contract.terminated` is lifecycle/audit/analytics/notification only.
+- Every quality dispute is Rổ B. Its final `qualityDisposition` is carried with final attribution; `requestedBy`/`flaggedBy` never determines blame.
 - Completion is confirmed through the existing internal bank-ledger read filtered by `contractId`; contract-service verifies all expected `remedyLegId` values and computes zero remaining lock before publishing a terminal lifecycle event. Bank result events remain escrow-owned.
 
 ## Signature and OTP
@@ -66,9 +67,40 @@ IN_PROGRESS|SELLER_WEIGHED -> FORCE_MAJEURE_PENDING_REVIEW -> normal/settled pat
 
 - Seller deadline checks use `effectiveDeliveryDeadline`, never raw `expectedDeliveryDate` after delayed funding.
 - Buyer timeout at `BUYER_RECEIVED` may auto-confirm only while the milestone remains in that state and no inspection is pending.
+- `NONE_UNLESS_DISPUTED` clean confirmation creates no inspection result or actual metrics.
+- `MANDATORY_BEFORE_SETTLEMENT` adds an auxiliary inspection guard, not a milestone state. A confirmed report may attach while the milestone is `BUYER_RECEIVED` or `CONTESTED`; settlement remains blocked until the guard is satisfied.
 - `SELLER_WEIGHED` timeout never auto-settles from seller-only evidence.
 - Delta 1 above threshold opens Rổ B; pro-rata delivered value may settle, but penalty waits for attribution.
 - Level 2 provisional/reconcile/terminal events carry explicit positive release/refund legs and preserve batch conservation.
+
+## Inspection measurement and quality assessment
+
+```text
+inspection report -> COMPLETE | INCONCLUSIVE
+COMPLETE -> contract compares committed spec/deviation policy
+         -> CONFORMING | PARTIALLY_CONFORMING | NON_CONFORMING
+INCONCLUSIVE -> existing dispute/inspection routing; no automatic settlement
+```
+
+- Inspection-service owns `measurementStatus`, measured/accepted quantity and typed actual metrics; all actual fields are committed by `resultHash`.
+- Contract-service owns quality disposition and monetary assessment. Coffee `type` and rubber/cashew `grade` may exact-match-reject; rice `varietyName` is never an actual metric or rejection input.
+- Reviewer confirms the deterministic comparison of `signedContentHash` committed terms and `resultHash` actuals; no subjective criterion may be introduced.
+- `CONFORMING` -> null breach role, normal settlement, Buyer inspection cost; `PARTIALLY_CONFORMING` -> null role, max discount once, Seller cost; `NON_CONFORMING` -> Seller/`QUALITY_BELOW_COMMITTED`, rejected-milestone refund plus existing penalty/deposit policy, Seller cost; `INCONCLUSIVE` -> no attribution or money until final reinspection/Level 2.
+- Clean path keeps Delta 1/Delta 2. Inspected/contested path uses `min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)` and never reapplies Delta 2; `min()` only caps over-delivery.
+- Quality-dispute money runs only through `remedy.finalized`; `milestone.settled` is forbidden for the same resolution. `MILESTONE_PAYMENT` legs sum to `batchAmount`, while penalty and deposit forfeiture conserve their own fund sources.
+- A rejected milestone does not auto-terminate the contract. Delivery certificates remain evidence only and cannot become actual metrics or substitute for a confirmed report.
+
+## Milestone price selection
+
+```text
+no proposal -> PENDING (one mutable proposal) -> ACCEPTED (immutable)
+                  | replace pending               | publish milestone.price_adjusted
+                  \-> invalid after funding request
+```
+
+- Propose/accept requires JWT and `Idempotency-Key`; proposer cannot self-accept and no OTP is requested.
+- Proposal price must be inside the signed inclusive band. Milestone 1 accepts only while Contract is `SIGNED` before its funding request; later milestones accept while the preceding milestone is still running.
+- Funding does not wait for negotiation. It chooses accepted `effectiveUnitPrice` or immediately falls back to `agreedPrice`; after request, the amount is fixed and cannot be true-upped at settlement.
 
 ## Milestone funding
 
@@ -79,6 +111,7 @@ FUNDING_PENDING -> LOCKED
 ```
 
 - Seller preparation/delivery obligation begins only at `LOCKED`.
+- Funding amount is `committedQuantity × effectiveUnitPrice`, where effective price is the immutable accepted adjustment or base fallback.
 - `fundingDelayBusinessDays` is measured from request to successful lock and feeds `effectiveDeliveryDeadline`.
 - Confirmed bank/system outage pauses cure attribution; technical failure is not buyer breach.
 
