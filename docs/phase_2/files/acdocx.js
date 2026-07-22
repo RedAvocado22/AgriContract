@@ -115,9 +115,11 @@ function cell(content, o = {}) {
 function table(widths, headers, rows, opts = {}) {
   const headRow = new TableRow({
     tableHeader: true,
+    cantSplit: true,
     children: headers.map((h, i) => cell(h, { w: widths[i], fill: T.HFILL, color: "FFFFFF", bold: true, size: 19, align: opts.headAlign?.[i] })),
   });
   const bodyRows = rows.map((r, ri) => new TableRow({
+    cantSplit: true,
     children: r.map((c, i) => cell(c, { w: widths[i], fill: ri % 2 === 1 ? T.ZEBRA : undefined, size: opts.size || 19, align: opts.colAlign?.[i], bold: opts.boldCol?.[i] })),
   }));
   return new Table({
