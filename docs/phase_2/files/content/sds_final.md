@@ -122,6 +122,8 @@ UUID là identity xuyên service; tiền dùng decimal dương, không float. Ti
 
 Không có generic `/cancel`. Command transport và exact paths nằm trong §10.
 
+`ContractTermsInput` ký typed quality/delivery/inspection/pricing terms; `inspectionTerms.inspectionCostResponsibility` bắt buộc đúng `LOSER_PAYS`. Certificate/phiếu kiểm ở weigh/confirm là attachment evidence tùy chọn, không phải actual quality input.
+
 ## **4.4 Signature flow**
 
 1. Validate user eligibility/unlocked via internal user-service, fail-closed.
@@ -137,6 +139,8 @@ Không có generic `/cancel`. Command transport và exact paths nằm trong §10
 
 Penalty rate không vượt `LegalProfile.maxContractualPenaltyRate` (8% với VN commercial profile) và tính trên breached obligation/milestone scope. `DAMAGES_COMPENSATION` chỉ khi policy cho và có evidence; forfeiture/penalty/damages phải tránh double recovery.
 
+Quality dispute luôn là Rổ B. Reviewer chỉ xác nhận phép tính từ committed terms trong `signedContentHash` và actual metrics trong `resultHash`. `CONFORMING`/`PARTIALLY_CONFORMING` có final role null và không punitive/reputation; `NON_CONFORMING` map Seller + `QUALITY_BELOW_COMMITTED`; `INCONCLUSIVE` chưa tạo remedy hoặc phát tiền. Final quality resolution chỉ dùng `remedy.finalized`, không đồng thời `milestone.settled`.
+
 ## **4.6 RemedyDecision wire shape**
 
 | **Field** | **Nullable** | **Ý nghĩa** |
@@ -148,6 +152,7 @@ Penalty rate không vượt `LegalProfile.maxContractualPenaltyRate` (8% với V
 | affectedMilestoneIds | no | Scope chưa settled/được xử lý |
 | finalBreachingRole | yes | BUYER/SELLER/null |
 | breachReasonCode | yes | Null no-fault |
+| qualityDisposition | yes | Non-null cho final quality resolution; null ngoài quality path |
 | decisionSource | no | SYSTEM/ADMIN/INSPECTOR_L1_5/INSPECTOR_L2/MUTUAL |
 | penaltyEligible, reputationEligible | no | Explicit guards |
 | remedyLegs | no | `{remedyLegId, remedyType, fundType, role, amount}` |
@@ -307,10 +312,10 @@ Ký hiệu `?` là optional; field required nhưng nullable vẫn phải xuất 
 | ReputationPublicSummary | `userId`: string<br>`score`: number<br>`locked`: boolean<br>`lockHistory`: array<object> | closed object |
 | ReputationActionProposalRequest | `actionType`: `UNLOCK_EARLY`, `CLEAR_ELEVATED_RISK`<br>`targetUserId`: string<br>`reason`: string | closed object |
 | ReputationAction | `actionId`: string<br>`actionType`: `UNLOCK_EARLY`, `CLEAR_ELEVATED_RISK`<br>`targetUserId`: string<br>`proposedBy`: string<br>`status`: `PROPOSED`, `APPROVED`, `REJECTED` | closed object |
-| AttributionDecision | `attributionDecisionId`: string<br>`breachCaseId`: ['string', 'null']<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`finalBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: NullableBreachReasonCode<br>`evidenceRefs`: array<string> | closed object |
-| RemedyDecision | `remedyDecisionId`: string<br>`attributionDecisionId`: string<br>`breachCaseId`: ['string', 'null']<br>`contractId`: string<br>`buyerId`: string<br>`sellerId`: string<br>`affectedMilestoneIds`: array<string><br>`finalBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: NullableBreachReasonCode<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<RemedyLeg> | closed object |
+| AttributionDecision | `attributionDecisionId`: string<br>`breachCaseId`: ['string', 'null']<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`finalBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: NullableBreachReasonCode<br>`qualityDisposition`: `CONFORMING`, `PARTIALLY_CONFORMING`, `NON_CONFORMING` / null<br>`evidenceRefs`: array<string> | closed object |
+| RemedyDecision | `remedyDecisionId`: string<br>`attributionDecisionId`: string<br>`breachCaseId`: ['string', 'null']<br>`contractId`: string<br>`buyerId`: string<br>`sellerId`: string<br>`affectedMilestoneIds`: array<string><br>`finalBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: NullableBreachReasonCode<br>`qualityDisposition`: `CONFORMING`, `PARTIALLY_CONFORMING`, `NON_CONFORMING` / null<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<RemedyLeg> | closed object |
 | RemedyLeg | `remedyLegId`: string<br>`remedyType`: `NONE`, `PAYMENT_SETTLEMENT`, `PAYMENT_REFUND`, `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION`<br>`fundType`: `BUYER_DEPOSIT`, `SELLER_DEPOSIT`, `MILESTONE_PAYMENT`<br>`role`: `BUYER`, `SELLER`<br>`amount`: string | closed object |
-| BreachReasonCode | `NON_DELIVERY`, `SHORTFALL`, `LATE_DELIVERY`, `NON_CONFORMING_QUALITY`, `SIDE_SELLING`, `PRODUCTION_SHOCK_NON_FM`, `FUNDING_FAILURE`, `LATE_PAYMENT`, `FAILURE_TO_RECEIVE`, `WRONGFUL_REJECTION`, `FORCE_MAJEURE`, `MUTUAL_EXIT`, `ACTIVATION_FAILURE` | enum: NON_DELIVERY, SHORTFALL, LATE_DELIVERY, NON_CONFORMING_QUALITY, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE |
+| BreachReasonCode | `NON_DELIVERY`, `SHORTFALL`, `LATE_DELIVERY`, `QUALITY_BELOW_COMMITTED`, `SIDE_SELLING`, `PRODUCTION_SHOCK_NON_FM`, `FUNDING_FAILURE`, `LATE_PAYMENT`, `FAILURE_TO_RECEIVE`, `WRONGFUL_REJECTION`, `FORCE_MAJEURE`, `MUTUAL_EXIT`, `ACTIVATION_FAILURE` | enum: NON_DELIVERY, SHORTFALL, LATE_DELIVERY, QUALITY_BELOW_COMMITTED, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE |
 | NullableBreachReasonCode | BreachReasonCode / null | oneOf |
 | ContractPage | `content`: array<ContractResponse><br>`page`: integer<br>`size`: integer<br>`totalElements`: integer<br>`totalPages`: integer | closed object |
 | PublicUserResponse | `userId`: string<br>`organizationName`: string<br>`role`: `BUYER`, `SELLER`, `ADMIN`, `INSPECTOR`, `OPERATOR`<br>`verificationStatus`: `PENDING`, `VERIFIED`, `REJECTED` | closed object |
@@ -320,8 +325,8 @@ Ký hiệu `?` là optional; field required nhưng nullable vẫn phải xuất 
 | InitiateSignRequest | `signerRole`: `BUYER`, `SELLER` | closed object |
 | InitiateSignResponse | `otpId`: string<br>`expiresAt`: string | closed object |
 | VerifyOtpAndSignRequest | `otpId`: string<br>`otpCode`: string | closed object |
-| SellerWeighedRequest | `sellerDeclaredWeight`: number<br>`sellerEvidenceFileId`: string | closed object |
-| BuyerReceivedRequest | `buyerReceivedWeight`: number<br>`buyerEvidenceFileId`: string | closed object |
+| SellerWeighedRequest | `sellerDeclaredWeight`: number<br>`sellerEvidenceFileId`: string<br>`deliveryCertificateFileId?`: string | closed object |
+| BuyerReceivedRequest | `buyerReceivedWeight`: number<br>`buyerEvidenceFileId`: string<br>`deliveryCertificateFileId?`: string | closed object |
 | ForceMajeureClaimRequest | `evidenceFileId`: string | closed object |
 | ForceMajeureResolveRequest | `decision`: `APPROVED`, `REJECTED` | closed object |
 | AuditRecordList | array<object> | — |
@@ -354,7 +359,7 @@ Ký hiệu `?` là optional; field required nhưng nullable vẫn phải xuất 
 | contract.settled | contract-service | reputation-service, analytics-service | `contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid |  |
 | contract.terminated | contract-service | audit-service, analytics-service | `contractId`: uuid<br>`terminationType`: `WITHDRAW_OFFER`, `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, `ACTIVATION_FAILURE`<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`remedyDecisionId`: nullableUuid<br>`breachCaseId`: nullableUuid<br>`affectedMilestoneIds`: array<uuid><br>`supersededByContractId`: nullableUuid<br>`replacesContractId`: nullableUuid | `finalBreachingRole` và `breachReasonCode` là required-but-nullable cho mutual, force-majeure và technical no-fault; replacement pointers chỉ non-null với `MUTUAL_REPLACEMENT`. Trừ pre-sign `WITHDRAW_OFFER`, chỉ publish sau khi đủ expected `remedyDecisionId/remedyLegId` và remaining contract lock bằng 0. |
 | breach.reported | contract-service | audit-service | `breachCaseId`: uuid<br>`contractId`: uuid<br>`milestoneId`: nullableUuid<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`allegedBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: breachReasonCode<br>`severity`: `MINOR`, `MATERIAL` |  |
-| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | `remedyDecisionId`: uuid<br>`attributionDecisionId`: uuid<br>`breachCaseId`: nullableUuid<br>`contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid<br>`affectedMilestoneIds`: array<uuid><br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<object> | Khi `finalBreachingRole = null`, cả hai eligibility flag phải false và legs chỉ có `NONE`, `PAYMENT_SETTLEMENT`, `PAYMENT_REFUND`; khi `penaltyEligible = false`, không có `CONTRACTUAL_PENALTY`. `remedyLegId` unique cho từng bank leg; `remedyDecisionId` group toàn bộ legs và tạo tối đa một reputation lock. |
+| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | `remedyDecisionId`: uuid<br>`attributionDecisionId`: uuid<br>`breachCaseId`: nullableUuid<br>`contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid<br>`affectedMilestoneIds`: array<uuid><br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`qualityDisposition`: `CONFORMING`, `PARTIALLY_CONFORMING`, `NON_CONFORMING` / null<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<object> | Khi `finalBreachingRole = null`, cả hai eligibility flag phải false và legs chỉ có `NONE`, `PAYMENT_SETTLEMENT`, `PAYMENT_REFUND`; khi `penaltyEligible = false`, không có `CONTRACTUAL_PENALTY`. Quality resolution là money trigger duy nhất; `MILESTONE_PAYMENT` legs conserve `batchAmount` riêng với penalty/deposit. |
 | milestone.settled | contract-service | escrow-service, analytics-service, audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`lockedAmount`: money<br>`actualAmount`: money<br>`recipients`: array<object> |  |
 | milestone.dispute_resolved | contract-service | reputation-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`flaggedBy`: const `BUYER`<br>`flaggedByUserId`: uuid<br>`resolutionFavors`: `BUYER`, `SELLER` |  |
 | milestone.level2_provisional_settled | contract-service | escrow-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`level1_5ReportId`: uuid<br>`level1_5EntitlementAmount`: money<br>`releaseRate`: string<br>`sellerReleaseAmount`: money<br>`remainingLockedAmount`: money |  |
@@ -389,7 +394,7 @@ Ký hiệu `?` là optional; field required nhưng nullable vẫn phải xuất 
 | notification.contract_activation_failed_requested | contract-service | notification-service | `contractId`, `recipients`, `failedLeg`, `buyerDepositState`, `sellerDepositState`, `nextActions` |
 | notification.contract_terminated_requested | contract-service | notification-service | `contractId`, `recipients`, `terminationType`, `requestedBy`, `finalBreachingRole`, `breachReasonCode`, `remedyDecisionId`, `breachCaseId`, `affectedMilestoneIds`, `supersededByContractId`, `replacesContractId`, `remedyLegs` |
 | notification.breach_notice_requested | contract-service | notification-service | `breachCaseId`, `contractId`, `recipients`, `breachReasonCode`, `severity`, `evidenceRefs` |
-| notification.remedy_finalized_requested | contract-service | notification-service | `remedyDecisionId`, `attributionDecisionId`, `breachCaseId`, `contractId`, `buyerId`, `sellerId`, `affectedMilestoneIds`, `recipients`, `finalBreachingRole`, `breachReasonCode`, `decisionSource`, `penaltyEligible`, `reputationEligible`, `remedyLegs` |
+| notification.remedy_finalized_requested | contract-service | notification-service | `remedyDecisionId`, `attributionDecisionId`, `breachCaseId`, `contractId`, `buyerId`, `sellerId`, `affectedMilestoneIds`, `recipients`, `finalBreachingRole`, `breachReasonCode`, `qualityDisposition`, `decisionSource`, `penaltyEligible`, `reputationEligible`, `remedyLegs`; quality template renders disposition with final attribution and never infers blame from requester |
 | notification.milestone_funding_status_requested | contract-service | notification-service | Required: `contractId`, `milestoneId`, `recipients`, `statusType`; optional nullable: `deadline`, `reason` |
 | notification.milestone_status_requested | contract-service | notification-service | Required: `contractId`, `milestoneId`, `recipients`, `statusType`; optional: `deadline` (nullable), `statusData` |
 | notification.milestone_anchor_requested | audit-service | notification-service | `contractId`, `milestoneId`, `recipients`, `recordHash`, `otsProof`, `settlementSummary` |

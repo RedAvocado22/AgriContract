@@ -25,6 +25,14 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 
 | Field | Loại | Ghi chú |
 |---|---|---|
+| `goodsTerms` | `GoodsTermsSnapshot` | **Server-derived, không nhận từ create/PATCH input.** Contract-service snapshot từ `Listing`/`Product`/`Category`/`PlotRegistryEntry` ngay khi tạo contract. Mọi sửa/xoá nguồn sau đó không đổi snapshot hoặc hash của contract. |
+| `qualityTerms` | `QualityTerms` | Committed spec typed theo đúng `goodsTerms.commodity` và deviation policy cho từng metric. Cùng một union 4 commodity với `Listing.declaredQualitySpec`; draft không đúng discriminator bị reject trước ký. |
+| `deliveryTerms` | `DeliveryTerms` | Chỉ ký quy tắc phân bổ risk/title/cost. Địa chỉ giao thực tế, carrier, biển số và tracking là runtime data, không nằm trong signed terms. |
+| `inspectionTerms` | `InspectionTerms` | Chốt `NONE_UNLESS_DISPUTED` hoặc `MANDATORY_BEFORE_SETTLEMENT`, tier yêu cầu, cửa sổ report và `inspectionCostResponsibility = LOSER_PAYS` (giá trị duy nhất Phase 2). `level2InspectorOrg` tiếp tục là field phẳng hiện có để giữ compatibility. |
+| `currency` | ISO 4217 (`VND`) | Currency của toàn bộ money field trong contract. Phase 2 chỉ hỗ trợ `VND`, nhưng ký rõ để canonical payload không dựa vào default ngầm. |
+| `totalContractValue` | Money, server-derived | `agreedPrice × Σ milestoneSchedule.committedQuantity`, làm tròn theo currency. Không nhận từ client và không recompute theo milestone price adjustment. |
+| `priceBand` | `PriceBand` | Biên inclusive `[minimumUnitPrice, maximumUnitPrice]` đã được hai bên ký trước; phải chứa `agreedPrice`. |
+| `priceAdjustmentRule` | `PriceAdjustmentRule` | Phase 2 cố định `BOTH_ACCEPT`, cutoff `BEFORE_FUNDING_REQUEST`, tối đa một accepted adjustment/milestone. |
 | `milestoneSchedule` | `List<MilestoneTerm>` (nested VO) | N batch tự do — buyer/seller tự thoả thuận số lượng batch, không cố định. Snapshot immutable lúc `sign()`, giống `agreedPrice`. |
 | `toleranceRate` | BigDecimal | Ngưỡng lệch cân chấp nhận được cho Delta 2 (hao mòn vận chuyển). Mặc định 50/50 chia trách nhiệm nếu vượt ngưỡng — kế thừa nguyên bản Doc2 mục 4.2. **Guardrail (mới, 08/07/2026): validate range `[0%, 10%]` lúc `sign()` — xem ghi chú dưới bảng.** |
 | `shortfallPenaltyThreshold` | BigDecimal | Ngưỡng % thiếu hàng (Delta 1) mà dưới đó chỉ pro-rata, từ đó trở lên tính penalty. **Chốt: 5%.** (Giá trị mặc định — vẫn negotiate được per-contract giống các field khác trong `ContractTerms`.) **Guardrail (mới, 08/07/2026): validate range `[3%, 15%]` lúc `sign()` — xem ghi chú dưới bảng.** |
@@ -68,13 +76,40 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 
 Bản thân việc **có** guardrail là câu trả lời cho câu hỏi hội đồng dễ hỏi: "làm sao chống buyer ép điều khoản?" — có số cụ thể defend được dễ hơn khoảng trống. Guardrail thu hẹp biên ép xuống mức chấp nhận được, **không** xoá được bất đối xứng quyền lực hoàn toàn (buyer vẫn thương lượng được trong biên) — đây là điểm honest defend trước hội đồng, không claim giải quyết triệt để.
 
+### 2.1c Signed goods, quality, delivery, inspection và pricing terms (mới, 23/07/2026)
+
+`ContractTermsSnapshot` là payload đầy đủ được trả về và là input duy nhất của canonicalization cho `signedContentHash`. `ContractTermsInput` chỉ chứa phần hai bên được phép đề xuất; contract-service tự dựng `goodsTerms` và `totalContractValue`. Mọi field mới trong snapshot, kể cả nested field, đều nằm trong RFC 8785 canonical bytes trước SHA-256. `PATCH /terms` bị khoá ngay sau chữ ký đầu tiên, không chờ chữ ký thứ hai.
+
+`goodsTerms` giữ identity hàng hoá và nguồn gốc tại thời điểm tạo contract:
+
+```text
+GoodsTermsSnapshot {
+  commodity, listingId, productId, categoryId, categoryName,
+  productName, unitOfMeasure,
+  originSnapshot { regionText, plotRefs[] },
+  traceabilitySnapshot?
+}
+```
+
+- `plotRefs` bắt buộc có ít nhất một phần tử cho `COFFEE`/`RUBBER`; phải rỗng cho `RICE`/`CASHEW`.
+- `traceabilitySnapshot` là reference tới evidence package đã đóng băng, nullable và chỉ hợp lệ cho `COFFEE`/`RUBBER`; không nhét raw file vào terms.
+- Với rice, `varietyName` là identity attribute: nằm trong `goodsTerms` và `RiceQualitySpec`, nhưng không phải actual inspection metric.
+
+`qualityTerms.committedSpec` là một trong `CoffeeQualitySpec`, `RiceQualitySpec`, `RubberQualitySpec`, `CashewQualitySpec`. Deviation policy dùng ba ngưỡng có thứ tự `tolerance <= penalty < reject` và `discountRate` cho penalty zone. Categorical exact-match-reject chỉ được phép cho field inspector xác định đáng tin cậy: coffee `type`, rubber/cashew `grade`. Rice `varietyName` không có policy deviation, không có trong actual metrics và tuyệt đối không thể tự làm milestone bị reject.
+
+`deliveryTerms` ký `deliveryResponsibility`, `riskTransferPoint`, `titleTransferPoint`, `transportCostBearer`, `unloadingCostBearer`; không ký delivery address/carrier runtime. `inspectionTerms` ký requirement/tier/window và `inspectionCostResponsibility = LOSER_PAYS`; không chấp nhận `SPLIT` hay default ngầm trong Phase 2. `level2InspectorOrg` vẫn nằm phẳng ở vị trí cũ; khi tier yêu cầu Level 2 thì field này bắt buộc non-null.
+
+`agreedPrice` tiếp tục là base unit price. `totalContractValue` là nominal base value và là cơ sở duy nhất để tính `buyerDepositRate`/`sellerDepositRate` một lần lúc ký. Adjustment tăng hay giảm giá milestone không làm recompute hoặc true-up hai khoản deposit.
+
+**Compatibility:** contract đã ký legacy thiếu các object mới vẫn đọc và vận hành read-only theo snapshot/hash cũ. Draft legacy được đọc và PATCH, nhưng `Sign` fail closed cho tới khi bổ sung đủ signed terms mới; service không tự điền silent default vì làm vậy sẽ tạo nội dung mà hai bên chưa nhìn thấy.
+
 `MilestoneTerm` (nested VO, phần tử của `milestoneSchedule`):
 
 | Field | Loại | Ghi chú |
 |---|---|---|
 | `milestoneIndex` | Integer | Thứ tự batch (1, 2, ..., N) |
 | `committedQuantity` | BigDecimal | Số lượng cam kết giao ở batch này |
-| `batchAmount` | Money | `committedQuantity × agreedPrice` — phần tiền ứng với batch này |
+| `batchAmount` | Money | Cố định lúc funding request bằng `committedQuantity × effectiveUnitPrice`, trong đó effective price là accepted adjustment hoặc fallback `agreedPrice`. |
 | `expectedDeliveryDate` | Date | **Mới (08/07/2026), lỗ hổng gốc phát hiện khi rà timeout.** Snapshot immutable lúc `sign()`, giống mọi field khác trong `MilestoneTerm`. Trước bản này, `MilestoneTerm` không có bất kỳ mốc ngày nào — hệ quả: không neo được timeout nào ở giai đoạn giao hàng, và hệ thống **không định nghĩa được "seller giao trễ"** (Delta 1 chỉ đo *thiếu lượng*, không đo *trễ hạn* — trong khi trễ hạn là vi phạm phổ biến nhất của forward contract nông sản, Doc01 §2.1). |
 | `graceDays` | Integer | **Mới (08/07/2026).** Số ngày ân hạn sau `expectedDeliveryDate` trước khi coi là quá hạn — cửa sổ thực tế là `[expectedDeliveryDate, expectedDeliveryDate + graceDays]`, không phải mốc cứng. **Chốt: để trong `ContractTerms`/`MilestoneTerm` (per-contract), không phải `application.yml`** — độ nhạy thời gian khác nhau theo mặt hàng (cà phê khô để lâu, giao trễ vài ngày không sao; rau quả tươi trễ là hỏng), cùng lý do `forceMajeureReportWindowDays` đã để per-contract — xem §8. |
 
@@ -119,8 +154,10 @@ Cơ chế:
 | `status` | Enum | Xem state machine §3.2 |
 | `sellerDeclaredWeight` | BigDecimal, nullable | Seller tự cân trước khi lên xe |
 | `sellerEvidenceFileId` | UUID, nullable | Reference `file-service` — ảnh cân hàng |
+| `sellerDeliveryCertificateFileId` | UUID, nullable | Certificate/phiếu kiểm seller đính kèm cho batch; chỉ là delivery/dispute evidence. |
 | `buyerReceivedWeight` | BigDecimal, nullable | Buyer cân lại khi hạ hàng |
 | `buyerEvidenceFileId` | UUID, nullable | Reference `file-service` |
+| `buyerDeliveryCertificateFileId` | UUID, nullable | Certificate/phiếu kiểm buyer đính kèm cho batch; chỉ là delivery/dispute evidence. |
 | `forceMajeureClaimId` | UUID, nullable | Reference nếu có claim bất khả kháng cho batch này |
 
 ### 2.3 `EscrowAccount` (cập nhật, 06/07/2026)
@@ -301,6 +338,48 @@ Admin xem xét bằng chứng trước tiên, vì đây là bước rẻ nhất 
 
 ---
 
+### 3.3 Mandatory inspection, quality assessment và disposition-to-remedy (mới, 23/07/2026)
+
+Không thêm trạng thái milestone mới. Contract-service giữ một inspection requirement record/guard phụ trợ theo milestone. Report được nhận khi milestone đang `BUYER_RECEIVED` hoặc `CONTESTED`; settlement command kiểm tra guard thay vì encode lab workflow vào state machine.
+
+- `NONE_UNLESS_DISPUTED`: happy path giữ nguyên — buyer `CONFIRM_CLEAN` hoặc timeout hợp lệ settle trực tiếp, không tạo inspection, actual metrics hay quality assessment.
+- `MANDATORY_BEFORE_SETTLEMENT`: khi vào `BUYER_RECEIVED`, settle/auto-confirm bị chặn tới khi có report confirmed. Milestone vẫn ở `BUYER_RECEIVED`; nếu có contest thì chuyển `CONTESTED` như hiện hành.
+- Inspection-service chỉ trả measured/accepted quantity, commodity-discriminated actual metrics và `measurementStatus`; không trả disposition hoặc tiền.
+- Contract-service verify hash, đối chiếu actual metrics với committed spec/deviation policy và persist immutable `QualityAssessment` gồm `disposition`, metric outcomes, `qualityDiscountRate`, `qualityDiscountAmount`, `quantityAdjustedEntitlement`, `finalSellerEntitlement`.
+- Certificate/phiếu kiểm đính kèm lúc seller weigh hoặc buyer receive là evidence tùy chọn. Không parser nào được biến nội dung certificate thành `actualQualityMetrics`; nó không nằm trong `resultHash`, không tự sinh disposition và không thay `inspection.report_confirmed`.
+
+Disposition: mọi metric trong tolerance zone => `CONFORMING`; ít nhất một metric trong penalty zone và không có reject => `PARTIALLY_CONFORMING`; một metric vào reject zone hoặc categorical exact mismatch được phép => `NON_CONFORMING`; report/lab không kết luận được => `INCONCLUSIVE` và đi routing hiện hành, không tự settle.
+
+**Quality dispute luôn là Rổ B.** Khi buyer flag chất lượng, contract-service mở `BreachCase`; reviewer chỉ xác nhận phép tính tất định từ committed terms đã commit trong `signedContentHash` và actual metrics đã commit trong `resultHash`. Reviewer không được thay threshold, thêm tiêu chí cảm quan tự do hoặc phán chất lượng chủ quan ngoài signed deviation policy. Sau review, flow hội tụ đúng một đường `AttributionDecision -> RemedyDecision -> remedy.finalized`:
+
+Với mandatory inspection chưa có flag, `CONFORMING` có thể tiếp tục clean `milestone.settled`; kết quả `PARTIALLY_CONFORMING` hoặc `NON_CONFORMING` tự mở Rổ B trước khi áp hậu quả. Sau khi một quality case đã mở, kể cả kết luận cuối là `CONFORMING`, resolution vẫn đi `remedy.finalized` duy nhất để đóng case và phân bổ phí inspection.
+
+| Disposition | Attribution/eligibility | Remedy và phí inspection |
+|---|---|---|
+| `CONFORMING` | `finalBreachingRole = NULL`, `breachReasonCode = NULL`, `penaltyEligible = false`, `reputationEligible = false` | Settlement bình thường, không penalty/forfeiture/reputation; Buyer chịu phí inspection. |
+| `PARTIALLY_CONFORMING` | `finalBreachingRole = NULL`, `breachReasonCode = NULL`, `penaltyEligible = false`, `reputationEligible = false` | Giảm seller entitlement bằng `max(discountRate)` đúng một lần, phần còn lại refund Buyer; Seller chịu phí inspection. |
+| `NON_CONFORMING` | `finalBreachingRole = SELLER`, `breachReasonCode = QUALITY_BELOW_COMMITTED`, `penaltyEligible = true`, `reputationEligible = true` | Refund toàn bộ `MILESTONE_PAYMENT` của milestone bị reject; penalty và seller-deposit forfeiture áp theo remedy policy hiện hành; Seller chịu phí inspection. |
+| `INCONCLUSIVE` | Chưa tạo final attribution hoặc `RemedyDecision` | Không phát tiền; tiếp tục reinspection/Level 2. Phí chỉ phân bổ khi có disposition cuối cùng. |
+
+`NON_CONFORMING` chỉ fail milestone liên quan, không tự terminate toàn bộ contract. Phase 2 không model nhánh Buyer giữ hàng reject để đổi lấy discount sâu hơn; nếu hai bên muốn cấu trúc khác, họ phải đi `MUTUAL_REPLACEMENT`/supersede thay vì reviewer tự bịa remedy mới.
+
+Nếu nhiều metric cùng vào penalty zone, chỉ lấy **`max(discountRate)` một lần**, không cộng dồn. Inspected/contested path dùng công thức riêng dưới đây và tuyệt đối không áp Delta 2/tolerance thêm lần nữa:
+
+```text
+quantityAdjustedEntitlement = min(lockedAmount, acceptedQuantityKg * effectiveUnitPrice)
+qualityDiscountAmount       = quantityAdjustedEntitlement * maxPenaltyDiscountRate
+finalSellerEntitlement      = quantityAdjustedEntitlement - qualityDiscountAmount
+buyerRefundAmount           = lockedAmount - finalSellerEntitlement
+```
+
+`min()` chỉ là safety cap chống over-delivery làm entitlement vượt số đã lock; nó không phải tolerance lần hai. Quality discount là điều chỉnh consideration đã ký trước, trừ trực tiếp seller entitlement và phần chênh hoàn buyer. Nó **không** tạo ledger leg `CONTRACTUAL_PENALTY`; catalog ledger hiện tại giữ nguyên.
+
+Conservation kiểm theo nguồn tiền, không cộng lẫn các chế tài:
+
+- Tổng mọi leg `fundType = MILESTONE_PAYMENT` của quality resolution phải đúng `batchAmount`: seller settlement + buyer refund = `batchAmount`.
+- `CONTRACTUAL_PENALTY` đối soát trên nguồn penalty riêng; base của milestone reject là `effectiveUnitPrice × committedQuantity`, không bao giờ là `totalContractValue`.
+- `DEPOSIT_FORFEITURE` đối soát riêng theo `SELLER_DEPOSIT`; không cộng lại vào batch conservation. `inspectionCostResponsibility` không tạo ledger enum hay quality-specific punitive leg mới.
+
 ## 4. Business Rules — Delta 1 vs Delta 2
 
 Hai delta khác bản chất, **không được gộp chung**:
@@ -331,9 +410,9 @@ within   = min(delta2, toleranceRate × sellerDeclaredWeight)   // phần trong 
 excess   = delta2 − within                                      // phần vượt: chia theo toleranceRate
 sellerBears = excess × 0.5   // hoặc theo tỷ lệ khác nếu 2 bên đàm phán riêng ngoài mặc định 50/50
 buyerBears  = excess × 0.5
-actualAmount = (buyerReceivedWeight + buyerBears) × agreedPrice
+actualAmount = (buyerReceivedWeight + buyerBears) × effectiveUnitPrice
 ```
-Nếu `delta2 ≤ within` (chưa vượt ngưỡng) → `actualAmount = buyerReceivedWeight × agreedPrice` như cơ chế cũ, không đổi gì. **Chốt (08/07/2026):** chia **phần vượt ngưỡng** (không phải toàn bộ Delta 2) — vì `toleranceRate` theo định nghĩa là "ngưỡng hao mòn chấp nhận được", hao mòn trong ngưỡng buyer đã ngầm chấp nhận lúc ký, chỉ phần vượt mới là bất thường cần chia sẻ; nếu chia cả phần trong ngưỡng thì `toleranceRate` mất nghĩa "ngưỡng" và biến thành "tỷ lệ chia" thuần. Chia trên **khối lượng** (không phải tiền) — vì `agreedPrice` cố định suốt hợp đồng nên chia khối lượng rồi × giá cho kết quả y hệt chia tiền, nhưng khớp với cách Delta 1 đã thao tác (đều tính trên `weight` rồi × `agreedPrice` ở bước cuối), nhất quán 1 kiểu tính, dễ test. `contract-service` là nơi tính `actualAmount` cuối cùng (có đủ `ContractTerms`), truyền số đã tính xuống `escrow-service` qua payload `milestone.settled` — không để escrow-service tự tính lại tolerance split.
+Nếu `delta2 ≤ within` (chưa vượt ngưỡng) → `actualAmount = buyerReceivedWeight × effectiveUnitPrice`, trong đó effective price là accepted adjustment hoặc fallback `agreedPrice`. **Chốt (08/07/2026; sửa pricing 23/07/2026):** chia **phần vượt ngưỡng** (không phải toàn bộ Delta 2) — vì `toleranceRate` theo định nghĩa là "ngưỡng hao mòn chấp nhận được", hao mòn trong ngưỡng buyer đã ngầm chấp nhận lúc ký, chỉ phần vượt mới là bất thường cần chia sẻ. Chia trên **khối lượng** rồi nhân effective price ở bước cuối, khớp với Delta 1 và giữ một kiểu tính dễ test. Công thức Delta 2 này chỉ áp clean path; inspected/contested path dùng `acceptedQuantityKg × effectiveUnitPrice` ở §3.3 và không chạy tolerance lần nữa. `contract-service` là nơi tính `actualAmount` cuối cùng, truyền số đã tính xuống `escrow-service` qua `milestone.settled`; escrow-service không tự tính lại tolerance split hay price adjustment.
 
 ---
 
@@ -525,6 +604,7 @@ Luồng thống nhất: `AttributionDecision` → remedy calculator (§6.7) sinh
 | `affectedMilestoneIds` | List<UUID>, non-null, unique items; `[]` cho normal completion contract-level only |
 | `finalBreachingRole` | `BUYER\|SELLER`, nullable |
 | `breachReasonCode` | taxonomy §6.4.1, nullable |
+| `qualityDisposition` | `CONFORMING\|PARTIALLY_CONFORMING\|NON_CONFORMING`, non-null cho final quality resolution; nullable ngoài quality path. `INCONCLUSIVE` không được tạo `RemedyDecision`. |
 | `decisionSource` | `SYSTEM\|ADMIN\|INSPECTOR_L1_5\|INSPECTOR_L2\|MUTUAL`, non-null |
 | `penaltyEligible` / `reputationEligible` | Boolean, non-null |
 | `remedyLegs` | List of `{remedyLegId, remedyType, fundType, role, amount}`, non-null; `amount` uses canonical money string and zero-value bank commands are omitted |
@@ -533,7 +613,7 @@ Luồng thống nhất: `AttributionDecision` → remedy calculator (§6.7) sinh
 
 Cùng một _kết quả_ (giao thiếu / không giao / từ chối) có thể ánh xạ nhiều _nguyên nhân_ khác lỗi — attribution phải phân biệt để reputation/penalty không đánh oan (§4, §6.5, và `reputation-service` §6):
 
-- **Seller-side:** `NON_DELIVERY`, `SHORTFALL`, `LATE_DELIVERY`, `NON_CONFORMING_QUALITY`, `SIDE_SELLING`, `PRODUCTION_SHOCK_NON_FM` *(giao thiếu do sốc sản lượng chưa đủ điều kiện FM — KHÔNG áp penalty chiến lược, chỉ pro-rata)*.
+- **Seller-side:** `NON_DELIVERY`, `SHORTFALL`, `LATE_DELIVERY`, `QUALITY_BELOW_COMMITTED`, `SIDE_SELLING`, `PRODUCTION_SHOCK_NON_FM` *(giao thiếu do sốc sản lượng chưa đủ điều kiện FM — KHÔNG áp penalty chiến lược, chỉ pro-rata)*.
 - **Buyer-side:** `FUNDING_FAILURE`, `LATE_PAYMENT`, `FAILURE_TO_RECEIVE`, `WRONGFUL_REJECTION`.
 - **No-fault:** `FORCE_MAJEURE`, `MUTUAL_EXIT`, `ACTIVATION_FAILURE`.
 
@@ -619,6 +699,22 @@ Event mới: `escrow.milestone_funding_failed` (§7.1). `fundingCureWindowDays` 
 
 ---
 
+## 6c. Milestone Price Adjustment trong signed band (mới, 23/07/2026)
+
+Hai chữ ký ban đầu đã chấp thuận trước `priceBand` và rule chọn giá. Runtime adjustment chỉ chọn một `effectiveUnitPrice` nằm trong biên đó; nó không sửa `ContractTermsSnapshot`, không tạo contract version và không đổi `signedContentHash`.
+
+Flow dùng JWT + `Idempotency-Key`, không OTP:
+
+1. Buyer hoặc Seller propose một unit price trong band cho milestone chưa phát funding request. Mỗi milestone chỉ có một proposal `PENDING`; proposal mới thay nội dung pending cũ, không lưu counter-offer history.
+2. Chỉ counterparty được accept; proposer không self-accept. Accepted record chứa proposal, base/effective price, currency, proposer/accepter identity và timestamps, immutable/auditable.
+3. Sau accept, contract-service publish `milestone.price_adjusted`. Chỉ accepted record được audit lâu dài; pending proposal là workflow state có thể overwrite.
+4. Cutoff là **trước khi funding request được phát**. Milestone 1 thương lượng khi Contract đang `SIGNED`, trước khi deposit lock hoàn tất/kích hoạt funding đầu; milestone sau thương lượng khi milestone trước còn chạy. Không được trì hoãn funding để chờ proposal.
+5. Funding lấy accepted effective unit price nếu đã có, nếu không lấy `agreedPrice`. Amount đã lock không true-up khi settle và adjustment sau cutoff luôn conflict.
+
+OTP lại cho từng milestone làm flow nặng nhưng không tăng bảo vệ cho signed terms: adjustment không thể vượt band đã ký và không thay bytes đã ký. Bằng chứng runtime là hai authenticated accepts, accepted record bất biến và audit event. **Caveat:** lập luận đủ cho thiết kế kỹ thuật Phase 2 nhưng cần legal review trước productization để xác nhận mức bằng chứng/chấp thuận phù hợp cho điều khoản giá thực tế.
+
+---
+
 ## 7. Event Catalog
 
 **Chốt (02/07/2026):** theo đúng convention `{aggregate}.{actor}_{past_tense_verb}` đã có tiền lệ ở `escrow.buyer_locked`.
@@ -633,16 +729,17 @@ Event mới: `escrow.milestone_funding_failed` (§7.1). `fundingCureWindowDays` 
 | RabbitMQ | `milestone.flagged` | contract-service | Không có domain consumer bắt buộc; mail đi qua `notification.milestone_status_requested` |
 | RabbitMQ | `milestone.force_majeure_claimed` | contract-service | audit-service |
 | RabbitMQ | `milestone.force_majeure_resolved` | contract-service | escrow-service, audit-service |
-| RabbitMQ | `milestone.settled` | contract-service | escrow-service, analytics-service, audit-service |
+| RabbitMQ | `milestone.settled` | contract-service — clean-path settlement only; không phát cho cùng quality resolution đã đi `remedy.finalized` | escrow-service, analytics-service, audit-service |
 | RabbitMQ | `milestone.cancelled_with_penalty` | contract-service — chỉ là outcome sau attribution, không phải money trigger | analytics-service (`fact_milestone_performance`), audit-service |
 | RabbitMQ | `milestone.dispute_resolved` (mới, 08/07/2026) | contract-service — bắn khi `DisputeRoutingService` ra phán quyết. Payload: `{contractId, milestoneId, flaggedBy: BUYER, flaggedByUserId, resolutionFavors: BUYER\|SELLER}` | reputation-service (đếm tỷ lệ buyer flag-rồi-thua) |
+| RabbitMQ | `milestone.price_adjusted` (mới, 23/07/2026) | contract-service — publish đúng một lần sau counterparty accept. Payload `{contractId, milestoneId, baseUnitPrice, effectiveUnitPrice, currency, proposerId, accepterId, acceptedAt}`. | audit-service, analytics-service |
 | RabbitMQ | `escrow.milestone_funding_failed` (mới, 19/07/2026) | escrow-service — bắn khi hết retry lock `batchAmount` milestone 2+ (§6b bước 2). Payload: `{contractId, milestoneId, reason}` | contract-service (milestone `FUNDING_FAILED`, tạm dừng đồng hồ giao hàng, notify 3 bên; Rổ A breach sau `fundingCureWindowDays`) |
 
-**Sửa (08/07/2026) — `milestone.buyer_confirmed` không được trigger tiền:** buyer `CONFIRM_CLEAN` → milestone `SETTLED` → contract-service publish `milestone.settled`; đây là nguồn trigger tiền DUY NHẤT. `milestone.buyer_confirmed` chỉ vào audit trail; mail trạng thái đi qua `notification.milestone_status_requested`. Escrow-service tuyệt đối không nghe event confirmed, tránh release hai lần.
+**Sửa (08/07/2026; khóa quality path 23/07/2026) — `milestone.buyer_confirmed` không được trigger tiền:** buyer `CONFIRM_CLEAN` → milestone `SETTLED` → contract-service publish `milestone.settled` cho clean path. `milestone.buyer_confirmed` chỉ vào audit trail; mail trạng thái đi qua `notification.milestone_status_requested`. Khi quality dispute đã mở, resolution chỉ phát tiền qua `remedy.finalized`; tuyệt đối không đồng thời publish/consume `milestone.settled` cho cùng resolution.
 
 **Cập nhật (04/07/2026) — payload `milestone.settled` mở rộng:** payload canonical bắt buộc `{contractId, milestoneId, lockedAmount, actualAmount, recipients}`. `contract-service` tính `actualAmount`; escrow-service kiểm tra `lockedAmount >= actualAmount`, phát `RELEASE_TO_SELLER(actualAmount)` và nếu phần chênh dương thì `REFUND_TO_BUYER(lockedAmount - actualAmount)`. **Bổ sung contract notification (16/07/2026):** payload còn mang `recipients[{userId,email,role}]` để audit-service — vốn là pure consumer, không Feign ngược user-service — có thể publish `notification.milestone_anchor_requested` sau khi OTS proof sẵn sàng. Các consumer tiền/analytics bỏ qua contact field; schema không cho phép thêm PII tùy ý.
 
-**Sửa (08/07/2026) — `actualAmount` phải áp cả tolerance split của Delta 2 (§4):** `contract-service` (không phải `escrow-service`) tính `actualAmount` cuối cùng, đã áp công thức chia tolerance khi Delta 2 vượt ngưỡng (§4) — `escrow-service` chỉ nhận số cuối và tính `diff` như cơ chế sẵn có, không tự tính lại tolerance split.
+**Sửa (08/07/2026; khóa precedence 23/07/2026) — quantity/price có hai path loại trừ nhau:** clean path dùng Delta 1/Delta 2 và `effectiveUnitPrice` theo §4. Mandatory inspection không có dispute, hoặc contested/inspected calculation, dùng `min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)` và không áp Delta 2/tolerance lần hai. Quality dispute final không dùng `milestone.settled`; các `MILESTONE_PAYMENT` legs nằm trong `remedy.finalized` và cộng đúng `batchAmount`.
 
 **Cập nhật (06/07/2026) — 2 event mới cho provisional settlement Level 2 (§3.2):**
 
@@ -662,13 +759,13 @@ Event mới: `escrow.milestone_funding_failed` (§7.1). `fundingCureWindowDays` 
 | RabbitMQ | `contract.settled` | contract-service (`ContractSettledEvent`, guard fix §3.1) | reputation-service (input positive), analytics-service (`fact_contract_settlement`), audit-service; **không escrow** |
 | RabbitMQ | `contract.terminated` (mới, 19/07/2026 — **thay `contract.cancelled`**) | contract-service — bắn 1 lần mỗi termination. Payload canonical gồm `{contractId, terminationType: WITHDRAW_OFFER\|MUTUAL_TERMINATION\|MUTUAL_REPLACEMENT\|TERMINATION_FOR_BREACH\|TERMINATION_FOR_FORCE_MAJEURE\|ACTIVATION_FAILURE, requestedBy, finalBreachingRole, breachReasonCode, remedyDecisionId, breachCaseId, affectedMilestoneIds, supersededByContractId, replacesContractId}`; nullable fields vẫn xuất hiện | **Chỉ state/quan sát:** audit-service, analytics-service, notification (qua command). **Không escrow, không reputation** — mọi hậu quả đi qua `remedy.finalized` duy nhất |
 | RabbitMQ | `breach.reported` (mới, 19/07/2026) | contract-service — bắn khi `BreachCase` mở (§6.4). Payload: `{breachCaseId, contractId, milestoneId?, requestedBy, allegedBreachingRole?, breachReasonCode, severity}` | audit-service (`source_type = BREACH_REPORTED`, hash-chain); **KHÔNG** reputation/escrow (chưa attribution — §6.4 invariant) |
-| RabbitMQ | `remedy.finalized` (canonical) | contract-service — **nguồn DUY NHẤT cho tiền + reputation**, bắn cho mọi final/no-fault decision, gồm normal settlement. Payload bắt buộc `{remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, decisionSource, penaltyEligible, reputationEligible, remedyLegs:[{remedyLegId, remedyType, fundType, role, amount}]}`; nullable fields vẫn xuất hiện. | escrow-service (thực thi legs), reputation-service (negative lock khi `reputationEligible=true`), audit-service |
+| RabbitMQ | `remedy.finalized` (canonical) | contract-service — **nguồn DUY NHẤT cho tiền + reputation của mọi final quality dispute và contract-level remedy**, bắn cho mọi final/no-fault decision, gồm normal settlement. Payload bắt buộc `{remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, qualityDisposition, decisionSource, penaltyEligible, reputationEligible, remedyLegs:[{remedyLegId, remedyType, fundType, role, amount}]}`; `qualityDisposition` non-null cho quality resolution và nullable ngoài nhánh đó. | escrow-service (thực thi legs), reputation-service (negative lock khi `reputationEligible=true`), audit-service |
 | RabbitMQ | `escrow.deposit_locked` (mới, 08/07/2026) | escrow-service — kế thừa `escrow.buyer_locked` Phase 1, mở rộng cho cả 2 cọc. Bắn khi **cả 2 khoản cọc cần khoá** đã confirm xong với bank-service (`bank.lock_completed`, `bank-service-phase2-design.md` §3) — nếu `sellerDepositAmount = 0` thì chỉ chờ xác nhận khoá cọc buyer. Payload: `{contractId, buyerDepositState, sellerDepositState}`. | contract-service (`transitionTo(ACTIVE)` — xem ghi chú dưới), escrow-service tự dùng làm tín hiệu nối tiếp lock `batchAmount` milestone đầu tiên (§6.2) |
 | RabbitMQ | `escrow.deposit_lock_failed` (mới, 17/07/2026) | escrow-service — bắn khi hết `depositLockRetryMaxAttempts` mà khoá cọc vẫn fail (§3.1 nhánh fail). Payload: `{contractId, failedLeg: BUYER|SELLER|BOTH, buyerDepositState, sellerDepositState, reason}` (leg states thêm 18/07/2026 — partial success) | contract-service (giữ `SIGNED`, publish `notification.contract_activation_failed_requested`; Admin xử lý qua `RetryDepositLock`/`MarkActivationFailed`; terminal đi qua `ACTIVATION_REFUND_PENDING` chờ refund confirm — §3.1) |
 
 **Sửa (08/07/2026) — event kích hoạt ACTIVE biến mất khỏi Event Catalog:** luồng ký→kích hoạt mô tả *"contract-service nhận xác nhận cọc đã khoá → Contract `ACTIVE`"* nhưng không có event nào đi chiều escrow→contract để mang xác nhận này — Phase 1 có `escrow.buyer_locked` làm việc đó, rà lại thấy nó biến mất khỏi catalog Phase 2. Hệ quả kép trước khi sửa: (1) contract-service không có tín hiệu để chuyển `ACTIVE`; (2) escrow-service không có tín hiệu để lock `batchAmount` milestone đầu tiên (§6.2 ghi trigger *"Contract `ACTIVE`"* nhưng "Contract ACTIVE" không phát event nào). `escrow.deposit_locked` đóng cả 2 vai — contract-service consume để chuyển `ACTIVE`; escrow-service tự nối tiếp lock `batchAmount` milestone index 1 ngay sau khi chính nó xác nhận deposit-locked (đã ở đúng ngữ cảnh, không cần round-trip thêm qua contract-service).
 
-**Notification commands (16/07/2026):** các event nghiệp vụ ở §7 giữ payload/domain consumer hiện có. Khi cần mail giao dịch, contract-service publish thêm `notification.contract_terminated_requested` hoặc `notification.milestone_status_requested` với recipient email + dữ liệu template. Riêng email quyết toán có OTS không gửi trực tiếp từ `milestone.settled`; audit-service publish `notification.milestone_anchor_requested` sau khi ghi chain và lấy proof (§4.3 hash-chain). `contract.delivered` không được phục hồi.
+**Notification commands (16/07/2026; quality sync 23/07/2026):** các event nghiệp vụ ở §7 giữ payload/domain consumer hiện có. Khi cần mail giao dịch, contract-service publish thêm `notification.contract_terminated_requested` hoặc `notification.milestone_status_requested` với recipient email + dữ liệu template. `notification.remedy_finalized_requested` mang cả `qualityDisposition` và final attribution cho quality resolution; template không suy blame từ `requestedBy`/`flaggedBy`. Riêng email quyết toán có OTS không gửi trực tiếp từ `milestone.settled`; audit-service publish `notification.milestone_anchor_requested` sau khi ghi chain và lấy proof (§4.3 hash-chain). `contract.delivered` không được phục hồi.
 
 ---
 
@@ -706,11 +803,22 @@ Event mới: `escrow.milestone_funding_failed` (§7.1). `fundingCureWindowDays` 
 Các mẫu nghiệp vụ dưới đây được literature/standard-contract xác nhận là **có thật** (UNIDROIT/FAO/IFAD Legal Guide, CISG, GAFTA/ESCC, các nghiên cứu contract-farming Việt Nam), nhưng build đầy đủ trong 5 tháng là viết lại nửa hệ thống và **không cần cho luồng vàng demo**. Ghi rõ để defend trước hội đồng — nhận diện được + có nguồn + có lý do hoãn mạnh hơn cố code rồi vỡ:
 
 - **Full breach state machine (notice → cure → remedy selection):** `BreachCase` Phase 2 là bản rút gọn (REPORTED→UNDER_REVIEW→RESOLVED, §6.4). Đầy đủ có right-to-cure, remedy tiered (buộc thực hiện đúng / thay thế / giảm giá / mua bù / chấm dứt từng phần) theo UNIDROIT Ch.5-6 + CISG Điều 73. Hoãn — cần design session riêng.
-- **Quality-settlement engine (giảm giá theo grade/độ ẩm/tạp chất):** dispute chất lượng Phase 2 dừng ở "inspector phán accept X kg giá gốc, reject phần còn lại" (nhị phân). Đầy đủ cần số hoá thang quy đổi grade/moisture/deduction theo từng chuẩn ngành (SCA cà phê, TCVN gạo) + `settlementUnitPrice`/`priceAdjustmentAmount` + chain of custody (sample/seal/witness, ISO 17020/17025, ESCC). Hoãn — cần chuyên gia ngành + tiêu chuẩn thật, ngoài phạm vi lập trình.
-- **INDEXED/HYBRID pricing + price reopener (giá tự chạy theo chỉ số thị trường):** `agreedPrice` Phase 2 cố định. Giá thả nổi theo VNSAT/chỉ số + reopener tự động khi biến động vượt ngưỡng (UNIDROIT price mechanisms; sốc giá cà phê Doc01 §1.1) **phá invariant hợp đồng-bất-biến** mà cả evidence model dựng lên → cần `ContractVersion` (§8b). Hoãn. **Lưu ý:** đổi giá *thiện chí* vẫn làm được ngay qua `MUTUAL_REPLACEMENT` (§6.6) — chỉ *tự-động-theo-chỉ-số* mới hoãn.
+- **Industry-standard quality formula catalog:** Phase 2 có typed committed/actual metrics và discount band do hai bên nhập, nhưng không tuyên bố các default là chuẩn SCA/TCVN hay thay chuyên gia ngành. Catalog preset đã được luật sư/chuyên gia xác nhận, chain of custody sample/seal/witness và ISO 17020/17025 vẫn ngoài scope.
+- **INDEXED/HYBRID pricing tự động:** Phase 2 hỗ trợ both-accept chọn giá trong band đã ký (§6c), nhưng không tự kéo VNSAT/chỉ số thị trường vào funding. Cơ chế index/reopener tự động vẫn cần `ContractVersion` hoặc điều khoản chỉ số chuyên biệt và legal review.
 - **PaymentTerms / SellerSecurityPackage đầy đủ:** Phase 2 có `buyerDepositRate`/`sellerDepositRate` (cash) + payment-per-milestone. Đầy đủ gồm advance/post-delivery mode, late-payment interest, và 9 loại security thay cash deposit (cooperative/third-party guarantee, retention, receivable assignment... — UNIDROIT). Hoãn; `sellerDepositRate` optional hiện tại là bản tối giản đủ dùng.
 - **Conflict-of-interest enforce bằng org graph:** Phase 2 chống xung đột (Software Buyer = Platform Buyer) bằng prose + maker-checker + audit + phân phối qua hiệp hội trung lập (governance §5). Enforce **tự động** (máy tự route vụ khỏi OPERATOR cùng tổ chức buyer) cần `organizationId`/`deploymentId`/org-relationship graph — chỉ có ý nghĩa ở quy mô nhiều tổ chức thật, vô nghĩa trong mock. Hoãn (SF-07: completeness ≠ fairness).
 - **Anticipatory breach / adequate assurance (CISG 71-73):** khi một bên có dấu hiệu sắp vi phạm nhưng chưa vi phạm — suspend → đòi cam kết → resume/terminate. Cố tình out-of-scope: luật VN nội địa chưa có cơ chế assurance tương đương UCC/CISG; áp SLA cứng (vd 30 ngày UCC) là copy sai bối cảnh. Ghi nhận là hướng cần legal review.
+
+## 8d. Verification additions cho goods/quality/delivery/pricing (mới, 23/07/2026)
+
+- Schema: cả bốn declared/committed/actual variants pass; mọi commodity/spec mismatch fail. Rice actual và rice deviation policy reject key `varietyName`.
+- Snapshot/hash: sửa hoặc xoá Listing/Product/Category/Plot sau create không đổi `goodsTerms`; thay bất kỳ signed field mới nào phải đổi canonical hash; `PATCH /terms` fail sau chữ ký đầu.
+- Quality: cover deterministic disposition từ signed committed spec + hashed actual metrics; `CONFORMING` sau flag không punitive/reputation, `PARTIALLY_CONFORMING` max discount một lần, `NON_CONFORMING` dùng `QUALITY_BELOW_COMMITTED`, refund milestone và penalty base `effectiveUnitPrice × committedQuantity`; exact mismatch chỉ coffee type/rubber-cashew grade; `INCONCLUSIVE` không phát tiền.
+- Money: kiểm conservation riêng cho `MILESTONE_PAYMENT`, penalty và deposit; replay idempotent; một quality resolution chỉ có `remedy.finalized`, không có `milestone.settled` thứ hai.
+- Inspection: `NONE_UNLESS_DISPUTED` confirm-clean không tạo report/actual; mandatory guard chặn settle tới report confirmed nhưng milestone status không đổi chỉ vì đang chờ inspection.
+- Evidence: certificate/phiếu kiểm optional ở seller/buyer weigh chỉ là delivery/dispute evidence, không được parse thành actual quality hoặc thay confirmed inspection report.
+- Pricing: cover in-band/out-of-band, self-accept, stale proposal/cutoff, fallback base, funding theo effective price, không true-up settlement; deposit luôn dựa nominal `totalContractValue` dù effective price tăng/giảm.
+- Compatibility: contract legacy signed vẫn read/operate; draft legacy fail signing tới khi đủ terms mới. OpenAPI 3.1 và JSON Schema 2020-12 phải validate, examples đủ bốn commodity.
 
 
 ## 9. Status — Milestone Escrow Design

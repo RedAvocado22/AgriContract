@@ -48,7 +48,7 @@ Cùng gate lúc đăng ký account, fail-closed by default (`signature-phase2-de
 
 `authorizationExpiresAt` (đã có sẵn trên `User`) tái dùng được nguyên — giấy phép kiểm định cũng có ngày hết hạn, cùng cơ chế nhập tay từ giấy tờ thật, không hardcode.
 
-### 2.3 Inspection settlement result và hash commitment (chốt 18/07/2026)
+### 2.3 Inspection measurement result và hash commitment (chốt 18/07/2026; sửa ownership 23/07/2026)
 
 Inspection-service sở hữu schema finding/result dùng chung cho Level 1.5 và Level 2:
 
@@ -57,13 +57,26 @@ InspectionSettlementResultV1 {
   resultSchemaVersion: "1.0",
   measuredQuantityKg: decimal >= 0,
   acceptedQuantityKg: decimal >= 0 and <= measuredQuantityKg,
-  qualityDisposition:
-    CONFORMING | PARTIALLY_CONFORMING | NON_CONFORMING | INCONCLUSIVE,
+  measurementStatus: COMPLETE | INCONCLUSIVE,
+  actualQualityMetrics: CoffeeActualMetrics | RiceActualMetrics |
+                        RubberActualMetrics | CashewActualMetrics,
+  inconclusiveReasons?: string[],
   determinedAt: timestamp
 }
 ```
 
-Snapshot này là kết quả normalized tối thiểu, bất biến sau khi report được `CONFIRMED`. Không mang raw file, contact PII hay nội dung report tự do. Mọi field của snapshot phải nằm trong bytes được hash commit:
+Actual union discriminated bằng `commodity`; variant phải khớp commodity của contract. Field đo được:
+
+- Coffee: `type`, `moisturePercent`, `foreignMatterPercent`, `blackBrokenBeansPercent`.
+- Rice: `brokenPercent`, `moisturePercent`, `chalkyKernelPercent`, `foreignMatterPercent`, `purityPercent`. **Không có `varietyName`** — đây là identity attribute của goods/committed spec, không phải kết quả đo và không thể làm reject.
+- Rubber: `grade`, `dirtPercent`, `ashPercent`, `volatileMatterPercent`, `nitrogenPercent`, `plasticityRetentionIndex`.
+- Cashew: `grade`, `moisturePercent`, `defectiveKernelPercent`, `foreignMatterPercent`, `kernelOutturnLbsPer80Kg`.
+
+Inspection-service không còn sở hữu `qualityDisposition`. Nó chỉ cam kết quantity + actual measurements + việc report có kết luận được hay không. Contract-service đối chiếu committed spec/deviation policy để tạo disposition, quality discount và final entitlement; coffee `type` và rubber/cashew `grade` là ba categorical field duy nhất được exact-match-reject.
+
+Certificate/phiếu kiểm theo batch mà Seller hoặc Buyer đính kèm lúc cân là delivery/dispute evidence riêng. Inspection-service không parse nó thành actual metric, không chép nó vào `InspectionSettlementResultV1`, không commit nó trong `resultHash`, không dùng nó để tự sinh disposition và không coi nó là bản thay thế cho report `CONFIRMED`.
+
+Snapshot này là kết quả normalized tối thiểu, bất biến sau khi report được `CONFIRMED`. Không mang raw file, contact PII hay nội dung report tự do. `actualQualityMetrics` nằm trong `normalizedResult`, nên mọi actual metric đều nằm trong bytes được hash commit:
 
 ```text
 normalizedResult = InspectionSettlementResultV1
@@ -80,7 +93,7 @@ reportHash = SHA256(RFC8785_canonical_json({
 }))
 ```
 
-`reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByAdminId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền hoặc quyết định escrow transition.
+`reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByAdminId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền, không quyết định disposition và không quyết định escrow transition. Reviewer ở contract workflow chỉ xác nhận phép tính tất định giữa committed terms trong `signedContentHash` và actual metrics trong `resultHash`; không được thêm tiêu chí chủ quan ngoài deviation policy đã ký.
 
 ### 2.4 Session freshness — tách config riêng khỏi Signature
 
@@ -269,16 +282,23 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
 
 **Bổ sung (17/07/2026) — transport vào chain, trước đây chưa đặt tên:** "publish audit-service"/"INSERT audit_record" ở §3.4/§3.6 chưa định nghĩa đi bằng đường nào — và inspection-service không được INSERT thẳng DB của audit-service. Chốt 2 domain event RabbitMQ, audit-service là consumer duy nhất ghi `audit_record` (cơ chế thống nhất toàn hệ thống — `hash-chain-phase2-design.md` §2.4):
 - `inspection.level2_commissioned` — publish ở bước 5 của `InitiateLevel2Inspection` (§3.4; "INSERT audit_record" ở đó đọc là *yêu cầu ghi*, thực thi qua event này), payload = content của audit record → `source_type = LEVEL2_INSPECTION_COMMISSIONED`.
-- `inspection.report_confirmed` — publish khi report thành `CONFIRMED` (Level 1.5 lúc submit hợp lệ; Level 2 lúc `ReviewPendingExternalReport` APPROVE hoặc nhánh `ADMIN_MANUAL`). Payload canonical: `{reportId, contractId, milestoneId, tier, normalizedResult: InspectionSettlementResultV1, resultHash, reportFileHash, reportHash, confirmedAt, inspectorId?, confirmedByAdminId?}`. `reportFileHash` is the minimum verification material implied by the approved requirement that contract-service recompute `reportHash`; it is a hash only, not raw file content. Audit-service map `tier` sang `INSPECTION_REPORT` / `EXTERNAL_INSPECTION_REPORT`; contract-service consume idempotently theo `eventId`/`reportId`, verify hashes và chỉ apply cho milestone `CONTESTED` có cùng `contractId`/`milestoneId`.
+- `inspection.report_confirmed` — publish khi report thành `CONFIRMED` (Level 1.5 lúc submit hợp lệ; Level 2 lúc `ReviewPendingExternalReport` APPROVE hoặc nhánh `ADMIN_MANUAL`). Payload canonical: `{reportId, contractId, milestoneId, tier, normalizedResult: InspectionSettlementResultV1, resultHash, reportFileHash, reportHash, confirmedAt, inspectorId?, confirmedByAdminId?}`. `reportFileHash` is the minimum verification material implied by the approved requirement that contract-service recompute `reportHash`; it is a hash only, not raw file content. Audit-service map `tier` sang `INSPECTION_REPORT` / `EXTERNAL_INSPECTION_REPORT`; contract-service consume idempotently theo `eventId`/`reportId`, verify hashes và chỉ apply cho milestone `BUYER_RECEIVED` hoặc `CONTESTED` có cùng `contractId`/`milestoneId`.
 
 Contract-service giữ ownership tính tiền và transition:
 
 ```text
-inspectionEntitlementAmount =
-  min(batchAmount, normalizedResult.acceptedQuantityKg * agreedPrice)
+effectiveUnitPrice = acceptedPriceAdjustment?.effectiveUnitPrice ?? agreedPrice
+quantityAdjustedEntitlement =
+  min(lockedAmount, normalizedResult.acceptedQuantityKg * effectiveUnitPrice)
+qualityDiscountAmount =
+  quantityAdjustedEntitlement * max(applicablePenaltyMetric.discountRate, default 0)
+finalSellerEntitlement = quantityAdjustedEntitlement - qualityDiscountAmount
+buyerRefundAmount = lockedAmount - finalSellerEntitlement
 ```
 
-Không áp `toleranceRate` lần thứ hai sau inspection: normalized result đã là phán quyết quantity/quality cuối của inspection-service.
+Contract-service tạo immutable `QualityAssessment`; `measurementStatus = INCONCLUSIVE` tiếp tục reinspection/Level 2 và không tạo attribution/remedy hoặc phát tiền. Nhiều metric penalty chỉ lấy discount rate lớn nhất một lần; reject zone tạo `NON_CONFORMING`. `min()` chỉ cap over-delivery; không áp quantity `toleranceRate`/Delta 2 lần thứ hai sau inspection.
+
+Nếu đây là quality dispute, contract-service luôn mở/resolve Rổ B rồi hội tụ `AttributionDecision -> RemedyDecision -> remedy.finalized`; không phát đồng thời `milestone.settled`. Mapping disposition, `QUALITY_BELOW_COMMITTED`, inspection fee `LOSER_PAYS`, penalty base và per-fund conservation thuộc owner design `milestone-escrow-phase2-design.md` §3.3. Inspection-service không thêm ledger enum, quality-specific leg hoặc disposition vào `InspectionSettlementResultV1`.
 
 ---
 

@@ -344,6 +344,34 @@ Product Phase 2 (Farm Plot Geolocation) — **ĐÓNG SESSION HOÀN TOÀN, sẵn 
 
 ---
 
+## 8b. `Listing.declaredQualitySpec` và contract snapshot (mới, 23/07/2026)
+
+`Listing` thêm `declaredQualitySpec`, bắt buộc cho listing mới và phải là đúng variant của `Category.commodity`. Listing legacy được phép `NULL` để đọc/hiển thị, nhưng lần sửa hoặc republish kế tiếp phải bổ sung spec hợp lệ; không được tiếp tục phát hành listing legacy thiếu quality declaration.
+
+Declared spec và committed spec dùng chung bốn typed schema:
+
+| Commodity | Identity / exact field | Measurable numeric fields |
+|---|---|---|
+| `COFFEE` | `type` (`ARABICA`/`ROBUSTA`) | `moisturePercent`, `foreignMatterPercent`, `blackBrokenBeansPercent` |
+| `RICE` | `varietyName` | `brokenPercent`, `moisturePercent`, `chalkyKernelPercent`, `foreignMatterPercent`, `purityPercent` |
+| `RUBBER` | `grade` (`SVR_3L`/`SVR_5`/`SVR_10`/`SVR_20`) | `dirtPercent`, `ashPercent`, `volatileMatterPercent`, `nitrogenPercent`, `plasticityRetentionIndex` |
+| `CASHEW` | `grade` (`W180`/`W210`/`W240`/`W320`/`W450`) | `moisturePercent`, `defectiveKernelPercent`, `foreignMatterPercent`, `kernelOutturnLbsPer80Kg` |
+
+`type`/`grade` là field inspector có thể exact-match; `Rice.varietyName` là identity do nguồn hàng khai và **không** đi vào actual inspection schema. Actual schemas chỉ chứa các field đo/inspect được trong cột cuối. Product-service reject mọi cặp `commodity/spec` mismatch ở create/update/republish, thay vì dựa vào consumer tự đoán từ field shape.
+
+Khi contract-service tạo contract, nó đọc authoritative listing/product/category/plot và tạo `GoodsTermsSnapshot`; input từ buyer không được gửi object này. Snapshot dùng shape nguồn gốc chuẩn hoá:
+
+```text
+originSnapshot {
+  regionText,
+  plotRefs[]
+}
+```
+
+`plotRefs` bắt buộc non-empty cho `COFFEE`/`RUBBER`, rỗng cho `RICE`/`CASHEW`. `traceabilitySnapshot` là nullable evidence-package reference, chỉ hợp lệ cho `COFFEE`/`RUBBER`. Đây là contract snapshot: sửa/xoá Listing, Product, Category hay PlotRegistryEntry sau create contract không cascade và không làm đổi `goodsTerms`/`signedContentHash`; lookup nguồn chỉ phục vụ provenance/audit, không tái hydrate terms.
+
+---
+
 ## 9. Cross-service Note — `Category` aggregate + quan hệ 2 tầng `commodity`/`category` (đồng bộ với Phase 1 Category redesign, 08/07/2026)
 
 **⟢ SOURCE OF TRUTH cho quan hệ `Category`/`commodity` (redesign Phase 1) là mục này.** `Category` thuộc `product-service`/Phase 1 nên quyết định `Category.commodity` (enum cứng, admin gán lúc `approve()`, bỏ bảng mapping) chốt ở đây. Các file khác chỉ *dùng* `commodity` để gate logic của riêng chúng và tham chiếu về mục này thay vì tự mô tả lại cơ chế map: `milestone-escrow` §7.2 (đọc để publish `contract.signed`), `analytics-service` §2.1 (populate `dim_contract`). Nếu 2 file lệch nhau về cách map → bản ở đây thắng.

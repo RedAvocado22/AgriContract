@@ -97,9 +97,9 @@ Canonical event names for all four pairs are frozen here:
 
 **Tại sao không được set trước:** nếu escrow-service publish `bank.lock_requested` rồi tự set `LOCKED` ngay, trong khi bank-service (mock) fail vì lý do gì đó — 2 bên lệch state, không ai biết cho tới khi có người kiểm tra thủ công. Đúng dạng dual-write problem đã học ở Phase 1 (`ApplicationEvent` non-durable), chỉ khác hướng: lần trước là sync-call-fail-without-rollback, lần này là async-fire-and-forget-không-đợi-confirm.
 
-### 3.1 Ledger entries từ Delta 1/2 pro-rata — `milestone.settled` (mới, 04/07/2026)
+### 3.1 Ledger entries từ clean-path Delta 1/2 pro-rata — `milestone.settled` (mới, 04/07/2026)
 
-**Bối cảnh:** `batchAmount` khoá full theo `committedQuantity × agreedPrice` từ sớm (`milestone-escrow-phase2-design.md` §6.2). Nhưng Delta 1/Delta 2 pro-rata (§4 cùng file) có thể khiến số tiền thật seller đáng nhận **thấp hơn** `batchAmount` đã khoá — phần chênh lệch phải trả lại buyer, không được im lặng giữ trong pooled account.
+**Bối cảnh:** `batchAmount` khoá full theo `committedQuantity × effectiveUnitPrice` tại funding request, trong đó effective price là accepted adjustment hoặc fallback `agreedPrice` (`milestone-escrow-phase2-design.md` §6.2/§6c). Nhưng Delta 1/Delta 2 pro-rata (§4 cùng file) có thể khiến số tiền thật seller đáng nhận **thấp hơn** `batchAmount` đã khoá — phần chênh lệch phải trả lại buyer, không được im lặng giữ trong pooled account.
 
 **Chốt (04/07/2026):** payload `milestone.settled` mang `lockedAmount` (= `batchAmount` gốc) và `actualAmount` (= số tiền thật sau Delta 1/2). escrow-service nhận event, tự tính `diff = lockedAmount - actualAmount`:
 
@@ -112,6 +112,8 @@ Nếu diff == 0 (giao đủ, không shortfall):
 ```
 
 Mỗi request có `sourceEventId` riêng (idempotency key, §4) dù cùng phát sinh từ 1 `milestone.settled` — 2 `LedgerEntry` là 2 hành động tiền độc lập, không phải 1 hành động ghi 2 dòng.
+
+Quality dispute không dùng nhánh này. Final quality resolution chỉ đến qua `remedy.finalized`; escrow-service reject/dedup mọi trường hợp cùng resolution còn phát `milestone.settled`. Với quality remedy, conservation kiểm riêng theo `fundType`: tổng legs `MILESTONE_PAYMENT` đúng `batchAmount`; `CONTRACTUAL_PENALTY` và `SELLER_DEPOSIT` forfeiture đối soát nguồn riêng, không cộng vào batch. Bank không thêm enum quality-specific và không tự tính penalty base; contract-service cung cấp số dựa trên `effectiveUnitPrice × committedQuantity` của milestone reject.
 
 ### 3.2 Ledger entries cho `buyerDepositRate`/`sellerDepositRate` — termination outcome biểu diễn trong `remedy.finalized` (mới 04/07/2026; sửa 19/07 — trigger theo `finalBreachingRole`; **đổi tên 19/07 lần 4:** tiêu đề cũ "Event nhận `contract.terminated`" dễ khiến người code implement consumer sai — bank KHÔNG consume `contract.terminated`, bảng dưới mô tả *outcome* theo nhánh, đường kích duy nhất là `remedy.finalized`/`remedyLegs`)
 
@@ -243,7 +245,7 @@ Cả 2 hành động vào `audit_record` như `source_type` mới (`SECURITY_LOC
 
 **Chốt (03/07/2026):** `EscrowAccount`/`EscrowMilestone` (đã có ở `milestone-escrow-phase2-design.md` §2.3) **không tự lưu lại số tiền thật** phải đồng bộ tay với bank-service. Phân tách rõ:
 
-- **Số tiền "đã thoả thuận"** (bao nhiêu cần khoá) — đã nằm sẵn, immutable, snapshot lúc `sign()` trong `ContractTerms.buyerDepositRate` và `MilestoneTerm.batchAmount` (`milestone-escrow-phase2-design.md` §2.1). Không cần lưu lại lần 2 ở đâu khác.
+- **Số tiền "đã thoả thuận"** (bao nhiêu cần khoá) — contract-level deposit được suy từ signed nominal terms; milestone `batchAmount` được cố định khi funding request chọn `effectiveUnitPrice` (`milestone-escrow-phase2-design.md` §2.1/§6c). Bank nhận số canonical đã tính, không tự recompute hay lưu một competing balance.
 - **Số tiền "thật đã di chuyển"** — sự thật duy nhất nằm ở `ledger_entry` bên bank-service.
 - `EscrowAccount`/`EscrowMilestone` chỉ giữ **state** (`LOCKED`/`RELEASED`/`PENALIZED`...), không giữ thêm 1 con số tiền riêng nào phải giữ đồng bộ tay với bank-service — nếu giữ, đó chính là dual-write problem, chỉ là biến thể mới của lỗi đã học.
 

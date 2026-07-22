@@ -1,6 +1,6 @@
 # AgriContract Phase 2 Integration Map
 
-Status: synchronized with the frozen Phase 2 design set and Verification Matrix on 2026-07-20.
+Status: synchronized with the frozen Phase 2 design/API/event set on 2026-07-23.
 
 ## Source precedence
 
@@ -17,15 +17,15 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 | Service | System of record / responsibility | Publishes | Consumes | Phase 1 disposition |
 |---|---|---|---|---|
 | `user-service` | Profile, KYC, role/eligibility and persisted lock projection | User notification commands | `reputation.locked`, `reputation.unlocked` | Refactor DTO split, roles, fail-closed lookup and monotonic lock revision |
-| `product-service` | Product, category, listing, plot/geolocation and risk signals | Existing product/category events | User eligibility/lock projection where designed | Reuse CRUD; add plot and yield signals without turning them into automatic rejection |
-| `contract-service` | ContractTerms/LegalProfile, Contract, Milestone, signatures, `BreachCase`, `AttributionDecision`, remedy calculation and termination lifecycle | `contract.signed`, milestone facts, `breach.reported`, `remedy.finalized`, `contract.terminated`, notification commands | Escrow funding results and inspection decisions | Replace the Phase 1 cancel/single-delivery model |
+| `product-service` | Product, category, typed `Listing.declaredQualitySpec`, plot/geolocation, traceability references and risk signals | Existing product/category events | User eligibility/lock projection where designed | Reuse CRUD; require matching quality declaration on new/edit/republish and keep legacy null read-compatible |
+| `contract-service` | `ContractTermsInput` validation, server-derived `ContractTermsSnapshot`/goods/nominal value, Contract, Milestone, signatures, bounded price acceptance, deterministic quality assessment, `BreachCase`, `AttributionDecision`, remedy and termination lifecycle | `contract.signed`, `milestone.price_adjusted`, clean milestone facts, `breach.reported`, `remedy.finalized`, `contract.terminated`, notification commands | Escrow funding results and inspection measurements | Replace Phase 1 cancel/single-delivery; preserve legacy signed reads while blocking incomplete legacy drafts from signing |
 | `escrow-service` | Deposit and milestone funding orchestration; projection only, never remedy calculator or money source | `bank.*_requested`, escrow funding result events | `contract.signed`, milestone settlement instructions, `remedy.finalized`, `bank.*_completed`, `bank.*_failed` | Add funding retry/cure, partial-lock refund and remedy-leg orchestration |
 | `bank-service` | Append-only ledger, system lock, verifier nonce/key and reconciliation | `bank.*_completed`, `bank.*_failed`, AML/security facts | Canonical `bank.*_requested`, analytics structuring signal | New service; persist event, fund and remedy identities |
-| `inspection-service` | Level 1.5 reports/signatures and Level 2 commission/confirmation | Inspection decisions and notification commands | File readiness and frozen commissioning inputs | New service |
+| `inspection-service` | Level 1.5 reports/signatures, Level 2 commission/confirmation, measured/accepted quantity and typed actual metrics | `inspection.report_confirmed`, commissioning facts and notification commands | File readiness and frozen commissioning inputs | New service; never calculates quality disposition, discount or entitlement |
 | `reputation-service` | Immutable completion/dispute facts, insert-only lock ledger, query-time score and pair-risk projection | `reputation.locked`, `reputation.unlocked`, risk-clear events | Positive facts; negative consequences only from `remedy.finalized`; `analytics.structuring_pattern_detected` updates `pair_risk_state` projection | New service; RabbitMQ is not the historical store; Phase 2 does not enforce pair-risk settlement blocking |
 | `audit-service` | Sole writer of append-only `audit_record`/`audit_anchor`, dual hash chain and OTS anchoring | Audit notification commands | Canonical source events directly | Add `sourceEventId` dedup and durable anchor outbox/retry |
 | `file-service` | Blob, technical metadata, virus scan, intake, retention and legal hold | `file.ready`, `file.failed`, `file.email_notice` | Storage/intake commands | New service |
-| `pricing-service` | Reference price quote and manual price attribution | No frozen golden-flow event | None on the critical path | New service |
+| `pricing-service` | Advisory external reference price quote and manual price attribution | No frozen golden-flow event | None on the critical path | New service; never a dependency for contract sign, funding, adjustment or settlement |
 | `analytics-service` | CQRS facts, monthly aggregates and AML scan | `analytics.structuring_pattern_detected` | Contract/milestone/remedy lifecycle facts including `contract.terminated` | Recompute and overwrite every touched month bucket |
 | `notification-service` | Notification delivery log and templates; synchronous OTP delivery | No business decision event | `notification.*_requested` commands only | Refactor ingress, templates and recipient/type dedup |
 
@@ -36,13 +36,17 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 | Eligibility | contract/product | `GET /internal/v1/users/{userId}` | user | Fail closed on unavailable/locked user |
 | OTP | contract | `POST /internal/v1/notifications/otp-email` | notification | No delayed send after failed synchronous request |
 | Fully signed | contract | `contract.signed` | escrow, analytics, audit | Both signatures bind the same immutable terms hash |
+| Goods snapshot | product -> contract synchronous read at create | Listing/Product/Category/Plot source data -> `GoodsTermsSnapshot` | contract | Server-derived once; later source mutation/deletion cannot change snapshot/hash |
+| Bounded price selection | contract | price propose/accept REST; `milestone.price_adjusted` after accept | audit, analytics | Counterparty accept only, inside signed band and before funding; no OTP/hash mutation |
 | Initial deposit | escrow | `bank.lock_requested` | bank | One source event per command and one unique remedy/funding leg |
 | Funding result | bank | `bank.lock_completed` / `bank.lock_failed` | escrow | Delivery obligation starts only after `LOCKED` |
 | Funding failure | escrow | `escrow.milestone_funding_failed` and notification command | contract, notification | Retry/cure; refund any partial lock; use `effectiveDeliveryDeadline` |
-| Evidence | contract/inspection/file | canonical milestone, inspection and file events | audit and owning consumers | Evidence replay is a no-op by `sourceEventId` |
+| Inspection measurement | inspection | `inspection.report_confirmed` with typed actual metrics inside `resultHash` | contract, audit | Report applies only in `BUYER_RECEIVED`/`CONTESTED`; rice actual has no variety; no inspector-owned disposition |
+| Quality assessment | contract | immutable assessment; quality dispute Rổ B -> `AttributionDecision`/`RemedyDecision`/`remedy.finalized` | escrow, reputation, audit | Disposition is deterministic; inspected amount uses accepted quantity/effective price without Delta 2 twice; no second `milestone.settled` trigger |
+| Evidence | contract/inspection/file | canonical milestone, inspection and file events; optional batch certificate refs | audit and owning consumers | Certificate is delivery/dispute evidence only, never actual quality or a confirmed report; replay is a no-op by `sourceEventId` |
 | Attribution A | contract | direct `AttributionDecision` (`breachCaseId = null`, `decisionSource = SYSTEM`) | remedy calculator | Only after objective rule is satisfied |
 | Attribution B | contract | `breach.reported`; `REPORTED -> UNDER_REVIEW -> RESOLVED` | contract workflow | Allegation has no money/reputation consequence |
-| Consequence | contract | `remedy.finalized` | escrow, reputation, audit | Sole trigger for money legs and negative reputation; analytics and notification consume lifecycle/command projections |
+| Consequence | contract | `remedy.finalized` | escrow, reputation, audit | Sole trigger for quality-resolution/termination money and negative reputation; quality payload carries disposition plus final attribution |
 | Money command | escrow | canonical `bank.*_requested` with `sourceEventId`, `fundType`, `remedyDecisionId`, `remedyLegId` | bank | `sourceEventId` blocks command replay; `remedyLegId` blocks duplicate leg |
 | Termination | contract | `contract.terminated` | audit, analytics | Lifecycle only; notification receives `notification.contract_terminated_requested`, not the domain event |
 | Completion | contract | `contract.settled` | reputation, analytics | Positive history/lifecycle only; no money trigger |
@@ -56,6 +60,17 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 - `finalBreachingRole = null` forbids contractual-penalty legs and reputation lock creation.
 - Canonical termination types are `WITHDRAW_OFFER`, `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, and `ACTIVATION_FAILURE`.
 - Buyer non-receipt is direct system attribution only after the notice/window expires and objective delivery evidence exists; otherwise it enters `BreachCase` review.
+
+## Signed terms and runtime boundary
+
+- `ContractTermsInput` contains negotiated committed quality, delivery, inspection and pricing-band terms. `goodsTerms` and `totalContractValue` are server-only snapshot fields.
+- Signed `inspectionTerms.inspectionCostResponsibility` is fixed to `LOSER_PAYS`; disposition assigns Buyer cost for conforming and Seller cost for partial/non-conforming, while inconclusive defers allocation.
+- `agreedPrice` is the base unit price. Deposit amounts are calculated once from nominal `totalContractValue` and never recomputed from milestone adjustments.
+- Runtime address/carrier information is not signed; only delivery responsibility and risk/title/cost allocation are signed.
+- A pending price proposal is mutable workflow state and has no historical counter-offer log. An accepted adjustment is immutable and auditable.
+- Funding uses the accepted price if present and otherwise falls back immediately to base; no funding delay and no settlement true-up.
+- Clean settlement uses existing Delta 1/Delta 2. Inspected/contested settlement uses `min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)` with no second tolerance application.
+- Quality `MILESTONE_PAYMENT` legs conserve `batchAmount` independently from penalty and deposit fund sources; reject penalty base is affected milestone value, not total contract value.
 
 ## Mutual replacement sequence
 
@@ -91,13 +106,14 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 
 ### Database migration and backfill
 
-- Contract DB: add LegalProfile, breach/attribution/remedy tables, remedy-leg identity, replacement links/states, milestone funding status/delay/effective deadline and outbox indexes.
+- Contract DB: add LegalProfile, goods/quality/delivery/inspection/pricing snapshots, nominal total, accepted price-adjustment record, quality assessment, breach/attribution/remedy tables, remedy-leg identity, replacement links/states, milestone funding status/delay/effective deadline and outbox indexes.
 - Bank DB: add `source_event_id`, `fund_type`, `remedy_decision_id`, `remedy_leg_id`, `entry_type`, `amount`; unique indexes on source command and remedy leg, not on remedy decision alone.
 - Reputation DB: add immutable completion/dispute facts and unique negative lock identity by `remedy_decision_id`; do not persist a precomputed score.
 - Audit DB: add unique `source_event_id`, causation/correlation columns and durable anchor-outbox state.
 - Analytics DB: add termination facts for type/requester/final role/reason and replace increment-only month jobs with full touched-bucket overwrite.
 - Notification DB: add event/type/recipient/template/provider/failure metadata with Phase 1-safe defaults; backfill `recipient_email = legacy:{user_id}` before replacing `uq_event_user` with unique `(event_id, recipient_email, notification_type)`.
 - Phase 1 `CANCELLED` rows migrate to the read projection `TERMINATED` without publishing a new canonical event; `terminationType`/`finalBreachingRole` remain null when evidence is insufficient, while `cancelledBy` may be retained only as requester audit data. Do not replay automatic negative consequences.
+- Existing signed contracts retain their historical snapshot/hash schema and operate read-only. Existing drafts are not silently defaulted; signing remains blocked until all new terms are explicitly supplied.
 
 ### Deployment order
 

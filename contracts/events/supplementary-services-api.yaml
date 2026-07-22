@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: AgriContract Supplementary Service API (non–golden-flow surfaces)
   version: 1.0.0
@@ -50,8 +50,17 @@ paths:
       x-auth: SELLER
       parameters:
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ListingCreateRequest' }
       responses:
-        "201": { description: Listing created }
+        "201":
+          description: Listing created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingResponse' }
         "400": { description: Validation failure (e.g. plot geo PENDING) }
         "403": { description: Role/ownership denied or reputation-locked }
         "503": { description: user-service unavailable (fail closed) }
@@ -62,7 +71,13 @@ paths:
       x-owner: product-service
       x-auth: JWT
       responses:
-        "200": { description: Listing page }
+        "200":
+          description: Listing page
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ListingResponse' }
 
   /api/v1/listings/{listingId}/offers:
     post:
@@ -181,6 +196,11 @@ paths:
         - { name: contractId, in: path, required: true, schema: { type: string } }
         - { name: milestoneId, in: path, required: true, schema: { type: string } }
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InspectionReportSubmission' }
       responses:
         "201": { description: Report recorded and signed }
         "403": { description: Not an authorized INSPECTOR for this commission }
@@ -249,3 +269,266 @@ components:
     ErrorEnvelope:
       description: Shared error envelope, identical to golden-flow (timestamp,status,error,code,message,path,traceId).
       type: object
+    CoffeeQualitySpec:
+      type: object
+      required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
+      additionalProperties: false
+      properties:
+        commodity: { const: COFFEE }
+        type: { enum: [ARABICA, ROBUSTA] }
+        moisturePercent: { type: number, minimum: 0, maximum: 100 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        blackBrokenBeansPercent: { type: number, minimum: 0, maximum: 100 }
+      example: { commodity: COFFEE, type: ROBUSTA, moisturePercent: 12.5, foreignMatterPercent: 0.5, blackBrokenBeansPercent: 5.0 }
+    RiceQualitySpec:
+      type: object
+      required: [commodity, varietyName, brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
+      additionalProperties: false
+      properties:
+        commodity: { const: RICE }
+        varietyName: { type: string, minLength: 1 }
+        brokenPercent: { type: number, minimum: 0, maximum: 100 }
+        moisturePercent: { type: number, minimum: 0, maximum: 100 }
+        chalkyKernelPercent: { type: number, minimum: 0, maximum: 100 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        purityPercent: { type: number, minimum: 0, maximum: 100 }
+      example: { commodity: RICE, varietyName: ST25, brokenPercent: 5.0, moisturePercent: 14.0, chalkyKernelPercent: 3.0, foreignMatterPercent: 0.2, purityPercent: 98.0 }
+    RubberQualitySpec:
+      type: object
+      required: [commodity, grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
+      additionalProperties: false
+      properties:
+        commodity: { const: RUBBER }
+        grade: { enum: [SVR_3L, SVR_5, SVR_10, SVR_20] }
+        dirtPercent: { type: number, minimum: 0, maximum: 100 }
+        ashPercent: { type: number, minimum: 0, maximum: 100 }
+        volatileMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        nitrogenPercent: { type: number, minimum: 0, maximum: 100 }
+        plasticityRetentionIndex: { type: number, minimum: 0, maximum: 100 }
+      example: { commodity: RUBBER, grade: SVR_10, dirtPercent: 0.08, ashPercent: 0.6, volatileMatterPercent: 0.8, nitrogenPercent: 0.6, plasticityRetentionIndex: 50 }
+    CashewQualitySpec:
+      type: object
+      required: [commodity, grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
+      additionalProperties: false
+      properties:
+        commodity: { const: CASHEW }
+        grade: { enum: [W180, W210, W240, W320, W450] }
+        moisturePercent: { type: number, minimum: 0, maximum: 100 }
+        defectiveKernelPercent: { type: number, minimum: 0, maximum: 100 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        kernelOutturnLbsPer80Kg: { type: number, minimum: 0, maximum: 80 }
+      example: { commodity: CASHEW, grade: W320, moisturePercent: 5.0, defectiveKernelPercent: 8.0, foreignMatterPercent: 0.5, kernelOutturnLbsPer80Kg: 48 }
+    ListingCreateCommon:
+      type: object
+      required: [productId, categoryId, commodity, productName, unitOfMeasure, offeredQuantity, askingUnitPrice, regionText, registryEntryIds]
+      properties:
+        productId: { type: string, format: uuid }
+        categoryId: { type: string, format: uuid }
+        commodity: { enum: [COFFEE, RICE, RUBBER, CASHEW] }
+        productName: { type: string, minLength: 1 }
+        unitOfMeasure: { const: KG }
+        offeredQuantity: { type: number, exclusiveMinimum: 0 }
+        askingUnitPrice: { type: string, pattern: '^[0-9]+\.[0-9]{2}$' }
+        regionText: { type: string, minLength: 1 }
+        registryEntryIds: { type: array, items: { type: string, format: uuid } }
+    CoffeeListingCreate:
+      allOf:
+        - { $ref: '#/components/schemas/ListingCreateCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: COFFEE }
+            declaredQualitySpec: { $ref: '#/components/schemas/CoffeeQualitySpec' }
+            registryEntryIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
+            traceabilityEvidencePackageId: { type: [string, 'null'], format: uuid }
+      unevaluatedProperties: false
+    RiceListingCreate:
+      allOf:
+        - { $ref: '#/components/schemas/ListingCreateCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: RICE }
+            declaredQualitySpec: { $ref: '#/components/schemas/RiceQualitySpec' }
+            registryEntryIds: { type: array, maxItems: 0, items: { type: string, format: uuid } }
+      unevaluatedProperties: false
+    RubberListingCreate:
+      allOf:
+        - { $ref: '#/components/schemas/ListingCreateCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: RUBBER }
+            declaredQualitySpec: { $ref: '#/components/schemas/RubberQualitySpec' }
+            registryEntryIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
+            traceabilityEvidencePackageId: { type: [string, 'null'], format: uuid }
+      unevaluatedProperties: false
+    CashewListingCreate:
+      allOf:
+        - { $ref: '#/components/schemas/ListingCreateCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: CASHEW }
+            declaredQualitySpec: { $ref: '#/components/schemas/CashewQualitySpec' }
+            registryEntryIds: { type: array, maxItems: 0, items: { type: string, format: uuid } }
+      unevaluatedProperties: false
+    ListingCreateRequest:
+      oneOf:
+        - { $ref: '#/components/schemas/CoffeeListingCreate' }
+        - { $ref: '#/components/schemas/RiceListingCreate' }
+        - { $ref: '#/components/schemas/RubberListingCreate' }
+        - { $ref: '#/components/schemas/CashewListingCreate' }
+      discriminator:
+        propertyName: commodity
+    ListingResponseCommon:
+      allOf:
+        - { $ref: '#/components/schemas/ListingCreateCommon' }
+        - type: object
+          required: [listingId, sellerId, status, legacyQualitySpecMissing]
+          properties:
+            listingId: { type: string, format: uuid }
+            sellerId: { type: string, format: uuid }
+            status: { enum: [DRAFT, PUBLISHED, PAUSED, CLOSED] }
+            legacyQualitySpecMissing: { type: boolean, description: Legacy rows may be true until their next edit or republish. }
+    CoffeeListingResponse:
+      allOf:
+        - { $ref: '#/components/schemas/ListingResponseCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: COFFEE }
+            declaredQualitySpec:
+              oneOf: [{ $ref: '#/components/schemas/CoffeeQualitySpec' }, { type: 'null' }]
+            registryEntryIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
+            traceabilityEvidencePackageId: { type: [string, 'null'], format: uuid }
+      unevaluatedProperties: false
+    RiceListingResponse:
+      allOf:
+        - { $ref: '#/components/schemas/ListingResponseCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: RICE }
+            declaredQualitySpec:
+              oneOf: [{ $ref: '#/components/schemas/RiceQualitySpec' }, { type: 'null' }]
+            registryEntryIds: { type: array, maxItems: 0, items: { type: string, format: uuid } }
+      unevaluatedProperties: false
+    RubberListingResponse:
+      allOf:
+        - { $ref: '#/components/schemas/ListingResponseCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: RUBBER }
+            declaredQualitySpec:
+              oneOf: [{ $ref: '#/components/schemas/RubberQualitySpec' }, { type: 'null' }]
+            registryEntryIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
+            traceabilityEvidencePackageId: { type: [string, 'null'], format: uuid }
+      unevaluatedProperties: false
+    CashewListingResponse:
+      allOf:
+        - { $ref: '#/components/schemas/ListingResponseCommon' }
+        - type: object
+          required: [declaredQualitySpec]
+          properties:
+            commodity: { const: CASHEW }
+            declaredQualitySpec:
+              oneOf: [{ $ref: '#/components/schemas/CashewQualitySpec' }, { type: 'null' }]
+            registryEntryIds: { type: array, maxItems: 0, items: { type: string, format: uuid } }
+      unevaluatedProperties: false
+    ListingResponse:
+      oneOf:
+        - { $ref: '#/components/schemas/CoffeeListingResponse' }
+        - { $ref: '#/components/schemas/RiceListingResponse' }
+        - { $ref: '#/components/schemas/RubberListingResponse' }
+        - { $ref: '#/components/schemas/CashewListingResponse' }
+      discriminator:
+        propertyName: commodity
+      x-invariant: declaredQualitySpec may be null only for a legacy row with legacyQualitySpecMissing=true; edit or republish must supply the matching non-null variant.
+    CoffeeActualMetrics:
+      type: object
+      required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
+      additionalProperties: false
+      properties:
+        commodity: { const: COFFEE }
+        type: { enum: [ARABICA, ROBUSTA] }
+        moisturePercent: { type: number, minimum: 0, maximum: 100 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        blackBrokenBeansPercent: { type: number, minimum: 0, maximum: 100 }
+      example: { commodity: COFFEE, type: ROBUSTA, moisturePercent: 13.0, foreignMatterPercent: 0.7, blackBrokenBeansPercent: 5.5 }
+    RiceActualMetrics:
+      description: varietyName is intentionally absent because it is an identity attribute, not an inspected metric.
+      type: object
+      required: [commodity, brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
+      additionalProperties: false
+      properties:
+        commodity: { const: RICE }
+        brokenPercent: { type: number, minimum: 0, maximum: 100 }
+        moisturePercent: { type: number, minimum: 0, maximum: 100 }
+        chalkyKernelPercent: { type: number, minimum: 0, maximum: 100 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        purityPercent: { type: number, minimum: 0, maximum: 100 }
+      example: { commodity: RICE, brokenPercent: 6.0, moisturePercent: 14.2, chalkyKernelPercent: 3.5, foreignMatterPercent: 0.3, purityPercent: 97.5 }
+    RubberActualMetrics:
+      type: object
+      required: [commodity, grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
+      additionalProperties: false
+      properties:
+        commodity: { const: RUBBER }
+        grade: { enum: [SVR_3L, SVR_5, SVR_10, SVR_20] }
+        dirtPercent: { type: number, minimum: 0, maximum: 100 }
+        ashPercent: { type: number, minimum: 0, maximum: 100 }
+        volatileMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        nitrogenPercent: { type: number, minimum: 0, maximum: 100 }
+        plasticityRetentionIndex: { type: number, minimum: 0, maximum: 100 }
+      example: { commodity: RUBBER, grade: SVR_10, dirtPercent: 0.09, ashPercent: 0.65, volatileMatterPercent: 0.85, nitrogenPercent: 0.62, plasticityRetentionIndex: 48 }
+    CashewActualMetrics:
+      type: object
+      required: [commodity, grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
+      additionalProperties: false
+      properties:
+        commodity: { const: CASHEW }
+        grade: { enum: [W180, W210, W240, W320, W450] }
+        moisturePercent: { type: number, minimum: 0, maximum: 100 }
+        defectiveKernelPercent: { type: number, minimum: 0, maximum: 100 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
+        kernelOutturnLbsPer80Kg: { type: number, minimum: 0, maximum: 80 }
+      example: { commodity: CASHEW, grade: W320, moisturePercent: 5.3, defectiveKernelPercent: 8.5, foreignMatterPercent: 0.6, kernelOutturnLbsPer80Kg: 47.5 }
+    ActualQualityMetrics:
+      oneOf:
+        - { $ref: '#/components/schemas/CoffeeActualMetrics' }
+        - { $ref: '#/components/schemas/RiceActualMetrics' }
+        - { $ref: '#/components/schemas/RubberActualMetrics' }
+        - { $ref: '#/components/schemas/CashewActualMetrics' }
+      discriminator:
+        propertyName: commodity
+    InspectionSettlementResultV1:
+      description: Quantity, measurement status and typed actual metrics only. Delivery certificates and quality disposition are outside normalizedResult/resultHash.
+      type: object
+      required: [resultSchemaVersion, measuredQuantityKg, acceptedQuantityKg, measurementStatus, actualQualityMetrics, determinedAt]
+      additionalProperties: false
+      allOf:
+        - if:
+            properties: { measurementStatus: { const: INCONCLUSIVE } }
+            required: [measurementStatus]
+          then:
+            required: [inconclusiveReasons]
+            properties:
+              inconclusiveReasons: {}
+      properties:
+        resultSchemaVersion: { const: '1.0' }
+        measuredQuantityKg: { type: number, minimum: 0 }
+        acceptedQuantityKg: { type: number, minimum: 0 }
+        measurementStatus: { enum: [COMPLETE, INCONCLUSIVE] }
+        actualQualityMetrics: { $ref: '#/components/schemas/ActualQualityMetrics' }
+        inconclusiveReasons: { type: array, minItems: 1, items: { type: string, minLength: 1 } }
+        determinedAt: { type: string, format: date-time }
+      x-invariant: acceptedQuantityKg must not exceed measuredQuantityKg; inconclusiveReasons is required when measurementStatus is INCONCLUSIVE; no delivery certificate may be parsed or copied into actualQualityMetrics.
+    InspectionReportSubmission:
+      type: object
+      required: [reportFileId, normalizedResult]
+      additionalProperties: false
+      properties:
+        reportFileId: { type: string, format: uuid }
+        normalizedResult: { $ref: '#/components/schemas/InspectionSettlementResultV1' }
