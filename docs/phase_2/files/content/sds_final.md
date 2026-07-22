@@ -1,45 +1,16 @@
 ---
 title: "AGRICONTRACT"
-subtitle: "Software Design Specification — Phase 2"
+subtitle: "Software
 author: "Tài liệu thiết kế chi tiết hợp nhất"
 date: "Phiên bản final · Tháng 7/2026"
 toc-title: "Mục lục"
 ---
 
-# **0. Trạng thái và quy tắc nguồn sự thật**
+# **0. Phạm vi, trạng thái và quy tắc diễn giải**
 
-Tài liệu mô tả **target design Phase 2 ở trạng thái DESIGNED — chưa code đầy đủ/production**. Thứ tự ưu tiên: design `.md` mới nhất → Verification Matrix → contract/API/event/schema → DOCX. Code hiện tại chỉ là implementation baseline. Mọi mock, Future Work và limitation được ghi rõ, không được diễn giải là capability đã hoàn thành.
+SDS này là đặc tả thiết kế mục tiêu Phase 2 ở trạng thái **implementation-ready**, không phải tuyên bố rằng mọi integration đã chạy production.
 
-| Source | Vị trí phản ánh | Số section/loại | Coverage |
-|---|---|---|---|
-| docs/phase_2/design/analytics-service-phase2-design.md | Architecture §3/§7, SDS §9/Phụ lục | 18 | covered |
-| docs/phase_2/design/api-gateway-phase2-design.md | Architecture §2/§8, SDS §3/§10 | 18 | covered |
-| docs/phase_2/design/bank-service-phase2-design.md | Solution §3/§7, Architecture §3/§5/§6, SDS §6 | 24 | covered |
-| docs/phase_2/design/data-governance-phase2-design.md | Market §8, Solution §6/§7/§12, Architecture §8/§9/§11, SDS §3/§10/§12 | 20 | covered |
-| docs/phase_2/design/file-service-phase2-design.md | Solution §6/§12, Architecture §3/§8, SDS §8 | 14 | covered |
-| docs/phase_2/design/hash-chain-phase2-design.md | Solution §6, Architecture §3/§8, SDS §7 | 18 | covered |
-| docs/phase_2/design/inspection-phase2-design.md | Solution §4, Architecture §3/§7, SDS §7 | 17 | covered |
-| docs/phase_2/design/milestone-escrow-phase2-design.md | Market §5/§7, Solution §3/§7, Architecture §3/§7, SDS §4–§6 | 34 | covered |
-| docs/phase_2/design/notification-service-phase2-design.md | Architecture §3/§4, SDS §9 | 15 | covered |
-| docs/phase_2/design/pricing-service-phase2-design.md | Market §4, Solution §2/§8, Architecture §3, SDS §8 | 9 | covered |
-| docs/phase_2/design/product-phase2-design.md | Market §4, Solution §2/§12, Architecture §3, SDS §8 | 20 | covered |
-| docs/phase_2/design/reputation-service-phase2-design.md | Solution §5, Architecture §3/§7, SDS §7 | 22 | covered |
-| docs/phase_2/design/signature-phase2-design.md | Solution §3/§7, Architecture §3/§8, SDS §4 | 11 | covered |
-| docs/phase_2/design/team-assignment-plan.md | SDS §12 (workstreams only; names/skill labels excluded) | 10 | covered |
-| docs/phase_2/design/user-service-phase2-design.md | Solution §2/§5, Architecture §3/§8, SDS §9 | 14 | covered |
-| docs/phase_2/design/verification-matrix-phase2.md | SDS §11 + release gate | 6 | covered |
-| docs/contracts/enum-ownership.md | Architecture §5, SDS §3/§4/Phụ lục | 3 | covered |
-| docs/contracts/error-catalog.md | SDS §3/Phụ lục | 5 | covered |
-| docs/contracts/golden-flow.md | Solution §3, Architecture §7, SDS §4/§11 | 5 | covered |
-| docs/contracts/integration-map.md | Architecture toàn bộ, SDS §4–§12 | 13 | covered |
-| docs/contracts/open-questions.md | SDS §12 (closed decisions; no open blocker) | 2 | covered |
-| docs/contracts/state-machines.md | Architecture §7, SDS §4–§9 | 10 | covered |
-| docs/contracts/verification-traceability.md | SDS §11 | 2 | covered |
-| docs/planning/implementation-plan.md | SDS §12 | 17 | covered |
-| contracts/events/event-envelope.yaml | Architecture §4/§5, SDS §3/Phụ lục | schema | covered |
-| contracts/events/golden-flow-events.yaml | Architecture §5, SDS Phụ lục A | schema | covered |
-| contracts/events/notification-commands.yaml | Architecture §5, SDS §9/Phụ lục A | schema | covered |
-| contracts/openapi/golden-flow-api.yaml | Architecture §4, SDS §10/Phụ lục B | schema | covered |
+Quy tắc diễn giải: service owner là nơi phát quyết định; consumer không tự suy diễn nghĩa mới; `requestedBy` không đồng nghĩa `finalBreachingRole`; `breach.reported` chỉ là allegation; `remedy.finalized` là nguồn canonical duy nhất cho money/reputation consequences; lifecycle event chỉ được phát sau terminal reconciliation.
 
 # **1. System scope và actor model**
 
@@ -66,8 +37,8 @@ AgriContract số hoá contract layer nông sản B2B: user eligibility/KYC, plo
 | user-service | Identity, KYC, role, eligibility và lock projection | user KYC/lock commands; internal eligibility API | Không sở hữu reputation ledger | Owner-only mutation |
 | product-service | Plot registry, product/listing, commodity gate, geo/yield risk | user eligibility; file.ready | Plot là seller-owned; overlap là signal | Owner-only mutation |
 | contract-service | Contract, milestone, signature/OTP, attribution, remedy, termination | REST commands; domain events; internal user/OTP | Owner duy nhất của business decision và lifecycle | Owner-only mutation |
-| escrow-service | Projection escrow và chuyển remedy legs thành bank commands | contract.signed, remedy.finalized, milestone outcomes, bank results | Không là source of truth số tiền | Owner-only mutation |
-| bank-service | Append-only monetary ledger, lock/release/refund/seize, security lock | bank.*_requested; structuring signal; external verifier | Single source of truth cho tiền | Money authoritative only |
+| escrow-service | Projection escrow và chuyển remedy legs thành bank commands | contract.signed, remedy.finalized, milestone outcomes, bank results | Không sở hữu sổ tiền authoritative | Owner-only mutation |
+| bank-service | Append-only monetary ledger, lock/release/refund/seize, security lock | bank.*_requested; structuring signal; external verifier | Sở hữu sổ tiền authoritative | Money authoritative only |
 | inspection-service | Level 1.5/2 commission, result/report hash, confirmation | contract/milestone commands, file.ready | Không ra phán quyết pháp lý | Owner-only mutation |
 | reputation-service | Immutable completion/dispute/lock facts và derived score | remedy.finalized, settled facts, risk signals | Negative consequence chỉ từ remedy.finalized | Owner-only mutation |
 | audit-service | Append-only dual hash chain, anchor, verify, evidence query | evidence/security/domain events | Không sửa source facts; dedup source_event_id | Owner-only mutation |
@@ -100,18 +71,18 @@ AgriContract số hoá contract layer nông sản B2B: user eligibility/KYC, plo
 | aggregateId | Bắt buộc | string | Canonical identifier of the source aggregate that produced the event. |
 | correlationId | Nullable/tuỳ trường hợp | ['string', 'null'] | Required by contract when the event belongs to a request, saga, or scheduled workflow. The producer must generate it when possible. A standalone event that does not belong to such a workflow may omit it. |
 | causationId | Nullable/tuỳ trường hợp | ['string', 'null'] | Absent or null for a root event. For a derived event, the eventId or commandId that directly caused it. Producers must not fabricate a value for validation. |
-| subject | Nullable/tuỳ trường hợp | subject | Optional audit/business subject. Include only when authoritative design defines a subject such as CONTRACT, USER_PAIR, or SYSTEM. It is semantically independent from aggregateId. |
+| subject | Nullable/tuỳ trường hợp | subject | Optional audit/business subject. Include only when authoritative|
 | payload | Bắt buộc | object |  |
 
 Quy tắc: producer/eventType phải khớp schema; `causationId` trỏ request/event trực tiếp; `correlationId` giữ xuyên saga; result event có eventId mới; bank request `payload.sourceEventId` bằng request envelope eventId; replay DLQ giữ original eventId.
 
-## **3.3 Enum ownership và superseded values**
+## **3.3 Enum ownership và wire vocabulary**
 
-Enum được sở hữu bởi service phát quyết định; consumer validate nhưng không tự thêm nghĩa. Contract state current không có `CANCELLED/DELIVERED`; escrow milestone không có `REFUNDED_PARTIAL`; bank không có `SEIZE_PENALTY`; boolean `penaltyAndDamagesCumulative` được thay bằng `damagesPolicy`; cancel endpoint/event cũ bị retire.
+Enum được sở hữu bởi service phát quyết định; consumer chỉ validate giá trị đã công bố và không tự thêm nghĩa. Contract, milestone, funding, termination, remedy, money-leg và notification enum phải dùng đúng tập giá trị hiện hành trong các bảng contract của tài liệu này. Mọi trạng thái terminal, money leg và consequence đều phải đi qua boundary quyết định tương ứng; không dùng một enum quan sát để suy ra side effect mới.
 
 ## **3.4 Common data/security constraints**
 
-UUID là identity xuyên service; tiền dùng decimal dương, không float. Timestamp UTC ISO-8601. PII không đi vào public DTO/event ngoài nhu cầu. Secret/key không nằm trong image/repository. Database grants enforce append-only cho ledger/audit/lock facts.
+UUID là identity xuyên service; tiền dùng decimal dương, không float. Timestamp UTC ISO-8601. PII không đi vào public DTO/event ngoài nhu cầu. Secret/key không nằm trong image hoặc mã triển khai. Database grants enforce append-only cho ledger/audit/lock facts.
 
 # **4. contract-service — aggregate, signature, attribution và lifecycle**
 
@@ -205,13 +176,13 @@ Deposit: `DEPOSIT_LOCKED/DEPOSIT_RELEASED/DEPOSIT_SEIZED`. Funding: `FUNDING_PEN
 
 escrow-service consume `remedy.finalized` một lần, tạo đúng bank command cho từng leg, persist source event/leg mapping và update projection từ bank result. Không consume `contract.terminated`/`contract.settled` cho tiền.
 
-# **6. bank-service — monetary source of truth**
+# **6. bank-service — authoritative monetary ledger**
 
 ## **6.1 Ledger model**
 
 Entry types: `LOCK_BUYER_DEPOSIT`, `LOCK_SELLER_DEPOSIT`, `LOCK_MILESTONE`, `RELEASE_TO_SELLER`, `REFUND_TO_BUYER`, `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION`. Fund types: `BUYER_DEPOSIT`, `SELLER_DEPOSIT`, `MILESTONE_PAYMENT`.
 
-Mỗi entry lưu `sourceEventId`, `contractId`, optional `milestoneId`, `userId`, `entryType`, `fundType`, nullable `remedyDecisionId`, nullable `remedyLegId`, positive amount, timestamp. Repository và DB user chỉ INSERT/SELECT; không UPDATE/DELETE.
+Mỗi entry lưu `sourceEventId`, `contractId`, optional `milestoneId`, `userId`, `entryType`, `fundType`, nullable `remedyDecisionId`, nullable `remedyLegId`, positive amount, timestamp. Tầng lưu trữ và DB user chỉ INSERT/SELECT; không UPDATE/DELETE.
 
 ## **6.2 Command/result**
 
@@ -251,7 +222,7 @@ Entrypoints: DIRECT_UPLOAD, EMAIL_INTAKE, SYSTEM_GENERATED; channel do server qu
 
 ## **8.3 pricing-service**
 
-`PriceQuote` theo commodity/region/source/time. VNSAT scrape COFFEE/RICE; RUBBER/CASHEW admin/manual theo source design; scheduled ingestion và read API/cache. Giá chỉ tham khảo/điều khoản nếu contract đã freeze; Phase 2 không có full indexed settlement.
+`PriceQuote` theo commodity/region/source/time. VNSAT scrape COFFEE/RICE; RUBBER/CASHEW admin/manual theo source
 
 # **9. User, notification và analytics**
 
@@ -271,50 +242,50 @@ CQRS read models ingest idempotent. `fact_contract_termination` tách `terminati
 
 ## **10.1 OpenAPI path catalog (41 paths)**
 
-| Method | Path | Owner | operationId | Request schema | Auth/role |
+| Method | Path | Owner | operationId | Request, response and errors | Auth/role |
 |---|---|---|---|---|---|
-| POST | /api/v1/contracts | contract-service | createContract | CreateContractRequest | BUYER |
-| GET | /api/v1/contracts | contract-service | listContracts | — | JWT |
-| GET | /api/v1/contracts/{contractId} | contract-service | getContract | — | JWT |
-| PATCH | /api/v1/contracts/{contractId}/terms | contract-service | updateContractTerms | ContractTermsRequest | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/sign/initiate | contract-service | initiateSign | InitiateSignRequest | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/sign/verify | contract-service | verifyOtpAndSign | VerifyOtpAndSignRequest | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/withdraw | contract-service | withdrawOffer | — | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/termination/mutual/propose | contract-service | proposeMutualTermination | — | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/termination/mutual/confirm | contract-service | confirmMutualTermination | — | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/replacement/propose | contract-service | proposeMutualReplacement | ReplacementProposalRequest | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/replacement/confirm | contract-service | confirmMutualReplacement | — | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/breach-cases | contract-service | reportBreachCase | BreachCaseReportRequest | BUYER, SELLER, SYSTEM |
-| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/review | contract-service | reviewBreachCase | — | ADMIN, INSPECTOR |
-| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/resolve | contract-service | resolveBreachCase | BreachCaseResolutionRequest | ADMIN, INSPECTOR |
-| POST | /api/v1/contracts/{contractId}/termination/execute | contract-service | executeTermination | TerminationExecuteRequest | BUYER, SELLER, ADMIN |
-| POST | /api/v1/contracts/{contractId}/activation/retry-deposit-lock | contract-service | retryDepositLock | — | ADMIN |
-| POST | /api/v1/contracts/{contractId}/activation/mark-failed | contract-service | markActivationFailed | — | ADMIN |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh | contract-service | recordSellerWeighed | SellerWeighedRequest | SELLER |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/confirm | contract-service | confirmMilestoneClean | BuyerReceivedRequest | BUYER |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/flag | contract-service | flagMilestoneIssue | BuyerReceivedRequest | BUYER |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond | contract-service | respondToMilestoneFlag | — | SELLER |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure | contract-service | claimForceMajeure | ForceMajeureClaimRequest | SELLER |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve | contract-service | resolveForceMajeure | ForceMajeureResolveRequest | ADMIN |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/funding/retry | escrow-service | retryMilestoneFunding | — | ADMIN |
-| POST | /api/v1/users/register | user-service | registerUser | — | JWT |
-| GET | /api/v1/users/me | user-service | getMyProfile | — | JWT |
-| GET | /api/v1/users/{userId} | user-service | getPublicUser | — | JWT |
-| GET | /api/v1/reputation/{userId}/public-summary | reputation-service | getPublicReputationSummary | — | JWT |
-| POST | /api/v1/admin/reputation/actions/propose | reputation-service | proposeReputationAction | ReputationActionProposalRequest | ADMIN, OPERATOR |
-| POST | /api/v1/admin/reputation/actions/{actionId}/approve | reputation-service | approveReputationAction | — | ADMIN |
-| POST | /api/v1/admin/reputation/actions/{actionId}/reject | reputation-service | rejectReputationAction | — | ADMIN |
-| GET | /api/v1/admin/users | user-service | listPendingUsers | — | JWT |
-| POST | /api/v1/admin/users/{userId}/verify | user-service | verifyUser | VerifyUserRequest | JWT |
-| POST | /api/v1/admin/users/{userId}/reject | user-service | rejectUser | RejectUserRequest | JWT |
-| GET | /internal/v1/users/{userId} | user-service | getInternalUserInfo | — | serviceAuth |
-| POST | /internal/v1/notifications/otp-email | notification-service | sendOtpEmail | OtpEmailRequest | serviceAuth |
-| GET | /internal/v1/audit/records | audit-service | getAuditRecordsForReconciliation | — | serviceAuth |
-| GET | /api/v1/security/audit-hash | audit-service | getAuditHash | — | JWT |
-| POST | /api/v1/security/emergency-lock | bank-service | emergencyLock | ExternalVerifierRequest | External Verifier |
-| POST | /api/v1/security/emergency-unlock | bank-service | emergencyUnlock | ExternalVerifierRequest | External Verifier |
-| GET | /api/v1/escrows/statements | escrow-service | exportEscrowStatement | — | JWT |
-| GET | /internal/v1/bank/ledger | bank-service | getInternalLedgerEntries | — | serviceAuth |
+| POST | /api/v1/contracts | contract-service | createContract | Request `CreateContractRequest`; success/error: 201:ContractResponse, 400:—, 403:—, 503:— | BUYER |
+| GET | /api/v1/contracts | contract-service | listContracts | Request `—`; success/error: 200:ContractPage | JWT |
+| GET | /api/v1/contracts/{contractId} | contract-service | getContract | Request `—`; success/error: 200:ContractResponse, 403:—, 404:— | JWT |
+| PATCH | /api/v1/contracts/{contractId}/terms | contract-service | updateContractTerms | Request `ContractTermsRequest`; success/error: 200:ContractResponse, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/sign/initiate | contract-service | initiateSign | Request `InitiateSignRequest`; success/error: 200:InitiateSignResponse, 401:—, 403:—, 409:—, 5XX:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/sign/verify | contract-service | verifyOtpAndSign | Request `VerifyOtpAndSignRequest`; success/error: 204:—, 401:—, 403:—, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/withdraw | contract-service | withdrawOffer | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/termination/mutual/propose | contract-service | proposeMutualTermination | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/termination/mutual/confirm | contract-service | confirmMutualTermination | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/replacement/propose | contract-service | proposeMutualReplacement | Request `ReplacementProposalRequest`; success/error: 201:ContractResponse, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/replacement/confirm | contract-service | confirmMutualReplacement | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/breach-cases | contract-service | reportBreachCase | Request `BreachCaseReportRequest`; success/error: 201:BreachCase, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER, SYSTEM |
+| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/review | contract-service | reviewBreachCase | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | ADMIN, INSPECTOR |
+| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/resolve | contract-service | resolveBreachCase | Request `BreachCaseResolutionRequest`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | ADMIN, INSPECTOR |
+| POST | /api/v1/contracts/{contractId}/termination/execute | contract-service | executeTermination | Request `TerminationExecuteRequest`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER, ADMIN |
+| POST | /api/v1/contracts/{contractId}/activation/retry-deposit-lock | contract-service | retryDepositLock | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| POST | /api/v1/contracts/{contractId}/activation/mark-failed | contract-service | markActivationFailed | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh | contract-service | recordSellerWeighed | Request `SellerWeighedRequest`; success/error: 204:—, 409:— | SELLER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/confirm | contract-service | confirmMilestoneClean | Request `BuyerReceivedRequest`; success/error: 204:—, 409:— | BUYER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/flag | contract-service | flagMilestoneIssue | Request `BuyerReceivedRequest`; success/error: 204:—, 409:— | BUYER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond | contract-service | respondToMilestoneFlag | Request `—`; success/error: 204:—, 409:— | SELLER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure | contract-service | claimForceMajeure | Request `ForceMajeureClaimRequest`; success/error: 204:—, 409:— | SELLER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve | contract-service | resolveForceMajeure | Request `ForceMajeureResolveRequest`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/funding/retry | escrow-service | retryMilestoneFunding | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| POST | /api/v1/users/register | user-service | registerUser | Request `—`; success/error: 2XX:—, 400:— | JWT |
+| GET | /api/v1/users/me | user-service | getMyProfile | Request `—`; success/error: 2XX:—, 401:— | JWT |
+| GET | /api/v1/users/{userId} | user-service | getPublicUser | Request `—`; success/error: 2XX:PublicUserResponse | JWT |
+| GET | /api/v1/reputation/{userId}/public-summary | reputation-service | getPublicReputationSummary | Request `—`; success/error: 200:ReputationPublicSummary, 404:— | JWT |
+| POST | /api/v1/admin/reputation/actions/propose | reputation-service | proposeReputationAction | Request `ReputationActionProposalRequest`; success/error: 201:ReputationAction, 403:—, 409:— | ADMIN, OPERATOR |
+| POST | /api/v1/admin/reputation/actions/{actionId}/approve | reputation-service | approveReputationAction | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| POST | /api/v1/admin/reputation/actions/{actionId}/reject | reputation-service | rejectReputationAction | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| GET | /api/v1/admin/users | user-service | listPendingUsers | Request `—`; success/error: 2XX:—, 403:— | JWT |
+| POST | /api/v1/admin/users/{userId}/verify | user-service | verifyUser | Request `VerifyUserRequest`; success/error: 2XX:—, 403:— | JWT |
+| POST | /api/v1/admin/users/{userId}/reject | user-service | rejectUser | Request `RejectUserRequest`; success/error: 2XX:—, 403:— | JWT |
+| GET | /internal/v1/users/{userId} | user-service | getInternalUserInfo | Request `—`; success/error: 2XX:—, 401:— | serviceAuth |
+| POST | /internal/v1/notifications/otp-email | notification-service | sendOtpEmail | Request `OtpEmailRequest`; success/error: 200:—, 5XX:— | serviceAuth |
+| GET | /internal/v1/audit/records | audit-service | getAuditRecordsForReconciliation | Request `—`; success/error: 200:AuditRecordList, 401:— | serviceAuth |
+| GET | /api/v1/security/audit-hash | audit-service | getAuditHash | Request `—`; success/error: 200:AuditHashResponse, 401:— | X-Api-Key |
+| POST | /api/v1/security/emergency-lock | bank-service | emergencyLock | Request `ExternalVerifierRequest`; success/error: 204:—, 401:—, 409:— | External Verifier (signed request) |
+| POST | /api/v1/security/emergency-unlock | bank-service | emergencyUnlock | Request `ExternalVerifierRequest`; success/error: 204:—, 401:—, 409:— | External Verifier (signed request) |
+| GET | /api/v1/escrows/statements | escrow-service | exportEscrowStatement | Request `—`; success/error: 200:—, 403:— | JWT |
+| GET | /internal/v1/bank/ledger | bank-service | getInternalLedgerEntries | Request `—`; success/error: 200:LedgerEntryList, 401:— | serviceAuth |
 
 ## **10.2 OpenAPI component schemas (38)**
 
@@ -381,9 +352,9 @@ Ký hiệu `?` là optional; field required nhưng nullable vẫn phải xuất 
 | bank.refund_completed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `REFUND_TO_BUYER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`ledgerEntryId`: uuid |  |
 | bank.refund_failed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `REFUND_TO_BUYER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`failureReason`: string |  |
 | contract.settled | contract-service | reputation-service, analytics-service | `contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid |  |
-| contract.terminated | contract-service | audit-service, analytics-service | `contractId`: uuid<br>`terminationType`: `WITHDRAW_OFFER`, `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, `ACTIVATION_FAILURE`<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`remedyDecisionId`: nullableUuid<br>`breachCaseId`: nullableUuid<br>`affectedMilestoneIds`: array<uuid><br>`supersededByContractId`: nullableUuid<br>`replacesContractId`: nullableUuid | Except pre-sign WITHDRAW_OFFER, publish only after the expected remedyDecisionId/remedyLegId set is complete in the bank ledger and remaining contract lock is zero. |
+| contract.terminated | contract-service | audit-service, analytics-service | `contractId`: uuid<br>`terminationType`: `WITHDRAW_OFFER`, `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, `ACTIVATION_FAILURE`<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`remedyDecisionId`: nullableUuid<br>`breachCaseId`: nullableUuid<br>`affectedMilestoneIds`: array<uuid><br>`supersededByContractId`: nullableUuid<br>`replacesContractId`: nullableUuid | `finalBreachingRole` và `breachReasonCode` là required-but-nullable cho mutual, force-majeure và technical no-fault; replacement pointers chỉ non-null với `MUTUAL_REPLACEMENT`. Trừ pre-sign `WITHDRAW_OFFER`, chỉ publish sau khi đủ expected `remedyDecisionId/remedyLegId` và remaining contract lock bằng 0. |
 | breach.reported | contract-service | audit-service | `breachCaseId`: uuid<br>`contractId`: uuid<br>`milestoneId`: nullableUuid<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`allegedBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: breachReasonCode<br>`severity`: `MINOR`, `MATERIAL` |  |
-| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | `remedyDecisionId`: uuid<br>`attributionDecisionId`: uuid<br>`breachCaseId`: nullableUuid<br>`contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid<br>`affectedMilestoneIds`: array<uuid><br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<object> | remedyLegId is unique per bank leg; remedyDecisionId groups all legs and is unique for at most one reputation lock. |
+| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | `remedyDecisionId`: uuid<br>`attributionDecisionId`: uuid<br>`breachCaseId`: nullableUuid<br>`contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid<br>`affectedMilestoneIds`: array<uuid><br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<object> | Khi `finalBreachingRole = null`, cả hai eligibility flag phải false và legs chỉ có `NONE`, `PAYMENT_SETTLEMENT`, `PAYMENT_REFUND`; khi `penaltyEligible = false`, không có `CONTRACTUAL_PENALTY`. `remedyLegId` unique cho từng bank leg; `remedyDecisionId` group toàn bộ legs và tạo tối đa một reputation lock. |
 | milestone.settled | contract-service | escrow-service, analytics-service, audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`lockedAmount`: money<br>`actualAmount`: money<br>`recipients`: array<object> |  |
 | milestone.dispute_resolved | contract-service | reputation-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`flaggedBy`: const `BUYER`<br>`flaggedByUserId`: uuid<br>`resolutionFavors`: `BUYER`, `SELLER` |  |
 | milestone.level2_provisional_settled | contract-service | escrow-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`level1_5ReportId`: uuid<br>`level1_5EntitlementAmount`: money<br>`releaseRate`: string<br>`sellerReleaseAmount`: money<br>`remainingLockedAmount`: money |  |
@@ -412,86 +383,88 @@ Ký hiệu `?` là optional; field required nhưng nullable vẫn phải xuất 
 
 ## **10.4 Notification commands (16)**
 
-| Command | Producer | Consumer | Required payload |
+| Command | Producer | Consumer | Required payload; optional payload |
 |---|---|---|---|
-| contractAnchorRequested | contract-service | notification-service |  |
-| contractActivationFailedRequested | contract-service | notification-service |  |
-| contractTerminatedRequested | contract-service | notification-service |  |
-| breachNoticeRequested | contract-service | notification-service |  |
-| remedyFinalizedRequested | contract-service | notification-service |  |
-| milestoneFundingStatusRequested | contract-service | notification-service |  |
-| milestoneStatusRequested | contract-service | notification-service |  |
-| milestoneAnchorRequested | audit-service | notification-service |  |
-| level2CommissionRequested | inspection-service | notification-service |  |
-| auditDigestRequested | audit-service | notification-service |  |
-| auditFailureRequested | audit-service | notification-service |  |
-| securityLockChangedRequested | bank-service | notification-service |  |
-| reconciliationMismatchRequested | bank-service | notification-service |  |
-| userKycResultRequested | user-service | notification-service |  |
-| userLockChangedRequested | user-service | notification-service |  |
-| verifierKeyAnchorRequested | bank-service | notification-service |  |
+| notification.contract_anchor_requested | contract-service | notification-service | `contractId`, `recipients`, `contractTermsSnapshot`, `signedContentHash`, `signedAt` |
+| notification.contract_activation_failed_requested | contract-service | notification-service | `contractId`, `recipients`, `failedLeg`, `buyerDepositState`, `sellerDepositState`, `nextActions` |
+| notification.contract_terminated_requested | contract-service | notification-service | `contractId`, `recipients`, `terminationType`, `requestedBy`, `finalBreachingRole`, `breachReasonCode`, `remedyDecisionId`, `breachCaseId`, `affectedMilestoneIds`, `supersededByContractId`, `replacesContractId`, `remedyLegs` |
+| notification.breach_notice_requested | contract-service | notification-service | `breachCaseId`, `contractId`, `recipients`, `breachReasonCode`, `severity`, `evidenceRefs` |
+| notification.remedy_finalized_requested | contract-service | notification-service | `remedyDecisionId`, `attributionDecisionId`, `breachCaseId`, `contractId`, `buyerId`, `sellerId`, `affectedMilestoneIds`, `recipients`, `finalBreachingRole`, `breachReasonCode`, `decisionSource`, `penaltyEligible`, `reputationEligible`, `remedyLegs` |
+| notification.milestone_funding_status_requested | contract-service | notification-service | Required: `contractId`, `milestoneId`, `recipients`, `statusType`; optional nullable: `deadline`, `reason` |
+| notification.milestone_status_requested | contract-service | notification-service | Required: `contractId`, `milestoneId`, `recipients`, `statusType`; optional: `deadline` (nullable), `statusData` |
+| notification.milestone_anchor_requested | audit-service | notification-service | `contractId`, `milestoneId`, `recipients`, `recordHash`, `otsProof`, `settlementSummary` |
+| notification.level2_commission_requested | inspection-service | notification-service | Required: `commissionId`, `contractId`, `recipients`, `org`, `intakeAddress`; optional: `contractContext` |
+| notification.audit_digest_requested | audit-service | notification-service | `recipients`, `recordHash` |
+| notification.audit_failure_requested | audit-service | notification-service | `recipients`, `failureSummary` |
+| notification.security_lock_changed_requested | bank-service | notification-service | `recipients`, `action`, `reason`, `timestamp` |
+| notification.reconciliation_mismatch_requested | bank-service | notification-service | `contractId`, `recipients`, `mismatchSummary` |
+| notification.user_kyc_result_requested | user-service | notification-service | Required: `userId`, `recipientEmail`, `organizationName`, `result`, `decidedAt`; optional: `reason` |
+| notification.user_lock_changed_requested | user-service | notification-service | Required: `userId`, `recipientEmail`, `action`, `reasonCode`; optional nullable: `effectiveUntil` |
+| notification.verifier_key_anchor_requested | bank-service | notification-service | `recipientEmail`, `publicKeyFingerprint` |
+
+Mọi notification command dùng envelope required `eventId`, `eventType`, `eventVersion`, `occurredAt`, `producer`, `aggregateId`, `correlationId`, `payload`; `causationId` optional nullable. Trong payload, các field required-but-nullable vẫn phải xuất hiện: termination command giữ nullable `finalBreachingRole`, `breachReasonCode`, `remedyDecisionId`, `breachCaseId`, `supersededByContractId`, `replacesContractId`; remedy command giữ nullable `breachCaseId`, `finalBreachingRole`, `breachReasonCode`. `additionalProperties = false` áp cho envelope và payload.
 
 # **11. Verification Matrix và release gate**
 
 Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutability/evidence là gate trước golden-flow merge; P1 gate trước external exposure; P2 gate trước pilot claim. Matrix hiện có 55 rows.
 
-| # | Priority | Invariant | Acceptance test & source |
+| # | Priority | Invariant | Acceptance test |
 |---|---|---|---|
-| 1 | P0 | Event lặp không release/lock tiền hai lần | Publish cùng bank request nhiều lần với `payload.sourceEventId == envelope.eventId` → đúng 1 bộ ledger entry; result dùng eventId mới và causationId=request eventId<br>_Nguồn: bank §4 idempotency_ |
-| 2 | P0 | Ledger append-only — không UPDATE/DELETE | Repository chỉ có insert/select; test lớp repo + quyền DB user<br>_Nguồn: bank ledger, governance nguyên tắc 3_ |
-| 3 | P0 | Hợp đồng đã `SIGNED` không sửa được terms | Gọi update terms sau ký → `409`; hash không đổi<br>_Nguồn: signature §3, milestone §3.1_ |
-| 4 | P0 | `audit_record` bị sửa phải bị phát hiện | Tamper trực tiếp DB (đổi amount/hash) → `VerifyChainJob` fail + đúng vị trí<br>_Nguồn: hash-chain §4.2/§5_ |
-| 5 | P0 | Ledger lệch với record đã anchor phải bị phát hiện | Sửa 1 ledger leg lệch typed audit projection (`contractId`, `milestoneId`, `settledAmount`, `seizedAmount`, release/refund legs) → `LedgerAuditReconciliationJob` bắn `reconciliation_mismatch`<br>_Nguồn: bank §5b.1; hash-chain §4.5_ |
-| 6 | P0 | Bank completion callback lặp không nhân đôi | Gửi duplicate callback → 1 bộ entry, trạng thái không đổi lần 2<br>_Nguồn: bank §4_ |
-| 7 | P0 | DLQ replay không side effect lặp | Replay `eventId` gốc sau khi đã xử lý → consumer skip, không entry mới<br>_Nguồn: governance §8b_ |
-| 8 | P0 | Contract terminal không còn tiền lock treo | Normal completion/termination phát `remedy.finalized`, mock một bank leg còn missing/failed → contract vẫn non-terminal và chưa publish lifecycle event; khi đủ expected `remedyLegId` + remaining lock = 0 mới cho `contract.settled`/`contract.terminated`/`SUPERSEDED`/`ACTIVATION_FAILED` (pre-sign `WITHDRAWN` zero by construction)<br>_Nguồn: milestone-escrow §3.1/§6.7; bank §3.2; escrow_ |
-| 9 | P0 | Kill switch chặn toàn bộ dòng tiền | ES256/RFC8785 request: wrong key/signature/timestamp/action/replayed nonce bị exact 401/409 code; `system_lock ACTIVE` làm mọi `bank.*_requested` fail; Gateway không retry và cap 64 KB<br>_Nguồn: bank §3.5.2-3.5.5; gateway §3.4_ |
-| 10 | P0 | Provisional Level 2 không release quá mức sàn và bảo toàn tiền | Buyer im lặng → `sellerReleaseAmount` dùng release floor, không buyer refund; mọi reconcile/terminal leg explicit, tổng release+refund+remaining lock bảo toàn batchAmount, zero command bị omit<br>_Nguồn: milestone §3.2 Bước 0-3; bank §3.3_ |
-| 11 | P0 | Khoá cọc fail không kẹt im lặng | Bank fail liên tục → hết 3 retry → `escrow.deposit_lock_failed` + contract giữ `SIGNED` + notification 3 bên; `RetryDepositLock` sau khi hết lỗi → `ACTIVE`<br>_Nguồn: milestone §3.1_ |
-| 11b | P0 | Partial lock không nuốt tiền: buyer LOCKED + seller fail → terminal phải refund | Mock seller-leg fail vĩnh viễn → `MarkActivationFailed` → `bank.refund_requested` cho leg buyer, qua `ACTIVATION_REFUND_PENDING`, chỉ `ACTIVATION_FAILED` khi refund confirmed; refund fail → đứng lại + alert<br>_Nguồn: milestone §3.1 (18/07)_ |
-| 11c | P0 | 2 chữ ký phải cùng bản terms | Buyer ký, đổi terms (phải bị 409); ép seller ký hash khác → REJECT, không SIGNED<br>_Nguồn: signature §6 bước 4 (18/07)_ |
-| 11d | P0 | Mọi field record đều được hash commit | Tamper riêng `source_type`/`subject_id`/`prev_hash_subject` (giữ nguyên content) → `VerifyChainJob` recompute fail<br>_Nguồn: hash-chain §3 canonical (18/07 r2)_ |
-| 11e | P0 | `audit_anchor` cũng bất biến | Repository/DB user chỉ INSERT+SELECT trên audit_anchor; UPDATE/DELETE → denied<br>_Nguồn: hash-chain §3 (18/07 r2)_ |
-| 11f | P0 | Source/result hash commitment verify riêng với record hash | `Contract.signedContentHash` 3-way khớp; inspection recompute `resultHash` từ RFC8785 normalized result và `reportHash` từ report identity/file/result/timestamp/actor; tamper bất kỳ field nào bị reject; `record_hash` vẫn verify riêng<br>_Nguồn: hash-chain §4.1; inspection §2.3/§4_ |
-| 11g | P0 | Allegation chưa final không đụng tiền/reputation | Mở `BreachCase` (`breach.reported`) rồi thử phát seize/forfeiture/penalty + kiểm tra reputation consumer → mọi lệnh tiền bị chặn khi `status != RESOLVED`; reputation không có `lock_entry` mới<br>_Nguồn: milestone-escrow §6.4 invariant (19/07)_ |
-| 11h | P0 | Người request termination không tự động bị coi là vi phạm | Seller yêu cầu terminate vì buyer `FUNDING_FAILURE` → `finalBreachingRole = BUYER`, seller không bị seize/lock; mirror chiều ngược<br>_Nguồn: milestone-escrow §6.0/§6b (19/07)_ |
-| 11i | P0 | `finalBreachingRole = NULL` → không ai bị phạt | `MUTUAL_TERMINATION`/`MUTUAL_REPLACEMENT`/FM/`ACTIVATION_FAILURE` → cọc về đúng chủ (`REFUND_TO_BUYER`/`RELEASE_TO_SELLER`), zero `DEPOSIT_FORFEITURE`/`CONTRACTUAL_PENALTY`, zero `lock_entry`<br>_Nguồn: milestone-escrow §6.5/§6.6/§6.7; bank §3.2; reputation §3 (19/07)_ |
-| 11j | P0 | Contractual penalty không vượt cap LegalProfile | `sign()` với `buyerPenaltyRate`/`sellerPenaltyRate` > `maxContractualPenaltyRate` (8% VN_COMMERCIAL_LAW) → reject 400; penalty tính trên batchAmount phần bị vi phạm, không trên totalAmount<br>_Nguồn: milestone-escrow §2.1b (19/07)_ |
-| 11k | P0 | Không double recovery | Remedy calculator: với `damagesPolicy = CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE`/`EXPRESS_PENALTY_ONLY` → không có `DAMAGES_COMPENSATION` leg; với `COMMERCIAL_CUMULATIVE_IF_PROVEN` → DAMAGES chỉ khi có bằng chứng, và `DEPOSIT_FORFEITURE` offset vào penalty; ledger không có 2 khoản seize bù cùng 1 tổn thất<br>_Nguồn: milestone-escrow §2.1b/§6.7; bank §2 (19/07, sửa lần 2)_ |
-| 11l | P0 | Mutual replacement nối đúng 2 contract, không double-count | Supersede → contract cũ `SUPERSEDED` + `supersededByContractId`; contract mới `replacesContractId`; milestone `SETTLED` cũ giữ nguyên; tiền lock cũ refund hết (tổng lock contract cũ = 0), contract mới lock từ 0<br>_Nguồn: milestone-escrow §6.6 (19/07)_ |
-| 11m | P0 | Milestone funding failure không kẹt tiền + không phạt oan seller | Mock bank fail lock batch milestone 2 → hết retry → `FUNDING_FAILED`, đồng hồ giao hàng seller tạm dừng (không trigger seller-quá-hạn), leg đã lock refund; hết `fundingCureWindowDays` → buyer breach Rổ A, seller không bị seize<br>_Nguồn: milestone-escrow §6b (19/07)_ |
-| 11n | P0 | Termination pro-rata không đụng milestone đã `SETTLED` | `TERMINATION_FOR_BREACH` giữa hợp đồng (milestone 1-2 `SETTLED`, 3-5 chưa) → penalty/forfeiture chỉ tính trên batch 3-5; ledger milestone 1-2 không có entry mới, tiền đã release không bị truy thu<br>_Nguồn: milestone-escrow §6.1 pro-rata (19/07)_ |
-| 11o | P0 | Một `remedyDecisionId` → đúng 1 bộ bank legs, ≤ 1 reputation lock (chặn double-consume) | Replay `remedy.finalized` / gửi leg trùng → `ledger_entry.remedy_leg_id` UNIQUE chặn từng leg (đơn vị dedup đúng — 1 decision nhiều legs), reconcile `SUM` group theo `remedy_decision_id` khớp đúng 1 bộ; reputation `lock_entry.remedy_decision_id` UNIQUE chặn lock thứ 2 kể cả từ event khác<br>_Nguồn: milestone-escrow §7.2; reputation §2.1; bank §2 DDL (19/07 lần 2, schema-hoá lần 4)_ |
-| 11p | P0 | Supersede crash windows không nuốt tiền/không kẹt hợp đồng | (a) draft replacement không đủ 2 chữ ký → cũ vẫn `ACTIVE`, zero sự kiện tiền; (b) mới `SIGNED`, refund cũ fail giữa chừng → cũ đứng `SUPERSEDE_REFUND_PENDING` + alert, không nhảy `SUPERSEDED`; (c) cũ `SUPERSEDED` xong, activation mới fail → mới đi đường `ACTIVATION_FAILED` chuẩn, cũ không rollback<br>_Nguồn: milestone-escrow §6.6 saga (19/07 lần 3)_ |
-| 11q | P0 | Replay evidence event không nhân đôi audit record/anchor | Redeliver cùng `remedy.finalized`/`contract.terminated` (eventId cũ) → `audit_record.source_event_id` UNIQUE reject/no-op, không record mới, không anchor mới, không email evidence thứ 2<br>_Nguồn: hash-chain §3 `source_event_id` (19/07 lần 3)_ |
-| 12 | P1 | User khác không thao tác contract người khác | Ownership check → `403` (contract, escrow, statement)<br>_Nguồn: contract/escrow, gateway §4_ |
-| 13 | P1 | Client không tự tiêm identity | Gửi kèm `X-User-Id`/`X-User-Role`/`X-Gateway-Secret` giả → bị strip/overwrite, downstream nhận identity từ JWT<br>_Nguồn: gateway §2/§7_ |
-| 14 | P1 | `/internal/**` không ra ngoài | Gọi từ external → `404/403` tại Gateway, không forward<br>_Nguồn: gateway §3.5_ |
-| 15 | P1 | File nhiễm virus không thành evidence | Upload EICAR qua `StoreOnBehalfOf` và qua email intake → `FAILED`, không có `file.ready`, không gắn được vào milestone/report<br>_Nguồn: file-service §3-4_ |
-| 16 | P1 | OPERATOR không chạm được đường ADMIN | OPERATOR gọi approve maker-checker / `RetryDepositLock` / `/admin/audit` → `403`<br>_Nguồn: governance §5.4_ |
-| 17 | P1 | ADMIN không tự approve đề xuất của chính mình | Cùng 1 account propose rồi approve → reject<br>_Nguồn: governance §5.3_ |
-| 18 | P1 | Unlock sớm không mở khoá nhầm khi nhiều lock chồng | 2 lock (T+60, T+30), unlock sớm lock 1 → `lockedUntil` user-service = T+30, `sign()` vẫn bị chặn<br>_Nguồn: reputation §7, user §2.2_ |
-| 19 | P1 | `sign()` fail-closed khi user-service chết | Stop user-service → sign bị reject, không fallback anonymous<br>_Nguồn: user §3/§7_ |
-| 20 | P1 | OTP fail không gửi muộn | Provider trả lỗi → contract-service nhận 5xx; xác nhận không có mail nào được gửi sau đó với `requestId` cũ trừ khi caller tự retry<br>_Nguồn: notification §2.2/§5_ |
-| 21 | P1 | Public DTO không lộ PII | `GET /users/{id}` → không email/phone/address; public-summary yêu cầu JWT<br>_Nguồn: user §4.1, gateway §3.2_ |
-| 21b | P1 | OTP challenge binding | Verify với JWT user khác / otpId khác contract / terms đã đổi sau phát OTP → 403/409/invalidate; không lấy được "OTP mới nhất" của người khác<br>_Nguồn: signature §6-§7 (18/07)_ |
-| 21c | P1 | Lock ordering sống qua restart | Apply unlock revision N, restart service, deliver locked revision N-1 (eventId mới) → bị bỏ qua nhờ `last_lock_revision` persist<br>_Nguồn: user §2.2 (18/07)_ |
-| 21d | P1 | `legalHold` chặn xoá tuyệt đối | Set legalHold + retention đã hết → lifecycle job gọi `DeleteFile` → REJECT, file còn nguyên<br>_Nguồn: file-service §7, governance §8 (18/07 r2)_ |
-| 21e | P1 | Xoá file 2 bước tự lành | Mock MinIO delete fail sau tombstone → job re-run → cả DB lẫn blob về trạng thái nhất quán, không rác<br>_Nguồn: file-service §7 (18/07 r2)_ |
-| 21f | P1 | Listing/offer fail-closed khi user-service chết | Stop user-service → CreateListing/CreateOffer trả 503, user đang khoá không lách được<br>_Nguồn: user §3 (18/07 r2)_ |
-| 22 | P2 | Cà phê/cao su bắt buộc plot; gạo/điều không | Commodity-gate test 2 chiều: tạo listing thiếu plot → fail/pass đúng theo commodity<br>_Nguồn: product (EUDR gate)_ |
-| 23 | P2 | Analytics chết không ảnh hưởng giao dịch | Stop analytics-service → settle milestone vẫn hoàn tất; analytics **catch-up từ queue backlog** khi sống lại (outage ngắn — KHÔNG phải cold rebuild, sửa 18/07/2026)<br>_Nguồn: governance §3 (read model)_ |
-| 24 | P2 | Notification dedup theo recipient + type | 1 event 2 recipients + retry → mỗi (recipient, type) đúng 1 mail `SENT`<br>_Nguồn: notification §3.1/§5_ |
-| 25 | P2 | Restore đụng tiền phải qua verify mới mở | Restore `bank_db` test env → 2 job verify chạy pass trước khi mở traffic (demo DR)<br>_Nguồn: governance §8c_ |
-| 26 | P2 | Event cũ không ghi đè quyết định mới | Deliver `reputation.locked/unlocked` sai thứ tự (`lockRevision` nhỏ hơn — sửa 18/07) → bị bỏ qua<br>_Nguồn: user §2.2_ |
-| 26b | P2 | Plot overlap chéo seller bị bắt | Seller B đăng ký polygon trùng/lọt trong polygon Seller A → `plotReuseRisk = HIGH` + OPERATOR review, không auto-reject<br>_Nguồn: product §2.3b (18/07)_ |
-| 26c | P2 | Yield anomaly là signal, không phải gate | `declaredQuantity` vượt Σ(plotArea×maxYield) → `yieldRisk` + yêu cầu bổ sung/review; listing KHÔNG bị auto-reject<br>_Nguồn: product §2.3b (18/07 r2)_ |
-| 26d | P2 | Deployment policy enforce được | CI check: image pin theo digest, secret không nằm trong image, protected branch bắt buộc approval — fail build nếu vi phạm (policy test, không phải runtime test)<br>_Nguồn: governance §2 threat model (18/07 r2)_ |
-| 26e | P2 | Delta 1 vượt threshold không auto-gán bẻ kèo | Shortfall > threshold, không FM claim → milestone mở `BreachCase` (không bắn `milestone.cancelled_with_penalty` tự động); pro-rata phần đã giao vẫn release<br>_Nguồn: milestone-escrow §4 nhánh 2 (19/07)_ |
-| 26f | P2 | Reputation chỉ phạt strategic breach | `remedy.finalized` với `breachReasonCode = PRODUCTION_SHOCK_NON_FM` → không `lock_entry`; với `SIDE_SELLING` → có; `zeroProgressMultiplier` 1.5x chỉ khi strategic + 0 settled<br>_Nguồn: reputation §3/§4.3 (19/07)_ |
-| 26g | P2 | Analytics đo `finalBreachingRole`, không đo người bấm nút | `contract.terminated` các nhánh → `fact_contract_termination` tách `terminationType`/`requestedBy`/`finalBreachingRole`; mutual không đếm vào default rate<br>_Nguồn: analytics (19/07)_ |
-| 26h | P2 | Allegation bị bác/được miễn trách không phát hậu quả tiêu cực (đổi tên 19/07 lần 2 — Phase 2 cố tình chưa có cure state, không gọi "cure thành công") | `BreachCase` RESOLVED với `finalBreachingRole = NULL` → không termination, không lock_entry cho bên bị cáo buộc; `remedy.finalized` nếu phát chỉ chứa refund/release legs<br>_Nguồn: milestone-escrow §6.4; reputation §4.3 (19/07)_ |
-| 26i | P2 | Inspection đang pending chặn auto-confirm | Milestone `CONTESTED`/có commission Level 1.5-2 đang chạy → hết `buyerConfirmWindowDays` KHÔNG auto `CONFIRM_CLEAN`, không release; timer chỉ áp khi milestone còn đúng state `BUYER_RECEIVED`<br>_Nguồn: milestone-escrow §3.2 bổ sung (19/07)_ |
+| 1 | P0 | Event lặp không release/lock tiền hai lần | Publish cùng bank request nhiều lần với `payload.sourceEventId == envelope.eventId` → đúng 1 bộ ledger entry; result dùng eventId mới và causationId=request eventId |
+| 2 | P0 | Ledger append-only — không UPDATE/DELETE | Tầng lưu trữ chỉ có insert/select; test lớp lưu trữ + quyền DB user |
+| 3 | P0 | Hợp đồng đã `SIGNED` không nhận update terms | Gọi update terms sau ký → `409`; hash không đổi |
+| 4 | P0 | `audit_record` bị sửa phải bị phát hiện | Tamper trực tiếp DB (đổi amount/hash) → `VerifyChainJob` fail + đúng vị trí |
+| 5 | P0 | Ledger lệch với record đã anchor phải bị phát hiện | Sửa 1 ledger leg lệch typed audit projection (`contractId`, `milestoneId`, `settledAmount`, `seizedAmount`, release/refund legs) → `LedgerAuditReconciliationJob` bắn `reconciliation_mismatch` |
+| 6 | P0 | Bank completion callback lặp không nhân đôi | Gửi duplicate callback → 1 bộ entry, trạng thái không đổi lần 2 |
+| 7 | P0 | DLQ replay không side effect lặp | Replay `eventId` gốc sau khi đã xử lý → consumer skip, không entry mới |
+| 8 | P0 | Contract terminal không còn tiền lock treo | Normal completion/termination phát `remedy.finalized`, mock một bank leg còn missing/failed → contract vẫn non-terminal và chưa publish lifecycle event; khi đủ expected `remedyLegId` + remaining lock = 0 mới cho `contract.settled`/`contract.terminated`/`SUPERSEDED`/`ACTIVATION_FAILED` (pre-sign `WITHDRAWN` zero by construction) |
+| 9 | P0 | Kill switch chặn toàn bộ dòng tiền | ES256/RFC8785 request: wrong key/signature/timestamp/action/replayed nonce bị exact 401/409 code; `system_lock ACTIVE` làm mọi `bank.*_requested` fail; Gateway không retry và cap 64 KB |
+| 10 | P0 | Provisional Level 2 không release quá mức sàn và bảo toàn tiền | Buyer im lặng → `sellerReleaseAmount` dùng release floor, không buyer refund; mọi reconcile/terminal leg explicit, tổng release+refund+remaining lock bảo toàn batchAmount, zero command bị omit |
+| 11 | P0 | Khoá cọc fail không kẹt im lặng | Bank fail liên tục → hết 3 retry → `escrow.deposit_lock_failed` + contract giữ `SIGNED` + notification 3 bên; `RetryDepositLock` sau khi hết lỗi → `ACTIVE` |
+| 11b | P0 | Partial lock không nuốt tiền: buyer LOCKED + seller fail → terminal phải refund | Mock seller-leg fail vĩnh viễn → `MarkActivationFailed` → `bank.refund_requested` cho leg buyer, qua `ACTIVATION_REFUND_PENDING`, chỉ `ACTIVATION_FAILED` khi refund confirmed; refund fail → đứng lại + alert |
+| 11c | P0 | 2 chữ ký phải cùng bản terms | Buyer ký, đổi terms (phải bị 409); ép seller ký hash khác → REJECT, không SIGNED |
+| 11d | P0 | Mọi field record đều được hash commit | Tamper riêng `source_type`/`subject_id`/`prev_hash_subject` (giữ nguyên content) → `VerifyChainJob` recompute fail |
+| 11e | P0 | `audit_anchor` cũng bất biến | Tầng lưu trữ/DB user chỉ INSERT+SELECT trên audit_anchor; UPDATE/DELETE → denied |
+| 11f | P0 | Source/result hash commitment verify riêng với record hash | `Contract.signedContentHash` 3-way khớp; inspection recompute `resultHash` từ RFC8785 normalized result và `reportHash` từ report identity/file/result/timestamp/actor; tamper bất kỳ field nào bị reject; `record_hash` vẫn verify riêng |
+| 11g | P0 | Allegation chưa final không đụng tiền/reputation | Mở `BreachCase` (`breach.reported`) rồi thử phát seize/forfeiture/penalty + kiểm tra reputation consumer → mọi lệnh tiền bị chặn khi `status != RESOLVED`; reputation không có `lock_entry` mới |
+| 11h | P0 | Người request termination không tự động bị coi là vi phạm | Seller yêu cầu terminate vì buyer `FUNDING_FAILURE` → `finalBreachingRole = BUYER`, seller không bị seize/lock; mirror chiều ngược |
+| 11i | P0 | `finalBreachingRole = NULL` → không ai bị phạt | `MUTUAL_TERMINATION`/`MUTUAL_REPLACEMENT`/FM/`ACTIVATION_FAILURE` → cọc về đúng chủ (`REFUND_TO_BUYER`/`RELEASE_TO_SELLER`), zero `DEPOSIT_FORFEITURE`/`CONTRACTUAL_PENALTY`, zero `lock_entry` |
+| 11j | P0 | Contractual penalty không vượt cap LegalProfile | `sign()` với `buyerPenaltyRate`/`sellerPenaltyRate` > `maxContractualPenaltyRate` (8% VN_COMMERCIAL_LAW) → reject 400; penalty tính trên batchAmount phần bị vi phạm, không trên totalAmount |
+| 11k | P0 | Không double recovery | Remedy calculator: với `damagesPolicy = CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE`/`EXPRESS_PENALTY_ONLY` → không có `DAMAGES_COMPENSATION` leg; với `COMMERCIAL_CUMULATIVE_IF_PROVEN` → DAMAGES chỉ khi có bằng chứng, và `DEPOSIT_FORFEITURE` offset vào penalty; ledger không có 2 khoản seize bù cùng 1 tổn thất |
+| 11l | P0 | Mutual replacement nối đúng 2 contract, không double-count | Supersede → contract cũ `SUPERSEDED` + `supersededByContractId`; contract mới `replacesContractId`; milestone `SETTLED` cũ giữ nguyên; tiền lock cũ refund hết (tổng lock contract cũ = 0), contract mới lock từ 0 |
+| 11m | P0 | Milestone funding failure không kẹt tiền + không phạt oan seller | Mock bank fail lock batch milestone 2 → hết retry → `FUNDING_FAILED`, đồng hồ giao hàng seller tạm dừng (không trigger seller-quá-hạn), leg đã lock refund; hết `fundingCureWindowDays` → buyer breach Rổ A, seller không bị seize |
+| 11n | P0 | Termination pro-rata không đụng milestone đã `SETTLED` | `TERMINATION_FOR_BREACH` giữa hợp đồng (milestone 1-2 `SETTLED`, 3-5 chưa) → penalty/forfeiture chỉ tính trên batch 3-5; ledger milestone 1-2 không có entry mới, tiền đã release không bị truy thu |
+| 11o | P0 | Một `remedyDecisionId` → đúng 1 bộ bank legs, ≤ 1 reputation lock (chặn double-consume) | Replay `remedy.finalized` / gửi leg trùng → `ledger_entry.remedy_leg_id` UNIQUE chặn từng leg (đơn vị dedup đúng — 1 decision nhiều legs), reconcile `SUM` group theo `remedy_decision_id` khớp đúng 1 bộ; reputation `lock_entry.remedy_decision_id` UNIQUE chặn lock thứ 2 kể cả từ event khác |
+| 11p | P0 | Supersede crash windows không nuốt tiền/không kẹt hợp đồng | (a) draft replacement không đủ 2 chữ ký → cũ vẫn `ACTIVE`, zero sự kiện tiền; (b) mới `SIGNED`, refund cũ fail giữa chừng → cũ đứng `SUPERSEDE_REFUND_PENDING` + alert, không nhảy `SUPERSEDED`; (c) cũ `SUPERSEDED` xong, activation mới fail → mới đi đường `ACTIVATION_FAILED` chuẩn, cũ không rollback |
+| 11q | P0 | Replay evidence event không nhân đôi audit record/anchor | Redeliver cùng `remedy.finalized`/`contract.terminated` (eventId cũ) → `audit_record.source_event_id` UNIQUE reject/no-op, không record mới, không anchor mới, không email evidence thứ 2 |
+| 12 | P1 | User khác không thao tác contract người khác | Ownership check → `403` (contract, escrow, statement) |
+| 13 | P1 | Client không tự tiêm identity | Gửi kèm `X-User-Id`/`X-User-Role`/`X-Gateway-Secret` giả → bị strip/overwrite, downstream nhận identity từ JWT |
+| 14 | P1 | `/internal/**` không ra ngoài | Gọi từ external → `404/403` tại Gateway, không forward |
+| 15 | P1 | File nhiễm virus không thành evidence | Upload EICAR qua `StoreOnBehalfOf` và qua email intake → `FAILED`, không có `file.ready`, không gắn được vào milestone/report |
+| 16 | P1 | OPERATOR không chạm được đường ADMIN | OPERATOR gọi approve maker-checker / `RetryDepositLock` / `/admin/audit` → `403` |
+| 17 | P1 | ADMIN không tự approve đề xuất của chính mình | Cùng 1 account propose rồi approve → reject |
+| 18 | P1 | Unlock sớm không mở khoá nhầm khi nhiều lock chồng | 2 lock (T+60, T+30), unlock sớm lock 1 → `lockedUntil` user-service = T+30, `sign()` vẫn bị chặn |
+| 19 | P1 | `sign()` fail-closed khi user-service chết | Stop user-service → sign bị reject, không fallback anonymous |
+| 20 | P1 | OTP fail không gửi muộn | Provider trả lỗi → contract-service nhận 5xx; xác nhận không có mail nào được gửi sau đó với `requestId` cũ trừ khi caller tự retry |
+| 21 | P1 | Public DTO không lộ PII | `GET /users/{id}` → không email/phone/address; public-summary yêu cầu JWT |
+| 21b | P1 | OTP challenge binding | Verify với JWT user khác / otpId khác contract / terms đã đổi sau phát OTP → 403/409/invalidate; không lấy được "OTP mới nhất" của người khác |
+| 21c | P1 | Lock ordering sống qua restart | Apply unlock revision N, restart service, deliver locked revision N-1 (eventId mới) → bị bỏ qua nhờ `last_lock_revision` persist |
+| 21d | P1 | `legalHold` chặn xoá tuyệt đối | Set legalHold + retention đã hết → lifecycle job gọi `DeleteFile` → REJECT, file còn nguyên |
+| 21e | P1 | Xoá file 2 bước tự lành | Mock MinIO delete fail sau tombstone → job re-run → cả DB lẫn blob về trạng thái nhất quán, không rác |
+| 21f | P1 | Listing/offer fail-closed khi user-service chết | Stop user-service → CreateListing/CreateOffer trả 503, user đang khoá không lách được |
+| 22 | P2 | Cà phê/cao su bắt buộc plot; gạo/điều không | Commodity-gate test 2 chiều: tạo listing thiếu plot → fail/pass đúng theo commodity |
+| 23 | P2 | Analytics chết không ảnh hưởng giao dịch | Stop analytics-service → settle milestone vẫn hoàn tất; analytics **catch-up từ queue backlog** khi sống lại (outage ngắn — KHÔNG phải cold rebuild, sửa 18/07/2026) |
+| 24 | P2 | Notification dedup theo recipient + type | 1 event 2 recipients + retry → mỗi (recipient, type) đúng 1 mail `SENT` |
+| 25 | P2 | Restore đụng tiền phải qua verify mới mở | Restore `bank_db` test env → 2 job verify chạy pass trước khi mở traffic (demo DR) |
+| 26 | P2 | Event cũ không ghi đè quyết định mới | Deliver `reputation.locked/unlocked` sai thứ tự (`lockRevision` nhỏ hơn — sửa 18/07) → bị bỏ qua |
+| 26b | P2 | Plot overlap chéo seller bị bắt | Seller B đăng ký polygon trùng/lọt trong polygon Seller A → `plotReuseRisk = HIGH` + OPERATOR review, không auto-reject |
+| 26c | P2 | Yield anomaly là signal, không phải gate | `declaredQuantity` vượt Σ(plotArea×maxYield) → `yieldRisk` + yêu cầu bổ sung/review; listing KHÔNG bị auto-reject |
+| 26d | P2 | Deployment policy enforce được | CI check: image pin theo digest, secret không nằm trong image, protected branch bắt buộc approval — fail build nếu vi phạm (policy test, không phải runtime test) |
+| 26e | P2 | Delta 1 vượt threshold không auto-gán bẻ kèo | Shortfall > threshold, không FM claim → milestone mở `BreachCase` (không bắn `milestone.cancelled_with_penalty` tự động); pro-rata phần đã giao vẫn release |
+| 26f | P2 | Reputation chỉ phạt strategic breach | `remedy.finalized` với `breachReasonCode = PRODUCTION_SHOCK_NON_FM` → không `lock_entry`; với `SIDE_SELLING` → có; `zeroProgressMultiplier` 1.5x chỉ khi strategic + 0 settled |
+| 26g | P2 | Analytics đo `finalBreachingRole`, không đo người bấm nút | `contract.terminated` các nhánh → `fact_contract_termination` tách `terminationType`/`requestedBy`/`finalBreachingRole`; mutual không đếm vào default rate |
+| 26h | P2 | Allegation bị bác/được miễn trách không phát hậu quả tiêu cực (đổi tên 19/07 lần 2 — Phase 2 cố tình chưa có cure state, không gọi "cure thành công") | `BreachCase` RESOLVED với `finalBreachingRole = NULL` → không termination, không lock_entry cho bên bị cáo buộc; `remedy.finalized` nếu phát chỉ chứa refund/release legs |
+| 26i | P2 | Inspection đang pending chặn auto-confirm | Milestone `CONTESTED`/có commission Level 1.5-2 đang chạy → hết `buyerConfirmWindowDays` KHÔNG auto `CONFIRM_CLEAN`, không release; timer chỉ áp khi milestone còn đúng state `BUYER_RECEIVED` |
 
 ## **11.1 Cross-contract release checks**
 
@@ -500,13 +473,15 @@ Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutabi
 - Money/reputation chỉ từ final decision; no double-consume/seize; cọc về đúng owner.
 - Terminal zero-lock và expected legs complete.
 - API write idempotency + DB unique/append-only constraint đủ chứng minh invariant.
-- Verification Matrix row có owner test và environment phù hợp; DB tamper test không mock.
+-
 
-# **12. Migration, implementation plan và known limitations**
+# **12. Current Scope, migration và implementation plan**
+
+Current Scope của SDS là đặc tả triển khai cho 12 business services và `api-gateway`: common envelope, ownership, state machine, API/schema, domain/bank event, notification command, persistence invariant, idempotency, security boundary, verification gate và workstream migration. Các bảng contract mô tả giá trị/field hiện hành; chúng không khẳng định mọi adapter bên ngoài đã chạy production.
 
 ## **12.1 Phase 1 retirement/migration**
 
-Remove/retire generic cancel endpoint, `contract.cancelled`, `initiatedBy`-as-breacher logic, `SEIZE_PENALTY`, `REFUNDED_PARTIAL`, persisted reputation score, direct negative consumer từ lifecycle/allegation, dual money balance và audit dedup thiếu source event. Backfill/migration phải tạo LegalProfile, split termination facts, add remedy/leg IDs, unique constraints, lock revisions, file ingest channel/state, audit source IDs và analytics termination dimensions.
+Migration from an earlier implementation must proceed additively: create LegalProfile snapshots, split termination facts into requested intent and final attribution, add remedy/leg identifiers and uniqueness constraints, persist lock revisions, formalize file-ingest state, record audit source identifiers, and expose the analytics termination dimensions. Historical records that lack evidence remain legacy/unknown; migration must not infer a breaching party from the requester.
 
 Compatibility triển khai theo thứ tự schema additive → producer dual/read compatibility nếu cần → consumer canonical → cutover endpoint/event → remove legacy. Không backfill synthetic attribution sai; record lịch sử không đủ evidence phải đánh dấu legacy/unknown, không suy người request là breacher.
 
@@ -514,28 +489,36 @@ Compatibility triển khai theo thứ tự schema additive → producer dual/rea
 
 Implementation plan chia theo golden-flow slices và service workstreams, không “một người một service” cố định. Luồng chính contract–escrow–bank–audit được tích hợp sớm; product/file/pricing, inspection/reputation và user/notification/analytics chạy song song với contract tests. Test/docs là trách nhiệm ngang đội và double-check ở boundary producer–consumer/money/security.
 
-Các mốc T0–T13 phải bao phủ: common contracts/migrations; identity/eligibility; listing/offer/sign; deposits/activation failure; milestone funding/delivery; inspection; attribution/remedy; termination/replacement; reputation; audit/reconciliation; notification/analytics; security/DR; end-to-end verification/cutover.
+Các mốc T0–T13 phải bao phủ common contracts và event envelope; contract/signature/attribution; milestone/escrow/bank; inspection/evidence; reputation; product/file/pricing; user/governance; notification/analytics; API contract tests; security/DR; pilot validation và release gate. Mỗi mốc phải có producer–consumer contract test, idempotency test và acceptance evidence ở đúng boundary.
 
-## **12.3 Known limitations/Future Work**
+# **13. Known Limitations**
 
-- Bank/custodian, CA signature, Level 2 institutions, source price/email and OpenTimestamps production integration chưa hoàn tất.
-- Legal classification of deposits/penalty/damages, contract template và dispute clauses cần counsel validation.
-- Full Zero Trust/mTLS mesh/HSM/multi-region HA/cold rebuild không được claim.
-- Full amendment, partial mutual termination, quality-indexed settlement và automated insurance/credit nằm ngoài Phase 2.
-- EUDR geo evidence không tự chứng minh due diligence; AML/yield/overlap/risk là signal.
-- Analytics/notification projection có eventual consistency; analytics outage ngắn catch-up từ backlog, không rebuild từ zero.
+- Bank/custodian thật, CA signature, Level 2 production intake, provider pricing và OpenTimestamps production chưa hoàn tất; các adapter hiện tại không phải bằng chứng capability đã vận hành production.
+- Phân loại deposit/penalty/damages, licensing boundary, mẫu contract và dispute clause cần legal validation trước pilot có tiền thật; tách custody khỏi platform không tự chứng minh compliance. [28], [29], [45], [46]
+- Zero-trust-oriented controls không tạo thành mô hình Zero Trust toàn diện; collusion hoặc hạ tầng bị compromise đồng thời vẫn là giới hạn.
+- Full amendment, partial mutual termination, quality-indexed settlement, full cure workflow, automated insurance/credit và logistics tracking nằm ngoài Phase 2.
+- Geo/EUDR, AML, yield và overlap là evidence/risk signals; traceability còn phụ thuộc chất lượng dữ liệu, chi phí và quy trình due diligence, nên không tự chứng minh compliance hay factual truth. [21], [22], [30]
+- Analytics/notification có eventual consistency; catch-up backlog không thay cho cold rebuild.
 
-# **13. Superseded terminology register**
+# **14. Future Work**
 
-| **Superseded** | **Current** | **Xử lý** |
-|---|---|---|
-| `/contracts/{id}/cancel`, `cancel()` | six explicit termination/replacement/withdraw actions | Removed from current API/design |
-| `contract.cancelled` | `remedy.finalized` + terminal lifecycle event | Removed; no consumer compatibility in final docs |
-| `initiatedBy` used as fault | `requestedBy` + `finalBreachingRole` | Split and never infer fault |
-| `SEIZE_PENALTY` | `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION` | Split legal/economic meanings |
-| `REFUNDED_PARTIAL` | explicit refund/release legs + projection states | Removed |
-| `CANCELLED`, `DELIVERED` contract states | canonical state set | Removed |
-| `penaltyAndDamagesCumulative` | `damagesPolicy` | Removed boolean ambiguity |
-| Lifecycle event triggers money/reputation | `remedy.finalized` sole canonical trigger | Consumers corrected |
-| “Zero-Trust system” | zero-trust-oriented controls at named boundaries | Claim narrowed |
-| “Production integration completed” | designed adapter/mock/known limitation | Claim removed |
+- Productionize custodian, CA/WebAuthn, inspection/accreditation, email/price adapters và OTS anchoring.
+- Bổ sung ContractVersion amendment, notice–cure–remedy đầy đủ, quality settlement theo chuẩn hàng hoá và payment/security package mở rộng.
+- Hoàn thiện mTLS/KMS/HSM, separation of duties, deployment attestation, DR/scale và cross-border/ND13 controls.
+- Tự động hoá giá cao su quốc tế sau khi chốt đơn vị/tỷ giá; tích hợp logistics/3PL khi có đối tác thật.
+
+# **15. Danh mục nguồn tham khảo**
+
+[21] A. Kashyap et al., “Traceability Adoption Barriers in Digital Food Supply Chain to Achieve Food Security and Sustainability,” Bus. Strategy Environ., vol. 35, no. 1, 2025, doi: 10.1002/bse.70177.
+
+[22] V. Guye, P. Meyfroidt, and E. z. Ermgassen, “The Need for Improved Public Transparency in the Era of Due Diligence Regulations,” Regulation & Governance, 2026, doi: 10.1111/rego.70142.
+
+[28] Chính phủ Việt Nam, Nghị định 52/2024/NĐ-CP, 2024.
+
+[29] Chính phủ Việt Nam, Nghị định 340/2025/NĐ-CP, 2025.
+
+[30] European Parliament and Council, Regulation (EU) 2023/1115, consolidated Dec. 26, 2025.
+
+[45] Quốc hội Việt Nam, Bộ luật Dân sự số 91/2015/QH13, 2015.
+
+[46] Quốc hội Việt Nam, Luật Thương mại số 36/2005/QH11, 2005.

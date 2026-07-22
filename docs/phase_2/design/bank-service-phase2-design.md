@@ -54,6 +54,24 @@ Số dư (buyer còn bao nhiêu, đang khoá bao nhiêu cho hợp đồng nào) 
 
 ---
 
+## 2b. Bất biến kế toán của ledger (làm rõ 21/07/2026 — đóng gap GPT/appraisal nêu)
+
+Model FBO/Omnibus append-only ở §2 đã ngầm định các quy tắc tiền dưới đây; mục này ghi tường minh để phần code không tự suy diễn khác nhau. Không thêm hành vi mới — chỉ formalize cái §2/§3/§5 đã dựa vào.
+
+1. **Đơn vị tiền — 1 currency, không đa tệ trong scope.** Mọi `amount` là **VND** (ISO 4217 `VND`). Không có field currency per-entry vì hệ chỉ 1 tệ; nếu sau này đa tệ thì thêm `currency` cấp `contract` (immutable per contract) — ghi Known Limitation, không làm bây giờ.
+
+2. **Scale & làm tròn — cố định, tính một nơi.** `amount` lưu `DECIMAL(18,2)` (khớp money pattern `^[0-9]+\.[0-9]{2}$` ở event schema), scale = 2, luôn **HALF_UP**. **Làm tròn chỉ xảy ra ở `contract-service`** khi tính `remedyLegs`/`actualAmount` (nơi có đủ `ContractTerms`); bank nhận số đã tính sẵn và **không tự nhân/chia lại** (§3.1/§3.2) — nên không có 2 nơi làm tròn lệch nhau.
+
+3. **Mô hình "tài khoản" — pooled theo contract, không double-entry cổ điển.** Ledger KHÔNG có cặp `fromAccount/toAccount` per row; nó là sổ append-only trong đó mỗi entry mang `entryType` (chiều: LOCK\_\* nạp vào pool giữ hộ; RELEASE/REFUND/FORFEITURE/PENALTY/DAMAGES rút khỏi pool) + `fundType` + `contractId`/`milestoneId` (scope). "Tài khoản" chính là **pool tiền phong toả theo `contractId`**; escrow-service (không phải bank) là nơi validate **conservation** cho từng leg trước khi phát command (§3, §5).
+
+4. **Số dư = SUM có dấu, không lưu balance rời.** Balance của 1 contract = `SUM(amount × sign(entryType))` trên các entry của `contractId` đó (LOCK dấu +, RELEASE/REFUND/FORFEITURE/… dấu −). **Không** persist cột balance cạnh ledger (đã nêu §5 "tránh dual-write"). Với quy mô đồ án (vài nghìn entry) `SUM` + 2 index chạy dưới 50ms (§Database) — không cần snapshot.
+
+5. **Không âm, không zero.** Mọi bank command `amount` **strictly positive** (§3); command zero bị omit; reversal biểu diễn bằng entry `entryType` ngược dấu với amount dương, **không** dùng amount âm. Pool 1 contract không bao giờ rút quá phần đã lock (RELEASE/REFUND/FORFEITURE tổng ≤ tổng LOCK) — đây chính là conservation escrow enforce trước khi phát leg; bank là "dumb writer" tin số đã validate.
+
+6. **Isolation — bằng append-only + unique key, không cần row-lock.** Vì ledger chỉ **INSERT** (không UPDATE in-place), không có lost-update giữa 2 writer. Chống ghi trùng bằng `UNIQUE(source_event_id)` cho command replay và `UNIQUE(remedy_leg_id)` cho từng money-leg (§4 Idempotency) — 2 request đồng thời cùng key → 1 thắng, 1 bị DB từ chối, không cần `SELECT FOR UPDATE`. Balance đọc bằng `SUM` tại query-time nên luôn phản ánh tập entry đã commit.
+
+7. **Terminal ⇒ remaining lock = 0.** Bất biến "contract terminal ⇒ tổng lock = 0" (verification matrix #8) là điều kiện đóng: `SUM(LOCK) − SUM(RELEASE+REFUND+FORFEITURE+PENALTY+DAMAGES) = 0.00` cho `contractId` trước khi contract-service commit terminal + `LedgerAuditReconciliationJob` (§5b.1) là lưới bắt lệch.
+
 ## 3. Interaction với escrow-service — Event Flow
 
 **Chốt (03/07/2026):** escrow-service là **actor duy nhất** gọi bank-service — contract-service không bao giờ nói chuyện trực tiếp với bank-service, giữ nguyên ranh giới đã có ("contract-service quản lý delivery state, escrow-service quản lý tiền", `milestone-escrow-phase2-design.md` §2.3).
