@@ -17,7 +17,15 @@ paths:
       operationId: createContract
       x-roles: [BUYER]
       x-domain-ownership-check: true
-      description: Create an OFFERED contract from an approved listing. Buyer identity comes from JWT; listing resolves seller/product ownership. The service compares the supplied opaque listingVersionToken before deriving the server snapshot.
+      description: >-
+        Create an OFFERED contract from an approved listing. Buyer identity comes from JWT;
+        listing resolves seller/product ownership. Contract-service derives requestedQuantity
+        as the sum of milestoneSchedule committedQuantity, generates contractId, and calls the
+        synchronous product-service reservation API before persisting OFFERED. Only a successful
+        atomic reservation may be followed by the local Contract/outbox transaction. If local
+        persistence fails after reserve, contract-service calls the idempotent compensation release.
+        Insufficient, below-minimum, or legacy-null inventory returns 409
+        INSUFFICIENT_LISTING_QUANTITY; clients reload the listing and never blind-retry.
       parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateContractRequest'}}}}
       responses:
@@ -25,7 +33,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '409': {$ref: '#/components/responses/Conflict'}
-        '503': {description: Eligibility dependency unavailable; create offer fails closed.}
+        '503': {description: Eligibility or product reservation dependency unavailable; create offer fails closed and no unreserved OFFERED contract is persisted.}
     get:
       operationId: listContracts
       parameters:
@@ -57,7 +65,12 @@ paths:
       operationId: initiateSign
       x-roles: [BUYER, SELLER]
       x-domain-ownership-check: true
-      description: InitiateSign(contractId, signerRole, jwt) creates and persists the OTP challenge, then synchronously requests OTP email delivery.
+      description: >-
+        InitiateSign(contractId, signerRole, jwt) creates and persists the OTP challenge, then
+        synchronously requests OTP email delivery. In the challenge transaction, every still-valid
+        prior challenge for the same signer, contractId and signedContentHash is atomically expired
+        before the new otpId is inserted. Resend therefore leaves only the newest challenge valid;
+        this rule changes neither the request nor response shape.
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
@@ -76,7 +89,12 @@ paths:
       operationId: verifyOtpAndSign
       x-roles: [BUYER, SELLER]
       x-domain-ownership-check: true
-      description: VerifyOtpAndSign(otpId, contractId, otpCode) verifies the bound challenge and inserts the Signature row.
+      description: >-
+        VerifyOtpAndSign(otpId, contractId, otpCode) verifies the bound challenge and inserts the
+        Signature row. Lookup remains by otpId, but an older challenge expired by resend is rejected
+        even when its OTP code is correct. Before the second signature transitions to SIGNED,
+        contract-service requires sum(milestoneSchedule.committedQuantity) == reservedQuantity;
+        mismatch fails closed with 409 and publishes no contract.signed event.
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
@@ -559,15 +577,15 @@ components:
   schemas:
     CreateContractRequest:
       type: object
-      required: [listingId, terms]
+      required: [listingId, listingVersionToken, terms]
       additionalProperties: false
-      x-validation: terms.qualityTerms.commodity must equal the authoritative Category.commodity resolved from listingId; the client cannot override goodsTerms. New clients must send a non-null listingVersionToken; missing/null is accepted only by the legacy compatibility path. When supplied, the exact opaque token must equal the current Listing token before any snapshot is created.
+      x-validation: terms.qualityTerms.commodity must equal the authoritative Category.commodity resolved from listingId; the client cannot override goodsTerms. requestedQuantity is derived only as the sum of terms.milestoneSchedule committedQuantity. The exact opaque listingVersionToken is passed to product-service reserve; no independent quantity or client-owned inventory counter is accepted.
       properties:
         listingId: {type: string, format: uuid}
         listingVersionToken:
-          type: [string, 'null']
+          type: string
           minLength: 1
-          description: Opaque token returned by ListingResponse; Phase 2 backs it with canonical UTC Listing.updatedAt. A mismatch returns 409 LISTING_VERSION_MISMATCH and no contract is created. Missing/null is legacy-only.
+          description: Opaque token returned by ListingResponse; Phase 2 backs it with canonical UTC Listing.updatedAt. A mismatch returns 409 LISTING_VERSION_MISMATCH and no contract is created or reserved.
         terms: {$ref: '#/components/schemas/ContractTermsInput'}
     ContractTermsBase:
       type: object
@@ -580,6 +598,7 @@ components:
           minItems: 1
           maxItems: 100
           items: {$ref: '#/components/schemas/MilestoneTermRequest'}
+          description: requestedQuantity is server-derived as the sum of committedQuantity across this array; the request has no separate quantity field.
         qualityTerms: {$ref: '#/components/schemas/QualityTerms'}
         deliveryTerms: {$ref: '#/components/schemas/DeliveryTerms'}
         inspectionTerms: {$ref: '#/components/schemas/InspectionTerms'}
@@ -919,11 +938,12 @@ components:
         maximumAcceptedAdjustmentsPerMilestone: {const: 1}
     ContractResponse:
       type: object
-      required: [contractId, listingId, buyerId, sellerId, status, terms, signedContentHash, milestones]
+      required: [contractId, listingId, reservedQuantity, buyerId, sellerId, status, terms, signedContentHash, milestones]
       additionalProperties: false
       properties:
         contractId: {type: string, format: uuid}
         listingId: {type: string, format: uuid}
+        reservedQuantity: {type: number, exclusiveMinimum: 0, readOnly: true, description: Product-service reservation snapshot in canonical kilograms (kg); must equal the sum of milestone committedQuantity before SIGNED. Contract-service never treats this as an inventory counter.}
         buyerId: {type: string, format: uuid}
         sellerId: {type: string, format: uuid}
         status: {enum: [OFFERED, NEGOTIATING, SIGNED, ACTIVE, REPLACEMENT_PENDING, SUPERSEDE_REFUND_PENDING, ACTIVATION_REFUND_PENDING, SETTLED, TERMINATED, WITHDRAWN, SUPERSEDED, ACTIVATION_FAILED]}
@@ -1362,7 +1382,7 @@ components:
     Unauthorized: {description: Authentication or API-key failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     Forbidden: {description: Authorization or ownership failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     NotFound: {description: Resource not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
-    Conflict: {description: State/terms/challenge conflict, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Conflict: {description: "State/terms/challenge/inventory conflict, including INSUFFICIENT_LISTING_QUANTITY and LISTING_VERSION_MISMATCH where applicable", content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
     ExternalSignatureInvalid:
       description: ES256 verification, key lookup, or timestamp validation failed. Code is EXTERNAL_SIGNATURE_INVALID, EXTERNAL_KEY_UNKNOWN, or SIGNATURE_TIMESTAMP_OUT_OF_WINDOW.
       content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}

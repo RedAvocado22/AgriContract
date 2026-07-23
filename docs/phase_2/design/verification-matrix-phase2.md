@@ -11,7 +11,7 @@ metadata:
 
 ## 1. Mục đích
 
-Mỗi invariant quan trọng của hệ phải có **1 test chứng minh nó đứng vững** (hiện 55 rows: 39 sau 2 review pass 18/07 + 16 rows attribution/remedy 19/07) — không phải test coverage chung chung, mà test đúng thứ sẽ gây thảm hoạ nếu vỡ. Đây là danh sách ưu tiên code/test cao nhất; viết test cho bảng này **trước** khi viết test khác.
+Mỗi invariant quan trọng của hệ phải có **1 test chứng minh nó đứng vững** — không phải test coverage chung chung, mà test đúng thứ sẽ gây thảm hoạ nếu vỡ. Đây là danh sách ưu tiên code/test cao nhất; viết test cho bảng này **trước** khi viết test khác.
 
 Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_Chi_Minh`; date-only kết thúc `23:59:59.999 ICT`, business-day fixture dùng lịch Việt Nam theo milestone-escrow §1.1.
 
@@ -50,6 +50,8 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 11o | Một `remedyDecisionId` → đúng 1 bộ bank legs, ≤ 1 reputation lock (chặn double-consume) | Replay `remedy.finalized` / gửi leg trùng → `ledger_entry.remedy_leg_id` UNIQUE chặn từng leg (đơn vị dedup đúng — 1 decision nhiều legs), reconcile `SUM` group theo `remedy_decision_id` khớp đúng 1 bộ; reputation `lock_entry.remedy_decision_id` UNIQUE chặn lock thứ 2 kể cả từ event khác | milestone-escrow §7.2; reputation §2.1; bank §2 DDL (19/07 lần 2, schema-hoá lần 4) |
 | 11p | Supersede crash windows không nuốt tiền/không kẹt hợp đồng | (a) draft replacement không đủ 2 chữ ký → cũ vẫn `ACTIVE`, zero sự kiện tiền; (b) mới `SIGNED`, refund cũ fail giữa chừng → cũ đứng `SUPERSEDE_REFUND_PENDING` + alert, không nhảy `SUPERSEDED`; (c) cũ `SUPERSEDED` xong, activation mới fail → mới đi đường `ACTIVATION_FAILED` chuẩn, cũ không rollback | milestone-escrow §6.6 saga (19/07 lần 3) |
 | 11q | Replay evidence event không nhân đôi audit record/anchor | Redeliver cùng `remedy.finalized`/`contract.terminated` (eventId cũ) → `audit_record.source_event_id` UNIQUE reject/no-op, không record mới, không anchor mới, không email evidence thứ 2 | hash-chain §3 `source_event_id` (19/07 lần 3) |
+| 11r | Reservation/release không double-decrement hoặc double-restore | Reserve replay cùng `contractId` trả cùng record; withdraw/activation-failed/compensation replay cùng hoặc khác eventId hợp lệ chỉ transition `RELEASED` một lần và counter khớp | product §8b.2; milestone-escrow §2.1d |
+| 11s | `SIGNED` chưa commit inventory và quantity snapshot phải khớp | Ép `Σ committedQuantity != reservedQuantity` → chặn `SIGNED`; đúng tổng → `SIGNED_RELEASABLE`; activation failure restore, chỉ `contract.activated` chuyển `COMMITTED` | milestone-escrow §2.1d; signature §6 bước 4 |
 
 ### P1 — Access control & luồng an toàn
 
@@ -70,6 +72,7 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 21d | `legalHold` chặn xoá tuyệt đối | Set legalHold + retention đã hết → lifecycle job gọi `DeleteFile` → REJECT, file còn nguyên | file-service §7, governance §8 (18/07 r2) |
 | 21e | Xoá file 2 bước tự lành | Mock MinIO delete fail sau tombstone → job re-run → cả DB lẫn blob về trạng thái nhất quán, không rác | file-service §7 (18/07 r2) |
 | 21f | Listing/offer fail-closed khi user-service chết | Stop user-service → CreateListing/CreateOffer trả 503, user đang khoá không lách được | user §3 (18/07 r2) |
+| 21g | Resend OTP vô hiệu challenge cũ còn hạn | Initiate hai lần cùng signer/contract/hash → verify otpId cũ với code đúng vẫn reject; chỉ otpId mới nhất pass. Concurrent resend không để hai challenge cùng hợp lệ | signature §6 (23/07) |
 
 ### P2 — Đúng nghiệp vụ
 
@@ -97,6 +100,8 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 27g | Delivery certificate chỉ là evidence | Đính kèm certificate ở seller/buyer weigh vẫn không xuất hiện trong actual metrics/resultHash, không sinh disposition và không thay report confirmed | milestone-escrow §2.2/§3.3; inspection §2.3 |
 | 27h | Inspection cost policy chỉ `LOSER_PAYS` | Schema reject mọi giá trị khác; conforming → Buyer, partial/non-conforming → Seller, inconclusive chưa allocate | milestone-escrow §2.1c/§3.3 |
 | 27i | Quality reject chỉ fail milestone liên quan | `NON_CONFORMING` refund/phạt milestone bị reject nhưng contract vẫn active cho milestone khác; chỉ supersede/termination flow tường minh mới đổi contract lifecycle | milestone-escrow §3.3/§6 |
+| 28 | Listing partial-fill atomic và fail-closed legacy | Listing 100 reserve 40 + 40 → tồn 60 rồi 20; reserve 30 trả `409 INSUFFICIENT_LISTING_QUANTITY`; hai request tranh tồn cuối chỉ một thắng; legacy-null fail tới edit/republish | product §8b.1-§8b.2; milestone-escrow §2.1d |
+| 28b | Restore không vượt seller lifecycle choice | Withdraw/activation failure trả đúng lượng; listing seller-closed vẫn `CLOSED`, listing `PAUSED` vẫn `PAUSED`; explicit republish mới mở lại | product §8b.1-§8b.2 |
 
 ## 3. Ghi chú thực thi
 
@@ -107,4 +112,4 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 
 ---
 
-*Design session: 18/07/2026 · Cập nhật 23/07/2026: bổ sung quality dispute resolution rows 27-27i (deterministic disposition, mapping, quantity precedence, evidence boundary, per-fund conservation, single trigger, cost policy và milestone scope). · Chưa code · Test plan ưu tiên cao nhất trước khi implement.*
+*Design session: 18/07/2026 · Cập nhật 23/07/2026: bổ sung quality dispute resolution, listing partial-fill/reservation lifecycle, F18 quantity guard và OTP supersession. · Chưa code · Test plan ưu tiên cao nhất trước khi implement.*

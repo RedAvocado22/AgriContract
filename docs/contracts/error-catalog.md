@@ -48,12 +48,13 @@ Current explicit `409` codes occupy these slots:
 | Code | Family |
 |---|---|
 | `LISTING_VERSION_MISMATCH` | `*_VERSION_MISMATCH` |
+| `INSUFFICIENT_LISTING_QUANTITY` | `*_STATE_CONFLICT` |
 | `CONTRACT_ALREADY_SIGNED` | `*_STATE_CONFLICT` |
 | `NONCE_REPLAYED` | `*_STATE_CONFLICT` |
 | `SYSTEM_ALREADY_LOCKED` | `*_STATE_CONFLICT` |
 | `SYSTEM_NOT_LOCKED` | `*_STATE_CONFLICT` |
 
-All current catalog scenarios that can return `409` without naming a canonical code are `*_STATE_CONFLICT`: immutable terms after the first signature; stale or no-longer-acceptable price proposals; funding already requested; an adjustment already accepted; a milestone already `SETTLED` or `WITHDRAWN`; a case already resolved; OTP/challenge binding conflicts; pending supersede/refund transitions; maker-checker conflicts; and mandatory-inspection state conflicts. The same classification applies to any other state-transition or duplicate-with-different-state conflict in this catalog. If a `409` code is ambiguous, classify it as `*_STATE_CONFLICT`; refreshing instead of blindly retrying is the safer default.
+All current catalog scenarios that can return `409` without naming a canonical code are `*_STATE_CONFLICT`: immutable terms after the first signature; stale or no-longer-acceptable price proposals; funding already requested; an adjustment already accepted; a milestone already `SETTLED` or `WITHDRAWN`; a case already resolved; OTP/challenge binding or superseded-challenge conflicts; reservation replay with different payload; pending supersede/refund transitions; maker-checker conflicts; and mandatory-inspection state conflicts. The same classification applies to any other state-transition or duplicate-with-different-state conflict in this catalog. If a `409` code is ambiguous, classify it as `*_STATE_CONFLICT`; refreshing instead of blindly retrying is the safer default.
 
 An idempotency replay is not a `409`. Repeating a request that already succeeded with the same `Idempotency-Key` returns the original successful response; the idempotency-key mechanism owns that behavior and it must not be represented as a conflict. `NONCE_REPLAYED` is a security nonce rejection, not an idempotency-key replay, and the same signed command must not be resent with the reused nonce.
 
@@ -69,11 +70,12 @@ An idempotency replay is not a `409`. Repeating a request that already succeeded
 | Validation failure | `400` | No retry without payload correction | Owning service | Matrix 22, 26b, 26c |
 | Listing/quality discriminator mismatch | `400` | Supply the spec variant matching authoritative `Category.commodity` | product/contract | Matrix 27 |
 | `LISTING_VERSION_MISMATCH` | `409` | Reread the listing, show the changed terms to the buyer, and submit the newly returned opaque token; never blind-retry | contract-service, token owned by product-service | Product §8b; milestone §2.1c |
+| `INSUFFICIENT_LISTING_QUANTITY` | `409` | Reload the listing and let the buyer revise milestone quantities or abandon create; never blind-retry the unchanged request | product-service reservation, surfaced by contract-service | Product §8b.2; milestone §2.1d; Matrix 28 |
 | Inspection cost policy other than `LOSER_PAYS` | `400` | Use the sole Phase 2 signed value | contract-service | Matrix 27o / 27h |
 | Server-owned snapshot field supplied | `400` | Remove client `goodsTerms`/`totalContractValue`; reread server snapshot | contract-service | Matrix 27c |
 | State transition conflict / immutable terms | `409` | No blind retry; reread state | contract/escrow/inspection | Matrix 3, 11c, 21b |
 | Legacy draft missing new signed terms | `400`/controlled sign rejection | PATCH all required quality/delivery/inspection/pricing terms before initiating signature | contract-service | Matrix 27d |
-| OTP expired/locked/invalid or challenge binding mismatch | `403` or `409` as defined by the signature use case | New challenge only | contract-service | Matrix 20, 21b |
+| OTP expired/locked/invalid, superseded, or challenge binding mismatch | `403` or `409` as defined by the signature use case | Initiate one new challenge; an older otpId never becomes valid again | contract-service | Matrix 20, 21b, 21g |
 | Dependency unavailable on eligibility gate | `503` | Caller may retry with idempotency | user-service callers | Matrix 19, 21f |
 | Bank/escrow transient failure | Event retry; API reports controlled failure | Retry failed leg/event only | escrow/bank | Matrix 1, 6, 11, 11b |
 | Milestone funding failure | `FUNDING_FAILED`; seller clock remains paused | Retry failed funding leg; buyer cure window applies only to buyer-caused failure | escrow/contract | Matrix 11m |

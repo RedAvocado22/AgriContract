@@ -129,10 +129,15 @@ InitiateSign(contractId, signerRole, jwt):
      Nếu now() - authTime > signatureAuthMaxAgeSeconds → REJECT, yêu cầu step-up lại
      (§4 — phiên xác thực đủ mới)
 
-  3. Sinh OTP (otpLength số), otp_hash = HMAC(otp, serverPepper), INSERT signature_otp
+  3. Trong một DB transaction, lock Contract row để serialize initiate/resend; với đúng
+     tuple (user_id=jwt.sub, signer_role, contract_id, signed_content_hash hiện tại),
+     UPDATE expires_at=now() cho mọi challenge chưa verified, chưa hết hạn và chưa
+     exhausted; sau đó sinh OTP mới và INSERT signature_otp
      (user_id=jwt.sub, auth_time (bước 2), signed_content_hash = SHA256(ContractTerms
-     hiện tại), sent_at=now(), expires_at=now()+otpExpirySeconds) — persist đủ
-     challenge, VerifyOtpAndSign không tự tính lại (sửa 18/07/2026)
+     hiện tại), sent_at=now(), expires_at=now()+otpExpirySeconds). Invalidate-old +
+     insert-new phải commit atomically: chỉ challenge mới nhất của cùng signer +
+     contractId + signedContentHash còn hợp lệ. Không thêm status enum/cột mới; row cũ
+     được biểu diễn là expired bằng field hiện có.
 
   4. Gọi sync `POST /internal/v1/notifications/otp-email` với otpId làm requestId,
      OTP + signedContentHash = SHA256(ContractTerms hiện tại). Chỉ trả thành công
@@ -140,11 +145,13 @@ InitiateSign(contractId, signerRole, jwt):
      không nói "OTP đã gửi" và không có background retry gửi muộn.
 
   5. Trả về "OTP đã gửi" — CHƯA tạo Signature, chưa chuyển Contract state.
-     Retry cùng otpId là idempotent; resend thật tạo OTP/otpId mới theo cooldown.
+     Retry cùng otpId là idempotent; resend thật tạo OTP/otpId mới theo cooldown và
+     supersede OTP cũ theo bước 3. Nếu provider fail, challenge mới cũng bị expire và
+     không có background retry; caller phải initiate lại.
 
 VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify theo otpId,
                                                 // KHÔNG lấy "OTP mới nhất theo (contractId, signerRole)"
-  0. Load challenge = signature_otp[otpId]; không tồn tại/đã verified → REJECT.
+  0. Lock/load challenge = signature_otp[otpId]; không tồn tại/đã verified → REJECT.
      Bind challenge — đóng gap 2 HTTP request độc lập:
        challenge.user_id  == jwt.sub                          → sai → 403
        challenge.contract_id == contractId                    → sai → 409
@@ -152,28 +159,36 @@ VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify t
        SHA256(ContractTerms hiện tại) == challenge.signed_content_hash
          → lệch = terms đã đổi sau khi OTP phát → invalidate OTP này, yêu cầu InitiateSign lại
 
-  1. now() > expires_at → REJECT, yêu cầu resend
+  1. now() >= expires_at → REJECT, yêu cầu resend. Check này áp cả challenge đã bị
+     resend supersede: verify theo đúng otpId cũ vẫn phải reject dù OTP code đúng.
      attempt_count >= otpMaxAttempts → REJECT, khoá, yêu cầu resend OTP mới
      HMAC(otpCode, serverPepper) != otp_hash → attempt_count += 1, REJECT
 
   2. Khớp → verified_at = now()
 
-  3. INSERT Signature (contractId, signerRole, signerUserId=jwt.sub,
+  3. Trước khi INSERT Signature, recompute Σ milestoneSchedule[].committedQuantity và
+     REQUIRE bằng persisted reservedQuantity (F18). Mismatch → rollback toàn bộ verify
+     transaction (kể cả verified_at), trả 409 và yêu cầu tạo lại contract/terms flow;
+     không để lại một Signature dở dang và không publish contract.signed.
+
+  4. INSERT Signature (contractId, signerRole, signerUserId=jwt.sub,
      authTime = challenge.auth_time, signedAt=verified_at,
      signedContentHash = challenge.signed_content_hash, ipAddress)
      — UNIQUE(contractId, signerRole) tự chặn ký 2 lần cho cùng 1 bên
 
-  4. INVARIANT 2 chữ ký cùng bản terms (sửa 18/07/2026 — trước đây chỉ đếm "đủ 2 dòng"):
+  5. INVARIANT 2 chữ ký cùng bản terms (sửa 18/07/2026 — trước đây chỉ đếm "đủ 2 dòng"):
      - Freeze terms từ chữ ký ĐẦU TIÊN: mọi update ContractTerms khi đã tồn tại
        >= 1 Signature → REJECT 409; muốn sửa phải vô hiệu toàn bộ chữ ký
        (xoá Signature + notify 2 bên) rồi ký lại từ đầu.
      - Chữ ký thứ hai REQUIRE signedContentHash == signedContentHash của chữ ký đầu;
        lệch → REJECT (không được để Buyer ký hash A, Seller ký hash B mà hệ vẫn
        đếm đủ 2 dòng).
-     Đủ 2 dòng (BUYER + SELLER) CÙNG signedContentHash
+     - F18 is rechecked immediately before transition as a defense-in-depth guard; the
+       transaction must not commit a second Signature if the value changed concurrently.
+     Đủ 2 dòng (BUYER + SELLER) CÙNG signedContentHash và pass F18
      → Contract.transitionTo(SIGNED)
 
-  5. Publish `notification.contract_anchor_requested` cho notification-service,
+  6. Publish `notification.contract_anchor_requested` cho notification-service,
      payload `{eventId, contractId, recipients[{userId,email,role}],
      contractTermsSnapshot, signedContentHash, signedAt}`. contract-service lấy email qua
      InternalUserInfo đã dùng cho KYC; domain event `contract.signed` ở bước 6 không bị
@@ -182,7 +197,7 @@ VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify t
       đặt tên — audit-service consume chính `contract.signed` ở bước 6, payload đã mang
       `signedContentHash`; 1 event, thêm 1 consumer — hash-chain §2.4.)
 
-  6. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026; payload mở
+  7. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026; payload mở
      rộng 08/07/2026 và 17/07/2026). Payload mang `buyerDepositAmount`/
      `sellerDepositAmount` (đã tính sẵn, không phải rate thô) cho escrow-service,
      và `signedContentHash` (17/07/2026) cho audit-service nối chain
@@ -256,6 +271,8 @@ CREATE TABLE signature_otp (
 
 **Chốt bổ sung (03/07/2026) — OTP Email, lớp thứ 2 song song:** không đổi tier pháp lý (đã xác nhận qua Điều 22-23 — cả `chữ ký điện tử chuyên dùng bảo đảm an toàn` lẫn `chữ ký số` đều không đạt được bằng cơ chế xác thực mạnh hơn, 1 đường chỉ dành cho tổ chức đăng ký với Bộ TT&TT, đường kia cần chứng thư CA), chỉ nâng chất lượng bằng chứng — thêm possession-based factor (đang truy cập được hộp mail tại đúng thời điểm) song song với knowledge-based factor sẵn có (password step-up). Flow tách `InitiateSign`/`VerifyOtpAndSign` (§6), bảng `signature_otp` riêng (§7), config `otpLength`=6, `otpExpirySeconds`=300s, `otpMaxAttempts`=5, `otpMaxResendPerHour`=5, `otpResendCooldownSeconds`=60s (§4.1). Email OTP kèm `signedContentHash` — vừa xác thực người, vừa gắn đúng nội dung. WebAuthn/sinh trắc học vẫn để ngoài phạm vi — lý do không đổi (không có đường nào tới tier pháp lý cao hơn qua cơ chế xác thực kỹ thuật), OTP chọn vì rẻ hơn, tận dụng hạ tầng SendGrid sẵn có, không thêm third-party dependency mới.
 
+**Chốt bổ sung (23/07/2026) — OTP supersession không đổi API/DDL:** mỗi initiate/resend cho cùng `signer + contractId + signedContentHash` atomically expire mọi challenge cũ còn hiệu lực trước khi insert challenge mới, serialize bằng lock trên Contract row. `VerifyOtpAndSign` vẫn lookup theo `otpId`, nhưng OTP cũ đã supersede phải fail ở expiry guard ngay cả khi code đúng. Batch này không thêm endpoint, request field, status enum hay cột DB.
+
 **Cập nhật (08/07/2026, phát sinh từ rà soát cross-service A1):** payload `contract.signed` (bước 6, §6) mở rộng thêm `buyerDepositAmount`/`sellerDepositAmount` — escrow-service (không chỉ analytics-service) giờ cũng consume event này để biết số tiền cần khoá lúc `SIGNED`. Không đổi gì ở logic ký/verify của file này — chỉ đổi payload của event đã publish sẵn.
 
 **Cập nhật (17/07/2026, rà soát cross-service):** (1) nhánh INSPECTOR tách bảng riêng `inspector_signature` ở inspection-service — bảng `signature` contract_db thuần BUYER/SELLER (⟢ note §3); (2) `contract.signed` mang thêm `signedContentHash`, audit-service thành consumer — bỏ "đường push riêng" ở §6 bước 5; (3) migration user_db defer sang `user-service-phase2-design.md` §6 (`user_profiles`, không phải `app_user`).
@@ -264,4 +281,4 @@ Signature — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technica
 
 ---
 
-_Design session: 02-03/07/2026 · Bổ sung OTP Email: 03/07/2026 · Đồng bộ cross-service: 17/07/2026 · Review pass 18/07/2026 (signature_otp persist đủ challenge, verify theo otpId + bind user/contract/terms, HMAC pepper, freeze terms + 2 chữ ký cùng hash) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức._
+_Design session: 02-03/07/2026 · Bổ sung OTP Email: 03/07/2026 · Đồng bộ cross-service: 17/07/2026 · Review pass 18/07/2026 (signature_otp persist đủ challenge, verify theo otpId + bind user/contract/terms, HMAC pepper, freeze terms + 2 chữ ký cùng hash) · Cập nhật 23/07/2026 (atomically supersede challenge cũ theo signer+contract+hash, không đổi API/DDL; F18 reserved quantity guard) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức._
