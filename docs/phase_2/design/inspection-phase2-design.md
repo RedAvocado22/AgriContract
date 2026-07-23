@@ -46,7 +46,7 @@ Cùng gate lúc đăng ký account, fail-closed by default (`signature-phase2-de
 - Buyer/Seller: xác minh **thẩm quyền đại diện** (BLDS 2015 Điều 142) — người bấm nút có phải người có quyền đại diện pháp nhân không.
 - INSPECTOR Level 1.5: xác minh **chứng chỉ/giấy phép hoạt động kiểm định thương mại** — câu hỏi khác hẳn, không phải "ai đại diện" mà "tổ chức này có đủ tư cách pháp lý phát hành report có giá trị làm bằng chứng không".
 
-`authorizationExpiresAt` (đã có sẵn trên `User`) tái dùng được nguyên — giấy phép kiểm định cũng có ngày hết hạn, cùng cơ chế nhập tay từ giấy tờ thật, không hardcode.
+`authorizationExpiresAt` (đã có sẵn trên `User`) tái dùng được nguyên — giấy phép kiểm định cũng có ngày hết hạn, cùng cơ chế nhập tay từ giấy tờ thật, không hardcode. Timestamp/expiry theo UTC/ICT convention của `milestone-escrow-phase2-design.md` §1.1; giấy chỉ ghi date hết hạn cuối ngày ICT.
 
 ### 2.3 Inspection measurement result và hash commitment (chốt 18/07/2026; sửa ownership 23/07/2026)
 
@@ -96,6 +96,8 @@ reportHash = SHA256(RFC8785_canonical_json({
 `reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByAdminId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền, không quyết định disposition và không quyết định escrow transition. Reviewer ở contract workflow chỉ xác nhận phép tính tất định giữa committed terms trong `signedContentHash` và actual metrics trong `resultHash`; không được thêm tiêu chí chủ quan ngoài deviation policy đã ký.
 
 ### 2.4 Session freshness — tách config riêng khỏi Signature
+
+Window freshness là elapsed duration từ system timestamp UTC; không phụ thuộc timezone/client clock, theo convention chung milestone-escrow §1.1.
 
 **Chốt (03/07/2026):** không tái dùng nguyên `signatureAuthMaxAgeSeconds` (300s). Lý do: 300s tính cho hành vi "đọc lại hợp đồng xong bấm ký ngay" — xác nhận tức thời. INSPECTOR thì khác: cân hàng/kiểm tra chất lượng ngoài hiện trường xong mới quay lại nộp report — khoảng cách giữa step-up và submit tự nhiên dài hơn, không phải vì session bị treo lâu mà vì bản chất công việc cần thời gian.
 

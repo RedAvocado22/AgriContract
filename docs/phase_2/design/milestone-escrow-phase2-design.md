@@ -17,6 +17,14 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 
 **Thay đổi lớn nhất so với Phase 1:** bỏ seller deposit **bắt buộc**. HTX không có tiền mặt ứng trước khi đang nợ phân bón — viability constraint thật, không phải lựa chọn thiết kế (context từ Cường). *(06/07: quyết định "bỏ hẳn" đổi thành **optional per-contract** — `sellerDepositRate` §2.1, mặc định 0; đoạn này giữ làm lý do gốc vì sao không bắt buộc.)*
 
+### 1.1 Convention thời gian, lịch làm việc và đơn vị khối lượng (chốt 23/07/2026)
+
+- Mọi timestamp được lưu và serialize ở **UTC**. Mọi phép tính deadline nghiệp vụ dùng timezone **`Asia/Ho_Chi_Minh` (ICT, UTC+7)** rồi persist due instant tương ứng về UTC. Duration theo giây/phút vẫn đo elapsed time từ business/system event timestamp; timezone chỉ chuẩn hoá instant đầu/cuối.
+- Field date-only như `expectedDeliveryDate` và `effectiveDeliveryDeadline` có hiệu lực hết **`23:59:59.999 ICT`** của ngày ghi trong field. Quy tắc này áp cho delivery, funding cure, grace, buyer/seller confirmation/response, force-majeure report, authorization, OTP và session expiry; không dùng timezone của browser hay người nhận.
+- **Business day** là Thứ 2-Thứ 6, loại trừ danh sách ngày lễ quốc gia Việt Nam hardcode trong config. Phase 2 dùng một lịch Việt Nam duy nhất, không tách lịch ngân hàng/lịch hành chính; danh sách lễ, đặc biệt lịch Tết âm lịch, là cấu hình vận hành **phải cập nhật hằng năm**.
+- Đơn vị canonical của mọi quantity/weight là **kilogram (`kg`)**. Không thêm `quantityUnit` vào contract/milestone schema; field `unitOfMeasure = KG` hiện có ở listing chỉ được giữ để tương thích và xác nhận cùng convention.
+- Một `Contract` luôn có đúng **một Buyer và một Seller**. Consortium, multi-buyer, multi-seller và broker đứng giữa không thuộc Phase 2.
+
 ---
 
 ## 2. Domain Model Changes
@@ -103,15 +111,17 @@ GoodsTermsSnapshot {
 
 **Compatibility:** contract đã ký legacy thiếu các object mới vẫn đọc và vận hành read-only theo snapshot/hash cũ. Draft legacy được đọc và PATCH, nhưng `Sign` fail closed cho tới khi bổ sung đủ signed terms mới; service không tự điền silent default vì làm vậy sẽ tạo nội dung mà hai bên chưa nhìn thấy.
 
+**Listing-version guard tại create (chốt 23/07/2026):** `ListingResponse` trả `listingVersionToken` opaque; Phase 2 sinh token từ canonical UTC representation của `Listing.updatedAt`. Buyer client giữ đúng token của listing đã hiển thị và gửi nó trong `CreateContractRequest`. Trước khi dựng `GoodsTermsSnapshot`, contract-service resolve listing hiện tại và so token theo exact opaque value; mismatch phải reject `409 LISTING_VERSION_MISMATCH` với thông điệp "listing đã thay đổi, xem lại", không âm thầm snapshot dữ liệu mới. Missing/null chỉ được chấp nhận cho legacy client; mọi client phát hành mới bắt buộc gửi non-null. Check này đứng **trước** snapshot-at-create; sau khi pass, immutability/hash behavior hiện có giữ nguyên.
+
 `MilestoneTerm` (nested VO, phần tử của `milestoneSchedule`):
 
 | Field | Loại | Ghi chú |
 |---|---|---|
 | `milestoneIndex` | Integer | Thứ tự batch (1, 2, ..., N) |
-| `committedQuantity` | BigDecimal | Số lượng cam kết giao ở batch này |
+| `committedQuantity` | BigDecimal | Khối lượng cam kết giao ở batch này, đơn vị canonical kilogram (`kg`) |
 | `batchAmount` | Money | Cố định lúc funding request bằng `committedQuantity × effectiveUnitPrice`, trong đó effective price là accepted adjustment hoặc fallback `agreedPrice`. |
-| `expectedDeliveryDate` | Date | **Mới (08/07/2026), lỗ hổng gốc phát hiện khi rà timeout.** Snapshot immutable lúc `sign()`, giống mọi field khác trong `MilestoneTerm`. Trước bản này, `MilestoneTerm` không có bất kỳ mốc ngày nào — hệ quả: không neo được timeout nào ở giai đoạn giao hàng, và hệ thống **không định nghĩa được "seller giao trễ"** (Delta 1 chỉ đo *thiếu lượng*, không đo *trễ hạn* — trong khi trễ hạn là vi phạm phổ biến nhất của forward contract nông sản, Doc01 §2.1). |
-| `graceDays` | Integer | **Mới (08/07/2026).** Số ngày ân hạn sau `expectedDeliveryDate` trước khi coi là quá hạn — cửa sổ thực tế là `[expectedDeliveryDate, expectedDeliveryDate + graceDays]`, không phải mốc cứng. **Chốt: để trong `ContractTerms`/`MilestoneTerm` (per-contract), không phải `application.yml`** — độ nhạy thời gian khác nhau theo mặt hàng (cà phê khô để lâu, giao trễ vài ngày không sao; rau quả tươi trễ là hỏng), cùng lý do `forceMajeureReportWindowDays` đã để per-contract — xem §8. |
+| `expectedDeliveryDate` | Date | **Mới (08/07/2026), lỗ hổng gốc phát hiện khi rà timeout.** Snapshot immutable lúc `sign()`, giống mọi field khác trong `MilestoneTerm`. Date-only kết thúc tại `23:59:59.999 ICT` theo §1.1. Trước bản này, `MilestoneTerm` không có bất kỳ mốc ngày nào — hệ quả: không neo được timeout nào ở giai đoạn giao hàng, và hệ thống **không định nghĩa được "seller giao trễ"** (Delta 1 chỉ đo *thiếu lượng*, không đo *trễ hạn* — trong khi trễ hạn là vi phạm phổ biến nhất của forward contract nông sản, Doc01 §2.1). |
+| `graceDays` | Integer | **Mới (08/07/2026).** Số **ngày làm việc Việt Nam** ân hạn sau `expectedDeliveryDate` trước khi coi là quá hạn — cửa sổ thực tế là `[expectedDeliveryDate, expectedDeliveryDate + graceDays]`, kết thúc cuối ngày ICT, không phải mốc cứng. **Chốt: để trong `ContractTerms`/`MilestoneTerm` (per-contract), không phải `application.yml`** — độ nhạy thời gian khác nhau theo mặt hàng (cà phê khô để lâu, giao trễ vài ngày không sao; rau quả tươi trễ là hỏng), cùng lý do `forceMajeureReportWindowDays` đã để per-contract — xem §8. |
 
 ### 2.2 `Milestone` (Aggregate riêng — cùng `contract-service`, khác `Contract`)
 
@@ -691,7 +701,7 @@ Event `contract.terminated` với `terminationType = MUTUAL_REPLACEMENT` + `supe
 **Cơ chế (đối xứng với §3.1):**
 1. Milestone trước `SETTLED` → escrow yêu cầu lock `batchAmount` milestone kế → `FUNDING_PENDING`. Fail → escrow retry `depositLockRetryMaxAttempts` (3 lần, backoff 5m/30m/2h, cùng `sourceEventId` — §8), hứng lỗi tạm thời.
 2. Hết retry → `escrow.milestone_funding_failed {contractId, milestoneId, reason}` → milestone `FUNDING_FAILED`; notify Buyer+Seller+Admin (`notification.milestone_funding_status_requested`, statusType `FUNDING_FAILED` — command riêng 3 statusType, xem `notification-service-phase2-design.md` §4; contract-service publish sau khi consume `escrow.milestone_funding_failed`). **Không seize gì ngay** — chưa kết luận buyer breach cho tới khi qua window sửa.
-3. **Invariant bảo vệ seller (mới; cơ chế dữ liệu bổ sung 19/07 lần 2 — "tạm dừng đồng hồ" phải có field, không chỉ prose):** seller **không có nghĩa vụ** chuẩn bị/giao milestone kế khi funding của nó chưa `LOCKED`. `expectedDeliveryDate` là ngày immutable đã ký — không "pause" được; thay vào đó Milestone thêm 2 field: `fundingDelayBusinessDays = businessDaysBetween(fundingRequestedAt, fundingLockedAt)` (tính khi funding `LOCKED` xong) và **`effectiveDeliveryDeadline = expectedDeliveryDate + fundingDelayBusinessDays + graceDays`**. Mọi timeout seller (§3.2 `IN_PROGRESS`, `SELLER_WEIGHED`) so với `effectiveDeliveryDeadline`, KHÔNG so `expectedDeliveryDate` thô — nếu không, timer vừa resume đã coi seller quá hạn ngay, đúng lỗi "phạt oan seller" mà mục này định vá. Không bắt seller "đoán" buyer sẽ nạp tiền rồi gom hàng trước.
+3. **Invariant bảo vệ seller (mới; cơ chế dữ liệu bổ sung 19/07 lần 2 — "tạm dừng đồng hồ" phải có field, không chỉ prose):** seller **không có nghĩa vụ** chuẩn bị/giao milestone kế khi funding của nó chưa `LOCKED`. `expectedDeliveryDate` là ngày immutable đã ký — không "pause" được; thay vào đó Milestone thêm 2 field: `fundingDelayBusinessDays = businessDaysBetween(fundingRequestedAt, fundingLockedAt)` (tính khi funding `LOCKED` xong theo lịch Việt Nam §1.1) và **`effectiveDeliveryDeadline = expectedDeliveryDate + fundingDelayBusinessDays + graceDays`**. `effectiveDeliveryDeadline` vẫn là date-only và hết hiệu lực tại `23:59:59.999 ICT`. Mọi timeout seller (§3.2 `IN_PROGRESS`, `SELLER_WEIGHED`) so với deadline này, KHÔNG so `expectedDeliveryDate` thô — nếu không, timer vừa resume đã coi seller quá hạn ngay, đúng lỗi "phạt oan seller" mà mục này định vá. Không bắt seller "đoán" buyer sẽ nạp tiền rồi gom hàng trước.
 4. **Rổ A — sau window sửa, buyer thành breach:** hết `fundingCureWindowDays` (§8) mà buyer vẫn `FUNDING_FAILED` → **đây là Rổ A** (mốc thời gian qua + sự kiện vắng mặt "no lock" + đã cho window): buyer breach về funding, `finalBreachingRole = BUYER`, `breachReasonCode = FUNDING_FAILURE` — máy tự kết luận, **không cần dựng `BreachCase`**, nhưng vẫn phát **`remedy.finalized` với `breachCaseId = null`, `decisionSource = SYSTEM`** (§7.2 — mọi hậu quả tiền/reputation đi qua đúng một canonical decision event, kể cả Rổ A). **Loại trừ (19/07 lần 2):** fail do lỗi hệ thống/bank (kill switch `system_lock ACTIVE`, incident bank được Admin xác nhận) **không tính vào cure window** — đó không phải buyer không có tiền; Admin `RetryMilestoneFunding` sau khi hệ phục hồi, không attribution ai. Seller có quyền: (a) yêu cầu terminate phần còn lại → `TERMINATION_FOR_BREACH` (buyer), seize `buyerDepositRate` + `batchAmount` đang lock nếu có; hoặc (b) chờ tiếp nếu muốn giữ quan hệ. **Seller KHÔNG bị bắt bấm `cancel()` rồi tự ăn phạt** — đúng lỗi gốc §6 muốn tránh.
 5. Admin có `RetryMilestoneFunding(contractId, milestoneId)` — mirror `RetryDepositLock`, kích lại chu kỳ lock sau khi buyer xác nhận nạp được (vd bank khôi phục). Refund leg đã lock (nếu có) theo đúng khuôn `ACTIVATION_REFUND_PENDING`: `REFUND_TO_BUYER`, không penalty cho tới khi qua bước 4.
 
@@ -802,6 +812,10 @@ OTP lại cho từng milestone làm flow nặng nhưng không tăng bảo vệ c
 
 Các mẫu nghiệp vụ dưới đây được literature/standard-contract xác nhận là **có thật** (UNIDROIT/FAO/IFAD Legal Guide, CISG, GAFTA/ESCC, các nghiên cứu contract-farming Việt Nam), nhưng build đầy đủ trong 5 tháng là viết lại nửa hệ thống và **không cần cho luồng vàng demo**. Ghi rõ để defend trước hội đồng — nhận diện được + có nguồn + có lý do hoãn mạnh hơn cố code rồi vỡ:
 
+- **Listing partial-fill / mini-inventory:** một listing bị mua từng phần đang được planning riêng; batch này không thêm inventory aggregate hay allocation state.
+- **Multi-party contracting:** consortium, multi-buyer, multi-seller và broker-trung gian ngoài Phase 2; một contract luôn đúng một buyer + một seller (§1.1).
+- **Business-day multi-jurisdiction:** Phase 2 chỉ dùng lịch Việt Nam chung; lịch theo quốc gia, chi nhánh hay lịch ngân hàng riêng là future work.
+
 - **Full breach state machine (notice → cure → remedy selection):** `BreachCase` Phase 2 là bản rút gọn (REPORTED→UNDER_REVIEW→RESOLVED, §6.4). Đầy đủ có right-to-cure, remedy tiered (buộc thực hiện đúng / thay thế / giảm giá / mua bù / chấm dứt từng phần) theo UNIDROIT Ch.5-6 + CISG Điều 73. Hoãn — cần design session riêng.
 - **Industry-standard quality formula catalog:** Phase 2 có typed committed/actual metrics và discount band do hai bên nhập, nhưng không tuyên bố các default là chuẩn SCA/TCVN hay thay chuyên gia ngành. Catalog preset đã được luật sư/chuyên gia xác nhận, chain of custody sample/seal/witness và ISO 17020/17025 vẫn ngoài scope.
 - **INDEXED/HYBRID pricing tự động:** Phase 2 hỗ trợ both-accept chọn giá trong band đã ký (§6c), nhưng không tự kéo VNSAT/chỉ số thị trường vào funding. Cơ chế index/reopener tự động vẫn cần `ContractVersion` hoặc điều khoản chỉ số chuyên biệt và legal review.
@@ -811,6 +825,9 @@ Các mẫu nghiệp vụ dưới đây được literature/standard-contract xá
 
 ## 8d. Verification additions cho goods/quality/delivery/pricing (mới, 23/07/2026)
 
+- Listing concurrency: same token creates successfully; changed `updatedAt` returns `409 LISTING_VERSION_MISMATCH` before snapshot; missing/null is accepted only on the explicit legacy path.
+- Time/calendar: cover UTC persistence, ICT boundary, date-only end-of-day, weekend/Vietnam-holiday skipping and annual holiday-config fixtures for every business-day window.
+- Quantity: all listing, milestone, weigh and inspection quantities are interpreted as kg; schema descriptions contain the unit and no new `quantityUnit` exists.
 - Schema: cả bốn declared/committed/actual variants pass; mọi commodity/spec mismatch fail. Rice actual và rice deviation policy reject key `varietyName`.
 - Snapshot/hash: sửa hoặc xoá Listing/Product/Category/Plot sau create không đổi `goodsTerms`; thay bất kỳ signed field mới nào phải đổi canonical hash; `PATCH /terms` fail sau chữ ký đầu.
 - Quality: cover deterministic disposition từ signed committed spec + hashed actual metrics; `CONFORMING` sau flag không punitive/reputation, `PARTIALLY_CONFORMING` max discount một lần, `NON_CONFORMING` dùng `QUALITY_BELOW_COMMITTED`, refund milestone và penalty base `effectiveUnitPrice × committedQuantity`; exact mismatch chỉ coffee type/rubber-cashew grade; `INCONCLUSIVE` không phát tiền.
