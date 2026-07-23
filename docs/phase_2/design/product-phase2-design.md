@@ -348,6 +348,10 @@ Product Phase 2 (Farm Plot Geolocation) — **ĐÓNG SESSION HOÀN TOÀN, sẵn 
 
 `Listing` thêm `declaredQualitySpec`, bắt buộc cho listing mới và phải là đúng variant của `Category.commodity`. Listing legacy được phép `NULL` để đọc/hiển thị, nhưng lần sửa hoặc republish kế tiếp phải bổ sung spec hợp lệ; không được tiếp tục phát hành listing legacy thiếu quality declaration.
 
+Mọi quantity/weight của product/listing dùng canonical **kilogram (`kg`)**. `offeredQuantity` luôn là kg; `unitOfMeasure = KG` được giữ trong DTO hiện có để tương thích, không thêm `quantityUnit` mới.
+
+`ListingResponse` bắt buộc expose `listingVersionToken` opaque. Trong Phase 2, product-service tạo token từ canonical UTC representation của `Listing.updatedAt`; buyer client giữ token đã xem và gửi lại khi `CreateContract`. Contract-service so exact token trước khi snapshot, mismatch trả `409 LISTING_VERSION_MISMATCH`. Token được đặt tên opaque để sau này có thể chuyển sang monotonic version mà không đổi public field; việc thêm numeric version chính thức nằm ngoài batch này.
+
 Declared spec và committed spec dùng chung bốn typed schema:
 
 | Commodity | Identity / exact field | Measurable numeric fields |
@@ -369,6 +373,8 @@ originSnapshot {
 ```
 
 `plotRefs` bắt buộc non-empty cho `COFFEE`/`RUBBER`, rỗng cho `RICE`/`CASHEW`. `traceabilitySnapshot` là nullable evidence-package reference, chỉ hợp lệ cho `COFFEE`/`RUBBER`. Đây là contract snapshot: sửa/xoá Listing, Product, Category hay PlotRegistryEntry sau create contract không cascade và không làm đổi `goodsTerms`/`signedContentHash`; lookup nguồn chỉ phục vụ provenance/audit, không tái hydrate terms.
+
+**Known Limitation:** listing partial-fill/mini-inventory đang được planning riêng. Phase 2 hiện không thêm allocation/inventory state trong product-service.
 
 ---
 

@@ -19,6 +19,8 @@ Phase 1 đã có email adapter, `NotificationLog`, RabbitMQ listeners, retry/DLQ
 
 Notification-service không quyết định nghiệp vụ, không tính hash, không xác minh OTP và không phán quyết ai là recipient. Publisher gửi payload đã tính xong cùng email người nhận; notification chỉ validate, render, gửi và ghi log.
 
+**Convention deadline/authority (23/07/2026):** email là kênh notification authoritative của Phase 2. Deadline luôn chạy từ business-event/system timestamp do owner service ghi nhận, theo UTC/ICT convention của `milestone-escrow-phase2-design.md` §1.1; thời điểm recipient mở/đọc email không bắt đầu, dừng hay gia hạn window. Độ trễ nhận biết do không có realtime channel được chấp nhận có chủ đích.
+
 ## 2. Ingress & Trust Boundary
 
 ### 2.1 RabbitMQ notification commands — đường mặc định
@@ -197,7 +199,7 @@ SMTP/SendGrid credential chỉ từ secret/env. MailHog dùng local development.
 
 ## 9. Known Limitations / Out of Scope
 
-- In-app notification/WebSocket là enhancement; Phase 2 bắt buộc email + persisted log. Không có end-user API đọc log trong Phase 2 — Gateway đã bỏ route `/api/v1/notifications/**` (17/07/2026); nếu sau này expose, thêm endpoint + route cùng lúc.
+- **Realtime notification channel:** in-app notification/WebSocket là enhancement; Phase 2 bắt buộc email + persisted log và chấp nhận deadline không phụ thuộc thời điểm đọc. Không có end-user API đọc log trong Phase 2 — Gateway đã bỏ route `/api/v1/notifications/**` (17/07/2026); nếu sau này expose, thêm endpoint + route cùng lúc.
 - Provider accepted không chứng minh người nhận đã đọc; email anchor chứng minh bản đã rời platform và có timestamp độc lập.
 - Bounce/complaint reconciliation nâng cao ngoài golden flow; providerMessageId giữ đường mở rộng.
 - Event payload mang email tạo PII trong broker; chấp nhận có chủ đích cho scope, hạn chế bằng private network, access control và retention broker.

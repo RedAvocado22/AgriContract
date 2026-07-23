@@ -4,10 +4,12 @@
 
 Typed listing declaration -> server-derived goods snapshot + immutable negotiated terms -> two OTP-bound signatures -> bounded milestone price selection -> deposit lock/milestone funding -> delivery/inspection measurement -> contract-owned quality assessment -> attribution -> `remedy.finalized` -> bank/reputation consequences -> lifecycle termination or settlement -> audit/analytics/notification.
 
+All quantities/weights are canonical kilograms (`kg`). Timestamps are stored/serialized in UTC; business deadlines are calculated in `Asia/Ho_Chi_Minh`, date-only deadlines close at `23:59:59.999 ICT`, and business days use Monday-Friday minus the annually maintained Vietnam national-holiday list.
+
 ## Frozen sequence
 
-1. `product-service` exposes an approved listing whose required `declaredQualitySpec` is discriminated by `Category.commodity`. New listings cannot omit or mismatch the spec. Legacy listings may read with a null declaration, but their next edit/republish must supply it. Listing/offer eligibility still fails closed on unavailable/ineligible/locked users.
-2. Create/PATCH accepts `ContractTermsInput`, never client-supplied `goodsTerms` or `totalContractValue`. Contract-service snapshots Listing/Product/Category/Plot into `GoodsTermsSnapshot`, normalizes origin as `{regionText, plotRefs[]}`, and derives nominal `totalContractValue = agreedPrice × total committedQuantity`. Source edits/deletion after contract creation cannot change the snapshot.
+1. `product-service` exposes an approved listing whose required `declaredQualitySpec` is discriminated by `Category.commodity` and whose `ListingResponse` includes opaque `listingVersionToken` backed by canonical UTC `updatedAt`. New listings cannot omit or mismatch the spec. Legacy listings may read with a null declaration, but their next edit/republish must supply it. Listing/offer eligibility still fails closed on unavailable/ineligible/locked users.
+2. Create/PATCH accepts `ContractTermsInput`, never client-supplied `goodsTerms` or `totalContractValue`. A new client echoes `listingVersionToken`; contract-service compares it with the current listing before snapshot and returns `409 LISTING_VERSION_MISMATCH` without creating a contract when stale. Missing/null token is legacy-only. After the guard passes, contract-service snapshots Listing/Product/Category/Plot into `GoodsTermsSnapshot`, normalizes origin as `{regionText, plotRefs[]}`, and derives nominal `totalContractValue = agreedPrice × total committedQuantity`. Source edits/deletion after contract creation cannot change the snapshot.
 3. `ContractTermsSnapshot` includes goods, committed quality/deviation, delivery risk/title/cost allocation, inspection requirement with `inspectionCostResponsibility = LOSER_PAYS`, `LegalProfile`, currency, signed `priceBand` and `priceAdjustmentRule`. Every nested signed field is included in canonical bytes for `signedContentHash`. Terms become immutable after the first signature; legacy signed contracts remain read-only/operable, while legacy drafts cannot sign until all required terms exist.
 3a. `InitiateSign` persists the exact OTP challenge and synchronously calls `POST /internal/v1/notifications/otp-email`. `VerifyOtpAndSign` binds `otpId`, caller, contract, role and the same terms hash. Two signatures must share one `signedContentHash`.
 4. `contract-service` publishes `contract.signed` once. `escrow-service` issues one `bank.lock_requested` per required deposit leg and changes projection state only after bank confirmation.
@@ -66,6 +68,8 @@ The Phase 1 endpoint `POST /api/v1/contracts/{contractId}/cancel` is retired. Th
 - Every remedy leg is idempotent by `remedyLegId`; every bank request is replay-safe by `sourceEventId`.
 - Signed terms, signatures, ledger records, lock facts, audit records and anchors are append-only/immutable as designed.
 - Input cannot supply server-owned `goodsTerms`/`totalContractValue`; source records cannot rehydrate or mutate an existing snapshot.
+- New clients cannot create from a stale listing view; `listingVersionToken` is checked before snapshot and mismatch is a non-mutating `409`.
+- Every contract has exactly one Buyer and one Seller; multi-party/consortium/broker structures are outside Phase 2.
 - `agreedPrice` remains the signed base price and deposits always use nominal `totalContractValue`; milestone adjustments affect only pre-funding milestone amount.
 - Rice `varietyName` is goods/committed identity only and cannot appear in actual metrics or deviation policy.
 - Multiple penalty-zone quality metrics apply the greatest `discountRate` once; quality adjustment is not a contractual-penalty ledger leg.

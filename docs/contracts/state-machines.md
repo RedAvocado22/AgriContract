@@ -2,6 +2,8 @@
 
 Sources: milestone escrow §§2-8d, product §8b, inspection §2.3/§4, signature §§3-7, bank §§2-4, reputation §§2-4, file §2, notification §3, and the verification traceability contract.
 
+Time convention: timestamps are UTC; business deadlines resolve in `Asia/Ho_Chi_Minh`, date-only deadlines close at `23:59:59.999 ICT`, and business-day transitions use the Vietnam calendar defined in milestone escrow §1.1.
+
 ## Contract lifecycle
 
 ```text

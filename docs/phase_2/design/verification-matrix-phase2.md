@@ -13,6 +13,8 @@ metadata:
 
 Mỗi invariant quan trọng của hệ phải có **1 test chứng minh nó đứng vững** (hiện 55 rows: 39 sau 2 review pass 18/07 + 16 rows attribution/remedy 19/07) — không phải test coverage chung chung, mà test đúng thứ sẽ gây thảm hoạ nếu vỡ. Đây là danh sách ưu tiên code/test cao nhất; viết test cho bảng này **trước** khi viết test khác.
 
+Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_Chi_Minh`; date-only kết thúc `23:59:59.999 ICT`, business-day fixture dùng lịch Việt Nam theo milestone-escrow §1.1.
+
 Ưu tiên: **P0** = tiền/immutability/bằng chứng — vỡ là mất tính chính danh của platform. **P1** = access control/luồng an toàn. **P2** = đúng nghiệp vụ.
 
 ## 2. Matrix

@@ -27,7 +27,7 @@ Phase 1 có `UserProfile` tối giản (`organizationName`, `role`, contact info
 | `role` | `BUYER \| SELLER \| ADMIN \| INSPECTOR \| OPERATOR` | Role nguồn từ Keycloak; Phase 1 cần mở enum cho INSPECTOR; **OPERATOR mới 18/07/2026** — role vận hành hằng ngày (KYC, review, moderate), tách khỏi ADMIN theo `data-governance-phase2-design.md` §5 |
 | `contactInfo` | VO | Email, phone, address; dữ liệu riêng tư |
 | `verificationStatus` | `PENDING \| VERIFIED \| REJECTED` | State KYC hiện tại |
-| `authorizationExpiresAt` | TIMESTAMP nullable | Ngày hết hạn trên giấy uỷ quyền; `NULL` chỉ khi giấy ghi vô thời hạn |
+| `authorizationExpiresAt` | TIMESTAMP nullable | Instant UTC của hạn trên giấy uỷ quyền; giấy date-only hết hạn `23:59:59.999 ICT`, `NULL` chỉ khi giấy ghi vô thời hạn (time convention: milestone-escrow §1.1) |
 | `lockedUntil` | TIMESTAMP nullable | Projection/cache từ reputation events; không phải source of truth |
 | `verifiedByActorId` | UUID nullable | Người thực hiện quyết định KYC gần nhất — ADMIN hoặc OPERATOR (đổi tên 18/07/2026, tên cũ `verifiedByAdminId` sai từ khi OPERATOR duyệt được) |
 | `verifiedAt` | TIMESTAMP nullable | Thời điểm verify |
@@ -100,7 +100,7 @@ Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào 
   "email": "...",
   "role": "BUYER",
   "verificationStatus": "VERIFIED",
-  "authorizationExpiresAt": "2027-06-30T00:00:00Z",
+  "authorizationExpiresAt": "2027-06-30T16:59:59.999Z",
   "lockedUntil": null
 }
 ```

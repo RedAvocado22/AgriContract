@@ -43,6 +43,7 @@ All other domain failures retain the SDS envelope and their HTTP class from the 
 | Public DTO or internal route violation | `403`/`404` | No retry | Gateway/user-service | Matrix 14, 21 |
 | Validation failure | `400` | No retry without payload correction | Owning service | Matrix 22, 26b, 26c |
 | Listing/quality discriminator mismatch | `400` | Supply the spec variant matching authoritative `Category.commodity` | product/contract | Matrix 27 |
+| `LISTING_VERSION_MISMATCH` | `409` | Reread the listing, show the changed terms to the buyer, and submit the newly returned opaque token; never blind-retry | contract-service, token owned by product-service | Product §8b; milestone §2.1c |
 | Inspection cost policy other than `LOSER_PAYS` | `400` | Use the sole Phase 2 signed value | contract-service | Matrix 27o / 27h |
 | Server-owned snapshot field supplied | `400` | Remove client `goodsTerms`/`totalContractValue`; reread server snapshot | contract-service | Matrix 27c |
 | State transition conflict / immutable terms | `409` | No blind retry; reread state | contract/escrow/inspection | Matrix 3, 11c, 21b |

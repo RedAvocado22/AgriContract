@@ -25,6 +25,8 @@ Không tách 3 vai trò này thành 3 service riêng trong Phase 2 (over-enginee
 
 ### 2.1 Lock Ledger (bất biến — insert-only)
 
+**Scope lock chốt cho Phase 2:** lock là **user-level**, keyed duy nhất theo `userId`. Một `userId` đại diện một pháp nhân trong Phase 2; mọi eligibility gate của user đó cùng nhìn một effective lock. Không tách lock theo commodity, listing, chi nhánh hay vai trò giao dịch.
+
 **Chốt (04/07/2026):** `lockDurationDays` snapshot cứng lúc tính, không recompute lại sau đó — kể cả khi input dùng để tính nó (`trackRecordMultiplier`) đổi giá trị sau này. Lý do: đây là bằng chứng pháp lý (Luật TM 2005 Điều 302, penalty debt dùng làm căn cứ truy đòi qua VIAC/toà nếu có tranh chấp) — 1 con số có thể tự đổi sau khi ghi thì không còn giá trị làm bằng chứng.
 
 | Field | Loại | Ghi chú |
@@ -307,6 +309,7 @@ Giải pháp: thêm **nhóm tín hiệu tuyệt đối, không cần lịch sử
 
 ## 9. Out of Scope (có chủ đích, không phải thiếu sót)
 
+- **Reputation lock theo commodity/branch:** Phase 2 cố ý dùng user-level scope; tổ chức nhiều chi nhánh hoặc cần eligibility khác nhau theo commodity phải có identity/org model riêng trước khi thu hẹp scope lock.
 - **Tích hợp thật với VARI hoặc bất kỳ ngân hàng nào** (§6.3) — chưa ký kết, chưa có đối tác thật. Thiết kế sẵn interface export (`GetCreditExportUseCase`) để nếu sau này có đối tác thật, chỉ cần thêm adapter, không đổi business logic. Cùng tinh thần `bank-service` doc đã làm với vai trò arbitrator.
 - **Multi-currency** — không cần, platform chỉ giao dịch VNĐ.
 - **Giải quyết dứt điểm ngân sách chi phí inspection** (§8 mục 4) — chỉ model đúng field (`triggerType`, `costBearer`) trong `InspectionRequest` (thuộc `inspection-service`, không phải `reputation-service`), không giải quyết nguồn ngân sách thật trong đồ án.

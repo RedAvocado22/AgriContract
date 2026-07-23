@@ -55,6 +55,8 @@ Value object, không phải aggregate riêng — sống/chết cùng `Contract`,
 
 ## 4. Sole Control — Session Freshness
 
+Mọi timestamp/session/OTP expiry theo convention chung `milestone-escrow-phase2-design.md` §1.1: lưu/serialize UTC, tính business instant theo `Asia/Ho_Chi_Minh`; các window 300 giây bên dưới vẫn là elapsed duration từ system timestamp, không dùng clock/timezone của client.
+
 **Vấn đề:** JWT/password là knowledge-based, không phải possession-based như private key của chữ ký số — không tự thoả điều kiện "dữ liệu tạo chữ ký chỉ thuộc sự kiểm soát của chủ thể ký tại thời điểm ký" (Điều 22 khoản 3(c), áp cho chữ ký số, nhưng đáng dùng làm chuẩn stress-test cho base-tier). Nếu không giới hạn độ mới của phiên xác thực, `auth_time` có thể cũ hàng giờ so với `signedAt` — mất đúng ý nghĩa "chấp thuận tại đúng thời điểm ký".
 
 **Chốt (03/07/2026):** thêm config `signatureAuthMaxAgeSeconds` trong `application.yml` — không đặt trong `ContractTerms` (không có lý do hợp đồng cà phê cần window khác hợp đồng gạo, đây là invariant kỹ thuật, cùng loại với "Escalation cap Level 1.5" ở `milestone-escrow-phase2-design.md` §8). **Giá trị đề xuất: 300 giây (5 phút).**
@@ -96,7 +98,7 @@ Chỉ khi **cả 2 cùng lúc** bị lộ (password lẫn quyền truy cập mai
 
 **Gate đặt lúc đăng ký tài khoản, không phải check chèn thêm sau:** cả Buyer và Seller đều phải nộp giấy đăng ký kinh doanh + xác nhận người đại diện (hoặc giấy uỷ quyền hợp lệ) trước khi tài khoản được kích hoạt đủ quyền tạo listing/ký hợp đồng. Operator/Admin duyệt thủ công (role vận hành theo governance §5, 18/07/2026) — không pass, không được đăng listing/ký hợp đồng, đúng nguyên tắc gốc docx đã ghi cho Seller, mở rộng đối xứng.
 
-**`authorizationExpiresAt` (field trên `User`, `user-service`):** nhập tay bởi Admin lúc duyệt hồ sơ, đọc trực tiếp từ ngày hết hạn ghi trên giấy uỷ quyền/giấy tờ đã nộp — **không phải hằng số cố định do platform tự áp** (kiểu "6 tháng cho mọi người"). Lý do: giấy tờ khác nhau có hạn khác nhau (1 năm, 2 năm, theo nhiệm kỳ, hoặc vô thời hạn) — hardcode 1 con số chung gây 2 lỗi ngược nhau: chặn nhầm người có giấy còn hiệu lực dài hơn mốc cứng, hoặc vẫn cho ký khi giấy đã hết hạn thật ngoài đời (đúng lỗ hổng Điều 142, chỉ trễ hơn thay vì biến mất). `NULL` nếu giấy ghi vô thời hạn.
+**`authorizationExpiresAt` (field trên `User`, `user-service`):** nhập tay bởi Admin lúc duyệt hồ sơ, đọc trực tiếp từ ngày hết hạn ghi trên giấy uỷ quyền/giấy tờ đã nộp — **không phải hằng số cố định do platform tự áp** (kiểu "6 tháng cho mọi người"). Nếu giấy chỉ ghi date, quyền hết hạn tại `23:59:59.999 ICT` của ngày đó rồi lưu instant UTC; nếu giấy ghi exact time thì convert exact instant sang UTC. Lý do: giấy tờ khác nhau có hạn khác nhau (1 năm, 2 năm, theo nhiệm kỳ, hoặc vô thời hạn) — hardcode 1 con số chung gây 2 lỗi ngược nhau: chặn nhầm người có giấy còn hiệu lực dài hơn mốc cứng, hoặc vẫn cho ký khi giấy đã hết hạn thật ngoài đời (đúng lỗ hổng Điều 142, chỉ trễ hơn thay vì biến mất). `NULL` nếu giấy ghi vô thời hạn.
 
 **Khác tầng với §4 — không gộp chung 1 check:** freshness (§4) đo bằng phút, xác nhận "vừa mới xác thực xong". Authorization expiry (§5) đo bằng tháng/năm, xác nhận "thẩm quyền đại diện còn hiệu lực". Hai câu hỏi độc lập, có thể pass cái này fail cái kia.
 
