@@ -14,6 +14,8 @@ Only the owning service defines and persists a business enum. Consumers use the 
 | Breach reason | contract-service | Seller, buyer and no-fault codes from milestone design §6.4.1, including the sole quality code `QUALITY_BELOW_COMMITTED`; consumers do not derive eligibility from them |
 | Legal profile | contract-service | `VN_COMMERCIAL_LAW`, `VN_CIVIL_LAW`; damages policies `COMMERCIAL_CUMULATIVE_IF_PROVEN`, `CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE`, `EXPRESS_PENALTY_ONLY`; milestone design §2.1b |
 | Commodity quality spec discriminator | product-service declaration; contract-service committed snapshot | `COFFEE`, `RICE`, `RUBBER`, `CASHEW`; declared/committed schemas must match `Category.commodity`; product §8b and milestone §2.1c |
+| Listing lifecycle | product-service | `DRAFT`, `AVAILABLE`, `PARTIALLY_COMMITTED`, `PAUSED`, `CLOSED`; full allocation uses `CLOSED` and seller-close/PAUSED is preserved across restore; product §8b.1 |
+| Listing reservation state | product-service | `RESERVED`, `SIGNED_RELEASABLE`, `COMMITTED`, `RELEASED`; product §8b.2 |
 | Coffee type | product/contract declaration, inspection measurement | `ARABICA`, `ROBUSTA`; exact mismatch may reject |
 | Rubber grade | product/contract declaration, inspection measurement | `SVR_3L`, `SVR_5`, `SVR_10`, `SVR_20`; exact mismatch may reject |
 | Cashew grade | product/contract declaration, inspection measurement | `W180`, `W210`, `W240`, `W320`, `W450`; exact mismatch may reject |

@@ -9,7 +9,7 @@ This is the dependency-ordered implementation and migration plan for the frozen 
 - **Owner service:** contract/platform architecture (all producers and consumers).
 - **Files/modules:** `contracts/events/event-envelope.yaml`, `contracts/events/golden-flow-events.yaml`, `contracts/events/notification-commands.yaml`, `contracts/openapi/golden-flow-api.yaml`; shared DTO/envelope modules in each backend service.
 - **Dependencies:** none.
-- **Acceptance criteria:** one owner per event; `eventId`, `sourceEventId`, `causationId`, `correlationId` and occurred time are consistent; nullable fields are identical in producer/consumer schemas; bank requests carry fund/remedy identities; notification commands remain separate from domain events; tolerant readers support the additive version during rollout.
+- **Acceptance criteria:** one owner per event; `eventId`, `sourceEventId`, `causationId`, `correlationId` and occurred time are consistent; nullable fields are identical in producer/consumer schemas; bank requests carry fund/remedy identities; notification commands remain separate from domain events; tolerant readers support the additive version during rollout; `contract.created`, `contract.withdrawn`, `contract.activation_failed` and `contract.activated` carry the canonical `{contractId, listingId, reservedQuantity, lifecycleTimestamp}` inventory reference and are outbox-backed.
 - **Verification Matrix:** 1, 6, 7, 11f.
 - **Phase 1 migration/refactor:** additive schema/event version first; retire `contract.cancelled`, `SEIZE_PENALTY` and old envelope aliases only after consumers migrate.
 
@@ -27,8 +27,8 @@ This is the dependency-ordered implementation and migration plan for the frozen 
 - **Owner service:** `contract-service` (signature feature) and `notification-service` for synchronous OTP.
 - **Files/modules:** contract terms aggregate/DTO, LegalProfile validation, signature/OTP use cases/controllers, notification OTP client and schemas.
 - **Dependencies:** T0, T1.
-- **Acceptance criteria:** persist `governingLaw`, `contractType`, `maxContractualPenaltyRate`, `damagesPolicy`; default Commercial cap is 8% of the violated-obligation value; signed terms/hash are immutable; both signatures bind the same hash; OTP binds user/contract/terms and provider failure returns synchronously with no late send.
-- **Verification Matrix:** 3, 11c, 11j, 19, 20, 21b.
+- **Acceptance criteria:** persist `governingLaw`, `contractType`, `maxContractualPenaltyRate`, `damagesPolicy`; default Commercial cap is 8% of the violated-obligation value; signed terms/hash are immutable; both signatures bind the same hash; OTP binds user/contract/terms, and each initiate/resend atomically expires older valid challenges for the same signer/contract/hash while verification remains by `otpId`; provider failure returns synchronously with no late send.
+- **Verification Matrix:** 3, 11c, 11j, 11s, 19, 20, 21b, 21g.
 - **Phase 1 migration/refactor:** replace the old cumulative boolean and 30% validation; migrate old terms to explicit policy values; retire single-delivery confirmation/signature shortcuts.
 
 ### T3 — BreachCase, AttributionDecision and termination taxonomy
@@ -117,8 +117,8 @@ This is the dependency-ordered implementation and migration plan for the frozen 
 - **Owner service:** `product-service`, `pricing-service`, `file-service`, `governance`.
 - **Files/modules:** plot overlap/yield validators; pricing `price_history`/`price_ingestion_failure` migrations, Admin manual entry and public reference read/cache-aside APIs; file scan/hold/tombstone jobs; maker-checker and deployment policy checks.
 - **Dependencies:** T1, T7.
-- **Acceptance criteria:** commodity plot gate is exact; overlap and yield are signals/review states; pricing has an owned migration, `POST /api/v1/prices/manual` for ADMIN/OPERATOR and the existing public quote/item reads with cache-aside behavior; manual entries are append-only and contract-test covered; infected files never become evidence; `retention_until`, `legal_hold`, `deleted_at` and `deletion_reason` persist the file governance invariants; legal hold blocks deletion; two-step deletion self-heals; maker-checker and deployment policy tests pass.
-- **Verification Matrix:** 15, 17, 21d, 21e, 22, 26b, 26c, 26d; pricing contract/ migration checks are task acceptance gates because the current 55-row matrix has no pricing behavior row.
+- **Acceptance criteria:** commodity plot gate is exact; overlap and yield are signals/review states; product-service owns `quantityAvailable` and reservation records, exposes nullable read-only availability, initializes new/republished rows from `offeredQuantity`, atomically enforces `minOrderQuantity <= requestedQuantity <= quantityAvailable`, and exposes internal reserve/compensation commands; listing lifecycle uses `DRAFT -> AVAILABLE -> PARTIALLY_COMMITTED -> CLOSED` plus `PAUSED`; pricing has an owned migration, `POST /api/v1/prices/manual` for ADMIN/OPERATOR and existing public quote/item reads with cache-aside behavior; manual entries are append-only and contract-test covered; infected files never become evidence; retention/legal-hold/tombstone fields preserve file governance; legal hold blocks deletion; two-step deletion self-heals; maker-checker and deployment policy tests pass.
+- **Verification Matrix:** 11r, 28, 28b, 15, 17, 21d, 21e, 22, 26b, 26c, 26d; pricing contract/migration checks remain task acceptance gates.
 - **Phase 1 migration/refactor:** preserve existing file blobs while adding tombstone/hold metadata; do not turn risk signals into new automatic business outcomes.
 
 ### T13 — Migration, backfill, compatibility and release gate
@@ -126,8 +126,8 @@ This is the dependency-ordered implementation and migration plan for the frozen 
 - **Owner service:** platform release owner with every service owner signing its migration.
 - **Files/modules:** database migrations/indexes, event-version adapters, backfill/reconciliation jobs, CI/deployment checks, `docs/contracts/verification-traceability.md`.
 - **Dependencies:** T0-T12.
-- **Acceptance criteria:** additive schema first; consumers before producer cutover; legacy publishers/consumers stopped; terminal locks reconcile to zero; ambiguous Phase 1 cancellations remain null/no negative replay; every Matrix row 1-26i has a passing fixture; two restore verification passes precede money traffic; no Phase 2 task depends on an unapproved capability.
-- **Verification Matrix:** 8, 9, 11o, 11p, 11q, 25, 26d and all rows 1-26i.
+- **Acceptance criteria:** additive schema first; consumers before producer cutover; legacy publishers/consumers stopped; terminal locks reconcile to zero; ambiguous Phase 1 cancellations remain null/no negative replay; every Matrix row through 28b has a passing fixture; two restore verification passes precede money traffic; no Phase 2 task depends on an unapproved capability.
+- **Verification Matrix:** 8, 9, 11o, 11p, 11q, 11r, 11s, 21g, 25, 26d, 28, 28b and all preceding rows.
 - **Phase 1 migration/refactor:** execute the remove/retire/backfill list in `docs/contracts/integration-map.md`; remove compatibility readers only after replay and reconciliation evidence is retained.
 
 ## Cutover sequence
@@ -136,6 +136,6 @@ This is the dependency-ordered implementation and migration plan for the frozen 
 2. Deploy attribution/remedy persistence and consumers (T3-T5), then enable `remedy.finalized` publishing.
 3. Enable funding/replacement/inspection flows (T6-T7), then reputation/audit consumers (T8-T9).
 4. Enable notification and analytics projections (T10-T11), followed by product/file/governance checks (T12).
-5. Run migration/backfill, replay, reconciliation, restore, pricing contract checks and all 55 matrix fixtures (T13).
+5. Run migration/backfill, replay, reconciliation, restore, pricing contract checks, reservation concurrency/replay fixtures, OTP supersession fixtures and the complete matrix through 28b (T13).
 
-No implementation task in this plan introduces a new service, event, state, endpoint or workflow beyond the frozen Phase 2 designs.
+All additions in this plan are additive within the frozen Phase 2 ownership boundaries: no new service, money path, OTP API/DDL shape, or competing inventory counter is introduced.

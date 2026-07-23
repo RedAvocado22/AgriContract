@@ -45,7 +45,9 @@ paths:
         Source product-service design §4. Fails closed when user-service is
         unavailable or actor is not KYC-valid / reputation-locked. Rejected when
         the selected plot is still geoVerificationStatus=PENDING (EUDR
-        commodities coffee/rubber only; rice/cashew skip the geo gate).
+        commodities coffee/rubber only; rice/cashew skip the geo gate). New rows
+        initialize server-owned quantityAvailable from offeredQuantity; clients
+        cannot write the inventory counter.
       x-owner: product-service
       x-auth: SELLER
       parameters:
@@ -78,6 +80,88 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/ListingResponse' }
+
+  /api/v1/listings/{listingId}:
+    put:
+      operationId: updateListing
+      summary: Edit or republish a seller listing
+      description: >-
+        Seller-owned edit/republish. A legacy row with quantityAvailable=null remains readable
+        but this successful command initializes quantityAvailable from offeredQuantity in the same
+        transaction. The request never accepts quantityAvailable; the service validates the quality
+        variant and does not reopen seller-close/PAUSED rows as a side effect of reservation release.
+      x-owner: product-service
+      x-auth: SELLER
+      parameters:
+        - { name: listingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ListingCreateRequest' }
+      responses:
+        "200":
+          description: Listing edited/republished; legacy inventory initialized when applicable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingResponse' }
+        "400": { description: Validation or commodity/quality mismatch }
+        "403": { description: Not the listing seller }
+        "409": { description: Listing state/version conflict }
+
+  /internal/v1/listing-reservations:
+    post:
+      operationId: reserveListingQuantity
+      summary: Atomically reserve listing quantity for a generated contractId
+      description: >-
+        Contract-service calls this synchronously before persisting OFFERED. Product-service
+        inserts a reservation unique by contractId and conditionally decrements
+        quantityAvailable in the same transaction. Replay with the same contractId and
+        payload returns the original reservation without another decrement. Legacy null,
+        below-minimum, or insufficient quantity returns 409 INSUFFICIENT_LISTING_QUANTITY.
+      x-owner: product-service
+      x-auth: service-to-service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReserveListingQuantityRequest' }
+      responses:
+        "200":
+          description: Existing idempotent reservation returned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingReservationResponse' }
+        "201":
+          description: Quantity reserved and listing counter decremented atomically
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingReservationResponse' }
+        "409": { description: "INSUFFICIENT_LISTING_QUANTITY, LISTING_VERSION_MISMATCH, or reservation/listing state conflict" }
+
+  /internal/v1/listing-reservations/{contractId}/release:
+    post:
+      operationId: compensateListingReservation
+      summary: Idempotently release a reservation after contract-create persistence failure
+      description: >-
+        Compensation path used only when product reserve succeeded but contract-service could
+        not persist OFFERED. A reservation already RELEASED returns success without restoring
+        twice; a COMMITTED reservation is a state conflict. Seller-closed and PAUSED listing
+        states are preserved while quantityAvailable is restored.
+      x-owner: product-service
+      x-auth: service-to-service
+      parameters:
+        - { name: contractId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReleaseListingReservationRequest' }
+      responses:
+        "204": { description: Reservation released or identical compensation already applied }
+        "404": { description: Reservation not found }
+        "409": { description: Reservation is COMMITTED or payload/state conflicts }
 
   /api/v1/listings/{listingId}/offers:
     post:
@@ -320,7 +404,8 @@ components:
       example: { commodity: CASHEW, grade: W320, moisturePercent: 5.0, defectiveKernelPercent: 8.0, foreignMatterPercent: 0.5, kernelOutturnLbsPer80Kg: 48 }
     ListingCreateCommon:
       type: object
-      required: [productId, categoryId, commodity, productName, unitOfMeasure, offeredQuantity, askingUnitPrice, regionText, registryEntryIds]
+      required: [productId, categoryId, commodity, productName, unitOfMeasure, offeredQuantity, minOrderQuantity, askingUnitPrice, regionText, registryEntryIds]
+      x-invariant: minOrderQuantity must be less than or equal to offeredQuantity.
       properties:
         productId: { type: string, format: uuid }
         categoryId: { type: string, format: uuid }
@@ -328,8 +413,12 @@ components:
         productName: { type: string, minLength: 1 }
         unitOfMeasure: { const: KG, description: Compatibility confirmation of the system-wide canonical kilogram unit; no separate quantityUnit is introduced. }
         offeredQuantity: { type: number, exclusiveMinimum: 0, description: Offered quantity in canonical kilograms (kg). }
+        minOrderQuantity: { type: number, exclusiveMinimum: 0, description: Seller-defined minimum quantity for one contract in canonical kilograms (kg); must not exceed offeredQuantity. }
         askingUnitPrice: { type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11, description: "Technical maximum 99,999,999.99 VND/kg; this is not a business pricing policy." }
         regionText: { type: string, minLength: 1 }
+        packagingDeclaration: { type: [string, 'null'], description: Seller-provided packaging declaration for display only. }
+        warehouseLocation: { type: [string, 'null'], description: Seller-provided warehouse location; distinct from the contract delivery point. }
+        estimatedAvailabilityDate: { type: [string, 'null'], format: date }
         registryEntryIds: { type: array, items: { type: string, format: uuid } }
     CoffeeListingCreate:
       allOf:
@@ -385,11 +474,16 @@ components:
       allOf:
         - { $ref: '#/components/schemas/ListingCreateCommon' }
         - type: object
-          required: [listingId, sellerId, status, legacyQualitySpecMissing, listingVersionToken]
+          required: [listingId, sellerId, status, quantityAvailable, legacyQualitySpecMissing, listingVersionToken]
           properties:
             listingId: { type: string, format: uuid }
             sellerId: { type: string, format: uuid }
-            status: { enum: [DRAFT, PUBLISHED, PAUSED, CLOSED] }
+            status: { enum: [DRAFT, AVAILABLE, PARTIALLY_COMMITTED, PAUSED, CLOSED] }
+            quantityAvailable:
+              type: [number, 'null']
+              minimum: 0
+              readOnly: true
+              description: Server-owned remaining reservable quantity in kg. Null only for a legacy row, which fails reservation closed until seller edit/republish initializes it from offeredQuantity.
             legacyQualitySpecMissing: { type: boolean, description: Legacy rows may be true until their next edit or republish. }
             listingVersionToken: { type: string, minLength: 1, description: Opaque optimistic-concurrency token generated from the canonical UTC representation of Listing.updatedAt in Phase 2; clients must echo the exact value when creating a contract. }
     CoffeeListingResponse:
@@ -447,6 +541,34 @@ components:
       discriminator:
         propertyName: commodity
       x-invariant: declaredQualitySpec may be null only for a legacy row with legacyQualitySpecMissing=true; edit or republish must supply the matching non-null variant.
+    ReserveListingQuantityRequest:
+      type: object
+      required: [contractId, listingId, requestedQuantity, listingVersionToken]
+      additionalProperties: false
+      properties:
+        contractId: { type: string, format: uuid }
+        listingId: { type: string, format: uuid }
+        requestedQuantity: { type: number, exclusiveMinimum: 0, description: Contract-service-derived sum of milestone committedQuantity in canonical kilograms (kg). }
+        listingVersionToken: { type: string, minLength: 1, description: Exact opaque token returned by ListingResponse. }
+      x-invariant: Product-service validates minOrderQuantity <= requestedQuantity <= quantityAvailable inside the reservation transaction.
+    ListingReservationResponse:
+      type: object
+      required: [contractId, listingId, reservedQuantity, state, quantityAvailable]
+      additionalProperties: false
+      properties:
+        contractId: { type: string, format: uuid }
+        listingId: { type: string, format: uuid }
+        reservedQuantity: { type: number, exclusiveMinimum: 0, description: Reserved quantity in canonical kilograms (kg). }
+        state: { enum: [RESERVED, SIGNED_RELEASABLE, COMMITTED, RELEASED] }
+        quantityAvailable: { type: number, minimum: 0, description: Remaining listing quantity after this reservation; canonical kilograms (kg). }
+    ReleaseListingReservationRequest:
+      type: object
+      required: [listingId, reservedQuantity, reason]
+      additionalProperties: false
+      properties:
+        listingId: { type: string, format: uuid }
+        reservedQuantity: { type: number, exclusiveMinimum: 0, description: Expected reservation quantity used to reject compensate-with-different-payload. }
+        reason: { const: CREATE_PERSISTENCE_COMPENSATION }
     CoffeeActualMetrics:
       type: object
       required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
