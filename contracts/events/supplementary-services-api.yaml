@@ -67,7 +67,7 @@ paths:
     get:
       operationId: searchListings
       summary: Search/filter listings
-      description: Source product-service design; file-service §note defers listing search to product-service query params.
+      description: Source product-service design; file-service §note defers listing search to product-service query params. Every returned listing includes the opaque listingVersionToken that a new buyer client must echo to CreateContract.
       x-owner: product-service
       x-auth: JWT
       responses:
@@ -326,8 +326,8 @@ components:
         categoryId: { type: string, format: uuid }
         commodity: { enum: [COFFEE, RICE, RUBBER, CASHEW] }
         productName: { type: string, minLength: 1 }
-        unitOfMeasure: { const: KG }
-        offeredQuantity: { type: number, exclusiveMinimum: 0 }
+        unitOfMeasure: { const: KG, description: Compatibility confirmation of the system-wide canonical kilogram unit; no separate quantityUnit is introduced. }
+        offeredQuantity: { type: number, exclusiveMinimum: 0, description: Offered quantity in canonical kilograms (kg). }
         askingUnitPrice: { type: string, pattern: '^[0-9]+\.[0-9]{2}$' }
         regionText: { type: string, minLength: 1 }
         registryEntryIds: { type: array, items: { type: string, format: uuid } }
@@ -385,12 +385,13 @@ components:
       allOf:
         - { $ref: '#/components/schemas/ListingCreateCommon' }
         - type: object
-          required: [listingId, sellerId, status, legacyQualitySpecMissing]
+          required: [listingId, sellerId, status, legacyQualitySpecMissing, listingVersionToken]
           properties:
             listingId: { type: string, format: uuid }
             sellerId: { type: string, format: uuid }
             status: { enum: [DRAFT, PUBLISHED, PAUSED, CLOSED] }
             legacyQualitySpecMissing: { type: boolean, description: Legacy rows may be true until their next edit or republish. }
+            listingVersionToken: { type: string, minLength: 1, description: Opaque optimistic-concurrency token generated from the canonical UTC representation of Listing.updatedAt in Phase 2; clients must echo the exact value when creating a contract. }
     CoffeeListingResponse:
       allOf:
         - { $ref: '#/components/schemas/ListingResponseCommon' }
@@ -518,8 +519,8 @@ components:
               inconclusiveReasons: {}
       properties:
         resultSchemaVersion: { const: '1.0' }
-        measuredQuantityKg: { type: number, minimum: 0 }
-        acceptedQuantityKg: { type: number, minimum: 0 }
+        measuredQuantityKg: { type: number, minimum: 0, description: Inspector-measured quantity in canonical kilograms (kg). }
+        acceptedQuantityKg: { type: number, minimum: 0, description: Quantity accepted for entitlement in canonical kilograms (kg). }
         measurementStatus: { enum: [COMPLETE, INCONCLUSIVE] }
         actualQualityMetrics: { $ref: '#/components/schemas/ActualQualityMetrics' }
         inconclusiveReasons: { type: array, minItems: 1, items: { type: string, minLength: 1 } }

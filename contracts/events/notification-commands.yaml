@@ -245,7 +245,7 @@ $defs:
               milestoneId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
               statusType: {enum: [FUNDING_REMINDER, FUNDING_FAILED, FUNDING_CURE_DEADLINE]}
-              deadline: {type: [string, "null"], format: date-time}
+              deadline: {type: [string, "null"], format: date-time, description: UTC deadline calculated by the owner service in Asia/Ho_Chi_Minh using the calendar rule applicable to this window; recipient read time is irrelevant.}
               reason: {type: [string, "null"]}
   milestoneStatusRequested:
     x-publisher: contract-service
@@ -265,7 +265,7 @@ $defs:
               milestoneId: {$ref: "#/$defs/uuid"}
               recipients: {$ref: "#/$defs/recipients"}
               statusType: {enum: [WEIGHED, CONFIRMED, FLAGGED, FORCE_MAJEURE, LEVEL2_OPTOUT_REQUESTED, BUYER_RECEIVE_REMINDER, PENALTY, PROVISIONAL_LEVEL2]}
-              deadline: {type: [string, "null"], format: date-time}
+              deadline: {type: [string, "null"], format: date-time, description: UTC deadline calculated by the owner service in Asia/Ho_Chi_Minh using the calendar rule applicable to this window; recipient read time is irrelevant.}
               statusData: {type: object}
   milestoneAnchorRequested:
     x-publisher: audit-service

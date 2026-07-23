@@ -206,6 +206,8 @@ Use ES256 (ECDSA P-256 with SHA-256) over RFC 8785 canonical JSON of `signedPayl
 
 Vì escrow-service là **actor duy nhất** gọi bank-service (§3), không cần sửa contract-service/escrow-service để "đóng băng toàn hệ thống" — chỉ cần **1 chốt chặn ngay đầu bank-service**: trước khi xử lý bất kỳ `bank.lock_requested`/`release_requested`/`seize_requested`/`refund_requested` nào, check `SELECT 1 FROM system_lock WHERE status='ACTIVE'`. Có row ACTIVE → **không ghi ledger**, publish `bank.*_failed` tương ứng (đúng pattern request/confirmation §3, không cần state mới). escrow-service/contract-service không cần biết gì về freeze — chúng chỉ thấy `bank.*_failed` và tự xử theo nhánh fail sẵn có.
 
+**Quyết định scope:** `SystemLock` là global all-or-nothing kill switch **có chủ đích**, không phải phần scoped-lock bị thiếu. Khi active, nó đóng băng toàn bộ lock/release/seize/refund vì tại thời điểm phát hiện tamper chưa có cơ sở tin cậy để khoanh vùng một bank, contract hay ledger subset.
+
 #### 3.5.4 Tách freeze (kỹ thuật) khỏi notify (con người) — giữ nguyên tinh thần hash-chain §5.2
 
 - **Freeze:** tự động, tức thì, toàn cục, không ai duyệt. Freeze toàn cục (không phải chỉ 1 contract) vì tamper 1 điểm trong chain nghĩa là không còn tin được record nào khác cho tới khi điều tra xong — không có cơ sở khoanh vùng lúc mới phát hiện.
@@ -326,6 +328,7 @@ CREATE TABLE used_nonce (
 
 ## 7. Known Limitations / Out of Scope (có chủ đích)
 
+- **Scoped emergency lock:** freeze theo một bank/contract/milestone không có trong Phase 2; chỉ global `SystemLock` all-or-nothing. Muốn scoped freeze cần một design riêng về trust boundary, selector được ký và hành vi phần tiền không bị scope.
 - **Không tích hợp API ngân hàng thật** — không ngân hàng nào ký hợp đồng API cho 1 đồ án tốt nghiệp. Mock xuyên suốt Phase 2, interface (event contract §3) thiết kế sạch để nếu sau này có ai tích hợp thật, chỉ cần thay implementation bên trong bank-service, escrow-service không đổi 1 dòng.
 - **Vai trò arbitrator (docx §3.3) bị superseded** — ghi vào `decisions.md` `[2026-07-03]`, không xoá docx gốc: mock bank không đủ điều kiện độc lập/trách nhiệm pháp lý cần có cho vai arbitrator, INSPECTOR licensed org thoả điều kiện đó trong giới hạn Phase 2.
 - **Roadmap docx §4.2 "Bank Integration — tích hợp escrow thật"** — định vị lại trong `decisions.md` cùng entry `[2026-07-03]`, không xoá: mục tiêu Phase 2 là thiết kế sẵn sàng tích hợp, không phải tích hợp thật.

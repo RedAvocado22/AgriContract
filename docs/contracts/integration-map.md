@@ -2,6 +2,8 @@
 
 Status: synchronized with the frozen Phase 2 design/API/event set on 2026-07-23.
 
+Time convention: cross-service timestamps are UTC; deadline owners calculate in `Asia/Ho_Chi_Minh` with the shared Vietnam business-day calendar from milestone escrow §1.1.
+
 ## Source precedence
 
 1. Latest Phase 2 design Markdown.

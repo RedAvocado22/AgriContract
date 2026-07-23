@@ -117,8 +117,8 @@ $defs:
             inconclusiveReasons: {}
     properties:
       resultSchemaVersion: {const: "1.0"}
-      measuredQuantityKg: {type: number, minimum: 0}
-      acceptedQuantityKg: {type: number, minimum: 0}
+      measuredQuantityKg: {type: number, minimum: 0, description: Inspector-measured quantity in canonical kilograms (kg).}
+      acceptedQuantityKg: {type: number, minimum: 0, description: Quantity accepted for entitlement in canonical kilograms (kg).}
       measurementStatus: {enum: [COMPLETE, INCONCLUSIVE]}
       actualQualityMetrics: {$ref: "#/$defs/actualQualityMetrics"}
       inconclusiveReasons:
@@ -866,7 +866,7 @@ $defs:
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {$ref: "#/$defs/uuid"}
-              sellerDeclaredWeight: {type: number, minimum: 0}
+              sellerDeclaredWeight: {type: number, minimum: 0, description: Seller-declared loaded weight in canonical kilograms (kg).}
               sellerEvidenceFileId: {$ref: "#/$defs/uuid"}
               deliveryCertificateFileId: {$ref: "#/$defs/uuid"}
         x-publisher: contract-service
@@ -886,7 +886,7 @@ $defs:
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {$ref: "#/$defs/uuid"}
-              buyerReceivedWeight: {type: number, minimum: 0}
+              buyerReceivedWeight: {type: number, minimum: 0, description: Buyer-received unloaded weight in canonical kilograms (kg).}
               buyerEvidenceFileId: {$ref: "#/$defs/uuid"}
               deliveryCertificateFileId: {$ref: "#/$defs/uuid"}
         x-publisher: contract-service
