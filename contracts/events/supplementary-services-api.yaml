@@ -328,7 +328,7 @@ components:
         productName: { type: string, minLength: 1 }
         unitOfMeasure: { const: KG, description: Compatibility confirmation of the system-wide canonical kilogram unit; no separate quantityUnit is introduced. }
         offeredQuantity: { type: number, exclusiveMinimum: 0, description: Offered quantity in canonical kilograms (kg). }
-        askingUnitPrice: { type: string, pattern: '^[0-9]+\.[0-9]{2}$' }
+        askingUnitPrice: { type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11, description: "Technical maximum 99,999,999.99 VND/kg; this is not a business pricing policy." }
         regionText: { type: string, minLength: 1 }
         registryEntryIds: { type: array, items: { type: string, format: uuid } }
     CoffeeListingCreate:

@@ -25,6 +25,17 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 - Đơn vị canonical của mọi quantity/weight là **kilogram (`kg`)**. Không thêm `quantityUnit` vào contract/milestone schema; field `unitOfMeasure = KG` hiện có ở listing chỉ được giữ để tương thích và xác nhận cùng convention.
 - Một `Contract` luôn có đúng **một Buyer và một Seller**. Consortium, multi-buyer, multi-seller và broker đứng giữa không thuộc Phase 2.
 
+**Quantity terminology — owner và vai trò trong settlement:**
+
+| Field | Owner | Ý nghĩa canonical |
+|---|---|---|
+| `declaredQuantity` | product-service | Lượng seller khai cho listing/yield-risk; không phải input settlement. DTO listing hiện hành expose cùng ý nghĩa qua `offeredQuantity`. |
+| `committedQuantity` | contract-service | Baseline đã ký cho funding, Delta 1 và penalty base của milestone. |
+| `sellerDeclaredWeight` | contract-service | Khối lượng seller cân lúc xuất hàng; input Delta 1 và Delta 2. |
+| `buyerReceivedWeight` | contract-service | Khối lượng thắng trên clean path khi milestone không đi qua inspection. |
+| `measuredQuantityKg` | inspection-service | Khối lượng inspector đo; fact kỹ thuật, không trực tiếp quyết entitlement. |
+| `acceptedQuantityKg` | inspection-service | Khối lượng thắng trên inspected/contested path; contract-service nhân với effective price và không áp Delta 2 lần nữa. |
+
 ---
 
 ## 2. Domain Model Changes
@@ -57,6 +68,8 @@ Phase 2 thay thế hoàn toàn bằng **Milestone Escrow** — lock/release theo
 - `toleranceRate` ∈ **[0%, 10%]**, default 5%. (0% hợp lệ nếu 2 bên thực sự muốn, cảnh báo UI khi = 0.)
 - `sellerPenaltyRate`/`buyerPenaltyRate` ∈ **[0%, `maxContractualPenaltyRate`]** (**sửa 19/07/2026**, trước là `[0%, 30%]` — sai luật). Trần lấy từ `LegalProfile` (§2.1b): mặc định **8%** với `governingLaw = VN_COMMERCIAL_LAW`. Đây là _phạt vi phạm_ (LTM 301), không phải cọc/bồi thường. penalty quá cao vẫn thành công cụ ép, nhưng lý do cứng để kẹp trần là **luật định**, không phải chỉ "hợp lý về thiết kế".
 - `disputeFloorReleaseRate` ∈ **[50%, (1 − `level2SafetyBufferRate`)]**, default 50% (mới, 10/07/2026). Sàn ≥ 50% để buyer không kéo release provisional về quá thấp làm kẹt vốn seller; trần = `(1 − level2SafetyBufferRate)` để sàn (lúc buyer từ chối) không vượt mức trần (lúc buyer đồng ý). Xem §3.2 Bước 1.
+
+**Technical numeric guardrails (không phải business policy):** mỗi milestone có `committedQuantity <= 1,000,000 kg`; một `milestoneSchedule` có tối đa 100 phần tử; mọi unit price tối đa `99,999,999.99 VND/kg`; mọi Money/value tối đa `9,999,999,999,999,999.99 VND`, khớp storage `DECIMAL(18,2)`. Contract-service reject input hoặc derived value vượt biên trước signature/funding. Các cap này chỉ chống overflow và dữ liệu phi lý; chúng không cho phép partial fill, không định nghĩa inventory allocation và không thay quantity-reconciliation policy.
 
 ### 2.1b `LegalProfile` (Value Object — mới, 19/07/2026)
 
@@ -358,7 +371,7 @@ Không thêm trạng thái milestone mới. Contract-service giữ một inspect
 - Contract-service verify hash, đối chiếu actual metrics với committed spec/deviation policy và persist immutable `QualityAssessment` gồm `disposition`, metric outcomes, `qualityDiscountRate`, `qualityDiscountAmount`, `quantityAdjustedEntitlement`, `finalSellerEntitlement`.
 - Certificate/phiếu kiểm đính kèm lúc seller weigh hoặc buyer receive là evidence tùy chọn. Không parser nào được biến nội dung certificate thành `actualQualityMetrics`; nó không nằm trong `resultHash`, không tự sinh disposition và không thay `inspection.report_confirmed`.
 
-Disposition: mọi metric trong tolerance zone => `CONFORMING`; ít nhất một metric trong penalty zone và không có reject => `PARTIALLY_CONFORMING`; một metric vào reject zone hoặc categorical exact mismatch được phép => `NON_CONFORMING`; report/lab không kết luận được => `INCONCLUSIVE` và đi routing hiện hành, không tự settle.
+Disposition: mọi metric trong tolerance zone => `CONFORMING`; ít nhất một metric trong penalty zone và không có reject => `PARTIALLY_CONFORMING`; một metric vào reject zone hoặc categorical exact mismatch được phép => `NON_CONFORMING`; report/lab không kết luận được => `INCONCLUSIVE` và đi routing hiện hành, không tự settle. Boundary là inclusive ở phía nghiêm hơn: deviation **bằng `penalty`** vào penalty zone, deviation **bằng `reject`** vào reject zone.
 
 **Quality dispute luôn là Rổ B.** Khi buyer flag chất lượng, contract-service mở `BreachCase`; reviewer chỉ xác nhận phép tính tất định từ committed terms đã commit trong `signedContentHash` và actual metrics đã commit trong `resultHash`. Reviewer không được thay threshold, thêm tiêu chí cảm quan tự do hoặc phán chất lượng chủ quan ngoài signed deviation policy. Sau review, flow hội tụ đúng một đường `AttributionDecision -> RemedyDecision -> remedy.finalized`:
 
@@ -405,8 +418,8 @@ Hai delta khác bản chất, **không được gộp chung**:
 
 | Nhánh | Điều kiện | Kết quả |
 |---|---|---|
-| 1 | Thiếu trong `shortfallPenaltyThreshold` | Pro-rata bình thường, không penalty |
-| 2 | Thiếu vượt threshold, **không** chứng minh được bất khả kháng | **Mở `BreachCase` chờ attribution (§6.4) — KHÔNG auto-áp penalty ngay (sửa 19/07/2026).** Pro-rata theo số thực giao vẫn chạy để không kẹt tiền; nhưng `CONTRACTUAL_PENALTY` chỉ áp **sau** khi attribution kết luận `finalBreachingRole = SELLER` với reason cố ý/chiến lược. |
+| 1 | Tỷ lệ thiếu `< shortfallPenaltyThreshold` | Pro-rata bình thường, không penalty |
+| 2 | Tỷ lệ thiếu `>= shortfallPenaltyThreshold`, **không** chứng minh được bất khả kháng | **Mở `BreachCase` chờ attribution (§6.4) — KHÔNG auto-áp penalty ngay (sửa 19/07/2026).** Pro-rata theo số thực giao vẫn chạy để không kẹt tiền; nhưng `CONTRACTUAL_PENALTY` chỉ áp **sau** khi attribution kết luận `finalBreachingRole = SELLER` với reason cố ý/chiến lược. |
 | 3 | Thiếu (bất kỳ mức nào), **chứng minh được** bất khả kháng (Admin/Level 1.5 approve) | Pro-rata theo số thực giao, không penalty |
 
 **Sửa (19/07/2026) — "thiếu vượt threshold" KHÔNG đồng nghĩa "bẻ kèo":** bản trước nhánh 2 áp thẳng `sellerPenaltyRate` với nhãn "đúng bản chất bẻ kèo". Đây là một phép **gán attribution quá vội** — chính literature side-selling mà Doc01 §2.1 trích dẫn (và bằng chứng bổ sung: production shock ở cà phê specialty) cho thấy shortfall vượt ngưỡng có thể đến từ nhiều nguyên nhân **khác nhau về lỗi**, cùng một _kết quả_ (giao thiếu) nhưng khác _attribution_: sốc sản lượng chưa đủ điều kiện bất khả kháng pháp lý, buyer chậm thanh toán/chậm nhận làm seller gãy vốn, sốc thanh khoản, lỗi nội bộ HTX, hay đúng là bán ra ngoài ăn chênh giá (strategic). Chỉ nhóm cuối mới là "phá hợp đồng" đáng áp penalty + reputation. **Outcome giống nhau không cho phép suy ra attribution giống nhau** — nên nhánh 2 mở `BreachCase` (Rổ B — §6.4), để Admin/Level 1.5 phân loại `breachReasonCode` trước khi tiền/reputation bị đụng. Pro-rata số thực giao vẫn release ngay (không giam tiền của phần đã giao thật); chỉ **penalty** chờ attribution.
@@ -422,7 +435,7 @@ sellerBears = excess × 0.5   // hoặc theo tỷ lệ khác nếu 2 bên đàm 
 buyerBears  = excess × 0.5
 actualAmount = (buyerReceivedWeight + buyerBears) × effectiveUnitPrice
 ```
-Nếu `delta2 ≤ within` (chưa vượt ngưỡng) → `actualAmount = buyerReceivedWeight × effectiveUnitPrice`, trong đó effective price là accepted adjustment hoặc fallback `agreedPrice`. **Chốt (08/07/2026; sửa pricing 23/07/2026):** chia **phần vượt ngưỡng** (không phải toàn bộ Delta 2) — vì `toleranceRate` theo định nghĩa là "ngưỡng hao mòn chấp nhận được", hao mòn trong ngưỡng buyer đã ngầm chấp nhận lúc ký, chỉ phần vượt mới là bất thường cần chia sẻ. Chia trên **khối lượng** rồi nhân effective price ở bước cuối, khớp với Delta 1 và giữ một kiểu tính dễ test. Công thức Delta 2 này chỉ áp clean path; inspected/contested path dùng `acceptedQuantityKg × effectiveUnitPrice` ở §3.3 và không chạy tolerance lần nữa. `contract-service` là nơi tính `actualAmount` cuối cùng, truyền số đã tính xuống `escrow-service` qua `milestone.settled`; escrow-service không tự tính lại tolerance split hay price adjustment.
+Nếu `delta2 ≤ within` (chưa vượt ngưỡng) → `actualAmount = buyerReceivedWeight × effectiveUnitPrice`, trong đó effective price là accepted adjustment hoặc fallback `agreedPrice`. Khi `delta2` **bằng đúng** `toleranceRate × sellerDeclaredWeight`, `within = delta2` và `excess = 0`; không có phần vượt để chia. **Chốt (08/07/2026; sửa pricing 23/07/2026):** chia **phần vượt ngưỡng** (không phải toàn bộ Delta 2) — vì `toleranceRate` theo định nghĩa là "ngưỡng hao mòn chấp nhận được", hao mòn trong ngưỡng buyer đã ngầm chấp nhận lúc ký, chỉ phần vượt mới là bất thường cần chia sẻ. Chia trên **khối lượng** rồi nhân effective price ở bước cuối, khớp với Delta 1 và giữ một kiểu tính dễ test. Công thức Delta 2 này chỉ áp clean path; inspected/contested path dùng `acceptedQuantityKg × effectiveUnitPrice` ở §3.3 và không chạy tolerance lần nữa. `contract-service` là nơi tính `actualAmount` cuối cùng, truyền số đã tính xuống `escrow-service` qua `milestone.settled`; escrow-service không tự tính lại tolerance split hay price adjustment.
 
 ---
 
@@ -677,6 +690,8 @@ Event `contract.terminated` với `terminationType = MUTUAL_REPLACEMENT` + `supe
 - (giữ `REFUND_TO_BUYER`/`RELEASE_TO_SELLER` sẵn có cho hoàn tiền không mang tính phạt — cọc về chủ, refund leg technical-fail; không đẻ tên mới cho nghĩa đã có.)
 
 **Remedy calculator chống double recovery:** một tổn thất không được bồi hoàn trùng qua nhiều khoản — `DEPOSIT_FORFEITURE` offset vào penalty (đã có §6.3.1 Case A), mở rộng cho `DAMAGES_COMPENSATION`; việc phạt và bồi thường có được cùng tồn tại hay không quyết bởi `damagesPolicy` (§2.1b), không phải calculator tự quyết. Calculator gắn mọi legs vào **một `remedyDecisionId`** — xem invariant ở §7.2 (`remedy.finalized`).
+
+**Conservation invariant (§2a):** với từng pool lock thực tế theo `contractId`/`milestoneId`/`fundType`, tổng outbound money legs của quyết định không được vượt remaining locked amount. Contract-service tính và cap từ lock thực đang còn, đồng thời offset `DEPOSIT_FORFEITURE`/penalty/damages cùng bù một tổn thất; escrow-service reload ledger projection và reject toàn bộ bộ legs nếu không conserve trước khi phát bất kỳ bank command nào. Terminal reconciliation vẫn yêu cầu mọi expected leg thành công và remaining lock chính xác `0.00`.
 
 `contract.terminated` — publisher `contract-service`, bắn 1 lần mỗi termination. **Phân vai event:** `remedy.finalized` là nguồn **DUY NHẤT** cho mọi hậu quả tiền (escrow→bank legs) và reputation; `contract.terminated` chỉ mang **trạng thái** cho audit + analytics + notification, KHÔNG kích seize/refund/lock nào. Payload canonical: `{contractId, terminationType, requestedBy, finalBreachingRole, breachReasonCode, remedyDecisionId, breachCaseId, affectedMilestoneIds, supersededByContractId, replacesContractId}`; nullable fields vẫn xuất hiện trên wire. `WITHDRAW_OFFER` giữ state `WITHDRAWN` và chỉ map sang field `terminationType` trên lifecycle observation, không có remedy leg. Chi tiết catalog — §7.2.
 

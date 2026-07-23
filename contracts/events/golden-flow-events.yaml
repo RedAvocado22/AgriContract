@@ -13,9 +13,12 @@ $defs:
   money:
     type: string
     pattern: "^[0-9]+\\.[0-9]{2}$"
+    maxLength: 19
+    description: Non-negative VND value capped at 9,999,999,999,999,999.99 to match DECIMAL(18,2).
   positiveMoney:
     type: string
     pattern: "^(?:0\\.(?:0[1-9]|[1-9][0-9])|[1-9][0-9]*\\.[0-9]{2})$"
+    maxLength: 19
     description: Strictly positive money for bank commands; zero-value commands are omitted.
   uuid:
     type: string
@@ -802,8 +805,8 @@ $defs:
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {$ref: "#/$defs/uuid"}
-              baseUnitPrice: {$ref: "#/$defs/money"}
-              effectiveUnitPrice: {$ref: "#/$defs/money"}
+              baseUnitPrice: {allOf: [{$ref: "#/$defs/money"}, {maxLength: 11}]}
+              effectiveUnitPrice: {allOf: [{$ref: "#/$defs/money"}, {maxLength: 11}]}
               currency: {const: VND}
               proposerId: {$ref: "#/$defs/uuid"}
               accepterId: {$ref: "#/$defs/uuid"}
@@ -866,7 +869,7 @@ $defs:
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {$ref: "#/$defs/uuid"}
-              sellerDeclaredWeight: {type: number, minimum: 0, description: Seller-declared loaded weight in canonical kilograms (kg).}
+              sellerDeclaredWeight: {type: number, exclusiveMinimum: 0, description: Seller-declared loaded weight in canonical kilograms (kg).}
               sellerEvidenceFileId: {$ref: "#/$defs/uuid"}
               deliveryCertificateFileId: {$ref: "#/$defs/uuid"}
         x-publisher: contract-service
@@ -886,7 +889,7 @@ $defs:
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               milestoneId: {$ref: "#/$defs/uuid"}
-              buyerReceivedWeight: {type: number, minimum: 0, description: Buyer-received unloaded weight in canonical kilograms (kg).}
+              buyerReceivedWeight: {type: number, exclusiveMinimum: 0, description: Buyer-received unloaded weight in canonical kilograms (kg).}
               buyerEvidenceFileId: {$ref: "#/$defs/uuid"}
               deliveryCertificateFileId: {$ref: "#/$defs/uuid"}
         x-publisher: contract-service

@@ -37,4 +37,20 @@ No unresolved contract blocker remains after the frozen Phase 2 design review.
 | SystemLock scope | `SystemLock` is intentionally a global all-or-nothing money-flow kill switch; scoped emergency freeze is deferred. | `bank-service-phase2-design.md` sections 3.5.3 and 7 |
 | Notification authority | Email is authoritative in Phase 2; deadlines run from owner business/system timestamps, never from recipient read time. | `notification-service-phase2-design.md` sections 1 and 9 |
 
+## Known limitations and deferred work
+
+These items are accepted Phase 2 boundaries, not unresolved blockers and not authorization to add new state, events or money paths in this batch.
+
+| Area | Phase 2 boundary | Deferred work |
+|---|---|---|
+| Inspection commission/report lifecycle | Commission and report do not model a complete terminal lifecycle; orphan cleanup/hygiene is accepted. | Full cancellation, expiry and supersession lifecycle across commission/report. |
+| Parent/child terminal behavior | Contract terminal transition does not cascade child aggregates. A later child command reloads the parent/current state and fails its existing state guard. | Coordinated cascade or archival workflow if operations require it. |
+| Async file race | File readiness can change asynchronously; eligibility is evaluated when the owning business command is submitted. | Cross-service reservation/snapshot protocol. |
+| Reputation during negotiation | Negotiation reads the live reputation reference; the signing decision does not snapshot that reference into signed terms. | Immutable decision-time reputation evidence if legal/product requirements demand it. |
+| KYC approval | Phase 2 KYC is a single-actor decision even for high-value users/contracts. | Threshold-based maker-checker approval. |
+| Late jobs | A delayed job decides from the original business deadline and recorded facts, never from the time the worker happens to run. | General catch-up/replay engine for long outages. |
+| Error envelope | `ErrorEnvelope` does not add `currentState`; clients re-GET the resource after a `409` conflict. | Optional state hints in a future versioned error contract. |
+| Rejected inspection report | `REJECTED` is terminal and has no reason granularity; resubmission requires a new commission/report. | Rejection taxonomy and dedicated resubmission lifecycle. |
+| Quantity and contract-total reconciliation | Reconciliation across listing quantity, signed milestone totals and remaining inventory is not solved here. | **Pending partial-fill workstream**; no inventory aggregate or allocation state is introduced by this batch. |
+
 Any future API/event/error addition requires a change to an authoritative Phase 2 design before this contract set can adopt it.
