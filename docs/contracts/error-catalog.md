@@ -34,6 +34,31 @@ The following six codes are the complete approved canonical list for the Externa
 
 All other domain failures retain the SDS envelope and their HTTP class from the owning design; a new canonical code requires a later design decision.
 
+## 409 Conflict families
+
+Every `409 Conflict` belongs to exactly one of the following client-handling families. The family labels are conventions for classifying existing machine-readable `code` values; they do not rename those codes or change the shared error envelope.
+
+| Family | Meaning | Client handling |
+|---|---|---|
+| `*_VERSION_MISMATCH` | The client's optimistic assumption about a particular data version is stale. | Reload the latest resource, rebuild the request from the new data/version, and then retry. |
+| `*_STATE_CONFLICT` | The target aggregate has moved to a state in which the action is no longer valid. | Refresh the resource and treat the action as failed. Do not retry the unchanged request. |
+
+Current explicit `409` codes occupy these slots:
+
+| Code | Family |
+|---|---|
+| `LISTING_VERSION_MISMATCH` | `*_VERSION_MISMATCH` |
+| `CONTRACT_ALREADY_SIGNED` | `*_STATE_CONFLICT` |
+| `NONCE_REPLAYED` | `*_STATE_CONFLICT` |
+| `SYSTEM_ALREADY_LOCKED` | `*_STATE_CONFLICT` |
+| `SYSTEM_NOT_LOCKED` | `*_STATE_CONFLICT` |
+
+All current catalog scenarios that can return `409` without naming a canonical code are `*_STATE_CONFLICT`: immutable terms after the first signature; stale or no-longer-acceptable price proposals; funding already requested; an adjustment already accepted; a milestone already `SETTLED` or `WITHDRAWN`; a case already resolved; OTP/challenge binding conflicts; pending supersede/refund transitions; maker-checker conflicts; and mandatory-inspection state conflicts. The same classification applies to any other state-transition or duplicate-with-different-state conflict in this catalog. If a `409` code is ambiguous, classify it as `*_STATE_CONFLICT`; refreshing instead of blindly retrying is the safer default.
+
+An idempotency replay is not a `409`. Repeating a request that already succeeded with the same `Idempotency-Key` returns the original successful response; the idempotency-key mechanism owns that behavior and it must not be represented as a conflict. `NONCE_REPLAYED` is a security nonce rejection, not an idempotency-key replay, and the same signed command must not be resent with the reused nonce.
+
+**Known limitation:** `ErrorEnvelope` does not include `currentState`; because the envelope has `additionalProperties: false` and is shared by every error response, clients must re-GET the resource when they need its current state.
+
 ## Stable transport categories
 
 | Category | HTTP behavior | Retry | Owner/source | Verification trace |
