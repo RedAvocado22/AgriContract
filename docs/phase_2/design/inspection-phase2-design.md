@@ -251,6 +251,13 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
   Role: ADMIN. Endpoint KHÔNG nhận tham số file — về mặt kỹ thuật Admin không có
   khả năng thay file report qua đường này.
 
+  0. Reload report, commission, milestone và report hiệu lực hiện có trong cùng
+     transaction. Chỉ tiếp tục nếu report còn PENDING_REVIEW; milestone còn
+     BUYER_RECEIVED hoặc CONTESTED; commission vẫn là match của report và còn
+     khớp contract/org đã negotiate;
+     và chưa có report effective/CONFIRMED khác cho cùng milestone.
+     Stale ở bất kỳ guard nào → 409 REPORT_STATE_CONFLICT hoặc
+     COMMISSION_STATE_CONFLICT; không đổi state.
   1. Nếu report đã auto-match commissionId khác với tham số truyền vào → REJECT request
      (không cho Admin âm thầm đổi match tự động qua đường vòng)
   2. commission = level2_inspection_commission WHERE commission_id = commissionId
@@ -265,6 +272,8 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
 ```
 
 **Publish dời sang lúc CONFIRMED, không phải lúc ingest** — tránh mail rác/gắn nhầm hợp đồng lọt vào audit trail bất biến trước khi có người xác nhận.
+
+`REJECTED` là terminal cho chính `inspection_report` đó. Nộp lại phải tạo commission/report mới; Phase 2 không thêm `rejectionReason`, resubmission state hoặc taxonomy lý do reject cho external report.
 
 **Fallback:** giữ nguyên use case ingest thủ công gốc (`SubmitExternalInspectionReport`, Admin tự tải và upload report, `role ADMIN`, không phải role `INSPECTOR`), đổi `ingestion_source = ADMIN_MANUAL` — dùng khi org gửi về địa chỉ liên hệ quen thuộc thay vì `intake@...`, hoặc webhook lỗi. `org` vẫn lấy từ `Contract.contractTerms.level2InspectorOrg` (không cho Admin tự gõ lại); `reportFileHash = SHA256(content)` được tính ngay khi store, còn `reportHash` cuối tính theo §2.3 sau normalized confirmation. `uploadedByAdminId`/`confirmed_by_admin_id` lấy từ JWT của Admin đang thao tác.
 
