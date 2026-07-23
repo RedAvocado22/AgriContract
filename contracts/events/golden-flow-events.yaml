@@ -27,6 +27,10 @@ $defs:
     oneOf:
       - $ref: "#/$defs/uuid"
       - type: "null"
+  positiveQuantityKg:
+    type: number
+    exclusiveMinimum: 0
+    description: Strictly positive quantity in the system-wide canonical kilogram (kg) unit.
   fundType:
     enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]
   ledgerEntryType:
@@ -132,6 +136,48 @@ $defs:
     x-invariant: acceptedQuantityKg must be <= measuredQuantityKg; inconclusiveReasons is required when measurementStatus is INCONCLUSIVE.
   baseEnvelope:
     $ref: "./event-envelope.yaml"
+  contractCreated:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.created}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, listingId, reservedQuantity, createdAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              listingId: {$ref: "#/$defs/uuid"}
+              reservedQuantity: {$ref: "#/$defs/positiveQuantityKg"}
+              createdAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [product-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.1d and 7.2; product-phase2-design.md section 8b.2
+        x-verification-matrix: [11r, 28]
+        x-side-effect-boundary: Confirms the synchronous product reservation is attached to a persisted OFFERED contract; product-service MUST NOT decrement inventory again.
+  contractWithdrawn:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.withdrawn}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, listingId, reservedQuantity, withdrawnAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              listingId: {$ref: "#/$defs/uuid"}
+              reservedQuantity: {$ref: "#/$defs/positiveQuantityKg"}
+              withdrawnAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [product-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.1d, 6.1 and 7.2; product-phase2-design.md section 8b.2
+        x-verification-matrix: [11r, 28b]
+        x-side-effect-boundary: Inventory-only lifecycle signal for pre-sign release; contract.terminated WITHDRAW_OFFER remains the audit/analytics lifecycle observation.
   contractSigned:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -141,9 +187,11 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [contractId, commodity, buyerId, sellerId, totalAmount, buyerDepositAmount, sellerDepositAmount, signedContentHash, signedAt]
+            required: [contractId, listingId, reservedQuantity, commodity, buyerId, sellerId, totalAmount, buyerDepositAmount, sellerDepositAmount, signedContentHash, signedAt]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
+              listingId: {$ref: "#/$defs/uuid"}
+              reservedQuantity: {$ref: "#/$defs/positiveQuantityKg"}
               commodity: {enum: [COFFEE, RICE, RUBBER, CASHEW]}
               buyerId: {$ref: "#/$defs/uuid"}
               sellerId: {$ref: "#/$defs/uuid"}
@@ -154,9 +202,52 @@ $defs:
               signedAt: {type: string, format: date-time}
             additionalProperties: false
         x-publisher: contract-service
-        x-consumers: [escrow-service, analytics-service, audit-service]
-        x-source: milestone-escrow-phase2-design.md section 7.2
-        x-verification-matrix: [3, 11c, 11f]
+        x-consumers: [product-service, escrow-service, analytics-service, audit-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.1d and 7.2
+        x-verification-matrix: [3, 11c, 11f, 11s]
+        x-inventory-semantics: Product-service moves RESERVED to SIGNED_RELEASABLE; SIGNED is not the hard inventory commit point.
+  contractActivationFailed:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.activation_failed}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, listingId, reservedQuantity, activationFailedAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              listingId: {$ref: "#/$defs/uuid"}
+              reservedQuantity: {$ref: "#/$defs/positiveQuantityKg"}
+              activationFailedAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [product-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.1d, 3.1 and 7.2; product-phase2-design.md section 8b.2
+        x-verification-matrix: [11b, 11r, 11s, 28b]
+        x-terminal-guard: Published only after partial deposit refunds reconcile and the contract commits terminal ACTIVATION_FAILED.
+  contractActivated:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.activated}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, listingId, reservedQuantity, activatedAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              listingId: {$ref: "#/$defs/uuid"}
+              reservedQuantity: {$ref: "#/$defs/positiveQuantityKg"}
+              activatedAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [product-service]
+        x-source: milestone-escrow-phase2-design.md sections 2.1d, 3.1 and 7.2; product-phase2-design.md section 8b.2
+        x-verification-matrix: [11s]
+        x-inventory-semantics: Hard commit point; product-service moves SIGNED_RELEASABLE to COMMITTED and later activation-failure release is invalid.
   escrowDepositLocked:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -1232,7 +1323,11 @@ $defs:
         x-consumers: [inspection-service]
         x-source: file-service-phase2-design.md sections 4.1 and 5
 oneOf:
+  - $ref: "#/$defs/contractCreated"
+  - $ref: "#/$defs/contractWithdrawn"
   - $ref: "#/$defs/contractSigned"
+  - $ref: "#/$defs/contractActivationFailed"
+  - $ref: "#/$defs/contractActivated"
   - $ref: "#/$defs/escrowDepositLocked"
   - $ref: "#/$defs/escrowDepositLockFailed"
   - $ref: "#/$defs/bankLockRequested"

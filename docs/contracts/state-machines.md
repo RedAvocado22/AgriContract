@@ -54,10 +54,29 @@ Both -> RemedyDecision -> remedy.finalized
 ```text
 OTP challenge: created -> verified
                |-> expired / attempts exhausted / invalidated by terms change
+               |-> superseded by newer challenge for same signer+contract+hash
 Signature: none -> first BUYER|SELLER -> matching second signature -> SIGNED
 ```
 
-OTP state is derived from persisted challenge fields; no OTP status enum is stored. Challenge binding includes `otpId`, user, contract, signer role and terms hash. OTP delivery is synchronous and cannot be retried later in the background after a caller-visible failure.
+OTP state is derived from persisted challenge fields; no OTP status enum is stored. Challenge binding includes `otpId`, user, contract, signer role and terms hash. Initiate/resend atomically expires every older still-valid challenge for the same binding before inserting the new one; verify by an older `otpId` is rejected even with the correct code. OTP delivery is synchronous and cannot be retried later in the background after a caller-visible failure.
+
+## Listing inventory and reservation
+
+```text
+Listing: DRAFT -> AVAILABLE -> PARTIALLY_COMMITTED -> CLOSED
+                   |                 |
+                   +---- PAUSED -----+
+
+Reservation: RESERVED -> SIGNED_RELEASABLE -> COMMITTED
+                  |              |
+                  +-----------> RELEASED
+```
+
+- Product-service owns `quantityAvailable`; contract-service stores only `reservedQuantity` and must reserve synchronously before `OFFERED`.
+- Full allocation is `CLOSED` (G19). Seller-close and `PAUSED` are not undone by an inventory restore; explicit republish is required.
+- `contract.signed` does not commit inventory. `contract.activation_failed` releases, while `contract.activated` is the hard commit point.
+- Reservation/event replay is idempotent by `contractId`/`eventId`; release cannot restore the same quantity twice.
+- Legacy `quantityAvailable = null` fails reservation closed until seller edit/republish initializes it.
 
 ## Milestone delivery
 

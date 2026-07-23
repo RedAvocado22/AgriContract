@@ -344,11 +344,47 @@ Product Phase 2 (Farm Plot Geolocation) — **ĐÓNG SESSION HOÀN TOÀN, sẵn 
 
 ---
 
-## 8b. `Listing.declaredQualitySpec` và contract snapshot (mới, 23/07/2026)
+## 8b. `Listing.declaredQualitySpec`, partial-fill inventory và contract snapshot (mới, 23/07/2026)
 
 `Listing` thêm `declaredQualitySpec`, bắt buộc cho listing mới và phải là đúng variant của `Category.commodity`. Listing legacy được phép `NULL` để đọc/hiển thị, nhưng lần sửa hoặc republish kế tiếp phải bổ sung spec hợp lệ; không được tiếp tục phát hành listing legacy thiếu quality declaration.
 
-Mọi quantity/weight của product/listing dùng canonical **kilogram (`kg`)**. `offeredQuantity` luôn là kg; `unitOfMeasure = KG` được giữ trong DTO hiện có để tương thích, không thêm `quantityUnit` mới.
+Mọi quantity/weight của product/listing dùng canonical **kilogram (`kg`)**. `offeredQuantity`, `minOrderQuantity` và `quantityAvailable` luôn là kg; `unitOfMeasure = KG` được giữ trong DTO hiện có để tương thích, không thêm `quantityUnit` mới. `minOrderQuantity` là mức tối thiểu seller chấp nhận cho một contract và phải `> 0`, `<= offeredQuantity`.
+
+### 8b.1 Inventory ownership và listing lifecycle
+
+`product-service` là **owner duy nhất** của `quantityAvailable`, reservation records và listing lifecycle. `contract-service` chỉ lưu `reservedQuantity` bằng tổng `Σ milestoneSchedule[].committedQuantity` như snapshot/reference để ký, reconcile và phát lifecycle event; contract-service không có inventory counter riêng và không tự cộng/trừ tồn.
+
+- Listing mới khởi tạo `quantityAvailable = offeredQuantity` trong cùng transaction tạo listing. Public create/update request không được gửi `quantityAvailable`; response expose field nullable này để client hiển thị.
+- Listing legacy có `quantityAvailable = NULL` vẫn đọc được nhưng mọi reserve phải fail closed với `409 INSUFFICIENT_LISTING_QUANTITY`. Lần seller edit hoặc republish kế tiếp khởi tạo `quantityAvailable = offeredQuantity` trong cùng transaction; không có compatibility path cho contract mới tiếp tục overcommit legacy row.
+- Lifecycle canonical là `DRAFT -> AVAILABLE -> PARTIALLY_COMMITTED -> CLOSED`, giữ `PAUSED`. Reserve chỉ nhận listing `AVAILABLE` hoặc `PARTIALLY_COMMITTED`; `quantityAvailable` còn dương sau reserve thì state là `PARTIALLY_COMMITTED`, bằng `0` thì state là `CLOSED` (**G19 chốt `CLOSED`**, không thêm `SOLD_OUT`).
+- Release tính lại state từ lượng reservation chưa release: không còn reservation thì `AVAILABLE`, còn reservation và còn hàng thì `PARTIALLY_COMMITTED`, hết hàng thì `CLOSED`. Nếu seller đã chủ động close, marker seller-close luôn thắng và release chỉ tăng counter, không tự mở listing; seller phải republish tường minh. `PAUSED` cũng không tự đổi state do restore.
+
+### 8b.2 Reservation aggregate và atomicity
+
+Reservation được định danh duy nhất bằng `contractId`, mang `listingId`, `reservedQuantity` và state `RESERVED -> SIGNED_RELEASABLE -> COMMITTED` hoặc `RELEASED`:
+
+- `RESERVED`: synchronous reserve đã trừ `quantityAvailable`, contract chưa đủ hai chữ ký.
+- `SIGNED_RELEASABLE`: đã nhận `contract.signed` nhưng activation vẫn có thể fail; **SIGNED chưa phải commit cứng**.
+- `COMMITTED`: chỉ sau `contract.activated`; từ đây activation failure không còn hợp lệ và inventory không restore.
+- `RELEASED`: withdraw pre-sign, `contract.activation_failed`, hoặc compensation do create contract persist thất bại. Transition vào state này dùng conditional update nên replay không cộng hàng lần hai.
+
+Internal reserve command nhận `{contractId, listingId, requestedQuantity, listingVersionToken}`. `contractId` có unique constraint và là idempotency identity: replay cùng payload trả reservation hiện có, không decrement lần hai; cùng `contractId` nhưng payload khác trả state conflict. Trong **một transaction**, product-service tạo reservation và chạy atomic conditional update tương đương:
+
+```text
+UPDATE listing
+SET quantityAvailable = quantityAvailable - requestedQuantity,
+    status = (quantityAvailable - requestedQuantity == 0 ? CLOSED : PARTIALLY_COMMITTED)
+WHERE listingId = :listingId
+  AND versionToken = :listingVersionToken
+  AND status IN (AVAILABLE, PARTIALLY_COMMITTED)
+  AND quantityAvailable IS NOT NULL
+  AND minOrderQuantity <= requestedQuantity
+  AND quantityAvailable >= requestedQuantity
+```
+
+Zero-row update được re-read để phân loại: legacy-null, dưới `minOrderQuantity` hoặc không đủ tồn đều trả `409 INSUFFICIENT_LISTING_QUANTITY`; token stale khi tồn vẫn đủ trả `409 LISTING_VERSION_MISMATCH`; state seller-paused/closed trả state conflict. Client phải reload listing, không blind retry. Hai transaction tranh phần tồn cuối chỉ một conditional update thắng.
+
+`contract.created` chỉ xác nhận reservation đã được gắn với contract persist thành công, tuyệt đối không decrement lần hai. Product-service consume lifecycle event theo `eventId` với dedup durable: `contract.withdrawn` release pre-sign; `contract.signed` chuyển `RESERVED -> SIGNED_RELEASABLE`; `contract.activation_failed` release cả reservation signed; `contract.activated` chuyển sang `COMMITTED`. Event replay và compensation release dùng cùng conditional transition nên không thể restore hai lần.
 
 `ListingResponse` bắt buộc expose `listingVersionToken` opaque. Trong Phase 2, product-service tạo token từ canonical UTC representation của `Listing.updatedAt`; buyer client giữ token đã xem và gửi lại khi `CreateContract`. Contract-service so exact token trước khi snapshot, mismatch trả `409 LISTING_VERSION_MISMATCH`. Token được đặt tên opaque để sau này có thể chuyển sang monotonic version mà không đổi public field; việc thêm numeric version chính thức nằm ngoài batch này.
 
@@ -374,7 +410,24 @@ originSnapshot {
 
 `plotRefs` bắt buộc non-empty cho `COFFEE`/`RUBBER`, rỗng cho `RICE`/`CASHEW`. `traceabilitySnapshot` là nullable evidence-package reference, chỉ hợp lệ cho `COFFEE`/`RUBBER`. Đây là contract snapshot: sửa/xoá Listing, Product, Category hay PlotRegistryEntry sau create contract không cascade và không làm đổi `goodsTerms`/`signedContentHash`; lookup nguồn chỉ phục vụ provenance/audit, không tái hydrate terms.
 
-**Known Limitation:** listing partial-fill/mini-inventory đang được planning riêng. Phase 2 hiện không thêm allocation/inventory state trong product-service.
+Contract create ordering và invariant chữ ký được owner contract-service chốt ở `milestone-escrow-phase2-design.md` §2.1d: reserve sync trước khi persist `OFFERED`, persistence failure phải gọi compensation release idempotent, và **F18** bắt buộc `Σ committedQuantity == reservedQuantity` trước transition `SIGNED`.
+
+---
+
+## 8c. Thông tin bổ sung cho Product và Listing (mới, 23/07/2026)
+
+Các thuộc tính sau là metadata bổ sung, đều nullable/không bắt buộc và không thay đổi lifecycle, settlement, event hay signed contract snapshot:
+
+| Aggregate | Field | Loại | Ý nghĩa |
+|---|---|---|---|
+| `Product` | `cropYear` | Integer, nullable | Năm mùa vụ do seller khai báo. |
+| `Product` | `harvestSeason` | Free-text, nullable | Mùa thu hoạch do seller mô tả; không áp taxonomy hoặc validation nghiệp vụ mới. |
+| `Product` | `certifications` | List free-text, nullable | Danh sách cam kết forward của seller, không phải chứng nhận đã được platform verify. |
+| `Listing` | `packagingDeclaration` | Free-text, nullable | Khai báo đóng gói chỉ phục vụ hiển thị. |
+| `Listing` | `warehouseLocation` | Free-text, nullable | Vị trí kho phục vụ thông tin listing; khác với delivery point được thoả thuận trong contract/delivery terms. |
+| `Listing` | `estimatedAvailabilityDate` | Date, nullable | Ngày dự kiến hàng sẵn có; không tạo deadline hay state transition. |
+
+Ba field `Listing` được expose qua common create/response DTO. Ba field `Product` chỉ được ghi nhận trong domain design ở batch này vì supplementary API hiện không có Product DTO; không project `cropYear`, `harvestSeason` hoặc `certifications` sang Listing API.
 
 ---
 

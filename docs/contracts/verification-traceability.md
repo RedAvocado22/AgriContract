@@ -1,6 +1,6 @@
 # Verification Matrix Traceability
 
-This table covers all 55 rows in `verification-matrix-phase2.md` plus the signed goods/quality/delivery/pricing additions frozen on 2026-07-23. Each row maps to a dependency-ordered implementation task; the task must cite the authoritative design section and fixture before it can pass its release gate.
+This table covers the complete current `verification-matrix-phase2.md` plus the signed goods/quality/delivery/pricing, reservation and OTP-supersession additions frozen on 2026-07-23. Each row maps to a dependency-ordered implementation task; the task must cite the authoritative design section and fixture before it can pass its release gate.
 
 | Matrix row | Contract surface / invariant | Planned task | Fixture / exit |
 |---|---|---|---|
@@ -31,6 +31,8 @@ This table covers all 55 rows in `verification-matrix-phase2.md` plus the signed
 | 11o | Remedy decision/leg/reputation idempotency | T4/T5/T8 | Replay finalized event, one leg and lock |
 | 11p | Replacement crash windows | T3/T6/T13 | Unsigned, refund-pending and post-supersede failure |
 | 11q | Evidence replay audit/anchor/email dedup | T9/T10 | Same event produces one record/anchor/email |
+| 11r | Reservation/release idempotency | T2/T12 | Same contract/event never decrements or restores twice |
+| 11s | Reserved quantity and activation commit point | T2/T3/T12 | Mismatch blocks SIGNED; activation failure releases; activated commits |
 | 12 | Participant ownership checks | T1/T2/T7 | Other user receives 403 |
 | 13 | Gateway strips client identity headers | T1 | Forged identity is ignored |
 | 14 | Internal routes are not public | T1 | External `/internal/**` is blocked |
@@ -46,6 +48,7 @@ This table covers all 55 rows in `verification-matrix-phase2.md` plus the signed
 | 21d | Legal hold blocks file deletion | T12 | Held file remains |
 | 21e | Two-step file deletion self-heals | T12 | Blob retry reconciles tombstone |
 | 21f | Listing/offer fail closed on user outage/lock | T1/T12 | Create operation returns 503/403 |
+| 21g | OTP resend supersedes previous challenge | T2 | Old otpId rejected; newest valid only |
 | 22 | Commodity plot gate | T12 | Coffee/rubber and rice/cashew two-way fixture |
 | 23 | Analytics outage is non-critical and catches up | T11 | Queue backlog catches up after restart |
 | 24 | Notification recipient/type dedup | T10 | Two recipients, retry, one SENT each |
@@ -75,6 +78,8 @@ This table covers all 55 rows in `verification-matrix-phase2.md` plus the signed
 | 27n | Quality resolution has one idempotent money trigger | T4/T5/T7 | Replay `remedy.finalized` is a no-op by leg identity and no `milestone.settled` is emitted/consumed for the same resolution |
 | 27o | Inspection cost policy is signed and deterministic | T2/T4/T7 | Only `LOSER_PAYS` validates; conforming assigns Buyer, partial/non-conforming Seller, inconclusive defers until final result |
 | 27p | Quality reject remains milestone-scoped | T3/T4 | `NON_CONFORMING` fails only the affected milestone and does not auto-terminate; alternate bargain requires supersede |
+| 28 | Listing partial-fill is atomic and legacy-null fails closed | T2/T12 | 100 -> 60 -> 20; next 30 rejected; one concurrent winner |
+| 28b | Restore preserves seller lifecycle choice | T3/T12 | Quantity returns once while CLOSED/PAUSED remains unchanged |
 
 ## Release rule
 
