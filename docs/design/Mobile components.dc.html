@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#EDF1F0; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+    [data-hscroll] { scrollbar-width:none; -ms-overflow-style:none; }
+    [data-hscroll]::-webkit-scrollbar { display:none; }
+  </style>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; color:#0F172A; padding:56px 56px 120px;">
+
+  <!-- ===== HEADER ===== -->
+  <div style="max-width:820px; margin-bottom:48px;">
+    <div style="font-size:13px; color:#94A3B8; margin-bottom:6px;">AgriContract — Design System</div>
+    <div style="font-size:24px; font-weight:500;">Component cho mobile</div>
+    <div style="font-size:14px; color:#64748B; margin-top:8px; line-height:1.55;">Những component <strong style="font-weight:500; color:#0F172A;">không</strong> chỉ cần CSS lại theo breakpoint — bảng, biểu đồ, stepper, tabs — phải <strong style="font-weight:500; color:#0F172A;">đổi hình thái</strong> để dùng được trên điện thoại. Đây là bản dựng lại mobile-native của từng cái, kèm luật biến đổi. Khung 390px.</div>
+
+    <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:22px;">
+      <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:#475569;"><span style="width:22px; height:22px; border-radius:6px; background:#DCFCE7; color:#15803D; display:inline-flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:15px;">swap_vert</span></span> Đổi trục / dạng hiển thị</div>
+      <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:#475569;"><span style="width:22px; height:22px; border-radius:6px; background:#DBEAFE; color:#2563EB; display:inline-flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:15px;">view_agenda</span></span> Tách hàng thành thẻ</div>
+      <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:#475569;"><span style="width:22px; height:22px; border-radius:6px; background:#FEF3C7; color:#D97706; display:inline-flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:15px;">menu</span></span> Dời điều hướng</div>
+    </div>
+  </div>
+
+  <!-- ===== GALLERY ===== -->
+  <div style="display:flex; flex-wrap:wrap; gap:44px; align-items:flex-start;">
+
+    <!-- ============ 1. APP SHELL ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">1 · Khung điều hướng</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Sidebar 240px → top bar có nút ☰ (mở drawer) + thanh tab dưới đáy. Điều hướng chính luôn trong tầm ngón cái.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden;">
+        <!-- status bar -->
+        <div style="height:34px; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#0F172A;"><span>9:41</span><span style="display:inline-flex; gap:5px; align-items:center;"><span class="ms" style="font-size:15px;">signal_cellular_alt</span><span class="ms" style="font-size:15px;">wifi</span><span class="ms" style="font-size:16px;">battery_full</span></span></div>
+        <!-- top bar -->
+        <div style="height:56px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 14px; gap:12px;">
+          <button style="appearance:none; border:0.5px solid #E2E8F0; background:#fff; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#0F172A; padding:0; cursor:pointer;"><span class="ms" style="font-size:24px;">menu</span></button>
+          <div style="flex:1; font-size:16px; font-weight:500;">Tổng quan</div>
+          <div style="position:relative; display:flex;"><span class="ms" style="font-size:24px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+          <div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div>
+        </div>
+        <!-- content stub -->
+        <div style="padding:16px; display:flex; flex-direction:column; gap:12px; min-height:150px;">
+          <div style="background:#F1F5F4; border-radius:12px; padding:14px 16px;"><div style="font-size:13px; color:#64748B; margin-bottom:6px;">Hợp đồng đang hoạt động</div><div style="font-size:24px; font-weight:500;">14</div></div>
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1; background:#F1F5F4; border-radius:12px; padding:14px 16px;"><div style="font-size:13px; color:#64748B; margin-bottom:6px;">Việc cần xử lý</div><div style="font-size:24px; font-weight:500; color:#D97706;">3</div></div>
+            <div style="flex:1; background:#F1F5F4; border-radius:12px; padding:14px 16px;"><div style="font-size:13px; color:#64748B; margin-bottom:6px;">Điểm uy tín</div><div style="font-size:24px; font-weight:500; color:#15803D;">92</div></div>
+          </div>
+        </div>
+        <!-- bottom tab bar -->
+        <div style="display:flex; background:#FFFFFF; border-top:0.5px solid #E2E8F0; padding:8px 6px 18px;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; color:#15803D;"><span class="ms" style="font-size:24px;">dashboard</span><span style="font-size:11px; font-weight:500;">Tổng quan</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; color:#94A3B8;"><span class="ms" style="font-size:24px;">description</span><span style="font-size:11px;">Hợp đồng</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; color:#94A3B8;"><span class="ms" style="font-size:24px;">account_balance_wallet</span><span style="font-size:11px;">Ký quỹ</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; color:#94A3B8;"><span class="ms" style="font-size:24px;">verified</span><span style="font-size:11px;">Uy tín</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 2. DATA TABLE → CARDS ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">2 · Bảng dữ liệu → thẻ có nhãn cột</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Không thể nhét 5 cột vào 390px. Mỗi hàng thành 1 thẻ: mã HĐ + trạng thái nổi lên đầu, các cột còn lại thành cặp nhãn–giá trị.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:12px;">Danh sách hợp đồng</div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:14px; padding:14px 16px; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500;">HĐ-2026-0142</span>
+            <span style="padding:4px 10px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:12px; font-weight:500;">Đang thực hiện</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Đối tác</span><span>HTX Ea Kar</span></div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Mặt hàng</span><span>Cà phê Robusta</span></div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Giá trị</span><span style="font-family:'JetBrains Mono',monospace;">5.000.000.000 ₫</span></div>
+        </div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:14px; padding:14px 16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500;">HĐ-2026-0139</span>
+            <span style="padding:4px 10px; border-radius:999px; background:#DCFCE7; color:#16A34A; font-size:12px; font-weight:500;">Đã tất toán</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Đối tác</span><span>HTX Tân Lập</span></div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Mặt hàng</span><span>Gạo ST25</span></div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Giá trị</span><span style="font-family:'JetBrains Mono',monospace;">1.850.000.000 ₫</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 3. LEDGER TABLE → CARDS ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">3 · Sổ cái (6 cột) → thẻ bút toán</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Bảng dày cột nhất. Số tiền là thông tin chính nên đưa lên to; loại / bên / số dư xuống dưới dạng nhãn–giá trị.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:12px;">Sổ cái ký quỹ</div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:14px; padding:14px 16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:13px; display:inline-flex; align-items:center; gap:6px; color:#475569;"><span class="ms" style="font-size:15px; color:#94A3B8;">lock</span> LE-8f3a91c2</span>
+            <span style="padding:4px 10px; border-radius:999px; background:#DCFCE7; color:#16A34A; font-size:12px; font-weight:500;">Đã ghi</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:500; color:#16A34A; margin-bottom:12px;">+ 2.500.000.000 ₫</div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Loại</span><span>Giải ngân bên bán</span></div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Bên</span><span>Bên bán</span></div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:0.5px solid #F1F5F4; font-size:14px;"><span style="color:#64748B;">Số dư sau</span><span style="font-family:'JetBrains Mono',monospace;">2.500.000.000 ₫</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 4. BAR CHART → HORIZONTAL ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">4 · Biểu đồ cột → cột ngang</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Cột dọc ép nhãn xoay hoặc cắt chữ. Xoay ngang: nhãn nằm trọn một dòng, thanh kéo dài theo chiều rộng có sẵn.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:15px; font-weight:500; margin-bottom:2px;">Tỷ lệ bẻ kèo theo ngành hàng</div>
+        <div style="font-size:12.5px; color:#64748B; margin-bottom:18px;">Thanh <span style="color:#D97706;">cam</span> = vượt ngưỡng an toàn (&gt;5%). Đường đứt = TB 4,2%.</div>
+
+        <!-- avg marker context: track max = 9% -->
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <!-- Cà phê 4.1 -->
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;"><span style="white-space:nowrap;">Cà phê</span><span style="font-family:'JetBrains Mono',monospace; font-weight:500;">4,1%</span></div>
+            <div style="height:12px; border-radius:999px; background:#F1F5F4; overflow:hidden;"><div style="width:45.6%; height:100%; background:#15803D; border-radius:999px;"></div></div>
+          </div>
+          <!-- Gạo 2.3 -->
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;"><span>Gạo</span><span style="font-family:'JetBrains Mono',monospace; font-weight:500;">2,3%</span></div>
+            <div style="height:12px; border-radius:999px; background:#F1F5F4; overflow:hidden;"><div style="width:25.6%; height:100%; background:#15803D; border-radius:999px;"></div></div>
+          </div>
+          <!-- Cao su 6.8 -->
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;"><span style="white-space:nowrap;">Cao su</span><span style="font-family:'JetBrains Mono',monospace; font-weight:500; color:#D97706;">6,8%</span></div>
+            <div style="height:12px; border-radius:999px; background:#F1F5F4; overflow:hidden;"><div style="width:75.6%; height:100%; background:#D97706; border-radius:999px;"></div></div>
+          </div>
+          <!-- Điều 3.5 -->
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;"><span>Điều</span><span style="font-family:'JetBrains Mono',monospace; font-weight:500;">3,5%</span></div>
+            <div style="height:12px; border-radius:999px; background:#F1F5F4; overflow:hidden;"><div style="width:38.9%; height:100%; background:#15803D; border-radius:999px;"></div></div>
+          </div>
+        </div>
+        <!-- scale -->
+        <div style="display:flex; justify-content:space-between; margin-top:12px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#94A3B8;"><span>0%</span><span>3%</span><span>6%</span><span>9%</span></div>
+      </div>
+    </div>
+
+    <!-- ============ 5. LINE CHART → MOBILE ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">5 · Biểu đồ đường → gọn cho mobile</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Không thu nhỏ viewBox 640px (chữ còn ~4px). Vẽ lại theo bề rộng thật: số liệu chính lên headline, trục x rút còn mốc đầu–cuối.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:2px;">
+          <div style="font-size:15px; font-weight:500;">Điểm uy tín — 24 tháng</div>
+          <div style="display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;"><span class="ms" style="font-size:14px;">trending_up</span> +14</div>
+        </div>
+        <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:16px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:32px; font-weight:500; color:#0F172A;">92</span>
+          <span style="font-size:12.5px; color:#64748B;">hiện tại · TB kỳ <span style="font-family:'JetBrains Mono',monospace;">85,6</span></span>
+        </div>
+        <svg viewBox="0 0 358 176" style="width:100%; height:auto; display:block;" data-om-raster>
+          <defs>
+            <linearGradient id="mbRepArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#15803D" stop-opacity="0.16"/>
+              <stop offset="100%" stop-color="#15803D" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="20" x2="358" y2="20" stroke="#F1F5F4" stroke-width="1"/>
+          <line x1="0" y1="70" x2="358" y2="70" stroke="#F1F5F4" stroke-width="1"/>
+          <line x1="0" y1="120" x2="358" y2="120" stroke="#E2E8F0" stroke-width="1"/>
+          <line x1="0" y1="92" x2="358" y2="92" stroke="#94A3B8" stroke-width="1" stroke-dasharray="4 4"/>
+          <text x="356" y="87" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#94A3B8">TB 85,6</text>
+          <polygon points="6,104 35,96 64,92 93,100 122,80 151,72 180,84 209,64 238,60 267,52 296,56 325,48 352,48 352,138 6,138" fill="url(#mbRepArea)"/>
+          <polyline points="6,104 35,96 64,92 93,100 122,80 151,72 180,84 209,64 238,60 267,52 296,56 325,48 352,48" fill="none" stroke="#15803D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="352" cy="48" r="5" fill="#15803D" stroke="#FFFFFF" stroke-width="2"/>
+          <text x="6" y="160" text-anchor="start" font-family="Be Vietnam Pro, sans-serif" font-size="11" fill="#94A3B8">T7/24</text>
+          <text x="352" y="160" text-anchor="end" font-family="Be Vietnam Pro, sans-serif" font-size="11" fill="#94A3B8">T7/26</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ============ 6. STEPPER → VERTICAL ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">6 · Stepper ngang → dọc</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">5 bước ngang tràn khỏi màn. Xoay dọc: đường nối chạy dọc, nhãn dài thoải mái, bước hiện tại được nhấn.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:20px 18px 24px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:16px;">Tạo hợp đồng · bước 3/5</div>
+
+        <div style="display:flex; gap:14px;">
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div style="width:26px; height:26px; border-radius:50%; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:16px;">check</span></div>
+            <div style="width:1.5px; height:26px; background:#15803D;"></div>
+            <div style="width:26px; height:26px; border-radius:50%; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:16px;">check</span></div>
+            <div style="width:1.5px; height:26px; background:#E2E8F0;"></div>
+            <div style="width:26px; height:26px; border-radius:50%; background:#fff; border:1.5px solid #15803D; color:#15803D; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">3</div>
+            <div style="width:1.5px; height:26px; background:#E2E8F0;"></div>
+            <div style="width:26px; height:26px; border-radius:50%; background:#fff; border:1.5px solid #CBD5E1; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">4</div>
+            <div style="width:1.5px; height:26px; background:#E2E8F0;"></div>
+            <div style="width:26px; height:26px; border-radius:50%; background:#fff; border:1.5px solid #CBD5E1; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">5</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column;">
+            <div style="height:26px; display:flex; align-items:center; font-size:14px; color:#0F172A;">Thông tin chung</div>
+            <div style="height:26px;"></div>
+            <div style="height:26px; display:flex; align-items:center; font-size:14px; color:#0F172A;">Mặt hàng &amp; khối lượng</div>
+            <div style="height:26px;"></div>
+            <div style="height:26px; display:flex; align-items:center; gap:8px;"><span style="font-size:14px; font-weight:500; color:#15803D;">Cột mốc &amp; giao hàng</span><span style="font-size:11.5px; color:#15803D; background:#DCFCE7; border-radius:999px; padding:2px 8px;">Đang nhập</span></div>
+            <div style="height:26px;"></div>
+            <div style="height:26px; display:flex; align-items:center; font-size:14px; color:#94A3B8;">Điều khoản ký quỹ</div>
+            <div style="height:26px;"></div>
+            <div style="height:26px; display:flex; align-items:center; font-size:14px; color:#94A3B8;">Xem lại &amp; ký</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 7. TABS → SCROLL ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">7 · Tabs → cuộn ngang</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">6 tab không xuống dòng. Cho cuộn ngang, tab đang chọn neo trái, mép phải hé một phần để lộ dấu hiệu còn tab nữa.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 0 22px;">
+        <div style="padding:0 16px; font-size:13px; color:#94A3B8; margin-bottom:14px;">Chi tiết hợp đồng</div>
+        <div data-hscroll style="display:flex; gap:22px; padding:0 16px 12px; overflow-x:auto; border-bottom:0.5px solid #E2E8F0;">
+          <div style="font-size:14px; font-weight:500; color:#15803D; padding-bottom:8px; border-bottom:2px solid #15803D; white-space:nowrap;">Tổng quan</div>
+          <div style="font-size:14px; color:#64748B; white-space:nowrap;">Cột mốc</div>
+          <div style="font-size:14px; color:#64748B; white-space:nowrap;">Ký quỹ</div>
+          <div style="font-size:14px; color:#64748B; white-space:nowrap;">Kiểm định</div>
+          <div style="font-size:14px; color:#64748B; white-space:nowrap;">Chứng từ</div>
+          <div style="font-size:14px; color:#64748B; white-space:nowrap; padding-right:16px;">Nhật ký</div>
+        </div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; justify-content:space-between; font-size:14px;"><span style="color:#64748B;">Tiêu chuẩn</span><span>TCVN 4193:2014</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:14px;"><span style="color:#64748B;">Dung sai</span><span>± 2%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 8. DELTA BLOCK → CARDS ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">8 · Khối so sánh Delta → thẻ</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Lưới 4 cột (mô tả · số liệu · chênh lệch · trạng thái) không chịu được 390px. Mỗi delta thành một thẻ: chênh lệch nổi bật, chi tiết xuống dưới.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:12px;">Đối chiếu khối lượng</div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:14px; padding:14px 16px; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <span style="font-size:14px; font-weight:500;">Chênh lệch cam kết</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:500; color:#DC2626;">−320 kg</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:#64748B; margin-bottom:12px;">20.000 kg → 19.680 kg</div>
+          <span style="display:inline-flex; padding:4px 10px; border-radius:999px; background:#FEE2E2; color:#DC2626; font-size:12.5px; font-weight:500;">Có thể tính phạt</span>
+        </div>
+
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:14px; padding:14px 16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <span style="font-size:14px; font-weight:500;">Hao hụt vận chuyển</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:500; color:#64748B;">−130 kg</span>
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:#64748B; margin-bottom:12px;">19.680 kg → 19.550 kg</div>
+          <span style="display:inline-flex; padding:4px 10px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:12.5px; font-weight:500;">Không tính phạt</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 9. MODAL → BOTTOM SHEET ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">9 · Modal → bottom sheet</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Modal 560px nổi giữa màn trông chật trên điện thoại. Neo xuống đáy: có thanh kéo, nút chính full-width trong tầm ngón cái.</div>
+      <div style="width:390px; height:440px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; position:relative;">
+        <!-- faint page behind -->
+        <div style="position:absolute; inset:0; padding:16px; display:flex; flex-direction:column; gap:12px;">
+          <div style="height:14px; width:55%; background:#E2E8F0; border-radius:4px;"></div>
+          <div style="height:80px; background:#EEF2F1; border-radius:12px;"></div>
+          <div style="height:80px; background:#EEF2F1; border-radius:12px;"></div>
+        </div>
+        <!-- scrim -->
+        <div style="position:absolute; inset:0; background:rgba(15,23,42,.45);"></div>
+        <!-- sheet -->
+        <div style="position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:22px 22px 0 0; padding:10px 20px 24px;">
+          <div style="width:38px; height:4px; border-radius:999px; background:#E2E8F0; margin:0 auto 16px;"></div>
+          <div style="font-size:17px; font-weight:500; margin-bottom:6px;">Xác nhận ký hợp đồng</div>
+          <div style="font-size:14px; color:#64748B; line-height:1.5; margin-bottom:18px;">Nhập mã OTP gửi tới số điện thoại đăng ký để hoàn tất ký hợp đồng.</div>
+          <div style="display:flex; gap:8px; margin-bottom:22px;">
+            <div style="flex:1; height:48px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:18px;">4</div>
+            <div style="flex:1; height:48px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:18px;">2</div>
+            <div style="flex:1; height:48px; border:1.5px solid #15803D; border-radius:8px; box-shadow:0 0 0 2px rgba(21,128,61,0.2); display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:18px;">7</div>
+            <div style="flex:1; height:48px; border:0.5px solid #E2E8F0; border-radius:8px;"></div>
+            <div style="flex:1; height:48px; border:0.5px solid #E2E8F0; border-radius:8px;"></div>
+            <div style="flex:1; height:48px; border:0.5px solid #E2E8F0; border-radius:8px;"></div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:center; height:48px; border-radius:10px; background:#15803D; color:#fff; font-size:15px; font-weight:500; margin-bottom:8px;">Xác nhận</div>
+          <div style="display:flex; align-items:center; justify-content:center; height:44px; font-size:15px; color:#64748B;">Huỷ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 10. ACTION BANNER → STACKED ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">10 · Banner có nút → xếp dọc</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Desktop đặt nút bên phải (space-between). Trên 390px nút bóp chữ xuống một dòng; cho nút xuống hàng, full-width.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:12px;">Banner cảnh báo</div>
+        <div style="border-radius:12px; background:#FEE2E2; color:#991B1B; padding:16px 18px;">
+          <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <span class="ms" style="font-size:18px; flex-shrink:0;">error</span>
+            <span style="font-size:14px; line-height:1.5;">Hợp đồng đã ký nhưng chưa khoá được ký quỹ.</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:center; height:44px; border:1px solid #DC2626; color:#DC2626; border-radius:8px; background:#FFFFFF; font-size:14px; font-weight:500;">Thử khoá lại</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 11. BREADCRUMB → BACK ============ ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">11 · Breadcrumb → nút Quay lại</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Chuỗi 3 cấp không vừa một dòng. Rút còn nút Quay lại + cấp hiện tại; các cấp giữa gộp thành <span style="font-family:'JetBrains Mono',monospace;">…</span> bấm được.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden;">
+        <div style="height:34px; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#0F172A;"><span>9:41</span><span style="display:inline-flex; gap:5px; align-items:center;"><span class="ms" style="font-size:15px;">signal_cellular_alt</span><span class="ms" style="font-size:15px;">wifi</span><span class="ms" style="font-size:16px;">battery_full</span></span></div>
+        <!-- top bar with back -->
+        <div style="height:56px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 10px; gap:8px;">
+          <button style="appearance:none; border:0; background:transparent; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#0F172A; padding:0; cursor:pointer;"><span class="ms" style="font-size:26px;">arrow_back_ios_new</span></button>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Cột mốc 2</div>
+          </div>
+        </div>
+        <!-- collapsed breadcrumb strip -->
+        <div style="display:flex; align-items:center; gap:8px; padding:12px 16px; font-size:13px; color:#64748B; background:#FFFFFF; border-bottom:0.5px solid #F1F5F4;">
+          <span>Hợp đồng</span>
+          <span style="color:#CBD5E1;">/</span>
+          <span style="font-family:'JetBrains Mono',monospace; padding:2px 8px; border-radius:6px; background:#F1F5F4; color:#475569;">…</span>
+          <span style="color:#CBD5E1;">/</span>
+          <span style="color:#0F172A;">Cột mốc 2</span>
+        </div>
+        <div style="padding:16px; min-height:90px;">
+          <div style="display:flex; justify-content:space-between; font-size:14px; padding:6px 0;"><span style="color:#64748B;">Trạng thái</span><span>Chờ xác nhận</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:14px; padding:6px 0;"><span style="color:#64748B;">Giá trị</span><span style="font-family:'JetBrains Mono',monospace;">2.500.000.000 ₫</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 12. FILTER BAR → SHEET ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">12 · Thanh lọc → nút Bộ lọc</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">5 dropdown một hàng không vừa. Gom vào nút Bộ lọc (có số lọc đang bật) mở sheet; lọc đang chọn hiện thành chip cuộn ngang, xoá nhanh.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:12px;">Tìm nguồn hàng</div>
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+          <div style="flex:1; min-width:0; height:42px; border:0.5px solid #E2E8F0; border-radius:10px; background:#fff; display:flex; align-items:center; gap:8px; padding:0 12px; font-size:14px; color:#94A3B8;"><span class="ms" style="font-size:18px;">search</span><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Tên bên bán, giống, vùng...</span></div>
+          <div style="height:42px; flex-shrink:0; border:0.5px solid #E2E8F0; border-radius:10px; background:#fff; display:flex; align-items:center; gap:7px; padding:0 14px; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px; color:#64748B;">tune</span> Bộ lọc <span style="min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#15803D; color:#fff; font-size:11px; font-weight:500; display:inline-flex; align-items:center; justify-content:center;">2</span></div>
+        </div>
+        <div data-hscroll style="display:flex; gap:8px; overflow-x:auto; margin-bottom:14px;">
+          <span style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:13px; font-weight:500;">Cà phê <span class="ms" style="font-size:15px;">close</span></span>
+          <span style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:13px; font-weight:500;">Uy tín ≥ 80 <span class="ms" style="font-size:15px;">close</span></span>
+          <span style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:#F1F5F4; color:#64748B; font-size:13px;">Rủi ro EUDR</span>
+        </div>
+        <div style="font-size:13px; color:#64748B;">6 nguồn hàng · sắp xếp theo <span style="color:#0F172A;">Uy tín cao nhất</span></div>
+      </div>
+    </div>
+
+    <!-- ============ 13. FORM + SUMMARY → STICKY CTA ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">13 · Form có tóm tắt → CTA dính đáy</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Cột tóm tắt 320px xếp xuống dưới đẩy nút "Tiếp tục" khỏi tầm nhìn. Ghim CTA ở đáy; tóm tắt thu thành dải tổng bấm để mở.</div>
+      <div style="width:390px; height:440px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; position:relative;">
+        <div style="position:absolute; inset:0 0 128px; overflow:hidden; padding:18px 16px 0;">
+          <div style="font-size:13px; color:#94A3B8; margin-bottom:14px;">Tạo hợp đồng · bước 2/5</div>
+          <div style="font-size:13px; margin-bottom:6px;">Mặt hàng <span style="color:#DC2626;">*</span></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; border:0.5px solid #E2E8F0; border-radius:8px; background:#fff; padding:11px 12px; font-size:14px; margin-bottom:16px;"><span>Cà phê Robusta — nhân xô</span><span class="ms" style="font-size:20px; color:#94A3B8;">expand_more</span></div>
+          <div style="display:flex; gap:12px; margin-bottom:18px;">
+            <div style="flex:1;"><div style="font-size:13px; margin-bottom:6px;">Khối lượng <span style="color:#DC2626;">*</span></div><div style="display:flex; justify-content:space-between; border:0.5px solid #E2E8F0; border-radius:8px; background:#fff; padding:10px 12px; font-size:14px;"><span style="font-family:'JetBrains Mono',monospace;">20</span><span style="color:#94A3B8;">tấn</span></div></div>
+            <div style="flex:1;"><div style="font-size:13px; margin-bottom:6px;">Đơn giá <span style="color:#DC2626;">*</span></div><div style="display:flex; justify-content:space-between; border:0.5px solid #E2E8F0; border-radius:8px; background:#fff; padding:10px 12px; font-size:14px;"><span style="font-family:'JetBrains Mono',monospace;">120.000</span><span style="color:#94A3B8;">₫/kg</span></div></div>
+          </div>
+          <div style="background:#F1F5F4; border-radius:10px; padding:14px 16px; display:flex; align-items:baseline; justify-content:space-between;"><span style="font-size:14px; color:#64748B;">Tổng giá trị</span><span style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:500;">2.400.000.000 ₫</span></div>
+        </div>
+        <!-- sticky bottom -->
+        <div style="position:absolute; left:0; right:0; bottom:0; background:#fff; border-top:0.5px solid #E2E8F0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:0.5px solid #F1F5F4;"><span style="font-size:13px; color:#64748B;">Tóm tắt hợp đồng</span><span style="display:flex; align-items:center; gap:6px; font-size:13px;"><span style="font-family:'JetBrains Mono',monospace; font-weight:500;">2.400.000.000 ₫</span><span class="ms" style="font-size:18px; color:#94A3B8;">expand_less</span></span></div>
+          <div style="display:flex; gap:10px; padding:12px 16px 18px;">
+            <div style="height:46px; padding:0 18px; border:0.5px solid #E2E8F0; border-radius:10px; display:flex; align-items:center; font-size:14px; font-weight:500;">Quay lại</div>
+            <div style="flex:1; height:46px; border-radius:10px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500;">Tiếp tục</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 14. MASTER–DETAIL → PUSH NAV ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">14 · Master–detail → mở toàn màn</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Hàng chờ trái + chi tiết phải (400px·1fr, hay drawer 520px) không xếp cạnh nhau nổi. Mobile: danh sách trước, chạm một dòng mở chi tiết toàn màn, nút ‹ quay lại.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 0 10px;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; padding:0 16px 14px;"><span style="font-size:15px; font-weight:500;">Hàng chờ duyệt</span><span style="font-size:13px; color:#64748B;">8 vụ</span></div>
+
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-top:0.5px solid #E2E8F0;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;"><span style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500;">HĐ-2026-0142</span><span style="padding:2px 8px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:11.5px; font-weight:500;">Chờ duyệt</span></div>
+            <div style="font-size:13px; color:#64748B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">HTX Ea Kar · bất khả kháng — lũ</div>
+          </div>
+          <span class="ms" style="font-size:22px; color:#CBD5E1; flex-shrink:0;">chevron_right</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-top:0.5px solid #E2E8F0;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;"><span style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500;">HĐ-2026-0137</span><span style="padding:2px 8px; border-radius:999px; background:#FEE2E2; color:#DC2626; font-size:11.5px; font-weight:500;">Ưu tiên</span></div>
+            <div style="font-size:13px; color:#64748B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">HTX Tân Lập · tranh chấp khối lượng</div>
+          </div>
+          <span class="ms" style="font-size:22px; color:#CBD5E1; flex-shrink:0;">chevron_right</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-top:0.5px solid #E2E8F0;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;"><span style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500;">HĐ-2026-0131</span><span style="padding:2px 8px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:11.5px; font-weight:500;">Mới</span></div>
+            <div style="font-size:13px; color:#64748B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">HTX Cầu Đất · giám định lại</div>
+          </div>
+          <span class="ms" style="font-size:22px; color:#CBD5E1; flex-shrink:0;">chevron_right</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 15. NEGOTIATION 2-COL → CARD ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">15 · Bảng đàm phán 2 cột → thẻ điều khoản</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Lưới "Đề xuất của bạn | của đối tác" khi ép 1 cột làm tiêu đề rời khỏi giá trị. Mỗi điều khoản thành một thẻ: nhãn Bạn/Đối tác inline, slider full-width, ngăn cách bằng đường ngang.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:14px;">Đàm phán điều khoản</div>
+
+        <!-- term 1: changed -->
+        <div style="background:#FEFCE8; border:0.5px solid #FDE68A; border-radius:14px; padding:16px; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+            <span style="font-size:14px; font-weight:500;">Ngưỡng hao hụt vận chuyển</span>
+            <span style="display:inline-flex; align-items:center; gap:3px; font-size:12px; color:#D97706; margin-left:auto; white-space:nowrap;"><span class="ms" style="font-size:14px;">arrow_upward</span> đối tác tăng</span>
+          </div>
+          <div>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:#15803D; font-weight:500; display:inline-flex; align-items:center; gap:5px;"><span class="ms" style="font-size:15px;">person</span> Bạn đề xuất</span><span style="font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:500;">2,0%</span></div>
+            <input type="range" min="0" max="10" step="0.5" value="2" style="width:100%; accent-color:#15803D; margin:0;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#94A3B8; font-family:'JetBrains Mono',monospace; margin-top:4px;"><span>0% — sàn</span><span>10% — trần</span></div>
+          </div>
+          <div style="border-top:0.5px solid #FDE68A; margin-top:14px; padding-top:12px; display:flex; align-items:baseline; justify-content:space-between;">
+            <span style="font-size:13px; color:#64748B; display:inline-flex; align-items:center; gap:5px;"><span class="ms" style="font-size:15px;">handshake</span> Đối tác đề xuất</span>
+            <span style="text-align:right;"><span style="font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:500; color:#92400E;">3,0%</span><span style="display:block; font-size:11.5px; color:#94A3B8;">trước đó 2,0%</span></span>
+          </div>
+        </div>
+
+        <!-- term 2: unchanged -->
+        <div style="background:#fff; border:0.5px solid #E2E8F0; border-radius:14px; padding:16px;">
+          <div style="font-size:14px; font-weight:500; margin-bottom:14px;">Ngưỡng thiếu hàng bắt đầu phạt</div>
+          <div>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:#15803D; font-weight:500; display:inline-flex; align-items:center; gap:5px;"><span class="ms" style="font-size:15px;">person</span> Bạn đề xuất</span><span style="font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:500;">5,0%</span></div>
+            <input type="range" min="3" max="15" step="0.5" value="5" style="width:100%; accent-color:#15803D; margin:0;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#94A3B8; font-family:'JetBrains Mono',monospace; margin-top:4px;"><span>3% — sàn</span><span>15% — trần</span></div>
+          </div>
+          <div style="border-top:0.5px solid #E2E8F0; margin-top:14px; padding-top:12px; display:flex; align-items:baseline; justify-content:space-between;">
+            <span style="font-size:13px; color:#64748B; display:inline-flex; align-items:center; gap:5px;"><span class="ms" style="font-size:15px;">handshake</span> Đối tác đề xuất</span>
+            <span style="text-align:right;"><span style="font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:500;">5,0%</span><span style="display:block; font-size:11.5px; color:#94A3B8;">không đổi</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 16. PUBLIC NAV → HAMBURGER ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">16 · Nav công khai → menu ☰</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Drawer app chỉ dành cho sidebar 240px; trang marketing bị CSS ẩn dãy link mà không có menu thay thế → mất điều hướng. Cần ☰ riêng mở menu có link + nút đăng nhập/đăng ký.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden;">
+        <div style="height:34px; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#0F172A;"><span>9:41</span><span style="display:inline-flex; gap:5px; align-items:center;"><span class="ms" style="font-size:15px;">signal_cellular_alt</span><span class="ms" style="font-size:15px;">wifi</span><span class="ms" style="font-size:16px;">battery_full</span></span></div>
+        <div style="height:56px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between; padding:0 16px;">
+          <div style="font-size:17px; font-weight:500; color:#15803D;">AgriContract</div>
+          <button style="appearance:none; border:0.5px solid #E2E8F0; background:#fff; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#0F172A; padding:0; cursor:pointer;"><span class="ms" style="font-size:24px;">close</span></button>
+        </div>
+        <!-- opened menu -->
+        <div style="background:#fff; padding:6px 0 18px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; font-size:15px; border-bottom:0.5px solid #F1F5F4;">Sàn nguồn hàng <span class="ms" style="font-size:20px; color:#CBD5E1;">chevron_right</span></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; font-size:15px; border-bottom:0.5px solid #F1F5F4;">Bảng giá tham khảo <span class="ms" style="font-size:20px; color:#CBD5E1;">chevron_right</span></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; font-size:15px; border-bottom:0.5px solid #F1F5F4;">Cách hoạt động <span class="ms" style="font-size:20px; color:#CBD5E1;">chevron_right</span></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; font-size:15px;">Về ký quỹ <span class="ms" style="font-size:20px; color:#CBD5E1;">chevron_right</span></div>
+          <div style="padding:16px 20px 0; display:flex; flex-direction:column; gap:10px;">
+            <div style="height:46px; border:0.5px solid #E2E8F0; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500;">Đăng nhập</div>
+            <div style="height:46px; border-radius:10px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500;">Đăng ký doanh nghiệp</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 17. MAP → BAND + FULLSCREEN ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">17 · Bản đồ → dải + toàn màn</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Map SVG cao 440–520px trong rail chiếm gần hết màn. Thu thành dải ~220px có nút xem toàn màn; legend 4 mục dời xuống thành hàng chip cuộn thay vì overlay đè bản đồ.</div>
+      <div style="width:390px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; padding:18px 16px 22px;">
+        <div style="font-size:13px; color:#94A3B8; margin-bottom:12px;">Sổ vùng trồng · 4 vùng</div>
+        <div style="position:relative; border-radius:12px; overflow:hidden; height:220px; background:#EDF2F0; border:0.5px solid #E2E8F0;">
+          <svg viewBox="0 40 500 320" preserveAspectRatio="xMidYMid slice" style="width:100%; height:100%; display:block;" data-om-raster>
+            <rect x="0" y="40" width="500" height="320" fill="#EDF2F0"/>
+            <g stroke="#E2E8F0" stroke-width="1">
+              <line x1="0" y1="88" x2="500" y2="88"/><line x1="0" y1="176" x2="500" y2="176"/><line x1="0" y1="264" x2="500" y2="264"/>
+              <line x1="100" y1="40" x2="100" y2="360"/><line x1="200" y1="40" x2="200" y2="360"/><line x1="300" y1="40" x2="300" y2="360"/><line x1="400" y1="40" x2="400" y2="360"/>
+            </g>
+            <polygon points="70,80 160,70 180,140 100,160 60,120" fill="#16A34A" fill-opacity="0.18" stroke="#16A34A" stroke-width="2"/>
+            <text x="115" y="120" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" fill="#15803D">A</text>
+            <polygon points="300,90 400,100 410,180 320,200 280,140" fill="#DC2626" fill-opacity="0.16" stroke="#DC2626" stroke-width="2"/>
+            <text x="350" y="150" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" fill="#DC2626">B</text>
+            <circle cx="180" cy="330" r="9" fill="#94A3B8" fill-opacity="0.3" stroke="#94A3B8" stroke-width="2" stroke-dasharray="3 3"/>
+            <polygon points="360,280 440,290 450,360 380,370 350,320" fill="#D97706" fill-opacity="0.16" stroke="#D97706" stroke-width="2"/>
+            <text x="400" y="330" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" fill="#D97706">D</text>
+          </svg>
+          <button style="position:absolute; top:10px; right:10px; appearance:none; border:0.5px solid #E2E8F0; background:rgba(255,255,255,0.95); border-radius:8px; height:34px; padding:0 12px; display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; color:#0F172A; cursor:pointer;"><span class="ms" style="font-size:16px;">fullscreen</span> Toàn màn</button>
+        </div>
+        <div data-hscroll style="display:flex; gap:8px; overflow-x:auto; margin-top:12px;">
+          <span style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:#475569; background:#fff; border:0.5px solid #E2E8F0; padding:6px 10px; border-radius:999px;"><span style="width:10px; height:10px; border-radius:3px; background:#16A34A; opacity:.5;"></span> Rủi ro thấp</span>
+          <span style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:#475569; background:#fff; border:0.5px solid #E2E8F0; padding:6px 10px; border-radius:999px;"><span style="width:10px; height:10px; border-radius:3px; background:#DC2626; opacity:.5;"></span> Rủi ro cao</span>
+          <span style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:#475569; background:#fff; border:0.5px solid #E2E8F0; padding:6px 10px; border-radius:999px;"><span style="width:10px; height:10px; border-radius:3px; background:#D97706; opacity:.5;"></span> Không kết luận</span>
+          <span style="flex-shrink:0; display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:#475569; background:#fff; border:0.5px solid #E2E8F0; padding:6px 10px; border-radius:999px;"><span style="width:10px; height:10px; border-radius:3px; background:#94A3B8; opacity:.5;"></span> Đang kiểm tra</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 18. BULK-SELECT TABLE → CARDS + ACTION BAR ============ -->
+    <div style="width:390px;">
+      <div style="font-size:15px; font-weight:500; margin-bottom:3px;">18 · Bảng chọn hàng loạt → thẻ + thanh hành động</div>
+      <div style="font-size:13px; color:#64748B; margin-bottom:14px; line-height:1.45;">Bảng có checkbox đầu dòng + chọn tất cả + hành động hàng loạt. Mobile: mỗi hàng là thẻ có checkbox; khi có mục được chọn, thanh hành động hàng loạt trượt lên từ đáy.</div>
+      <div style="width:390px; height:440px; background:#F8FAF9; border-radius:30px; border:0.5px solid #CBD5E1; box-shadow:0 14px 44px rgba(15,23,42,.14); overflow:hidden; position:relative;">
+        <div style="position:absolute; inset:0 0 76px; overflow:hidden; padding:18px 16px 0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <span style="font-size:15px; font-weight:500;">Hàng đợi lỗi intake</span>
+            <span style="font-size:13px; color:#15803D; font-weight:500;">Chọn tất cả</span>
+          </div>
+
+          <div style="display:flex; gap:12px; background:#fff; border:1.5px solid #15803D; border-radius:14px; padding:14px 14px; margin-bottom:10px;">
+            <span class="ms" style="font-size:20px; color:#15803D; flex-shrink:0;">check_box</span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="462821333f23283027282706212b272f2a6825292b">[email&#160;protected]</a></div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:#B91C1C; background:#FEE2E2; padding:3px 9px; border-radius:999px;">Không khớp tên</span><span style="font-size:12.5px; color:#94A3B8;">chưa gắn</span></div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px; background:#fff; border:0.5px solid #E2E8F0; border-radius:14px; padding:14px 14px; margin-bottom:10px;">
+            <span class="ms" style="font-size:20px; color:#CBD5E1; flex-shrink:0;">check_box_outline_blank</span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8ae1e2e5a4eeebe1e6ebe1cafef8ffe4ede4edfff3efe4a4fce4">[email&#160;protected]</a></div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:#B45309; background:#FEF3C7; padding:3px 9px; border-radius:999px;">Trùng một phần</span><span style="font-size:12.5px; color:#15803D;">HĐ 2026-0442</span></div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px; background:#fff; border:1.5px solid #15803D; border-radius:14px; padding:14px 14px;">
+            <span class="ms" style="font-size:20px; color:#15803D; flex-shrink:0;">check_box</span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="83efe6f7ebeaebece2c3fae2ebececade0ecee">[email&#160;protected]</a></div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px;"><span style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:#1D4ED8; background:#DBEAFE; padding:3px 9px; border-radius:999px;">Cần rà soát</span><span style="font-size:12.5px; color:#15803D;">HĐ 2026-0451</span></div>
+            </div>
+          </div>
+        </div>
+        <!-- bulk action bar -->
+        <div style="position:absolute; left:0; right:0; bottom:0; background:#0F172A; color:#fff; padding:14px 16px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <span style="font-size:14px;">2 đã chọn</span>
+          <div style="display:flex; gap:8px;">
+            <div style="height:38px; padding:0 14px; border-radius:8px; background:rgba(255,255,255,0.14); display:flex; align-items:center; font-size:13.5px; font-weight:500;">Gắn mặt hàng</div>
+            <div style="height:38px; padding:0 14px; border-radius:8px; background:#15803D; display:flex; align-items:center; font-size:13.5px; font-weight:500;">Xử lý lại</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:56px; font-size:13px; color:#94A3B8;">AgriContract Design System · Component cho mobile</div>
+
+</div>
+</x-dc>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>

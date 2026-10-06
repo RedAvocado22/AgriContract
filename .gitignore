@@ -18,11 +18,11 @@ memory/
 CLAUDE.md
 GEMINI.md
 .claude/
-scripts/
-!scripts/dev-seed.sh
-!scripts/run-e2e.sh
-!scripts/seed/
-!scripts/seed/**
+backend/scripts/
+!backend/scripts/dev-seed.sh
+!backend/scripts/run-e2e.sh
+!backend/scripts/seed/
+!backend/scripts/seed/**
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar

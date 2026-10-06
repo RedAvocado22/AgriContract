@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; background:#F8FAF9; color:#0F172A; min-height:100vh;" data-screen-label="4 Hồ sơ uy tín công khai">
+
+  <!-- PUBLIC NAV -->
+  <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 40px; gap:32px; position:sticky; top:0; z-index:5;">
+    <div style="font-size:17px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="display:flex; gap:26px; font-size:14px; color:#475569;">
+      <span>Sàn nguồn hàng</span>
+      <span>Bảng giá tham khảo</span>
+      <span>Cách hoạt động</span>
+      <span>Về ký quỹ</span>
+    </div>
+    <div style="flex:1;"></div>
+    <span style="font-size:14px; color:#475569;">Đăng nhập</span>
+    <span style="padding:9px 18px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;">Đăng ký doanh nghiệp</span>
+  </div>
+
+  <div style="max-width:1000px; margin:0 auto; padding:24px 40px 80px; box-sizing:border-box;">
+
+    <div style="font-size:13px; color:#64748B; margin-bottom:18px;"><a href="#">Sàn nguồn hàng</a> <span style="margin:0 6px; color:#CBD5E1;">/</span> Hồ sơ uy tín công khai</div>
+
+    <!-- public notice -->
+    <div style="display:flex; gap:10px; align-items:center; background:#F1F5F4; border-radius:10px; padding:11px 16px; margin-bottom:20px;">
+      <span class="ms" style="font-size:18px; color:#64748B;">public</span>
+      <span style="font-size:13px; color:#64748B;">Bản tóm tắt công khai — mọi đối tác đều xem được trước khi ký. Số liệu chi tiết chỉ hiển thị cho chủ hồ sơ.</span>
+    </div>
+
+    <!-- HEADER CARD -->
+    <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:28px; display:flex; align-items:center; gap:32px; margin-bottom:20px;">
+      <div style="position:relative; width:120px; height:120px; flex-shrink:0;">
+        <div style="width:120px; height:120px; border-radius:50%; background:conic-gradient(#15803D 0% 88%, #F1F5F4 88% 100%); display:flex; align-items:center; justify-content:center;">
+          <div style="width:92px; height:92px; border-radius:50%; background:#FFFFFF; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div style="font-size:32px; font-weight:500; line-height:1;">88</div>
+            <div style="font-size:12px; color:#94A3B8;">/ 100</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:20px; font-weight:500; margin-bottom:4px;">HTX Nông nghiệp Ea Kar</div>
+        <div style="font-size:14px; color:#64748B; margin-bottom:12px;">Hợp tác xã · Đắk Lắk · Bên bán</div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span style="display:inline-flex; padding:5px 14px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:14px; font-weight:500;">Uy tín tốt</span>
+          <span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:13px;"><span class="ms" style="font-size:15px;">verified</span> Đã xác minh KYC</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- METRICS ROW -->
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:20px;">
+      <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Hợp đồng hoàn thành</div><div style="font-size:24px; font-weight:500;">32</div></div>
+      <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Tỷ lệ đúng hạn</div><div style="font-size:24px; font-weight:500;">94%</div></div>
+      <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Số lần vi phạm</div><div style="font-size:24px; font-weight:500;">0</div></div>
+      <div style="background:#F1F5F4; border-radius:12px; padding:16px 20px;"><div style="font-size:13px; color:#64748B; margin-bottom:8px;">Thành viên từ</div><div style="font-size:24px; font-weight:500;">2023</div></div>
+    </div>
+
+    <!-- TWO CARDS -->
+    <div style="display:grid; grid-template-columns:1.3fr 1fr; gap:20px; align-items:start; margin-bottom:16px;">
+
+      <!-- LINE CHART -->
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:2px;">
+          <div style="font-size:16px; font-weight:500;">Điểm uy tín — 24 tháng</div>
+          <div style="display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:12px; font-weight:500;"><span class="ms" style="font-size:14px;">trending_up</span> +12</div>
+        </div>
+        <div style="font-size:13px; color:#64748B; margin-bottom:18px;">Hiện tại <span style="font-family:'JetBrains Mono',monospace; color:#0F172A;">90</span> · trung bình kỳ <span style="font-family:'JetBrains Mono',monospace;">85,3</span></div>
+        <!-- data: [78,80,82,83,85,86,87,88,89,90,90] (11 mốc / 24 tháng) · y:70–100 -->
+        <svg viewBox="0 0 600 240" style="width:100%; height:auto; display:block;" data-om-raster>
+          <defs>
+            <linearGradient id="repLineB" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#15803D" stop-opacity="0.18"/>
+              <stop offset="100%" stop-color="#15803D" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line x1="52" y1="24" x2="576" y2="24" stroke="#F1F5F4" stroke-width="1"/>
+          <line x1="52" y1="83" x2="576" y2="83" stroke="#F1F5F4" stroke-width="1"/>
+          <line x1="52" y1="141" x2="576" y2="141" stroke="#F1F5F4" stroke-width="1"/>
+          <line x1="52" y1="200" x2="576" y2="200" stroke="#E2E8F0" stroke-width="1"/>
+          <text x="42" y="28" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#94A3B8">100</text>
+          <text x="42" y="87" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#94A3B8">90</text>
+          <text x="42" y="145" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#94A3B8">80</text>
+          <text x="42" y="204" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11" fill="#94A3B8">70</text>
+          <line x1="52" y1="110" x2="576" y2="110" stroke="#94A3B8" stroke-width="1" stroke-dasharray="4 4"/>
+          <text x="574" y="105" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#94A3B8">TB 85,3</text>
+          <polygon points="52,153 104,141 157,130 209,124 262,112 314,106 366,100 419,94 471,89 524,83 576,83 576,200 52,200" fill="url(#repLineB)"/>
+          <polyline points="52,153 104,141 157,130 209,124 262,112 314,106 366,100 419,94 471,89 524,83 576,83" fill="none" stroke="#15803D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="52" cy="153" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="104" cy="141" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="157" cy="130" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="209" cy="124" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="262" cy="112" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="314" cy="106" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="366" cy="100" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="419" cy="94" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="471" cy="89" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="524" cy="83" r="3" fill="#FFFFFF" stroke="#15803D" stroke-width="2"/>
+          <circle cx="576" cy="83" r="5" fill="#15803D" stroke="#FFFFFF" stroke-width="2"/>
+          <text x="576" y="71" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="12" font-weight="500" fill="#0F172A">90</text>
+          <text x="52" y="143" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="11" fill="#94A3B8">78</text>
+          <text x="52" y="222" text-anchor="start" font-family="Be Vietnam Pro, sans-serif" font-size="11" fill="#94A3B8">T7/24</text>
+          <text x="314" y="222" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="11" fill="#94A3B8">T1/25</text>
+          <text x="576" y="222" text-anchor="end" font-family="Be Vietnam Pro, sans-serif" font-size="11" fill="#94A3B8">T7/26</text>
+        </svg>
+      </div>
+
+      <!-- EVENT TIMELINE -->
+      <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:24px;">
+        <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Sự kiện uy tín gần đây</div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:10px 0; border-bottom:0.5px solid #E2E8F0;">
+          <div><div style="font-size:14px;">Tất toán hợp đồng cà phê</div><div style="font-size:13px; color:#94A3B8;">28/05/2026</div></div>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:14px; color:#16A34A;">+2</span>
+        </div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:10px 0; border-bottom:0.5px solid #E2E8F0;">
+          <div><div style="font-size:14px;">Giao dịch đúng hạn 6 tháng</div><div style="font-size:13px; color:#94A3B8;">01/04/2026</div></div>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:14px; color:#16A34A;">+3</span>
+        </div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:10px 0; border-bottom:0.5px solid #E2E8F0;">
+          <div><div style="font-size:14px;">Hoàn thành khai vùng trồng EUDR</div><div style="font-size:13px; color:#94A3B8;">18/02/2026</div></div>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:14px; color:#16A34A;">+1</span>
+        </div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:10px 0;">
+          <div><div style="font-size:14px;">Tất toán hợp đồng cà phê</div><div style="font-size:13px; color:#94A3B8;">03/11/2025</div></div>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:14px; color:#16A34A;">+2</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:13px; color:#94A3B8;">Vi phạm được tính trong cửa sổ 24 tháng. Uy tín hai chiều — bên bán cũng xem được uy tín bên mua trước khi ký.</div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
