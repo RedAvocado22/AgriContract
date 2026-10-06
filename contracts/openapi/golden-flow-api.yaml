@@ -6,6 +6,7 @@ info:
     API paths required by the authoritative Phase 2 use cases are frozen here.
     The Phase 1 cancel endpoint is retired; termination, breach review and mutual
     replacement use explicit idempotent commands below.
+    Phase 2 new writes are limited to domestic Vietnam coffee contracts.
 servers:
   - url: /
 security:
@@ -48,6 +49,44 @@ paths:
       operationId: getContract
       parameters: [{name: contractId, in: path, required: true, schema: {type: string, format: uuid}}]
       responses: {'200': {description: Participant-owned contract detail, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
+  /api/v1/contracts/{contractId}/document-preview:
+    x-service-owner: contract-service
+    get:
+      operationId: previewContractDocument
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: Server-rendered preview of the current offer/negotiation snapshot. Every page or prominent header must carry CHƯA CÓ HIỆU LỰC; this representation is never the final signed document.
+      parameters: [{name: contractId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Draft PDF preview with mandatory invalidity watermark, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/contracts/{contractId}/documents:
+    x-service-owner: contract-service
+    get:
+      operationId: listContractDocuments
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      parameters: [{name: contractId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Participant-owned document metadata, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/ContractDocumentResponse'}}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/contracts/{contractId}/documents/{documentId}:
+    x-service-owner: contract-service
+    get:
+      operationId: getContractDocument
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: Owner-authorized contract-service proxy for immutable READY document bytes; MinIO object keys are never exposed.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: documentId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Immutable contract document bytes, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Document metadata exists but status is PENDING or FAILED; caller must reread the document list and must not repeat signing.}
   /api/v1/contracts/{contractId}/terms:
     x-service-owner: contract-service
     patch:
@@ -66,7 +105,8 @@ paths:
       x-roles: [BUYER, SELLER]
       x-domain-ownership-check: true
       description: >-
-        InitiateSign(contractId, signerRole, jwt) creates and persists the OTP challenge, then
+        InitiateSign first validates and persists action-specific checkbox consent bound to the
+        current signedContentHash, then creates and persists the OTP challenge and
         synchronously requests OTP email delivery. In the challenge transaction, every still-valid
         prior challenge for the same signer, contractId and signedContentHash is atomically expired
         before the new otpId is inserted. Resend therefore leaves only the newest challenge valid;
@@ -301,6 +341,7 @@ paths:
         - {name: contractId, in: path, required: true, schema: {type: string}}
         - {name: milestoneId, in: path, required: true, schema: {type: string}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConsentInput'}}}}
       responses: {'204': {description: Seller contests the flagged milestone; routing follows DisputeRoutingService.}, '409': {$ref: '#/components/responses/Conflict'}}
   /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure:
     x-service-owner: contract-service
@@ -374,6 +415,7 @@ paths:
         - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
         - {name: proposalId, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConsentInput'}}}}
       responses:
         '200': {description: Adjustment accepted, content: {application/json: {schema: {$ref: '#/components/schemas/AcceptedPriceAdjustment'}}}}
         '403':
@@ -579,7 +621,7 @@ components:
       type: object
       required: [listingId, listingVersionToken, terms]
       additionalProperties: false
-      x-validation: terms.qualityTerms.commodity must equal the authoritative Category.commodity resolved from listingId; the client cannot override goodsTerms. requestedQuantity is derived only as the sum of terms.milestoneSchedule committedQuantity. The exact opaque listingVersionToken is passed to product-service reserve; no independent quantity or client-owned inventory counter is accepted.
+      x-validation: The authoritative Category.commodity resolved from listingId and terms.qualityTerms.commodity must both be COFFEE. The client cannot override goodsTerms. requestedQuantity is derived only as the sum of terms.milestoneSchedule committedQuantity. The exact opaque listingVersionToken is passed to product-service reserve; no independent quantity or client-owned inventory counter is accepted.
       properties:
         listingId: {type: string, format: uuid}
         listingVersionToken:
@@ -590,6 +632,7 @@ components:
     ContractTermsBase:
       type: object
       required: [agreedPrice, currency, milestoneSchedule, qualityTerms, deliveryTerms, inspectionTerms, priceBand, priceAdjustmentRule, toleranceRate, shortfallPenaltyThreshold, buyerPenaltyRate, sellerPenaltyRate, forceMajeureReportWindowDays, buyerConfirmWindowDays, buyerDepositRate, disputeFloorReleaseRate, sellerDepositRate, legalProfile]
+      x-invariant: buyerPenaltyRate and sellerPenaltyRate must each be less than or equal to legalProfile.maxContractualPenaltyRate; contract-service validates this cross-field invariant before signature.
       properties:
         agreedPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11, description: "Signed base unit price used when a milestone has no accepted bounded adjustment; technical maximum 99,999,999.99 VND/kg."}
         currency: {type: string, const: VND}
@@ -610,24 +653,31 @@ components:
         sellerPenaltyRate: {type: number, minimum: 0, maximum: 1, description: Must be <= legalProfile.maxContractualPenaltyRate; 8% by default for VN_COMMERCIAL_LAW.}
         forceMajeureReportWindowDays: {type: integer, minimum: 1, description: Calendar-day window anchored to the seller-known event timestamp and resolved in Asia/Ho_Chi_Minh.}
         buyerConfirmWindowDays: {type: integer, minimum: 2, maximum: 10, description: Vietnam business-day window calculated in Asia/Ho_Chi_Minh from entry into BUYER_RECEIVED.}
-        buyerDepositRate: {type: number, minimum: 0, maximum: 1}
+        buyerDepositRate: {type: number, minimum: 0, maximum: 1, description: "Locked once at SIGNED against nominal totalContractValue and never recomputed from milestone price adjustments. Signed legacy snapshots outside the current negotiation band remain readable and operable."}
         disputeFloorReleaseRate: {type: number, minimum: 0.50, maximum: 1, description: Must not exceed 1 - level2SafetyBufferRate; service validates the cross-field guardrail.}
         sellerDepositRate: {type: number, minimum: 0, maximum: 1}
         level2InspectorOrg: {type: [string, 'null']}
         legalProfile: {$ref: '#/components/schemas/LegalProfile'}
     ContractTermsInput:
       description: Negotiated terms accepted by create/PATCH. goodsTerms and totalContractValue are server-derived and rejected if supplied.
-      x-validation: qualityTerms.commodity must equal the immutable goodsTerms.commodity already attached to the draft; a mismatch is rejected before signature.
+      x-validation: qualityTerms.commodity and immutable goodsTerms.commodity must both be COFFEE; any other commodity is outside Phase 2 and rejected before signature.
       allOf:
         - {$ref: '#/components/schemas/ContractTermsBase'}
+        - type: object
+          properties:
+            buyerDepositRate: {type: number, minimum: 0.03, maximum: 0.10, default: 0.05, description: "Negotiated per contract within the [3%, 10%] band for new create/PATCH input."}
       unevaluatedProperties: false
     ContractTermsSnapshot:
       description: Full immutable terms returned by the server and canonicalized into signedContentHash.
       allOf:
         - {$ref: '#/components/schemas/ContractTermsBase'}
         - type: object
-          required: [goodsTerms, totalContractValue]
+          required: [contractTemplateCode, contractTemplateVersion, contractTemplateHash, coffeeQualityProfileVersion, goodsTerms, totalContractValue]
           properties:
+            contractTemplateCode: {type: string, const: VN_COFFEE_B2B, readOnly: true}
+            contractTemplateVersion: {type: string, minLength: 1, readOnly: true}
+            contractTemplateHash: {type: string, pattern: '^[a-f0-9]{64}$', readOnly: true}
+            coffeeQualityProfileVersion: {type: string, minLength: 1, readOnly: true, description: Versioned internal coffee-quality profile; no external ISO/TCVN claim is implied.}
             goodsTerms: {$ref: '#/components/schemas/GoodsTermsSnapshot'}
             totalContractValue:
               type: string
@@ -689,7 +739,7 @@ components:
       type: object
       required: [commodity, listingId, productId, categoryId, categoryName, productName, unitOfMeasure, originSnapshot]
       properties:
-        commodity: {enum: [COFFEE, RICE, RUBBER, CASHEW]}
+        commodity: {const: COFFEE}
         listingId: {type: string, format: uuid}
         productId: {type: string, format: uuid}
         categoryId: {type: string, format: uuid}
@@ -706,47 +756,8 @@ components:
             traceabilitySnapshot:
               oneOf: [{$ref: '#/components/schemas/TraceabilitySnapshot'}, {type: 'null'}]
       unevaluatedProperties: false
-    RiceGoodsTerms:
-      allOf:
-        - {$ref: '#/components/schemas/GoodsTermsCommon'}
-        - type: object
-          required: [varietyName]
-          properties:
-            commodity: {const: RICE}
-            varietyName: {type: string, minLength: 1}
-            originSnapshot: {$ref: '#/components/schemas/RegionOnlyOriginSnapshot'}
-      unevaluatedProperties: false
-    RubberGoodsTerms:
-      allOf:
-        - {$ref: '#/components/schemas/GoodsTermsCommon'}
-        - type: object
-          properties:
-            commodity: {const: RUBBER}
-            originSnapshot: {$ref: '#/components/schemas/PlotBackedOriginSnapshot'}
-            traceabilitySnapshot:
-              oneOf: [{$ref: '#/components/schemas/TraceabilitySnapshot'}, {type: 'null'}]
-      unevaluatedProperties: false
-    CashewGoodsTerms:
-      allOf:
-        - {$ref: '#/components/schemas/GoodsTermsCommon'}
-        - type: object
-          properties:
-            commodity: {const: CASHEW}
-            originSnapshot: {$ref: '#/components/schemas/RegionOnlyOriginSnapshot'}
-      unevaluatedProperties: false
     GoodsTermsSnapshot:
-      oneOf:
-        - {$ref: '#/components/schemas/CoffeeGoodsTerms'}
-        - {$ref: '#/components/schemas/RiceGoodsTerms'}
-        - {$ref: '#/components/schemas/RubberGoodsTerms'}
-        - {$ref: '#/components/schemas/CashewGoodsTerms'}
-      discriminator:
-        propertyName: commodity
-        mapping:
-          COFFEE: '#/components/schemas/CoffeeGoodsTerms'
-          RICE: '#/components/schemas/RiceGoodsTerms'
-          RUBBER: '#/components/schemas/RubberGoodsTerms'
-          CASHEW: '#/components/schemas/CashewGoodsTerms'
+      $ref: '#/components/schemas/CoffeeGoodsTerms'
     CoffeeQualitySpec:
       type: object
       required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
@@ -758,44 +769,6 @@ components:
         foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
         blackBrokenBeansPercent: {type: number, minimum: 0, maximum: 100}
       example: {commodity: COFFEE, type: ROBUSTA, moisturePercent: 12.5, foreignMatterPercent: 0.5, blackBrokenBeansPercent: 5.0}
-    RiceQualitySpec:
-      type: object
-      required: [commodity, varietyName, brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
-      additionalProperties: false
-      properties:
-        commodity: {const: RICE}
-        varietyName: {type: string, minLength: 1}
-        brokenPercent: {type: number, minimum: 0, maximum: 100}
-        moisturePercent: {type: number, minimum: 0, maximum: 100}
-        chalkyKernelPercent: {type: number, minimum: 0, maximum: 100}
-        foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
-        purityPercent: {type: number, minimum: 0, maximum: 100}
-      example: {commodity: RICE, varietyName: ST25, brokenPercent: 5.0, moisturePercent: 14.0, chalkyKernelPercent: 3.0, foreignMatterPercent: 0.2, purityPercent: 98.0}
-    RubberQualitySpec:
-      type: object
-      required: [commodity, grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
-      additionalProperties: false
-      properties:
-        commodity: {const: RUBBER}
-        grade: {enum: [SVR_3L, SVR_5, SVR_10, SVR_20]}
-        dirtPercent: {type: number, minimum: 0, maximum: 100}
-        ashPercent: {type: number, minimum: 0, maximum: 100}
-        volatileMatterPercent: {type: number, minimum: 0, maximum: 100}
-        nitrogenPercent: {type: number, minimum: 0, maximum: 100}
-        plasticityRetentionIndex: {type: number, minimum: 0, maximum: 100}
-      example: {commodity: RUBBER, grade: SVR_10, dirtPercent: 0.08, ashPercent: 0.6, volatileMatterPercent: 0.8, nitrogenPercent: 0.6, plasticityRetentionIndex: 50}
-    CashewQualitySpec:
-      type: object
-      required: [commodity, grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
-      additionalProperties: false
-      properties:
-        commodity: {const: CASHEW}
-        grade: {enum: [W180, W210, W240, W320, W450]}
-        moisturePercent: {type: number, minimum: 0, maximum: 100}
-        defectiveKernelPercent: {type: number, minimum: 0, maximum: 100}
-        foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
-        kernelOutturnLbsPer80Kg: {type: number, minimum: 0, maximum: 80}
-      example: {commodity: CASHEW, grade: W320, moisturePercent: 5.0, defectiveKernelPercent: 8.0, foreignMatterPercent: 0.5, kernelOutturnLbsPer80Kg: 48}
     NumericDeviationPolicy:
       type: object
       required: [direction, tolerance, penalty, reject, discountRate]
@@ -822,38 +795,6 @@ components:
         moisturePercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
         foreignMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
         blackBrokenBeansPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-    RiceQualityDeviationPolicy:
-      description: Only measurable numeric keys are allowed; varietyName is intentionally absent.
-      type: object
-      required: [brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
-      additionalProperties: false
-      properties:
-        brokenPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        moisturePercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        chalkyKernelPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        foreignMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        purityPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-    RubberQualityDeviationPolicy:
-      type: object
-      required: [grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
-      additionalProperties: false
-      properties:
-        grade: {$ref: '#/components/schemas/ExactMatchRejectPolicy'}
-        dirtPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        ashPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        volatileMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        nitrogenPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        plasticityRetentionIndex: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-    CashewQualityDeviationPolicy:
-      type: object
-      required: [grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
-      additionalProperties: false
-      properties:
-        grade: {$ref: '#/components/schemas/ExactMatchRejectPolicy'}
-        moisturePercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        defectiveKernelPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        foreignMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
-        kernelOutturnLbsPer80Kg: {$ref: '#/components/schemas/NumericDeviationPolicy'}
     CoffeeQualityTerms:
       type: object
       required: [commodity, committedSpec, deviationPolicy]
@@ -862,43 +803,8 @@ components:
         commodity: {const: COFFEE}
         committedSpec: {$ref: '#/components/schemas/CoffeeQualitySpec'}
         deviationPolicy: {$ref: '#/components/schemas/CoffeeQualityDeviationPolicy'}
-    RiceQualityTerms:
-      type: object
-      required: [commodity, committedSpec, deviationPolicy]
-      additionalProperties: false
-      properties:
-        commodity: {const: RICE}
-        committedSpec: {$ref: '#/components/schemas/RiceQualitySpec'}
-        deviationPolicy: {$ref: '#/components/schemas/RiceQualityDeviationPolicy'}
-    RubberQualityTerms:
-      type: object
-      required: [commodity, committedSpec, deviationPolicy]
-      additionalProperties: false
-      properties:
-        commodity: {const: RUBBER}
-        committedSpec: {$ref: '#/components/schemas/RubberQualitySpec'}
-        deviationPolicy: {$ref: '#/components/schemas/RubberQualityDeviationPolicy'}
-    CashewQualityTerms:
-      type: object
-      required: [commodity, committedSpec, deviationPolicy]
-      additionalProperties: false
-      properties:
-        commodity: {const: CASHEW}
-        committedSpec: {$ref: '#/components/schemas/CashewQualitySpec'}
-        deviationPolicy: {$ref: '#/components/schemas/CashewQualityDeviationPolicy'}
     QualityTerms:
-      oneOf:
-        - {$ref: '#/components/schemas/CoffeeQualityTerms'}
-        - {$ref: '#/components/schemas/RiceQualityTerms'}
-        - {$ref: '#/components/schemas/RubberQualityTerms'}
-        - {$ref: '#/components/schemas/CashewQualityTerms'}
-      discriminator:
-        propertyName: commodity
-        mapping:
-          COFFEE: '#/components/schemas/CoffeeQualityTerms'
-          RICE: '#/components/schemas/RiceQualityTerms'
-          RUBBER: '#/components/schemas/RubberQualityTerms'
-          CASHEW: '#/components/schemas/CashewQualityTerms'
+      $ref: '#/components/schemas/CoffeeQualityTerms'
     DeliveryTerms:
       type: object
       required: [deliveryResponsibility, riskTransferPoint, titleTransferPoint, transportCostBearer, unloadingCostBearer]
@@ -1234,10 +1140,19 @@ components:
       additionalProperties: false
     InitiateSignRequest:
       type: object
-      required: [signerRole]
+      required: [signerRole, consentStatementVersion, presentedContentHash]
       properties:
         signerRole: {enum: [BUYER, SELLER]}
+        consentStatementVersion: {type: string, minLength: 1, description: Active server-owned SIGN_CONTRACT checkbox statement version displayed to the signer.}
+        presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: Hash displayed to the signer; server must require equality with the current signedContentHash before creating an OTP challenge.}
       additionalProperties: false
+    ConsentInput:
+      type: object
+      required: [statementVersion, presentedContentHash]
+      additionalProperties: false
+      properties:
+        statementVersion: {type: string, minLength: 1}
+        presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: Current server-verifiable hash of the action subject/content shown with the checkbox.}
     InitiateSignResponse:
       type: object
       required: [otpId, expiresAt]
@@ -1254,32 +1169,52 @@ components:
       additionalProperties: false
     SellerWeighedRequest:
       type: object
-      required: [sellerDeclaredWeight, sellerEvidenceFileId]
+      required: [sellerDeclaredWeight, sellerEvidenceFileId, consent]
       properties:
         sellerDeclaredWeight: {type: number, exclusiveMinimum: 0, description: Seller-declared loaded weight in canonical kilograms (kg).}
         sellerEvidenceFileId: {type: string, format: uuid}
         deliveryCertificateFileId: {type: string, format: uuid, description: Optional batch certificate used only as delivery/dispute evidence; never parsed as actual quality metrics.}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
       additionalProperties: false
     BuyerReceivedRequest:
       type: object
-      required: [buyerReceivedWeight, buyerEvidenceFileId]
+      required: [buyerReceivedWeight, buyerEvidenceFileId, consent]
       properties:
         buyerReceivedWeight: {type: number, exclusiveMinimum: 0, description: Buyer-received unloaded weight in canonical kilograms (kg).}
         buyerEvidenceFileId: {type: string, format: uuid}
         deliveryCertificateFileId: {type: string, format: uuid, description: Optional batch certificate used only as delivery/dispute evidence; never parsed as actual quality metrics.}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
       additionalProperties: false
+    ContractDocumentResponse:
+      type: object
+      required: [documentId, contractId, documentType, templateCode, templateVersion, sourceContentHash, status]
+      additionalProperties: false
+      properties:
+        documentId: {type: string, format: uuid}
+        contractId: {type: string, format: uuid}
+        documentType: {enum: [DRAFT_PREVIEW, PARTIALLY_SIGNED, FINAL_SIGNED_CONTRACT, ACTIVATION_CONFIRMATION, DELIVERY_RECEIPT, INSPECTION_RECORD]}
+        templateCode: {type: string, pattern: '^VN_COFFEE_[A-Z0-9_]+$', description: FINAL_SIGNED_CONTRACT uses VN_COFFEE_B2B; supporting documents use their own versioned coffee template code.}
+        templateVersion: {type: string, minLength: 1}
+        sourceContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+        documentFileHash: {type: [string, 'null'], pattern: '^[a-f0-9]{64}$'}
+        fileId: {type: [string, 'null'], format: uuid}
+        status: {enum: [PENDING, READY, FAILED]}
+        generatedAt: {type: [string, 'null'], format: date-time}
+        failureReason: {type: [string, 'null']}
     ForceMajeureClaimRequest:
       type: object
-      required: [evidenceFileId]
+      required: [evidenceFileId, consent]
       additionalProperties: false
       properties:
         evidenceFileId: {type: string, format: uuid}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
     ForceMajeureResolveRequest:
       type: object
-      required: [decision]
+      required: [decision, consent]
       additionalProperties: false
       properties:
         decision: {enum: [APPROVED, REJECTED]}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
     AuditRecordList:
       type: array
       items:

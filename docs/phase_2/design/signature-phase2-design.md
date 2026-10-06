@@ -6,10 +6,12 @@ metadata:
     type: design
     phase: 2
     extends: "services.md § Security gaps (mục 9)"
-    related: "hash-chain-phase2-design.md §4; user-service-phase2-design.md §3-4; notification-service-phase2-design.md §2.2/§4"
+    related: "hash-chain-phase2-design.md §4; user-service-phase2-design.md §3-4; notification-service-phase2-design.md §2.2/§4; contract-document-consent-phase2-design.md"
 ---
 
 ## 1. Bối cảnh & Scope
+
+**Bổ sung 06/10/2026:** consent checkbox và document representation thuộc owner design `contract-document-consent-phase2-design.md`. Checkbox là bằng chứng ý chí theo đúng hành vi/nội dung, không được mô tả là vân tay hoặc điểm chỉ vật lý. Phase 2 mới chỉ nhận hợp đồng nội địa Việt Nam cho `COFFEE`.
 
 `services.md` mục 9 chốt khái niệm chung: chữ ký số chứng minh "đúng người đã ký", KYC chứng minh "người đó có thẩm quyền đại diện" — kết hợp cả hai mới cover hoàn toàn non-repudiation. Doc này chốt phần **thiết kế cụ thể**: cấu trúc bản ghi `Signature`, verify logic chạy lúc `sign()`, và cơ chế xác minh thẩm quyền đại diện gắn liền với nó — áp dụng cho cả Buyer lẫn Seller.
 
@@ -50,6 +52,10 @@ Value object, không phải aggregate riêng — sống/chết cùng `Contract`,
 `UNIQUE(contractId, signerRole)` — mỗi bên ký đúng 1 lần cho 1 hợp đồng. `Contract` chuyển `SIGNED` khi tồn tại đủ 2 dòng (`BUYER` + `SELLER`) cho cùng `contractId`, không cần thêm cờ `buyerSigned`/`sellerSigned` riêng trên `Contract`.
 
 **⟢ Lưu ý cho team code (cập nhật 17/07/2026):** bảng `signature` của `contract_db` **chỉ** chứa nhánh `BUYER`/`SELLER` — phương án cũ "mở rộng enum + `report_id` cho INSPECTOR" đã superseded vì tạo cross-service write không có đường thực thi (inspector thao tác ở inspection-service, không được ghi `contract_db`). Nhánh INSPECTOR giờ nằm ở bảng riêng `inspector_signature` trong DB của inspection-service (owner: `inspection-phase2-design.md` §2.1/§5) — chung cơ chế step-up/session-freshness, không chung bảng vật lý. Migrate bảng `signature` theo đúng file này là đủ.
+
+### 3.1 `ConsentEvidence` trước chữ ký
+
+Mỗi lần initiate ký phải persist một consent append-only theo model và rule ở `contract-document-consent-phase2-design.md` §4. Consent của action `SIGN_CONTRACT` bind `contractId`, signer, role, statement version/hash và `presentedContentHash` đúng bằng `signedContentHash` hiện hành. Consent không thay thế Signature; nó chứng minh người dùng đã được hiển thị statement/nội dung nào trước khi server phát OTP.
 
 ---
 
@@ -117,7 +123,7 @@ The reconciliation API catalog is promoted to the authoritative design contract:
 
 Both routes use the existing SDS error envelope. Write requests carry the caller identity from Gateway JWT; contract-service remains the owner of authorization, OTP binding and signature state.
 
-Tách 2 bước, không còn 1 lệnh `sign()` duy nhất — buyer/seller phải qua đủ cả step-up lẫn OTP mới thật sự ký:
+Tách 2 bước, không còn 1 lệnh `sign()` duy nhất — buyer/seller phải qua đủ consent checkbox, step-up và OTP mới thật sự ký:
 
 ```
 InitiateSign(contractId, signerRole, jwt):
@@ -128,6 +134,11 @@ InitiateSign(contractId, signerRole, jwt):
   2. authTime = jwt.claims["auth_time"]
      Nếu now() - authTime > signatureAuthMaxAgeSeconds → REJECT, yêu cầu step-up lại
      (§4 — phiên xác thực đủ mới)
+
+  2a. Validate consent cho action SIGN_CONTRACT: consentStatementVersion đang active;
+      presentedContentHash == SHA256(ContractTermsSnapshot hiện hành). Server resolve
+      statementCode/hash, không tin statement text/hash do client gửi. Sai action/subject/hash
+      → REJECT trước khi tạo OTP; đúng → persist ConsentEvidence cùng correlationId.
 
   3. Trong một DB transaction, lock Contract row để serialize initiate/resend; với đúng
      tuple (user_id=jwt.sub, signer_role, contract_id, signed_content_hash hiện tại),
@@ -186,16 +197,16 @@ VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify t
      - F18 is rechecked immediately before transition as a defense-in-depth guard; the
        transaction must not commit a second Signature if the value changed concurrently.
      Đủ 2 dòng (BUYER + SELLER) CÙNG signedContentHash và pass F18
-     → Contract.transitionTo(SIGNED)
+     → Contract.transitionTo(SIGNED). Cùng transaction tạo ContractDocument
+     FINAL_SIGNED_CONTRACT ở PENDING; durable worker render/lưu PDF sau commit.
+     Render fail không rollback Signature hoặc SIGNED.
 
-  6. Publish `notification.contract_anchor_requested` cho notification-service,
-     payload `{eventId, contractId, recipients[{userId,email,role}],
-     contractTermsSnapshot, signedContentHash, signedAt}`. contract-service lấy email qua
-     InternalUserInfo đã dùng cho KYC; domain event `contract.signed` ở bước 6 không bị
-     nhồi snapshot/email chỉ để phục vụ notification.
-     (Sửa 17/07/2026: KHÔNG còn "push hash vào audit-service" như 1 đường riêng chưa
-      đặt tên — audit-service consume chính `contract.signed` ở bước 6, payload đã mang
-      `signedContentHash`; 1 event, thêm 1 consumer — hash-chain §2.4.)
+  6. Không gửi email/PDF final trực tiếp trong transaction ký. Sau commit, document
+     worker render FINAL_SIGNED_CONTRACT từ đúng snapshot/hash, lưu SYSTEM_GENERATED,
+     chuyển ContractDocument READY và publish `contract.document_generated`.
+     Contract-service sau đó publish `notification.contract_document_ready_requested`;
+     retry/dedup theo documentId + recipient + type. Compatibility command
+     `notification.contract_anchor_requested` không còn là đường final canonical.
 
   7. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026; payload mở
      rộng 08/07/2026 và 17/07/2026). Payload mang `buyerDepositAmount`/
@@ -225,9 +236,14 @@ CREATE TABLE signature (
     UNIQUE (contract_id, signer_role)
 );
 
+-- ConsentEvidence đầy đủ/DDL canonical thuộc contract-document-consent-phase2-design.md.
+-- signature_otp reference consent_id của đúng initiate để chứng minh challenge nào
+-- được phát sau statement/hash nào; consent row là append-only.
+
 -- OTP layer (bổ sung 03/07/2026, §4.1) — bảng riêng, vòng đời khác Signature
 CREATE TABLE signature_otp (
     otp_id          CHAR(36) PRIMARY KEY,
+    consent_id      CHAR(36) NOT NULL REFERENCES consent_evidence(consent_id),
     contract_id      CHAR(36) NOT NULL REFERENCES contract(contract_id),
     signer_role       VARCHAR(10) NOT NULL,
     user_id           CHAR(36) NOT NULL,
@@ -272,6 +288,8 @@ CREATE TABLE signature_otp (
 **Chốt bổ sung (03/07/2026) — OTP Email, lớp thứ 2 song song:** không đổi tier pháp lý (đã xác nhận qua Điều 22-23 — cả `chữ ký điện tử chuyên dùng bảo đảm an toàn` lẫn `chữ ký số` đều không đạt được bằng cơ chế xác thực mạnh hơn, 1 đường chỉ dành cho tổ chức đăng ký với Bộ TT&TT, đường kia cần chứng thư CA), chỉ nâng chất lượng bằng chứng — thêm possession-based factor (đang truy cập được hộp mail tại đúng thời điểm) song song với knowledge-based factor sẵn có (password step-up). Flow tách `InitiateSign`/`VerifyOtpAndSign` (§6), bảng `signature_otp` riêng (§7), config `otpLength`=6, `otpExpirySeconds`=300s, `otpMaxAttempts`=5, `otpMaxResendPerHour`=5, `otpResendCooldownSeconds`=60s (§4.1). Email OTP kèm `signedContentHash` — vừa xác thực người, vừa gắn đúng nội dung. WebAuthn/sinh trắc học vẫn để ngoài phạm vi — lý do không đổi (không có đường nào tới tier pháp lý cao hơn qua cơ chế xác thực kỹ thuật), OTP chọn vì rẻ hơn, tận dụng hạ tầng SendGrid sẵn có, không thêm third-party dependency mới.
 
 **Chốt bổ sung (23/07/2026) — OTP supersession không đổi API/DDL:** mỗi initiate/resend cho cùng `signer + contractId + signedContentHash` atomically expire mọi challenge cũ còn hiệu lực trước khi insert challenge mới, serialize bằng lock trên Contract row. `VerifyOtpAndSign` vẫn lookup theo `otpId`, nhưng OTP cũ đã supersede phải fail ở expiry guard ngay cả khi code đúng. Batch này không thêm endpoint, request field, status enum hay cột DB.
+
+**Chốt bổ sung (06/10/2026) — consent bind nội dung + document async:** `InitiateSignRequest` thêm `consentStatementVersion` và `presentedContentHash`; server chỉ phát OTP sau khi tạo `ConsentEvidence` hợp lệ. Chữ ký thứ hai vẫn publish `contract.signed` ngay, đồng thời tạo final document `PENDING`; PDF được render ngoài transaction và khi READY mới publish `contract.document_generated`. Checkbox không đổi tier chữ ký điện tử và không được gọi là điểm chỉ/vân tay thật.
 
 **Cập nhật (08/07/2026, phát sinh từ rà soát cross-service A1):** payload `contract.signed` (bước 6, §6) mở rộng thêm `buyerDepositAmount`/`sellerDepositAmount` — escrow-service (không chỉ analytics-service) giờ cũng consume event này để biết số tiền cần khoá lúc `SIGNED`. Không đổi gì ở logic ký/verify của file này — chỉ đổi payload của event đã publish sẵn.
 

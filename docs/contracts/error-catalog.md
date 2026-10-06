@@ -68,7 +68,7 @@ An idempotency replay is not a `409`. Repeating a request that already succeeded
 | Role/ownership denied | `403` | No automatic retry | Owning domain service; Gateway coarse role gate | Matrix 12, 16, 17, 21 |
 | Public DTO or internal route violation | `403`/`404` | No retry | Gateway/user-service | Matrix 14, 21 |
 | Validation failure | `400` | No retry without payload correction | Owning service | Matrix 22, 26b, 26c |
-| Listing/quality discriminator mismatch | `400` | Supply the spec variant matching authoritative `Category.commodity` | product/contract | Matrix 27 |
+| Non-coffee scope or quality discriminator mismatch | `400` | Use `COFFEE` with the canonical coffee spec; other commodities are not Phase 2 writes | product/contract/inspection | Matrix 22, 27j |
 | `LISTING_VERSION_MISMATCH` | `409` | Reread the listing, show the changed terms to the buyer, and submit the newly returned opaque token; never blind-retry | contract-service, token owned by product-service | Product §8b; milestone §2.1c |
 | `INSUFFICIENT_LISTING_QUANTITY` | `409` | Reload the listing and let the buyer revise milestone quantities or abandon create; never blind-retry the unchanged request | product-service reservation, surfaced by contract-service | Product §8b.2; milestone §2.1d; Matrix 28 |
 | Inspection cost policy other than `LOSER_PAYS` | `400` | Use the sole Phase 2 signed value | contract-service | Matrix 27o / 27h |
@@ -76,6 +76,8 @@ An idempotency replay is not a `409`. Repeating a request that already succeeded
 | State transition conflict / immutable terms | `409` | No blind retry; reread state | contract/escrow/inspection | Matrix 3, 11c, 21b |
 | Legacy draft missing new signed terms | `400`/controlled sign rejection | PATCH all required quality/delivery/inspection/pricing terms before initiating signature | contract-service | Matrix 27d |
 | OTP expired/locked/invalid, superseded, or challenge binding mismatch | `403` or `409` as defined by the signature use case | Initiate one new challenge; an older otpId never becomes valid again | contract-service | Matrix 20, 21b, 21g |
+| Consent action/subject/statement/content mismatch | `400`/`409` before side effect | Reload current statement/content and consent again; never reuse consent from another action/subject | owning service | Matrix 21h |
+| Contract document not ready | `409` or metadata `PENDING/FAILED` | Poll document metadata or let durable generation retry; never repeat the signature | contract-service | Matrix 11v, 29c |
 | Dependency unavailable on eligibility gate | `503` | Caller may retry with idempotency | user-service callers | Matrix 19, 21f |
 | Bank/escrow transient failure | Event retry; API reports controlled failure | Retry failed leg/event only | escrow/bank | Matrix 1, 6, 11, 11b |
 | Milestone funding failure | `FUNDING_FAILED`; seller clock remains paused | Retry failed funding leg; buyer cure window applies only to buyer-caused failure | escrow/contract | Matrix 11m |

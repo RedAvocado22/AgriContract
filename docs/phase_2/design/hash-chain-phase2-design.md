@@ -63,6 +63,7 @@ Cả 3 dùng chung schema `AuditRecord` §3 — `content` mang payload đã ký 
 |---|---|---|
 | `MILESTONE_EVENT` | các `milestone.*` ✅ theo §2.1 | contract-service |
 | `CONTRACT_SIGNED` | `contract.signed` (payload mang `signedContentHash` — 17/07/2026) | contract-service |
+| `CONTRACT_DOCUMENT_GENERATED` | `contract.document_generated` (mang `sourceContentHash` + `documentFileHash`) | contract-service |
 | `INSPECTION_REPORT` | `inspection.report_confirmed` (tier = LEVEL_1_5) | inspection-service |
 | `EXTERNAL_INSPECTION_REPORT` | `inspection.report_confirmed` (tier = LEVEL_2) | inspection-service |
 | `LEVEL2_INSPECTION_COMMISSIONED` | `inspection.level2_commissioned` | inspection-service |
@@ -74,7 +75,7 @@ Cả 3 dùng chung schema `AuditRecord` §3 — `content` mang payload đã ký 
 | `REMEDY_FINALIZED` (**mới 19/07/2026**) | `remedy.finalized` | contract-service (kết luận attribution + remedyLegs — chính là RemedyDecision mà escrow/reputation thực thi theo; phải bất biến + timestamp độc lập để defensible trước VIAC/toà) |
 | `CONTRACT_TERMINATED` (**mới 19/07/2026**) | `contract.terminated` | contract-service (terminationType + finalBreachingRole — gồm cả `MUTUAL_REPLACEMENT` với cặp con trỏ supersede: chain chứng minh được hợp đồng cũ đóng sạch và hợp đồng mới nối đúng) |
 
-`STRUCTURING_REPORT` và `AML_RISK_CLEARED` là 2 giá trị trước đây chỉ được nhắc ở bank/reputation mà chưa vào catalog này — đã gom về. Record cấp hệ thống/cấp cặp (key registration, security lock, AML) dùng `subject_type = SYSTEM | USER_PAIR` (**sửa 18/07/2026** — bỏ hẳn contractId sentinel; sentinel làm per-contract chain lẫn semantic, giờ mỗi subject có chain riêng sạch sẽ qua `prev_hash_subject`). OTS policy: 2 nhóm security (`EXTERNAL_VERIFIER_*`, `SECURITY_*`) anchor như event ✅ (§2.3); `STRUCTURING_REPORT`/`AML_RISK_CLEARED` cũng anchor — cùng tiêu chí "quyết định có thể bị tranh chấp". **3 source_type attribution (19/07/2026)** — `BREACH_REPORTED`/`REMEDY_FINALIZED`/`CONTRACT_TERMINATED` — anchor như event ✅ theo đúng tiêu chí đó: đây là các mốc sẽ bị tranh chấp trực diện nhất (ai cáo buộc lúc nào, kết luận ra sao, hợp đồng chấm dứt kiểu gì); `subject_type = CONTRACT`.
+`STRUCTURING_REPORT` và `AML_RISK_CLEARED` là 2 giá trị trước đây chỉ được nhắc ở bank/reputation mà chưa vào catalog này — đã gom về. `CONTRACT_DOCUMENT_GENERATED` commit tách biệt hash nội dung pháp lý (`sourceContentHash`) và hash bytes PDF (`documentFileHash`); audit-service không coi hai hash là cùng một giá trị. Record cấp hệ thống/cấp cặp (key registration, security lock, AML) dùng `subject_type = SYSTEM | USER_PAIR` (**sửa 18/07/2026** — bỏ hẳn contractId sentinel; sentinel làm per-contract chain lẫn semantic, giờ mỗi subject có chain riêng sạch sẽ qua `prev_hash_subject`). OTS policy: 2 nhóm security (`EXTERNAL_VERIFIER_*`, `SECURITY_*`) anchor như event ✅ (§2.3); `STRUCTURING_REPORT`/`AML_RISK_CLEARED` cũng anchor — cùng tiêu chí "quyết định có thể bị tranh chấp". **3 source_type attribution (19/07/2026)** — `BREACH_REPORTED`/`REMEDY_FINALIZED`/`CONTRACT_TERMINATED` — anchor như event ✅ theo đúng tiêu chí đó: đây là các mốc sẽ bị tranh chấp trực diện nhất (ai cáo buộc lúc nào, kết luận ra sao, hợp đồng chấm dứt kiểu gì); `subject_type = CONTRACT`.
 
 ---
 
@@ -91,7 +92,7 @@ CREATE TABLE audit_record (
                                                 -- emergency lock, AML cấp cặp không phải contract;
                                                 -- sentinel làm per-contract chain lẫn semantic)
     subject_id          VARCHAR(100) NOT NULL,  -- contractId | "buyerId:sellerId" | "SYSTEM"
-    source_type         VARCHAR(50) NOT NULL,   -- danh sách đầy đủ ở §2.4 (17/07/2026; +3 19/07/2026): MILESTONE_EVENT | CONTRACT_SIGNED | INSPECTION_REPORT | EXTERNAL_INSPECTION_REPORT | LEVEL2_INSPECTION_COMMISSIONED | EXTERNAL_VERIFIER_KEY_REGISTERED | SECURITY_LOCK_TRIGGERED | SECURITY_UNLOCK_TRIGGERED | STRUCTURING_REPORT | AML_RISK_CLEARED | BREACH_REPORTED | REMEDY_FINALIZED | CONTRACT_TERMINATED
+    source_type         VARCHAR(50) NOT NULL,   -- danh sách đầy đủ ở §2.4, gồm CONTRACT_DOCUMENT_GENERATED
     source_event_type   VARCHAR(100) NOT NULL,  -- vd: 'milestone.settled', 'remedy.finalized'
     source_event_id     CHAR(36) NOT NULL UNIQUE,  -- MỚI 19/07 lần 3: dedup theo domain event — RabbitMQ redeliver
                                                    -- cùng remedy.finalized/contract.terminated mà không có UNIQUE này
@@ -174,27 +175,27 @@ record_hash        = SHA256(canonicalJson({
 
 ## 4. Multi-location Hash Storage (chi tiết mục 7 + 8)
 
-**Chốt (02/07/2026):** mục 7 và mục 8 gốc mô tả **cùng 1 hành động** — 1 email gửi lúc `sign()`/report `SUBMITTED` — nhấn mạnh 2 giá trị khác nhau của nó, không phải 2 việc riêng.
+**Cập nhật (06/10/2026):** email hợp đồng final được gửi sau document READY, không còn nằm trong transaction `sign()`. Email inspection/report giữ timing theo owner flow riêng.
 
 ### 4.1 Ba nơi lưu, phải khớp nhau
 
-**SỬA SEMANTIC (18/07/2026, round 2) — cái gì khớp với cái gì:** thứ phải khớp 3 nơi là **`Contract.signedContentHash = audit_record.source_hash = hash trong email`** (cùng 1 giá trị = SHA256(ContractTerms), lưu 3 chỗ). Còn `audit_record.record_hash` là **chain-integrity hash** — SHA256(canonicalJson(toàn bộ record + prev hashes), §3), CỐ TÌNH khác signedContentHash và được verify riêng bằng recompute công thức (§4.2/§5). Bản cũ gọi record_hash là "nơi lưu thứ 2 của signedContentHash" — sai từ khi công thức thành canonical; hai hash hai vai, không bao giờ so trực tiếp với nhau.
+**SỬA SEMANTIC (06/10/2026) — ba hash khác vai:** `signedContentHash/sourceContentHash` commit canonical legal content; `documentFileHash` commit bytes PDF; `audit_record.record_hash` commit record + chain links. `Contract.signedContentHash = CONTRACT_SIGNED.source_hash = CONTRACT_DOCUMENT_GENERATED.content.sourceContentHash = hash nội dung trong email final`. `documentFileHash` chỉ so với bytes file-service/PDF attachment. `record_hash` luôn verify riêng và không bao giờ so trực tiếp với hai hash kia.
 
 | #   | Nơi lưu                                                                           | Ai kiểm soát                                      | Giá trị bảo vệ                                                             |
 | --- | --------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
 | 1   | `contract-service` DB (`Contract.signedContentHash`)                              | Platform                                          | Nguồn gốc — nơi hash được tính ra đầu tiên                                 |
 | 2   | `audit-service` DB (**`audit_record.source_hash`**, `source_type = 'CONTRACT_SIGNED'`) | Platform | Bản sao thứ 2 của signedContentHash, nằm trong record đã được chain bảo vệ |
-| 3   | Email gửi buyer + seller lúc `sign()`                                             | **Ngoài platform** — hộp thư cá nhân buyer/seller | Ngoài tầm với của bất kỳ ai trong platform, kể cả Admin có full quyền root |
+| 3   | Email final gửi buyer + seller sau `contract.document_generated`                  | **Ngoài platform** — hộp thư cá nhân buyer/seller | Ngoài tầm với của bất kỳ ai trong platform, kể cả Admin có full quyền root |
 
-**Nội dung email (mục 7 — "có bản sao ở ngoài"):** snapshot đầy đủ `ContractTerms` (PDF/JSON) + dòng `signedContentHash`, gửi qua `notification-service` ngay khi `sign()` thành công.
+**Nội dung email (mục 7 — "có bản sao ở ngoài"):** sau `contract.document_generated`, notification-service gửi final PDF kèm `signedContentHash/sourceContentHash`, `documentFileHash`, template code/version và timestamp. `contract.signed` vẫn vào chain ngay khi chữ ký thứ hai commit; việc email/PDF bị trễ hoặc retry không làm thay đổi trạng thái ký.
 
 **Giá trị timestamp (mục 8 — "có mốc thời gian độc lập"):** thời điểm gửi do hệ thống email bên thứ 3 (Gmail/Outlook) ghi lại, không phải đồng hồ do platform kiểm soát — platform không tự "lùi ngày" được mốc này sau khi email đã gửi.
 
-**Bổ sung (08/07/2026) — email anchor cho External Verifier key (bank-service §3.5.6 lớp 2):** khi đăng ký/đổi public key của External Verifier, gửi email fingerprint của key đó thẳng vào hộp thư External Verifier — cùng cơ chế "bản sao ngoài platform" như email buyer/seller lúc `sign()`. Đây là nơi lưu thứ 3 (ngoài config platform + record `EXTERNAL_VERIFIER_KEY_REGISTERED` trong chain) cho root-of-trust của kill switch: Admin lén đổi public key trong config → lệch với record đã anchor (bắt bởi `VerifyChainJob`) **và** lệch với fingerprint External Verifier tự giữ trong mail của họ.
+**Bổ sung (08/07/2026) — email anchor cho External Verifier key (bank-service §3.5.6 lớp 2):** khi đăng ký/đổi public key của External Verifier, gửi email fingerprint của key đó thẳng vào hộp thư External Verifier — cùng cơ chế "bản sao ngoài platform" như email final contract cho buyer/seller. Đây là nơi lưu thứ 3 (ngoài config platform + record `EXTERNAL_VERIFIER_KEY_REGISTERED` trong chain) cho root-of-trust của kill switch: Admin lén đổi public key trong config → lệch với record đã anchor (bắt bởi `VerifyChainJob`) **và** lệch với fingerprint External Verifier tự giữ trong mail của họ.
 
 ### 4.2 Verify logic
 
-3 giá trị hash (contract-service DB, audit-service `AuditRecord`, hash trong email đã gửi) phải **khớp tuyệt đối** vì cùng tính từ 1 `ContractTerms` tại đúng 1 thời điểm `sign()`. Attacker muốn qua mặt phải compromise cả 3 cùng lúc — 2 DB nội bộ (khả thi nếu có quyền cao) + email đã nằm ngoài platform (bất khả thi trừ khi hack thêm tài khoản email cá nhân của buyer/seller).
+Ba bản sao của content hash (contract-service DB, audit record và email final) phải khớp tuyệt đối vì cùng bắt nguồn từ snapshot tại chữ ký thứ hai. PDF bytes được verify thêm bằng `documentFileHash`; nó không tham gia phép so content-hash ba bên. Attacker muốn qua mặt phải sửa được cả dữ liệu nội bộ, blob/hash PDF và email đã rời platform.
 
 ### 4.3 OpenTimestamps Anchor — bổ sung (03/07/2026)
 
@@ -282,7 +283,7 @@ Toàn bộ thiết kế 3 lớp (hash chain + multi-location + email anchor) đ�
 
 **2 lớp vẫn đứng vững kể cả trong kịch bản xấu nhất này:**
 
-- Email anchor lúc `sign()` gửi cho **buyer/seller thật trong từng hợp đồng cụ thể** — người này khác hoàn toàn, thời điểm khác hoàn toàn so với người nhận weekly digest. Không bị ảnh hưởng bởi collusion ở phía hiệp hội.
+- Email final sau document READY gửi cho **buyer/seller thật trong từng hợp đồng cụ thể** — người này khác hoàn toàn, thời điểm khác hoàn toàn so với người nhận weekly digest. Không bị ảnh hưởng bởi collusion ở phía hiệp hội.
 - Bằng chứng toán học (hash mismatch) tồn tại độc lập với việc có ai chủ động báo hay không — bất kỳ bên thứ 3 nào sau này (luật sư, chuyên gia toà chỉ định) tự chạy lại được đúng phép verify này trên dữ liệu thô, không cần platform "thông báo" mới phát hiện ra.
 - OTS anchor (§4.3, bổ sung 03/07/2026) cho global commitment hash — verify được ngay cả khi platform sập hoàn toàn, không domain, không server, vì bằng chứng nằm trên Bitcoin, không nằm trong hệ thống của platform.
 - **External Verifier self-service watchdog (§4.4, bổ sung 08/07/2026)** — tổ chức vận hành platform (Software Buyer, không cột cứng VICOFA) tự query hash đối soát bằng lịch riêng, ngoài tầm Admin, và có đường ký lệnh kill switch (bank-service §3.5) nếu phát hiện lệch. Đây là lần đầu phép đối chiếu chủ động **không** phụ thuộc duy nhất vào job nội bộ platform.
@@ -312,6 +313,8 @@ Toàn bộ thiết kế 3 lớp (hash chain + multi-location + email anchor) đ�
 **Đã đóng (13/07/2026):** đồng bộ với `bank-service-phase2-design.md` §3.5 xong — 2 `source_type` mới khớp 2 bên; review §2.3/§4.4 end-to-end xong — chain append cho External Verifier key + security lock/unlock nhất quán với 3 lớp gốc. **Sẵn sàng promote lên SDS/Architecture.**
 
 **Cập nhật (17/07/2026):** thêm §2.4 Audit Ingestion Catalog — mọi nguồn vào chain là domain event, audit-service là writer duy nhất của `audit_record`; gom 4 `source_type` lệch catalog (`EXTERNAL_INSPECTION_REPORT`, `LEVEL2_INSPECTION_COMMISSIONED`, `STRUCTURING_REPORT`, `AML_RISK_CLEARED`); `CONTRACT_SIGNED` ingest qua `contract.signed` (payload + `signedContentHash`); endpoint `audit-hash` chuyển về audit-service (§4.4).
+
+**Cập nhật (06/10/2026):** ingest `contract.document_generated` thành `CONTRACT_DOCUMENT_GENERATED`; record commit riêng `sourceContentHash` và `documentFileHash`. Final email được phát sau document READY, không coi PDF hash là content hash.
 
 Hash Chain — **ĐÓNG SESSION HOÀN TOÀN**: 3 lớp gốc + lớp External Verifier (§2.3/§4.4) đều đã đóng, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.
 

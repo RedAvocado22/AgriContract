@@ -52,6 +52,9 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 11q | Replay evidence event không nhân đôi audit record/anchor | Redeliver cùng `remedy.finalized`/`contract.terminated` (eventId cũ) → `audit_record.source_event_id` UNIQUE reject/no-op, không record mới, không anchor mới, không email evidence thứ 2 | hash-chain §3 `source_event_id` (19/07 lần 3) |
 | 11r | Reservation/release không double-decrement hoặc double-restore | Reserve replay cùng `contractId` trả cùng record; withdraw/activation-failed/compensation replay cùng hoặc khác eventId hợp lệ chỉ transition `RELEASED` một lần và counter khớp | product §8b.2; milestone-escrow §2.1d |
 | 11s | `SIGNED` chưa commit inventory và quantity snapshot phải khớp | Ép `Σ committedQuantity != reservedQuantity` → chặn `SIGNED`; đúng tổng → `SIGNED_RELEASABLE`; activation failure restore, chỉ `contract.activated` chuyển `COMMITTED` | milestone-escrow §2.1d; signature §6 bước 4 |
+| 11t | Template/profile là một phần nội dung ký | Đổi riêng `contractTemplateVersion`, `contractTemplateHash` hoặc `coffeeQualityProfileVersion` → `signedContentHash` đổi; OTP/consent cũ bị reject | contract-document-consent §3; signature §6 |
+| 11u | Final PDF khớp đúng nội dung đã ký và không overwrite | Recompute PDF bytes = `documentFileHash`, metadata `sourceContentHash = signedContentHash`; thử replace blob/document READY → reject, bản cũ còn đọc được | contract-document-consent §5-7; file-service §6-7; hash-chain §2.4 |
+| 11v | PDF generation fail không làm mất chữ ký | Chữ ký thứ hai commit `SIGNED` + document `PENDING`; mock renderer/file-service fail rồi retry → hai Signature vẫn còn, cuối cùng đúng một document READY/event | contract-document-consent §5; signature §6 |
 
 ### P1 — Access control & luồng an toàn
 
@@ -73,12 +76,13 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 21e | Xoá file 2 bước tự lành | Mock MinIO delete fail sau tombstone → job re-run → cả DB lẫn blob về trạng thái nhất quán, không rác | file-service §7 (18/07 r2) |
 | 21f | Listing/offer fail-closed khi user-service chết | Stop user-service → CreateListing/CreateOffer trả 503, user đang khoá không lách được | user §3 (18/07 r2) |
 | 21g | Resend OTP vô hiệu challenge cũ còn hạn | Initiate hai lần cùng signer/contract/hash → verify otpId cũ với code đúng vẫn reject; chỉ otpId mới nhất pass. Concurrent resend không để hai challenge cùng hợp lệ | signature §6 (23/07) |
+| 21h | Consent bind đúng action, subject, statement và content hash | Dùng consent của contract/action khác, statement version cũ hoặc `presentedContentHash` lệch → reject trước side effect/OTP; đúng input tạo đúng một append-only ConsentEvidence | contract-document-consent §4; signature §3.1/§6 |
 
 ### P2 — Đúng nghiệp vụ
 
 | # | Invariant | Test | Nguồn design |
 |---|---|---|---|
-| 22 | Cà phê/cao su bắt buộc plot; gạo/điều không | Commodity-gate test 2 chiều: tạo listing thiếu plot → fail/pass đúng theo commodity | product (EUDR gate) |
+| 22 | Phase 2 chỉ nhận cà phê và cà phê bắt buộc plot | Create/republish listing hoặc create contract với `RICE`/`RUBBER`/`CASHEW` → schema/domain reject; `COFFEE` thiếu plot → reject | product §1/§4/§8b; contract-document-consent §1 |
 | 23 | Analytics chết không ảnh hưởng giao dịch | Stop analytics-service → settle milestone vẫn hoàn tất; analytics **catch-up từ queue backlog** khi sống lại (outage ngắn — KHÔNG phải cold rebuild, sửa 18/07/2026) | governance §3 (read model) |
 | 24 | Notification dedup theo recipient + type | 1 event 2 recipients + retry → mỗi (recipient, type) đúng 1 mail `SENT` | notification §3.1/§5 |
 | 25 | Restore đụng tiền phải qua verify mới mở | Restore `bank_db` test env → 2 job verify chạy pass trước khi mở traffic (demo DR) | governance §8c |
@@ -86,13 +90,13 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 26b | Plot overlap chéo seller bị bắt | Seller B đăng ký polygon trùng/lọt trong polygon Seller A → `plotReuseRisk = HIGH` + OPERATOR review, không auto-reject | product §2.3b (18/07) |
 | 26c | Yield anomaly là signal, không phải gate | `declaredQuantity` vượt Σ(plotArea×maxYield) → `yieldRisk` + yêu cầu bổ sung/review; listing KHÔNG bị auto-reject | product §2.3b (18/07 r2) |
 | 26d | Deployment policy enforce được | CI check: image pin theo digest, secret không nằm trong image, protected branch bắt buộc approval — fail build nếu vi phạm (policy test, không phải runtime test) | governance §2 threat model (18/07 r2) |
-| 26e | Delta 1 vượt threshold không auto-gán bẻ kèo | Shortfall > threshold, không FM claim → milestone mở `BreachCase` (không bắn `milestone.cancelled_with_penalty` tự động); pro-rata phần đã giao vẫn release | milestone-escrow §4 nhánh 2 (19/07) |
+| 26e | Delta 1 vượt threshold không auto-gán phá hợp đồng | Shortfall > threshold, không FM claim → milestone mở `BreachCase` (không bắn `milestone.cancelled_with_penalty` tự động); pro-rata phần đã giao vẫn release | milestone-escrow §4 nhánh 2 (19/07) |
 | 26f | Reputation chỉ phạt strategic breach | `remedy.finalized` với `breachReasonCode = PRODUCTION_SHOCK_NON_FM` → không `lock_entry`; với `SIDE_SELLING` → có; `zeroProgressMultiplier` 1.5x chỉ khi strategic + 0 settled | reputation §3/§4.3 (19/07) |
 | 26g | Analytics đo `finalBreachingRole`, không đo người bấm nút | `contract.terminated` các nhánh → `fact_contract_termination` tách `terminationType`/`requestedBy`/`finalBreachingRole`; mutual không đếm vào default rate | analytics (19/07) |
 | 26h | Allegation bị bác/được miễn trách không phát hậu quả tiêu cực (đổi tên 19/07 lần 2 — Phase 2 cố tình chưa có cure state, không gọi "cure thành công") | `BreachCase` RESOLVED với `finalBreachingRole = NULL` → không termination, không lock_entry cho bên bị cáo buộc; `remedy.finalized` nếu phát chỉ chứa refund/release legs | milestone-escrow §6.4; reputation §4.3 (19/07) |
 | 26i | Inspection đang pending chặn auto-confirm | Milestone `CONTESTED`/có commission Level 1.5-2 đang chạy → hết `buyerConfirmWindowDays` KHÔNG auto `CONFIRM_CLEAN`, không release; timer chỉ áp khi milestone còn đúng state `BUYER_RECEIVED` | milestone-escrow §3.2 bổ sung (19/07) |
 | 27 | Quality disposition tính tất định | Recompute từ committed spec/deviation policy trong `signedContentHash` + actual metrics trong `resultHash`; reviewer không thể thêm criterion chủ quan làm đổi kết quả | milestone-escrow §3.3; inspection §2.3/§4 |
-| 27b | Exact reject đúng commodity | Coffee `type`, rubber/cashew `grade` mismatch → reject; rice `varietyName` không có trong actual/policy và mọi rice decision chỉ dùng numeric metrics | product §8b; milestone §2.1c/§3.3 |
+| 27b | Exact reject của cà phê đúng profile đã ký | Coffee `type` mismatch theo exact policy → reject; numeric metric dùng đúng threshold/version trong `coffeeQualityProfileVersion`; không thêm tiêu chí chủ quan | product §8b; milestone §2.1c/§3.3; contract-document-consent §3 |
 | 27c | Mapping disposition → attribution/remedy | Sau flag: `CONFORMING` zero punitive/reputation; `PARTIALLY_CONFORMING` max discount một lần và null role; `NON_CONFORMING` Seller + `QUALITY_BELOW_COMMITTED`, refund milestone + policy penalty/forfeiture; `INCONCLUSIVE` zero money | milestone-escrow §3.3 |
 | 27d | Inspected path không áp Delta 2 lần hai | Clean path giữ Delta 1/Delta 2; inspected/contested dùng `min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)`; over-delivery chỉ bị cap | milestone-escrow §3.3/§4 |
 | 27e | Quality conservation tách theo fund source | Sum `MILESTONE_PAYMENT` legs = `batchAmount`; penalty và `SELLER_DEPOSIT` forfeiture đối soát riêng; penalty base = `effectiveUnitPrice × committedQuantity`, không phải `totalContractValue` | milestone-escrow §3.3/§6.7; bank §2 |
@@ -100,8 +104,19 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 27g | Delivery certificate chỉ là evidence | Đính kèm certificate ở seller/buyer weigh vẫn không xuất hiện trong actual metrics/resultHash, không sinh disposition và không thay report confirmed | milestone-escrow §2.2/§3.3; inspection §2.3 |
 | 27h | Inspection cost policy chỉ `LOSER_PAYS` | Schema reject mọi giá trị khác; conforming → Buyer, partial/non-conforming → Seller, inconclusive chưa allocate | milestone-escrow §2.1c/§3.3 |
 | 27i | Quality reject chỉ fail milestone liên quan | `NON_CONFORMING` refund/phạt milestone bị reject nhưng contract vẫn active cho milestone khác; chỉ supersede/termination flow tường minh mới đổi contract lifecycle | milestone-escrow §3.3/§6 |
+| 27j | Declared/committed/actual schema chỉ nhận cà phê | Ba lớp schema pass `CoffeeQualitySpec/CoffeeActualMetrics`; mọi non-coffee discriminator hoặc field shape bị reject | product §8b; milestone-escrow §2.1c/§8d; inspection §2.3 |
+| 27k | Goods snapshot độc lập nguồn mutable | Sửa/xoá Listing/Product/Category/Plot sau create không đổi `goodsTerms` đã lưu hoặc `signedContentHash` | product §8b; milestone-escrow §2.1c/§8d |
+| 27l | Signed fields/hash và legacy policy đầy đủ | Thay bất kỳ nested signed field mới nào làm đổi canonical hash; chữ ký đầu khoá PATCH; legacy signed vẫn read/operate, legacy draft thiếu terms không được ký | milestone-escrow §2.1c/§8d |
+| 27m | Inspection guard không tạo milestone state | `NONE_UNLESS_DISPUTED` clean path không tạo report; mandatory inspection chặn settlement ở `BUYER_RECEIVED`/`CONTESTED` tới report confirmed nhưng không thêm/chuyển milestone state chỉ vì chờ inspection | milestone-escrow §3.3/§8d |
+| 27n | Bounded price acceptance đúng auth và cutoff | In-band pass; out-of-band, self-accept, stale proposal hoặc sau funding cutoff bị reject; accepted record immutable/auditable và không đổi signed hash | milestone-escrow §6c/§8d |
+| 27o | Funding dùng effective price, deposit giữ nominal | Funding fallback base hoặc dùng accepted `effectiveUnitPrice`, không settlement true-up; price tăng/giảm không recompute buyer/seller deposit từ nominal `totalContractValue` | milestone-escrow §2.1c/§6c/§8d |
 | 28 | Listing partial-fill atomic và fail-closed legacy | Listing 100 reserve 40 + 40 → tồn 60 rồi 20; reserve 30 trả `409 INSUFFICIENT_LISTING_QUANTITY`; hai request tranh tồn cuối chỉ một thắng; legacy-null fail tới edit/republish | product §8b.1-§8b.2; milestone-escrow §2.1d |
 | 28b | Restore không vượt seller lifecycle choice | Withdraw/activation failure trả đúng lượng; listing seller-closed vẫn `CLOSED`, listing `PAUSED` vẫn `PAUSED`; explicit republish mới mở lại | product §8b.1-§8b.2 |
+| 28c | Orphan reservation reaper an toàn và bắt late-event race | Chỉ `RESERVED` quá grace và chưa có durable `contract.created` mới release; không đụng `SIGNED_RELEASABLE`/`COMMITTED`; CLOSED/PAUSED không tự mở; re-run không restore lần hai; `contract.created` đến sau release phải error log + alert Admin, không silent no-op, re-decrement hay đảo state | product §8b.2 |
+| 29 | Draft preview luôn vô hiệu rõ ràng | Mọi preview ở OFFERED/NEGOTIATING/PARTIALLY_SIGNED chứa `CHƯA CÓ HIỆU LỰC`; không endpoint nào trả preview như final READY document | contract-document-consent §5-6 |
+| 29b | Receipt consent không waive quyền quality | Buyer receipt/confirm statement và persisted ConsentEvidence ghi đúng phạm vi; inspection/dispute còn hợp lệ theo signed terms vẫn mở được sau acknowledgement | contract-document-consent §4; milestone-escrow §3.2 |
+| 29c | Duplicate document delivery chỉ tạo một final | Redeliver render job, `contract.document_generated` và notification command → một READY document, một audit record và mỗi recipient đúng một final email | contract-document-consent §5-7; notification §5; hash-chain §2.4 |
+| 29d | Document event commit tách hai hash | `contract.document_generated` có `sourceContentHash` khớp signed content và `documentFileHash` khớp PDF bytes; tráo một trong hai bị verify fail | contract-document-consent §5-7; hash-chain §4 |
 
 ## 3. Ghi chú thực thi
 
@@ -112,4 +127,4 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 
 ---
 
-*Design session: 18/07/2026 · Cập nhật 23/07/2026: bổ sung quality dispute resolution, listing partial-fill/reservation lifecycle, F18 quantity guard và OTP supersession. · Chưa code · Test plan ưu tiên cao nhất trước khi implement.*
+*Design session: 18/07/2026 · Cập nhật 23/07/2026: bổ sung quality dispute resolution, listing partial-fill/reservation lifecycle, F18 quantity guard và OTP supersession. · Cập nhật 06/10/2026: Việt Nam + cà phê, consent evidence, template/profile hash và document lifecycle. · Chưa code · Test plan ưu tiên cao nhất trước khi implement.*

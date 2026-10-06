@@ -8,6 +8,7 @@ description: >-
 type: object
 oneOf:
   - {$ref: "#/$defs/contractAnchorRequested"}
+  - {$ref: "#/$defs/contractDocumentReadyRequested"}
   - {$ref: "#/$defs/contractActivationFailedRequested"}
   - {$ref: "#/$defs/contractTerminatedRequested"}
   - {$ref: "#/$defs/breachNoticeRequested"}
@@ -92,6 +93,30 @@ $defs:
               contractTermsSnapshot: {type: object}
               signedContentHash: {type: string, pattern: "^[a-f0-9]{64}$"}
               signedAt: {type: string, format: date-time}
+  contractDocumentReadyRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
+    x-deduplication-key: documentId + recipient.email + CONTRACT_FINAL_PDF
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.contract_document_ready_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [documentId, contractId, recipients, fileId, sourceContentHash, documentFileHash, templateCode, templateVersion, generatedAt]
+            additionalProperties: false
+            properties:
+              documentId: {$ref: "#/$defs/uuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              recipients: {$ref: "#/$defs/recipients"}
+              fileId: {$ref: "#/$defs/uuid"}
+              sourceContentHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              documentFileHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              templateCode: {type: string, pattern: "^VN_COFFEE_[A-Z0-9_]+$"}
+              templateVersion: {type: string, minLength: 1}
+              generatedAt: {type: string, format: date-time}
   contractTerminatedRequested:
     x-publisher: contract-service
     x-consumers: [notification-service]

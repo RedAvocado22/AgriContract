@@ -6,12 +6,12 @@ metadata:
     type: design
     phase: 2
     extends: "services.md § file-service (gap #6 — pain point CHÍNH: async processing)"
-    related: "product-phase2-design.md §2.1/§4 (originalKmlFileId, cadastralExtractFileId); milestone-escrow-phase2-design.md §2.2/§3.2 (sellerEvidenceFileId/buyerEvidenceFileId, bằng chứng bất khả kháng); inspection-phase2-design.md §3.6 (PDF report SGS/Bureau Veritas qua intake@...); hash-chain-phase2-design.md §2.3 (GenerateEUDRReport, Feign không read model riêng)"
+    related: "product-phase2-design.md §2.1/§4 (originalKmlFileId, cadastralExtractFileId); milestone-escrow-phase2-design.md §2.2/§3.2 (sellerEvidenceFileId/buyerEvidenceFileId, bằng chứng bất khả kháng); inspection-phase2-design.md §3.6 (PDF report SGS/Bureau Veritas qua intake@...); hash-chain-phase2-design.md §2.3 (GenerateEUDRReport, Feign không read model riêng); contract-document-consent-phase2-design.md §5-7"
 ---
 
 ## 1. Bối cảnh & Scope
 
-**6 dependency đã cam kết từ service khác (không phải "nice to have" — các service đó đã "đóng session" dựa trên giả định file-service tồn tại và hoạt động đúng như mô tả):**
+**7 dependency đã cam kết từ service khác (không phải "nice to have" — các service đó đã "đóng session" dựa trên giả định file-service tồn tại và hoạt động đúng như mô tả):**
 
 1. `sellerEvidenceFileId`/`buyerEvidenceFileId` — ảnh cân hàng lúc milestone.
 2. Bằng chứng bất khả kháng — Admin xét qua file-service.
@@ -19,6 +19,7 @@ metadata:
 4. File KML gốc lúc `ImportPlotsFromKML` — **quyết định (05/07/2026, xem §7): giữ lại**, qua `originalKmlFileId`.
 5. PDF report SGS/Bureau Veritas ingest qua `intake@...` — tự động, không qua tay Admin lúc nhận.
 6. Output PDF/CSV báo cáo EUDR (`GenerateEUDRReport`) — chiều ngược lại, file-service **nhận** file do service khác sinh ra, không phải nơi tự build nội dung report.
+7. PDF `FINAL_SIGNED_CONTRACT` và các document hậu ký — contract-service render bằng durable worker rồi lưu qua `SYSTEM_GENERATED`; file-service không tự dựng nội dung hợp đồng.
 
 **3 quyết định kiến trúc đã chốt sẵn ở service khác, file-service phải tương thích:**
 
@@ -48,6 +49,8 @@ Aggregate root duy nhất, đơn giản, **agnostic với nghiệp vụ** (chố
 | `failureReason` | TEXT, nullable                                             | Chỉ có giá trị khi `status = FAILED` — VD `"virus detected"`, `"email parse error: missing attachment"`. Giữ `status` gọn (3 giá trị), chi tiết debug nằm ở field phụ, không phình state machine |
 | `attached`      | Boolean, default `FALSE`                                   | Cờ xác nhận đã có service khác lưu `fileId` này vào entity của nó — dùng cho orphan-cleanup (§7)                                                                                                 |
 | `createdAt`     | Timestamp                                                  |                                                                                                                                                                                                  |
+
+Với contract document, `storageHash` phải được trả về contract-service để persist nguyên giá trị thành `ContractDocument.documentFileHash`. Hash này là hash bytes PDF; nó không thay `signedContentHash`/`sourceContentHash` của nội dung pháp lý.
 
 ### 2.1 `ingestChannel` — quyết định bởi entrypoint, không phải param caller tự khai
 
@@ -79,7 +82,7 @@ Dùng chung 1 enum cho cả 3 channel (không tách nhánh riêng theo channel) 
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
 | `StoreOnBehalfOf(file, actingUserId)` — **đổi từ `UploadFile` public, 17/07/2026** | Business service (service-to-service, mTLS/service token) uỷ quyền từ end-user đã qua JWT ở business endpoint; `uploadedBy = actingUserId` truyền tường minh | `DIRECT_UPLOAD`    | `contentType` ∈ {JPG, PNG, PDF}, `fileSize` ≤ **10MB** (chốt 05/07/2026) — giữ nguyên validate + virus-scan |
 | Email intake bridge | Scheduled job nội bộ (§4.1), không expose API                                                                       | `EMAIL_INTAKE`     | `fileSize` ≤ **20MB** (chốt review pass 2, 05/07/2026 — cao hơn `DIRECT_UPLOAD` vì PDF report SGS/BV thường nhiều trang/nhúng ảnh chứng chỉ), check **streaming** trong lúc `EmailParseConsumer` đang đọc MIME part, không load hết vào memory rồi mới check — tránh OOM nếu mailbox bị compromise hoặc bên gửi nhầm file khủng. Vượt cap → lỗi nghiệp vụ, route `email_intake_failure` (không phải lỗi dev) |
-| `store()` nội bộ    | Service-to-service (mTLS/service token, không phải JWT user) — VD `audit-service` gọi khi `GenerateEUDRReport` xong | `SYSTEM_GENERATED` | Không cần virus-scan (nội dung do chính hệ thống tạo, tin được)                                |
+| `store()` nội bộ    | Service-to-service (mTLS/service token, không phải JWT user) — VD `audit-service` tạo EUDR report hoặc `contract-service` tạo final contract PDF | `SYSTEM_GENERATED` | Không cần virus-scan (nội dung do chính hệ thống tạo, tin được); trả `fileId`, `storageHash`, size/content type                                |
 
 Core logic (tính `storageHash`, lưu MinIO, insert `File` metadata) dùng chung 1 hàm nội bộ cho cả 3 entrypoint — không trùng lặp code, chỉ khác lớp validate/auth phía trước.
 
@@ -146,6 +149,8 @@ Không đưa `storageHash` vào payload — service khác không cần biết ha
 
 **Pattern: proxy qua service sở hữu, không expose file-service trực tiếp ra ngoài cho end-user.** Service đang giữ `fileId` (VD contract-service) tự expose endpoint riêng của nó (`GET /contracts/{id}/milestones/{id}/evidence`), tự validate quyền theo đúng business logic của nó, sau đó **mới** gọi `file-service.GetFile(fileId)` nội bộ (service-to-service, trusted) để lấy bytes và proxy ngược lại cho end-user. File-service chỉ enforce 1 lớp bảo vệ tối thiểu, chung cho mọi trường hợp: endpoint `GetFile` không public cho end-user gọi thẳng, chỉ nhận service-to-service call (mTLS/service token) hoặc chính `uploadedBy`/role Admin (cho case Admin cần xem trực tiếp qua UI quản trị).
 
+Document API của contract-service cũng theo pattern này: participant gọi endpoint contract document, contract-service kiểm tra ownership/document status rồi proxy bytes theo `fileId`. Response không lộ MinIO bucket/object key. `FINAL_SIGNED_CONTRACT` đã READY là immutable; không có replace/overwrite blob theo cùng `fileId`.
+
 ---
 
 ## 7. Retention & Deletion
@@ -156,6 +161,7 @@ Không đưa `storageHash` vào payload — service khác không cần biết ha
 
 - **Default: giữ vĩnh viễn** — nhưng từ 18/07/2026 "vĩnh viễn" là default khi CHƯA có retention policy, không phải luật: retention matrix `data-governance-phase2-design.md` §8 là source of truth (KYC 5 năm sau khi quan hệ chấm dứt, evidence theo hợp đồng 10 năm...). Execution:
   - `File` metadata thêm: `retentionUntil` (nullable — NULL = chưa có policy/giữ vô hạn), `legalHold` (boolean — ADMIN set khi có tranh chấp/điều tra, **chặn mọi xoá** kể cả hết retention), `deletedAt`, `deletionReason`.
+  - Final contract PDF và document evidence hậu ký dùng retention của hồ sơ hợp đồng (ít nhất theo matrix governance hiện hành) và tự động bật/giữ `legalHold` khi contract có tranh chấp hoặc điều tra. Document owner không được gọi delete/replace để "sửa" bản đã ký.
   - **Owning service** (biết nghiệp vụ) chạy scheduled lifecycle job: xác định file hết retention theo domain của mình → gọi `DeleteFile`; file-service không tự quyết (vẫn agnostic nghiệp vụ). File thuộc nhiều domain (evidence vừa KYC vừa hợp đồng) → **retention dài nhất thắng**.
   - Xoá 2 bước idempotent: (1) DB tombstone `deletedAt`+`deletionReason` trước, (2) xoá blob MinIO sau; lệch giữa 2 bước (blob xoá, DB fail hoặc ngược lại) → job re-run tự lành vì cả 2 bước đều idempotent. Không có TTL/cronjob nào bên trong file-service tự xoá file `READY` đã `attached = TRUE`.
 - **`DeleteFile(fileId)`** — API tường minh, chỉ được gọi bởi chính service đang sở hữu `fileId` đó, khi service đó (biết rõ retention rule nghiệp vụ của riêng nó) xác định đã an toàn để xoá. File-service không bao giờ tự khởi xướng.
@@ -223,6 +229,8 @@ CREATE TABLE email_intake_failure (
 **Known Limitation (không block thiết kế):** khả năng dùng IMAP polling với mailbox thật của SGS/Bureau Veritas không khảo sát/xin cấp phép được trong phạm vi đồ án — giữ làm giả định đơn giản hoá. Thiết kế không phụ thuộc chi tiết cơ chế lấy mail cụ thể; nếu deployment thật dùng cơ chế khác (Inbound Parse webhook, API...), chỉ đổi adapter tầng intake, không đụng logic lõi.
 
 **Cập nhật (17/07/2026):** (1) entrypoint `DIRECT_UPLOAD` đổi từ public `UploadFile` sang `StoreOnBehalfOf` nội bộ cho business service uỷ quyền — đóng mâu thuẫn với gateway §3.5, giữ nguyên virus-scan/cap/whitelist, chặn đường né scan qua `store()`. (2) `file.ready` mang thêm `emailMeta` cho `EMAIL_INTAKE`; thêm `file.email_notice` cho mail không attachment — hoàn thiện handshake với inspection-service (inspection §3.3/§3.5/§3.6 cập nhật cùng ngày).
+
+**Cập nhật (06/10/2026):** final contract PDF dùng `SYSTEM_GENERATED`; `storageHash` được contract-service lưu thành `documentFileHash`, tải qua proxy có ownership check, final blob không overwrite và đi cùng retention/legal hold của hồ sơ hợp đồng.
 
 File-service — **ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.**
 
