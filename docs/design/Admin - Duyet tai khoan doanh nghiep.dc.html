@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; min-height:100vh; background:#F8FAF9; color:#0F172A;" data-screen-label="43 Admin — Duyệt tài khoản doanh nghiệp">
+
+  <div style="width:240px; flex-shrink:0; background:#FFFFFF; border-right:0.5px solid #E2E8F0; padding:20px 0; display:flex; flex-direction:column;">
+    <div style="padding:0 20px 6px; font-size:16px; font-weight:500; color:#15803D;">AgriContract</div>
+    <div style="padding:0 20px 22px; font-size:12px; color:#94A3B8;">Bảng điều hành vận hành</div>
+    <div style="padding:6px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Vận hành</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tổng quan</div>
+    <div style="padding:9px 20px; background:#DCFCE7; border-left:2px solid #15803D; font-size:14px; font-weight:500; color:#15803D;">Duyệt tài khoản</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Duyệt danh mục</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Tranh chấp</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Bất khả kháng</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Tranh chấp Level 1</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giám định Level 2</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">AML &amp; Rủi ro</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Sổ cái hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Giao dịch lớn</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cặp rủi ro</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Chờ rà soát tất toán</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Báo cáo Cục PCRT</div>
+    <div style="padding:14px 20px 4px; font-size:11px; color:#94A3B8; text-transform:uppercase; letter-spacing:0.04em;">Hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Đóng băng hệ thống</div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Uy tín &amp; khoá</div>
+    <div style="flex:1;"></div>
+    <div style="padding:9px 20px; font-size:14px; color:#0F172A;">Cài đặt</div>
+  </div>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+    <div style="height:64px; background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; padding:0 32px; gap:16px; flex-shrink:0;">
+      <div style="max-width:320px; flex:1; height:36px; border:0.5px solid #E2E8F0; border-radius:8px; display:flex; align-items:center; padding:0 12px; font-size:14px; color:#94A3B8; gap:8px;"><span class="ms" style="font-size:18px;">search</span> Tìm doanh nghiệp, MST...</div>
+      <div style="flex:1;"></div>
+      <div style="position:relative; display:flex;"><span class="ms" style="font-size:22px; color:#64748B;">notifications</span><span style="position:absolute; top:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#DC2626; border:1.5px solid #fff;"></span></div>
+      <div style="display:flex; align-items:center; gap:8px;"><div style="width:32px; height:32px; border-radius:50%; background:#F1F5F4; border:0.5px solid #E2E8F0;"></div><div style="font-size:13px;"><div style="font-weight:500;">Admin vận hành</div><div style="color:#94A3B8; font-size:12px;">Quản trị nền tảng</div></div></div>
+    </div>
+
+    <div style="padding:24px 32px 80px; max-width:1440px; width:100%; margin:0 auto; box-sizing:border-box;">
+      <div style="font-size:13px; color:#64748B; margin-bottom:4px;">Vận hành <span style="margin:0 6px; color:#CBD5E1;">/</span> Duyệt tài khoản</div>
+      <div style="font-size:22px; font-weight:500; margin-bottom:6px;">Duyệt tài khoản doanh nghiệp</div>
+      <div style="font-size:14px; color:#64748B; margin-bottom:20px; max-width:820px;">Fail-closed — hồ sơ chưa duyệt thì không dùng được nền tảng. Kiểm tra giấy tờ pháp lý và thẩm quyền đại diện trước khi cho vào.</div>
+
+      <div style="display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;">
+
+        <!-- Queue -->
+        <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; overflow:hidden;">
+          <div style="display:flex; border-bottom:0.5px solid #E2E8F0;">
+            <div style="flex:1; padding:11px 14px; font-size:13px; font-weight:500; color:#15803D; border-bottom:2px solid #15803D; text-align:center;">Chờ duyệt <span style="color:#D97706;">5</span></div>
+            <div style="flex:1; padding:11px 14px; font-size:13px; color:#64748B; text-align:center;">Đã xử lý</div>
+          </div>
+
+          <div style="padding:14px 16px; border-bottom:0.5px solid #E2E8F0; background:#F1F5F4; border-left:2px solid #15803D;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">HTX Cà phê Cư M'gar</span><span style="padding:2px 8px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:11.5px; font-weight:500;">Bên bán</span></div>
+            <div style="font-size:12.5px; color:#64748B; margin-top:5px; font-family:'JetBrains Mono',monospace;">MST 6001234567</div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:4px;">Nộp 09/07/2026 · Hợp tác xã</div>
+          </div>
+          <div style="padding:14px 16px; border-bottom:0.5px solid #E2E8F0;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">Công ty XNK Nam Việt</span><span style="padding:2px 8px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:11.5px; font-weight:500;">Cả hai</span></div>
+            <div style="font-size:12.5px; color:#64748B; margin-top:5px; font-family:'JetBrains Mono',monospace;">MST 0312988771</div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:4px;">Nộp 09/07/2026 · Doanh nghiệp</div>
+          </div>
+          <div style="padding:14px 16px; border-bottom:0.5px solid #E2E8F0;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">Vinacontrol Đắk Lắk</span><span style="padding:2px 8px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:11.5px; font-weight:500;">Kiểm định</span></div>
+            <div style="font-size:12.5px; color:#64748B; margin-top:5px; font-family:'JetBrains Mono',monospace;">MST 0100108113</div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:4px;">Nộp 08/07/2026 · Tổ chức</div>
+          </div>
+          <div style="padding:14px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:500;">Hộ KD Trần Văn Sáu</span><span style="padding:2px 8px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:11.5px; font-weight:500;">Bên bán</span></div>
+            <div style="font-size:12.5px; color:#64748B; margin-top:5px; font-family:'JetBrains Mono',monospace;">MST 8801177233</div>
+            <div style="font-size:12px; color:#94A3B8; margin-top:4px;">Nộp 07/07/2026 · Hộ kinh doanh</div>
+          </div>
+        </div>
+
+        <!-- Detail panel -->
+        <div style="display:flex; flex-direction:column; gap:20px;">
+
+          <!-- Company header -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; gap:12px;"><div style="width:44px; height:44px; border-radius:8px; background:#F1F5F4; display:flex; align-items:center; justify-content:center;"><span class="ms" style="font-size:24px; color:#94A3B8;">agriculture</span></div><div><div style="font-size:17px; font-weight:500;">HTX Cà phê Cư M'gar</div><div style="font-size:13px; color:#64748B;">Hợp tác xã · Đắk Lắk · nộp 09/07/2026</div></div></div>
+              <span style="padding:4px 10px; border-radius:999px; background:#FEF3C7; color:#D97706; font-size:12.5px; font-weight:500;">Chờ duyệt</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px 24px;">
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Mã số thuế</div><div style="font-size:14px; font-family:'JetBrains Mono',monospace;">6001234567</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Loại hình</div><div style="font-size:14px;">Hợp tác xã</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Vai trò dự định</div><div style="font-size:14px;">Bên bán</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Người đại diện</div><div style="font-size:14px;">Lê Thị Hoa</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Chức danh</div><div style="font-size:14px;">Chủ nhiệm</div></div>
+              <div><div style="font-size:12px; color:#94A3B8; margin-bottom:4px;">Email</div><div style="font-size:14px;">cumgar@htx.vn</div></div>
+            </div>
+          </div>
+
+          <!-- KYC checks -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="font-size:16px; font-weight:500; margin-bottom:14px;">Giấy tờ &amp; thẩm định</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; align-items:center; gap:12px; border:0.5px solid #E2E8F0; border-radius:8px; padding:11px 14px;">
+                <span class="ms" style="font-size:22px; color:#DC2626;">picture_as_pdf</span>
+                <div style="flex:1;"><div style="font-size:14px;">Giấy phép kinh doanh</div><div style="font-size:12px; color:#94A3B8;">gpkd-cumgar.pdf · 620 KB</div></div>
+                <span style="font-size:12.5px; color:#16A34A; display:inline-flex; align-items:center; gap:5px;"><span class="ms" style="font-size:15px;">check_circle</span> Sẵn sàng</span>
+                <a href="#" style="font-size:13px;">Xem</a>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px; border:0.5px solid #E2E8F0; border-radius:8px; padding:11px 14px;">
+                <span class="ms" style="font-size:22px; color:#2563EB;">badge</span>
+                <div style="flex:1;"><div style="font-size:14px;">CCCD người đại diện</div><div style="font-size:12px; color:#94A3B8;">cccd-lethihoa.jpg · 1,4 MB</div></div>
+                <span style="font-size:12.5px; color:#16A34A; display:inline-flex; align-items:center; gap:5px;"><span class="ms" style="font-size:15px;">check_circle</span> Sẵn sàng</span>
+                <a href="#" style="font-size:13px;">Xem</a>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px; border:0.5px solid #E2E8F0; border-radius:8px; padding:11px 14px;">
+                <span class="ms" style="font-size:22px; color:#DC2626;">assignment_ind</span>
+                <div style="flex:1;"><div style="font-size:14px;">Giấy uỷ quyền đại diện</div><div style="font-size:12px; color:#94A3B8;">uy-quyen.pdf · 480 KB · hết hiệu lực <b style="color:#0F172A; font-weight:500;">31/12/2027</b></div></div>
+                <span style="font-size:12.5px; color:#16A34A; display:inline-flex; align-items:center; gap:5px;"><span class="ms" style="font-size:15px;">check_circle</span> Sẵn sàng</span>
+                <a href="#" style="font-size:13px;">Xem</a>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:flex-start; margin-top:14px; font-size:12.5px; color:#64748B; background:#F1F5F9; border-radius:8px; padding:12px 14px; line-height:1.5;"><span class="ms" style="font-size:16px; margin-top:1px;">verified</span><span>MST khớp Tổng cục Thuế. Ngày hết hiệu lực uỷ quyền do người nộp tự khai — đối chiếu lại với bản scan giấy uỷ quyền trước khi duyệt.</span></div>
+          </div>
+
+          <!-- Decision -->
+          <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; padding:20px 24px;">
+            <div style="font-size:16px; font-weight:500; margin-bottom:12px;">Quyết định</div>
+            <div style="font-size:12.5px; color:#94A3B8; margin-bottom:6px;">Ghi chú (bắt buộc khi từ chối)</div>
+            <div style="border:0.5px solid #E2E8F0; border-radius:8px; padding:12px; font-size:14px; color:#94A3B8; height:64px; margin-bottom:16px;">Nêu lý do nếu từ chối hồ sơ...</div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px;">check</span> Duyệt tài khoản</span>
+              <span style="display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border-radius:8px; border:1px solid #DC2626; color:#DC2626; background:#FFFFFF; font-size:14px; font-weight:500;"><span class="ms" style="font-size:18px;">close</span> Từ chối</span>
+              <div style="flex:1;"></div>
+              <span style="font-size:12.5px; color:#94A3B8;">Duyệt xong doanh nghiệp mới đăng nhập được.</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

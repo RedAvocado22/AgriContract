@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <meta name="design_doc_mode" content="canvas">
+  <style>
+    body { margin:0; background:#EEF2F0; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; flex-wrap:wrap; gap:40px; padding:40px; background:#EEF2F0; align-items:flex-start;">
+
+  <!-- ============ 5.1 ĐĂNG NHẬP ============ -->
+  <div style="width:960px; height:620px; display:flex; border-radius:20px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); background:#fff;" data-screen-label="5.1 Đăng nhập">
+
+    <!-- brand panel -->
+    <div style="width:400px; flex-shrink:0; background:linear-gradient(160deg,#15803D 0%,#0F5C2E 100%); color:#fff; padding:44px 40px; display:flex; flex-direction:column;">
+      <div style="font-size:19px; font-weight:600;">AgriContract</div>
+      <div style="font-size:13px; color:#BBF7D0; margin-top:4px;">Hợp đồng nông sản có ký quỹ</div>
+      <div style="flex:1;"></div>
+      <div style="font-size:26px; font-weight:500; line-height:1.35; letter-spacing:-0.01em;">Mua bán nông sản không lo bẻ kèo.</div>
+      <div style="font-size:14px; color:#DCFCE7; line-height:1.6; margin-top:16px;">Ký quỹ giữ tiền theo từng cột mốc, chỉ giải ngân khi hai bên xác nhận. Tranh chấp có giám định độc lập.</div>
+      <div style="display:flex; gap:24px; margin-top:32px;">
+        <div><div style="font-size:22px; font-weight:600; font-family:'JetBrains Mono',monospace;">2.400+</div><div style="font-size:12px; color:#BBF7D0;">hợp đồng đã tất toán</div></div>
+        <div><div style="font-size:22px; font-weight:600; font-family:'JetBrains Mono',monospace;">98,2%</div><div style="font-size:12px; color:#BBF7D0;">giao dịch không tranh chấp</div></div>
+      </div>
+    </div>
+
+    <!-- form -->
+    <div style="flex:1; padding:52px 56px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Đăng nhập</div>
+      <div style="font-size:14px; color:#64748B; margin-bottom:28px;">Chào mừng trở lại. Đăng nhập để quản lý hợp đồng của bạn.</div>
+
+      <div style="font-size:13px; color:#475569; margin-bottom:6px;">Số điện thoại hoặc email</div>
+      <div style="height:44px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 12px; font-size:14px; margin-bottom:16px;">0912 345 678</div>
+
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="font-size:13px; color:#475569;">Mật khẩu</span><a href="#" style="font-size:13px;">Quên mật khẩu?</a></div>
+      <div style="height:44px; border:1px solid #15803D; border-radius:9px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-size:14px; margin-bottom:18px; letter-spacing:2px;">••••••••<span class="ms" style="font-size:19px; color:#94A3B8; letter-spacing:normal;">visibility_off</span></div>
+
+      <div style="display:flex; align-items:center; gap:9px; margin-bottom:24px; font-size:13.5px; color:#475569;"><span class="ms" style="font-size:19px; color:#15803D;">check_box</span> Ghi nhớ đăng nhập trên thiết bị này</div>
+
+      <div style="height:46px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500; margin-bottom:16px;">Đăng nhập</div>
+
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;"><div style="flex:1; height:0.5px; background:#E2E8F0;"></div><span style="font-size:12px; color:#94A3B8;">hoặc</span><div style="flex:1; height:0.5px; background:#E2E8F0;"></div></div>
+      <div style="height:44px; border-radius:9px; border:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:center; gap:10px; font-size:14px; color:#0F172A;"><span class="ms" style="font-size:19px; color:#15803D;">fingerprint</span> Đăng nhập bằng VNeID</div>
+
+      <div style="text-align:center; font-size:13.5px; color:#64748B; margin-top:26px;">Chưa có tài khoản? <a href="#5-2">Đăng ký ngay</a></div>
+    </div>
+  </div>
+
+  <!-- ============ 5.2 ĐĂNG KÝ ============ -->
+  <div id="5-2" style="width:960px; display:flex; border-radius:20px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); background:#fff;" data-screen-label="5.2 Đăng ký">
+
+    <div style="width:400px; flex-shrink:0; background:linear-gradient(160deg,#15803D 0%,#0F5C2E 100%); color:#fff; padding:44px 40px; display:flex; flex-direction:column;">
+      <div style="font-size:19px; font-weight:600;">AgriContract</div>
+      <div style="font-size:13px; color:#BBF7D0; margin-top:4px;">Hợp đồng nông sản có ký quỹ</div>
+      <div style="flex:1;"></div>
+      <div style="font-size:26px; font-weight:500; line-height:1.35; letter-spacing:-0.01em;">Xác minh một lần, giao dịch an tâm.</div>
+      <div style="font-size:14px; color:#DCFCE7; line-height:1.6; margin-top:16px;">Tài khoản cần quản trị viên duyệt hồ sơ trước khi giao dịch. Chọn đúng vai trò để mở đúng tính năng.</div>
+
+      <div style="display:flex; flex-direction:column; gap:14px; margin-top:32px;">
+        <div style="display:flex; gap:10px; align-items:center; font-size:13.5px; color:#DCFCE7;"><span class="ms" style="font-size:18px; color:#BBF7D0;">check_circle</span> Miễn phí mở tài khoản</div>
+        <div style="display:flex; gap:10px; align-items:center; font-size:13.5px; color:#DCFCE7;"><span class="ms" style="font-size:18px; color:#BBF7D0;">check_circle</span> Ký quỹ giữ tiền theo cột mốc</div>
+        <div style="display:flex; gap:10px; align-items:center; font-size:13.5px; color:#DCFCE7;"><span class="ms" style="font-size:18px; color:#BBF7D0;">check_circle</span> Quản trị viên duyệt hồ sơ trước khi kích hoạt</div>
+      </div>
+    </div>
+
+    <div style="flex:1; padding:44px 56px; display:flex; flex-direction:column;">
+      <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Tạo tài khoản</div>
+      <div style="font-size:14px; color:#64748B; margin-bottom:24px;">Bạn tham gia sàn với vai trò nào?</div>
+
+      <!-- role select -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
+        <div style="border:1px solid #15803D; background:#F6FDF9; border-radius:11px; padding:14px 16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;"><span class="ms" style="font-size:22px; color:#15803D;">agriculture</span><span class="ms" style="font-size:20px; color:#15803D;">radio_button_checked</span></div>
+          <div style="font-size:14.5px; font-weight:500; margin-top:8px;">Bên bán</div>
+          <div style="font-size:12.5px; color:#64748B; margin-top:2px;">Nông dân, HTX, đại lý thu mua</div>
+        </div>
+        <div style="border:0.5px solid #E2E8F0; border-radius:11px; padding:14px 16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;"><span class="ms" style="font-size:22px; color:#64748B;">storefront</span><span class="ms" style="font-size:20px; color:#CBD5E1;">radio_button_unchecked</span></div>
+          <div style="font-size:14.5px; font-weight:500; margin-top:8px;">Bên mua</div>
+          <div style="font-size:12.5px; color:#64748B; margin-top:2px;">Doanh nghiệp chế biến, xuất khẩu</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
+        <div><div style="font-size:13.5px; color:#475569; margin-bottom:7px;">Họ và tên</div><div style="height:48px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 14px; font-size:15px;">Nguyễn Văn A</div></div>
+        <div><div style="font-size:13.5px; color:#475569; margin-bottom:7px;">Số điện thoại</div><div style="height:48px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 14px; font-size:15px;">0912 345 678</div></div>
+      </div>
+
+      <div style="font-size:13.5px; color:#475569; margin-bottom:7px;">Email</div>
+      <div style="height:48px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 14px; font-size:15px; margin-bottom:18px;">nguyenvana@email.com</div>
+
+      <div style="font-size:13.5px; color:#475569; margin-bottom:7px;">Mật khẩu</div>
+      <div style="height:48px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; justify-content:space-between; padding:0 14px; font-size:15px; margin-bottom:9px; letter-spacing:2px;">••••••••••<span class="ms" style="font-size:19px; color:#94A3B8; letter-spacing:normal;">visibility_off</span></div>
+      <div style="display:flex; gap:6px; margin-bottom:22px;"><div style="flex:1; height:4px; border-radius:2px; background:#15803D;"></div><div style="flex:1; height:4px; border-radius:2px; background:#15803D;"></div><div style="flex:1; height:4px; border-radius:2px; background:#22C55E;"></div><div style="flex:1; height:4px; border-radius:2px; background:#E2E8F0;"></div></div>
+
+      <div style="display:flex; align-items:flex-start; gap:9px; margin-bottom:22px; font-size:13px; color:#475569; line-height:1.5;"><span class="ms" style="font-size:19px; color:#15803D;">check_box</span><span>Tôi đồng ý với <a href="#">Điều khoản sử dụng</a> và <a href="#">Chính sách bảo mật</a>, bao gồm quy trình ký quỹ và giải quyết tranh chấp.</span></div>
+
+      <div style="display:flex; gap:9px; align-items:flex-start; background:#F6FDF9; border:0.5px solid #BBF7D0; border-radius:9px; padding:12px 14px; margin-bottom:18px;"><span class="ms" style="font-size:19px; color:#15803D; margin-top:1px;">schedule</span><span style="font-size:12.5px; color:#475569; line-height:1.5;">Sau khi gửi, hồ sơ chờ quản trị viên duyệt. Tài khoản chưa duyệt chưa thể giao dịch — bạn sẽ nhận thông báo khi được kích hoạt.</span></div>
+      <div style="height:54px; border-radius:10px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:600;">Gửi hồ sơ đăng ký</div>
+      <div style="text-align:center; font-size:13.5px; color:#64748B; margin-top:18px;">Đã có tài khoản? <a href="#">Đăng nhập</a></div>
+    </div>
+  </div>
+
+  <!-- ============ 5.3 CHỜ DUYỆT TÀI KHOẢN (fail-closed) ============ -->
+  <div id="5-3" style="width:520px; border-radius:20px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); background:#fff; padding:44px 44px 40px;" data-screen-label="5.3 Chờ duyệt tài khoản">
+    <div style="width:56px; height:56px; border-radius:14px; background:#FEF3C7; display:flex; align-items:center; justify-content:center; margin-bottom:20px;"><span class="ms" style="font-size:30px; color:#D97706;">hourglass_top</span></div>
+    <div style="font-size:22px; font-weight:500; margin-bottom:8px;">Hồ sơ đang chờ duyệt</div>
+    <div style="font-size:14px; color:#64748B; line-height:1.65; margin-bottom:22px;">Quản trị viên đang xem xét hồ sơ của bạn. Tài khoản chưa được duyệt nên chưa thể tìm nguồn hàng, tạo hợp đồng hay nạp ký quỹ. Bạn sẽ nhận thông báo qua email và số điện thoại khi hồ sơ được duyệt.</div>
+
+    <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:22px;">
+      <div style="display:flex; gap:10px; align-items:flex-start;"><span class="ms" style="font-size:20px; color:#16A34A;">check_circle</span><div style="font-size:13.5px; color:#475569;">Đã nhận hồ sơ đăng ký</div></div>
+      <div style="display:flex; gap:10px; align-items:flex-start;"><span class="ms" style="font-size:20px; color:#D97706;">radio_button_checked</span><div style="font-size:13.5px; color:#475569;">Đang chờ quản trị viên duyệt</div></div>
+      <div style="display:flex; gap:10px; align-items:flex-start;"><span class="ms" style="font-size:20px; color:#CBD5E1;">radio_button_unchecked</span><div style="font-size:13.5px; color:#94A3B8;">Kích hoạt tài khoản</div></div>
+    </div>
+
+    <div style="display:flex; gap:9px; align-items:flex-start; background:#F1F5F4; border-radius:9px; padding:12px 14px;"><span class="ms" style="font-size:19px; color:#64748B; margin-top:1px;">mail</span><span style="font-size:12.5px; color:#64748B; line-height:1.5;">Cần bổ sung giấy tờ? Chúng tôi sẽ liên hệ trực tiếp. Bạn có thể đăng xuất và quay lại sau.</span></div>
+  </div>
+
+  <!-- ============ 5.1b ĐĂNG NHẬP — CÁC TRẠNG THÁI ============ -->
+  <div style="display:flex; flex-direction:column; gap:14px;" data-screen-label="5.1b Đăng nhập — trạng thái">
+    <div style="font-size:13px; color:#64748B; font-weight:500;">Đăng nhập — các trạng thái phản hồi</div>
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;">
+
+      <!-- Sai thông tin -->
+      <div style="width:360px; background:#fff; border-radius:16px; box-shadow:0 8px 28px rgba(15,23,42,0.08); padding:28px 28px 30px;">
+        <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Sai thông tin đăng nhập</div>
+        <div style="display:flex; gap:9px; align-items:flex-start; background:#FEE2E2; border-radius:9px; padding:11px 13px; margin-bottom:16px;"><span class="ms" style="font-size:18px; color:#DC2626; margin-top:1px;">error</span><span style="font-size:12.5px; color:#991B1B; line-height:1.5;">Số điện thoại hoặc mật khẩu không đúng. Kiểm tra lại rồi thử lại.</span></div>
+        <div style="font-size:12.5px; color:#475569; margin-bottom:6px;">Số điện thoại hoặc email</div>
+        <div style="height:42px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 12px; font-size:14px; margin-bottom:12px;">0912 345 678</div>
+        <div style="font-size:12.5px; color:#475569; margin-bottom:6px;">Mật khẩu</div>
+        <div style="height:42px; border:1px solid #DC2626; border-radius:9px; display:flex; align-items:center; padding:0 12px; font-size:14px; margin-bottom:16px; letter-spacing:2px; color:#0F172A;">••••••</div>
+        <div style="height:44px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:14.5px; font-weight:500;">Đăng nhập</div>
+      </div>
+
+      <!-- Chờ duyệt (fail-closed) -->
+      <div style="width:360px; background:#fff; border-radius:16px; box-shadow:0 8px 28px rgba(15,23,42,0.08); padding:28px 28px 30px;">
+        <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Tài khoản chờ duyệt</div>
+        <div style="display:flex; gap:9px; align-items:flex-start; background:#FEF3C7; border-radius:9px; padding:11px 13px; margin-bottom:16px;"><span class="ms" style="font-size:18px; color:#D97706; margin-top:1px;">hourglass_top</span><span style="font-size:12.5px; color:#92400E; line-height:1.5;">Tài khoản đang chờ quản trị viên duyệt. Bạn đăng nhập được sau khi hồ sơ được duyệt.</span></div>
+        <div style="font-size:12.5px; color:#475569; margin-bottom:6px;">Số điện thoại hoặc email</div>
+        <div style="height:42px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 12px; font-size:14px; margin-bottom:12px;">0912 345 678</div>
+        <div style="font-size:12.5px; color:#475569; margin-bottom:6px;">Mật khẩu</div>
+        <div style="height:42px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 12px; font-size:14px; margin-bottom:16px; letter-spacing:2px; color:#0F172A;">••••••••</div>
+        <div style="height:44px; border-radius:9px; background:#F1F5F9; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:14.5px; font-weight:500;">Đăng nhập</div>
+        <div style="text-align:center; font-size:12.5px; color:#94A3B8; margin-top:10px;">Chưa thể đăng nhập cho tới khi được duyệt</div>
+      </div>
+
+      <!-- Đăng nhập khi bị hạn chế -->
+      <div style="width:360px; background:#fff; border-radius:16px; box-shadow:0 8px 28px rgba(15,23,42,0.08); padding:28px 28px 30px;">
+        <div style="font-size:16px; font-weight:500; margin-bottom:4px;">Đăng nhập khi tài khoản bị hạn chế</div>
+        <div style="font-size:12px; color:#94A3B8; margin-bottom:16px; line-height:1.5;">Khoá chỉ chặn tạo mới — vẫn đăng nhập được, banner đỏ hiện sau khi vào.</div>
+        <div style="display:flex; gap:9px; align-items:flex-start; background:#DC2626; border-radius:9px; padding:12px 14px;"><span class="ms" style="font-size:18px; color:#fff; margin-top:1px;">gpp_bad</span><div><div style="font-size:13px; color:#fff; font-weight:500; margin-bottom:2px;">Tài khoản bị hạn chế đến 15/09/2026</div><div style="font-size:12px; color:#FECACA; line-height:1.5;">Do vi phạm hợp đồng HĐ-2026-0137. Bạn vẫn xem được hồ sơ; không đăng bán, tạo hợp đồng hay ký mới.</div></div></div>
+        <div style="display:flex; gap:8px; margin-top:16px;">
+          <div style="flex:1; height:40px; border-radius:8px; background:#F1F5F9; color:#94A3B8; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500; gap:6px;"><span class="ms" style="font-size:16px;">block</span> Tạo hợp đồng</div>
+          <div style="flex:1; height:40px; border-radius:8px; border:0.5px solid #E2E8F0; color:#0F172A; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500;">Xem hồ sơ uy tín</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

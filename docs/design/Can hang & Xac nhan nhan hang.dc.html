@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#EEF2F1; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    @keyframes acSpin { to { transform: rotate(360deg); } }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; padding:44px 40px 80px; color:#0F172A;" data-screen-label="5.9–5.10 Cân hàng & Xác nhận nhận hàng (mobile)">
+
+  <div style="max-width:920px; margin:0 auto 36px;">
+    <div style="font-size:13px; color:#94A3B8; margin-bottom:6px;">AgriContract — Mobile</div>
+    <div style="font-size:22px; font-weight:500;">Cân hàng &amp; Xác nhận nhận hàng</div>
+    <div style="font-size:14px; color:#64748B; margin-top:6px; max-width:640px;">Hai màn ưu tiên điện thoại: bên bán cân hàng ngoài kho, bên mua cân lại khi nhận. Delta 1 (chênh lệch cam kết) và Delta 2 (hao hụt vận chuyển) luôn tách riêng.</div>
+  </div>
+
+  <div style="display:flex; gap:56px; justify-content:center; flex-wrap:wrap; align-items:flex-start;">
+
+    <!-- ============ PHONE 1 — SELLER · CÂN HÀNG (5.9) ============ -->
+    <div style="display:flex; flex-direction:column; align-items:center; gap:16px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="padding:4px 10px; border-radius:999px; background:#DCFCE7; color:#15803D; font-size:13px; font-weight:500;">Bên bán</span>
+        <span style="font-size:14px; color:#64748B;">Cân hàng · 5.9</span>
+      </div>
+
+      <div style="width:100%; max-width:412px; height:812px; background:#F8FAF9; border:0.5px solid #E2E8F0; border-radius:28px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); display:flex; flex-direction:column;">
+        <div style="font-family:'Be Vietnam Pro',sans-serif; background:#F8FAF9; color:#0F172A; display:flex; flex-direction:column; flex:1; min-height:0; overflow-y:auto;">
+
+          <!-- app header -->
+          <div style="background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; padding:14px 16px; display:flex; align-items:center; gap:12px;">
+            <span class="ms" style="font-size:24px; color:#0F172A;">arrow_back</span>
+            <div style="flex:1;">
+              <div style="font-size:16px; font-weight:500;">Cân hàng</div>
+              <div style="font-size:13px; color:#64748B; font-family:'JetBrains Mono',monospace;">HĐ-2026-0142 · Cột mốc 2</div>
+            </div>
+          </div>
+
+          <div style="padding:16px; display:flex; flex-direction:column; gap:16px; flex:1;">
+
+            <!-- milestone summary -->
+            <div style="background:#F1F5F4; border-radius:12px; padding:14px 16px;">
+              <div style="font-size:14px; font-weight:500; margin-bottom:2px;">Giao hàng đợt 2 — Cà phê Robusta</div>
+              <div style="font-size:13px; color:#64748B;">Giao tại kho Buôn Ma Thuột · Hạn 20/06/2026</div>
+            </div>
+
+            <!-- weight input -->
+            <div>
+              <div style="font-size:13px; margin-bottom:6px;">Khối lượng cân được <span style="color:#DC2626;">*</span></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; border:1.5px solid #15803D; border-radius:8px; padding:14px 16px; box-shadow:0 0 0 2px rgba(21,128,61,0.2);">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:500;">19.680</span>
+                <span style="font-size:16px; color:#94A3B8;">kg</span>
+              </div>
+            </div>
+
+            <!-- committed comparison + Delta 1 -->
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; justify-content:space-between; font-size:14px;">
+                <span style="color:#64748B;">Khối lượng cam kết</span>
+                <span style="font-family:'JetBrains Mono',monospace;">20.000 kg</span>
+              </div>
+              <div style="background:#FEF3C7; border-radius:10px; padding:12px 14px;">
+                <div style="display:flex; align-items:flex-start; gap:8px;">
+                  <span class="ms" style="font-size:18px; color:#D97706; margin-top:1px;">warning</span>
+                  <div style="font-size:13px; color:#92400E; line-height:1.5;">Thiếu <span style="font-family:'JetBrains Mono',monospace;">320 kg</span> so với cam kết — có thể bị tính phạt.</div>
+                </div>
+                <div style="margin-top:8px; padding-left:26px;"><a href="#" style="font-size:13px; font-weight:500;">Báo bất khả kháng</a></div>
+              </div>
+            </div>
+
+            <!-- upload -->
+            <div>
+              <div style="font-size:13px; margin-bottom:8px;">Ảnh cân hàng <span style="color:#DC2626;">*</span> <span style="color:#94A3B8;">· cần ít nhất 1 ảnh</span></div>
+              <div style="display:flex; gap:10px;">
+                <!-- add tile -->
+                <div style="width:84px; height:84px; border:1px dashed #CBD5E1; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#64748B; flex-shrink:0;">
+                  <span class="ms" style="font-size:24px;">add_a_photo</span>
+                  <span style="font-size:11px;">Chụp ảnh</span>
+                </div>
+                <!-- READY -->
+                <div style="width:84px; height:84px; border-radius:10px; background:repeating-linear-gradient(135deg,#E2E8F0,#E2E8F0 6px,#EDF1F0 6px,#EDF1F0 12px); position:relative; flex-shrink:0; overflow:hidden;">
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(22,163,74,0.92); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; gap:4px; padding:3px 0;"><span class="ms" style="font-size:14px;">check</span>Sẵn sàng</div>
+                </div>
+                <!-- PROCESSING -->
+                <div style="width:84px; height:84px; border-radius:10px; background:repeating-linear-gradient(135deg,#E2E8F0,#E2E8F0 6px,#EDF1F0 6px,#EDF1F0 12px); position:relative; flex-shrink:0; overflow:hidden;">
+                  <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;"><div style="width:20px; height:20px; border:2px solid rgba(217,119,6,0.3); border-top-color:#D97706; border-radius:50%; animation:acSpin .8s linear infinite;"></div></div>
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(217,119,6,0.92); color:#fff; font-size:11px; text-align:center; padding:3px 0;">Đang xử lý</div>
+                </div>
+              </div>
+              <div style="font-size:12px; color:#94A3B8; margin-top:8px; line-height:1.5;">Ảnh phải qua quét virus trước khi dùng làm bằng chứng.</div>
+            </div>
+
+          </div>
+
+          <!-- sticky primary action (locked) -->
+          <div style="position:sticky; bottom:0; background:#FFFFFF; border-top:0.5px solid #E2E8F0; padding:14px 16px; display:flex; flex-direction:column; gap:8px;">
+            <div style="width:100%; box-sizing:border-box; text-align:center; padding:14px; border-radius:8px; background:#F1F5F9; color:#94A3B8; font-size:15px; font-weight:500; display:flex; align-items:center; justify-content:center; gap:8px;">
+              <span class="ms" style="font-size:18px;">lock</span>Xác nhận đã cân
+            </div>
+            <div style="font-size:12px; color:#94A3B8; text-align:center;">Chờ ảnh xử lý xong mới gửi được.</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PHONE 2 — BUYER · XÁC NHẬN NHẬN HÀNG (5.10) ============ -->
+    <div style="display:flex; flex-direction:column; align-items:center; gap:16px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="padding:4px 10px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:13px; font-weight:500;">Bên mua</span>
+        <span style="font-size:14px; color:#64748B;">Xác nhận nhận hàng · 5.10</span>
+      </div>
+
+      <div style="width:100%; max-width:412px; height:812px; background:#F8FAF9; border:0.5px solid #E2E8F0; border-radius:28px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); display:flex; flex-direction:column;">
+        <div style="font-family:'Be Vietnam Pro',sans-serif; background:#F8FAF9; color:#0F172A; flex:1; min-height:0; overflow-y:auto;">
+
+          <!-- app header -->
+          <div style="background:#FFFFFF; border-bottom:0.5px solid #E2E8F0; padding:14px 16px; display:flex; align-items:center; gap:12px;">
+            <span class="ms" style="font-size:24px; color:#0F172A;">arrow_back</span>
+            <div style="flex:1;">
+              <div style="font-size:16px; font-weight:500;">Xác nhận nhận hàng</div>
+              <div style="font-size:13px; color:#64748B; font-family:'JetBrains Mono',monospace;">HĐ-2026-0142 · Cột mốc 2</div>
+            </div>
+          </div>
+
+          <div style="padding:16px; display:flex; flex-direction:column; gap:16px;">
+
+            <!-- seller declared (read only) -->
+            <div style="background:#F1F5F4; border-radius:12px; padding:14px 16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:13px; color:#64748B;">Bên bán đã cân</span>
+                <span style="padding:3px 9px; border-radius:999px; background:#DBEAFE; color:#2563EB; font-size:12px; font-weight:500;">Đã cân, đang vận chuyển</span>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:500; margin-top:6px;">19.680 kg</div>
+            </div>
+
+            <!-- buyer re-weigh input -->
+            <div>
+              <div style="font-size:13px; margin-bottom:6px;">Khối lượng bạn cân lại <span style="color:#DC2626;">*</span></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; border:1.5px solid #15803D; border-radius:8px; padding:14px 16px; box-shadow:0 0 0 2px rgba(21,128,61,0.2);">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:500;">19.550</span>
+                <span style="font-size:16px; color:#94A3B8;">kg</span>
+              </div>
+            </div>
+
+            <!-- buyer photo -->
+            <div>
+              <div style="font-size:13px; margin-bottom:8px;">Ảnh cân của bạn <span style="color:#DC2626;">*</span></div>
+              <div style="display:flex; gap:10px;">
+                <div style="width:84px; height:84px; border:1px dashed #CBD5E1; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#64748B; flex-shrink:0;">
+                  <span class="ms" style="font-size:24px;">add_a_photo</span>
+                  <span style="font-size:11px;">Chụp ảnh</span>
+                </div>
+                <div style="width:84px; height:84px; border-radius:10px; background:repeating-linear-gradient(135deg,#E2E8F0,#E2E8F0 6px,#EDF1F0 6px,#EDF1F0 12px); position:relative; flex-shrink:0; overflow:hidden;">
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(22,163,74,0.92); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; gap:4px; padding:3px 0;"><span class="ms" style="font-size:14px;">check</span>Sẵn sàng</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DELTA comparison — two separate blocks -->
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="font-size:13px; color:#64748B;">So sánh khối lượng</div>
+
+              <!-- Delta 1 -->
+              <div style="border:0.5px solid #E2E8F0; border-radius:10px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span style="font-size:14px; font-weight:500;">Chênh lệch cam kết</span>
+                  <span style="padding:3px 9px; border-radius:999px; background:#FEE2E2; color:#DC2626; font-size:12px; font-weight:500;">Có thể tính phạt</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:13px; color:#64748B;">20.000 → 19.680 kg</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:15px; color:#DC2626;">−320 kg</span>
+                </div>
+                <div style="font-size:12px; color:#94A3B8; margin-top:6px;">Bên bán kiểm soát được — trước khi xe chạy.</div>
+              </div>
+
+              <!-- Delta 2 -->
+              <div style="border:0.5px solid #E2E8F0; border-radius:10px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span style="font-size:14px; font-weight:500;">Hao hụt vận chuyển</span>
+                  <span style="padding:3px 9px; border-radius:999px; background:#F1F5F9; color:#64748B; font-size:12px; font-weight:500;">Không tính phạt</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:13px; color:#64748B;">19.680 → 19.550 kg</span>
+                  <span style="font-family:'JetBrains Mono',monospace; font-size:15px; color:#64748B;">−130 kg</span>
+                </div>
+                <div style="font-size:12px; color:#94A3B8; margin-top:6px;">Ngoài kiểm soát cả hai — tính pro-rata theo số thực nhận.</div>
+              </div>
+            </div>
+
+            <!-- disbursement -->
+            <div style="background:#DCFCE7; border-radius:12px; padding:14px 16px;">
+              <div style="font-size:13px; color:#166534;">Số tiền sẽ giải ngân (pro-rata)</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:500; color:#15803D; margin:4px 0;">4.887.500.000 ₫</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#166534;">19.550 kg × 250.000 ₫/kg</div>
+            </div>
+
+            <!-- timeout note -->
+            <div style="display:flex; align-items:flex-start; gap:8px; font-size:12px; color:#64748B; line-height:1.5;">
+              <span class="ms" style="font-size:16px; color:#94A3B8; margin-top:1px;">schedule</span>
+              <span>Nếu không thao tác trong 2 ngày làm việc, hệ thống tự xác nhận theo số đã ghi nhận.</span>
+            </div>
+
+          </div>
+
+          <!-- sticky actions -->
+          <div style="position:sticky; bottom:0; background:#FFFFFF; border-top:0.5px solid #E2E8F0; padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+            <div style="width:100%; box-sizing:border-box; text-align:center; padding:14px; border-radius:8px; background:#15803D; color:#fff; font-size:15px; font-weight:500;">Xác nhận đúng</div>
+            <div style="display:flex; gap:10px;">
+              <div style="flex:1; text-align:center; padding:12px; border-radius:8px; border:1px solid #DC2626; color:#DC2626; font-size:14px; font-weight:500;">Báo vấn đề</div>
+              <div style="flex:1; text-align:center; padding:12px; border-radius:8px; color:#15803D; font-size:14px; font-weight:500;">Tính lại</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

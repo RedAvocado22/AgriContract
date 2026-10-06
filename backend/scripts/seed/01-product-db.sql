@@ -1,0 +1,46 @@
+-- ==============================================================
+-- DEV SEED: product_db
+-- Cập nhật @seller1_id trước khi chạy:
+--   http://localhost:8180 → realm agricontract → Users → seller account → UUID
+-- ==============================================================
+
+SET @seller1_id = '1a5a2ddd-56b9-492a-b966-99f436e0fc85';
+
+-- Categories (APPROVED — products cần category_id trỏ tới category đã approved)
+INSERT IGNORE INTO categories (category_id, name, normalized_name, status, proposed_by, proposed_by_email, created_at, updated_at) VALUES
+  ('cat-seed-grain',  'Ngũ cốc',  'ngu coc',  'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW()),
+  ('cat-seed-coffee', 'Cà phê',   'ca phe',   'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW()),
+  ('cat-seed-spice',  'Gia vị',   'gia vi',   'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW()),
+  ('cat-seed-fruit',  'Trái cây', 'trai cay', 'APPROVED', @seller1_id, 'seller1@agricontract.dev', NOW(), NOW());
+
+-- Products
+INSERT IGNORE INTO products (product_id, name, unit, category_id, images, created_at, updated_at) VALUES
+  ('prod-seed-rice',   'Gạo tẻ ST25',           'kg', 'cat-seed-grain',  JSON_ARRAY('https://picsum.photos/seed/prod-seed-rice/800'),   NOW(), NOW()),
+  ('prod-seed-coffee', 'Cà phê Robusta',         'kg', 'cat-seed-coffee', JSON_ARRAY('https://picsum.photos/seed/prod-seed-coffee/800'), NOW(), NOW()),
+  ('prod-seed-pepper', 'Hồ tiêu đen',            'kg', 'cat-seed-spice',  JSON_ARRAY('https://picsum.photos/seed/prod-seed-pepper/800'), NOW(), NOW()),
+  ('prod-seed-durian', 'Sầu riêng Musang King',  'kg', 'cat-seed-fruit',  JSON_ARRAY('https://picsum.photos/seed/prod-seed-durian/800'), NOW(), NOW());
+
+-- Listings — ACTIVE (để browse + dùng cho OFFERED/NEGOTIATING contract)
+INSERT IGNORE INTO listings (listing_id, seller_id, product_id, product_name, quantity, quantity_unit, price_floor, currency, delivery_deadline, status, created_at, updated_at)
+VALUES
+  ('lst-seed-browse-01', @seller1_id, 'prod-seed-rice',   'Gạo tẻ ST25',          1000.000, 'kg',  8000.00, 'VND', '2026-10-15', 'ACTIVE', NOW(), NOW()),
+  ('lst-seed-browse-02', @seller1_id, 'prod-seed-coffee', 'Cà phê Robusta',         500.000, 'kg', 55000.00, 'VND', '2026-11-30', 'ACTIVE', NOW(), NOW()),
+  ('lst-seed-browse-03', @seller1_id, 'prod-seed-pepper', 'Hồ tiêu đen',            100.000, 'kg',120000.00, 'VND', '2026-09-30', 'ACTIVE', NOW(), NOW()),
+  -- Dùng bởi OFFERED contract
+  ('lst-seed-offered',   @seller1_id, 'prod-seed-rice',   'Gạo tẻ ST25',            800.000, 'kg',  8500.00, 'VND', '2026-10-01', 'ACTIVE', NOW(), NOW()),
+  -- Dùng bởi NEGOTIATING contract
+  ('lst-seed-neg',       @seller1_id, 'prod-seed-coffee', 'Cà phê Robusta',          300.000, 'kg', 60000.00, 'VND', '2026-11-01', 'ACTIVE', NOW(), NOW()),
+  -- Dùng bởi SIGNED → DISPUTED contracts (đã CLOSED khi ký hợp đồng)
+  ('lst-seed-signed',    @seller1_id, 'prod-seed-rice',   'Gạo tẻ ST25',            500.000, 'kg',  8000.00, 'VND', '2026-10-01', 'CLOSED', NOW(), NOW()),
+  ('lst-seed-active',    @seller1_id, 'prod-seed-pepper', 'Hồ tiêu đen',            200.000, 'kg',110000.00, 'VND', '2026-09-15', 'CLOSED', NOW(), NOW()),
+  ('lst-seed-delivered', @seller1_id, 'prod-seed-coffee', 'Cà phê Robusta',          300.000, 'kg', 58000.00, 'VND', '2026-10-15', 'CLOSED', NOW(), NOW()),
+  ('lst-seed-settled',   @seller1_id, 'prod-seed-rice',   'Gạo tẻ ST25',           1000.000, 'kg',  7800.00, 'VND', '2026-08-31', 'CLOSED', NOW(), NOW()),
+  ('lst-seed-cancelled', @seller1_id, 'prod-seed-durian', 'Sầu riêng Musang King',  400.000, 'kg', 85000.00, 'VND', '2026-09-01', 'CLOSED', NOW(), NOW()),
+  ('lst-seed-disputed',  @seller1_id, 'prod-seed-pepper', 'Hồ tiêu đen',            150.000, 'kg',125000.00, 'VND', '2026-09-30', 'CLOSED', NOW(), NOW()),
+  -- Dùng bởi ACTIVE contract thứ 2 (seller-cancel test — cancel là terminal, cần fixture riêng với buyer-cancel)
+  ('lst-seed-active-2',  @seller1_id, 'prod-seed-durian', 'Sầu riêng Musang King',  250.000, 'kg', 90000.00, 'VND', '2026-09-20', 'CLOSED', NOW(), NOW());
+
+-- Bruno e2e contract flow dùng listing này — reset ACTIVE mỗi lần seed vì bị CLOSED sau khi ký hợp đồng
+INSERT INTO listings (listing_id, seller_id, product_id, product_name, quantity, quantity_unit, price_floor, currency, delivery_deadline, status, created_at, updated_at)
+VALUES ('51ef2a70-95f6-4a53-bdb1-6c9ccc9becaf', @seller1_id, 'prod-seed-rice', 'Gao ST25', 500.000, 'kg', 15000.00, 'VND', '2026-09-30', 'ACTIVE', NOW(), NOW())
+ON DUPLICATE KEY UPDATE status = 'ACTIVE', updated_at = NOW();

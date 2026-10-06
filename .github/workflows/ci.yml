@@ -21,4 +21,5 @@ jobs:
           cache: 'maven'
 
       - name: Build and run unit tests
+        working-directory: backend
         run: mvn clean verify -DskipITs --no-transfer-progress

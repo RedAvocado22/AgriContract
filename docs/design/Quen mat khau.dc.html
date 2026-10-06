@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <meta name="design_doc_mode" content="canvas">
+  <style>
+    body { margin:0; background:#EEF2F0; font-variant-numeric: tabular-nums; }
+    a { color:#15803D; text-decoration:none; }
+    a:hover { color:#0F172A; text-decoration:underline; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; display:flex; flex-wrap:wrap; gap:40px; padding:40px; background:#EEF2F0; align-items:flex-start;">
+
+  <!-- ============ 9a YÊU CẦU ĐẶT LẠI ============ -->
+  <div style="width:900px; height:560px; display:flex; border-radius:20px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); background:#fff;" data-screen-label="9a Quên mật khẩu — yêu cầu">
+
+    <div style="width:360px; flex-shrink:0; background:linear-gradient(160deg,#15803D 0%,#0F5C2E 100%); color:#fff; padding:44px 40px; display:flex; flex-direction:column;">
+      <div style="font-size:19px; font-weight:600;">AgriContract</div>
+      <div style="font-size:13px; color:#BBF7D0; margin-top:4px;">Hợp đồng nông sản có ký quỹ</div>
+      <div style="flex:1;"></div>
+      <div style="font-size:24px; font-weight:500; line-height:1.35; letter-spacing:-0.01em;">Lấy lại quyền truy cập an toàn.</div>
+      <div style="font-size:14px; color:#DCFCE7; line-height:1.6; margin-top:16px;">Chúng tôi gửi mã xác nhận qua số điện thoại hoặc email đã đăng ký. Đổi mật khẩu không ảnh hưởng tới hợp đồng và ký quỹ đang chạy.</div>
+    </div>
+
+    <div style="flex:1; padding:52px 52px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Quên mật khẩu</div>
+      <div style="font-size:14px; color:#64748B; line-height:1.6; margin-bottom:28px;">Nhập số điện thoại hoặc email đã đăng ký. Chúng tôi sẽ gửi mã xác nhận 6 số để đặt lại mật khẩu.</div>
+
+      <div style="font-size:13px; color:#475569; margin-bottom:6px;">Số điện thoại hoặc email</div>
+      <div style="height:46px; border:1px solid #15803D; border-radius:9px; display:flex; align-items:center; padding:0 12px; font-size:14px; margin-bottom:22px;">0912 345 678</div>
+
+      <div style="height:46px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500; margin-bottom:18px;">Gửi mã xác nhận</div>
+      <div style="text-align:center; font-size:13.5px; color:#64748B;"><a href="#">← Quay lại đăng nhập</a></div>
+    </div>
+  </div>
+
+  <!-- ============ 9b NHẬP MÃ + MẬT KHẨU MỚI ============ -->
+  <div style="width:900px; display:flex; border-radius:20px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); background:#fff;" data-screen-label="9b Nhập mã & mật khẩu mới">
+
+    <div style="width:360px; flex-shrink:0; background:linear-gradient(160deg,#15803D 0%,#0F5C2E 100%); color:#fff; padding:44px 40px; display:flex; flex-direction:column;">
+      <div style="font-size:19px; font-weight:600;">AgriContract</div>
+      <div style="font-size:13px; color:#BBF7D0; margin-top:4px;">Hợp đồng nông sản có ký quỹ</div>
+      <div style="flex:1;"></div>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; gap:10px; align-items:center; font-size:13.5px; color:#DCFCE7;"><span class="ms" style="font-size:18px; color:#BBF7D0;">check_circle</span> Đã gửi mã đến số 0912 •••  678</div>
+        <div style="display:flex; gap:10px; align-items:center; font-size:13.5px; color:#DCFCE7;"><span class="ms" style="font-size:18px; color:#BBF7D0;">lock</span> Tối thiểu 8 ký tự, có chữ và số</div>
+      </div>
+    </div>
+
+    <div style="flex:1; padding:44px 52px; display:flex; flex-direction:column; justify-content:center;">
+      <div style="font-size:22px; font-weight:500; margin-bottom:4px;">Đặt lại mật khẩu</div>
+      <div style="font-size:14px; color:#64748B; margin-bottom:24px;">Nhập mã xác nhận vừa gửi và chọn mật khẩu mới.</div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:#475569;">Mã xác nhận</span><span style="font-size:13px; color:#64748B; font-family:'JetBrains Mono',monospace;">04:37</span></div>
+      <div style="display:flex; gap:10px; margin-bottom:20px;">
+        <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">4</div>
+        <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">8</div>
+        <div style="flex:1; height:52px; border:1px solid #15803D; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">1</div>
+        <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; color:#CBD5E1;">–</div>
+        <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; color:#CBD5E1;">–</div>
+        <div style="flex:1; height:52px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; color:#CBD5E1;">–</div>
+      </div>
+
+      <div style="font-size:13px; color:#475569; margin-bottom:6px;">Mật khẩu mới</div>
+      <div style="height:46px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-size:14px; margin-bottom:9px; letter-spacing:2px;">••••••••••<span class="ms" style="font-size:19px; color:#94A3B8; letter-spacing:normal;">visibility_off</span></div>
+      <div style="display:flex; gap:6px; margin-bottom:18px;"><div style="flex:1; height:4px; border-radius:2px; background:#15803D;"></div><div style="flex:1; height:4px; border-radius:2px; background:#15803D;"></div><div style="flex:1; height:4px; border-radius:2px; background:#22C55E;"></div><div style="flex:1; height:4px; border-radius:2px; background:#E2E8F0;"></div></div>
+
+      <div style="font-size:13px; color:#475569; margin-bottom:6px;">Nhập lại mật khẩu mới</div>
+      <div style="height:46px; border:0.5px solid #E2E8F0; border-radius:9px; display:flex; align-items:center; padding:0 12px; font-size:14px; margin-bottom:22px; letter-spacing:2px;">••••••••••</div>
+
+      <div style="height:46px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500; margin-bottom:14px;">Đặt lại mật khẩu</div>
+      <div style="text-align:center; font-size:13px; color:#64748B;">Chưa nhận được mã? <a href="#">Gửi lại</a></div>
+    </div>
+  </div>
+
+  <!-- ============ 9c THÀNH CÔNG ============ -->
+  <div style="width:480px; border-radius:20px; overflow:hidden; box-shadow:0 12px 40px rgba(15,23,42,0.10); background:#fff; padding:44px 44px 40px;" data-screen-label="9c Đã đặt lại mật khẩu">
+    <div style="width:56px; height:56px; border-radius:14px; background:#DCFCE7; display:flex; align-items:center; justify-content:center; margin-bottom:20px;"><span class="ms" style="font-size:30px; color:#16A34A;">check</span></div>
+    <div style="font-size:22px; font-weight:500; margin-bottom:8px;">Đã đặt lại mật khẩu</div>
+    <div style="font-size:14px; color:#64748B; line-height:1.65; margin-bottom:22px;">Mật khẩu của bạn đã được cập nhật. Mọi phiên đăng nhập cũ đã bị đăng xuất để bảo vệ tài khoản. Đăng nhập lại bằng mật khẩu mới.</div>
+    <div style="height:46px; border-radius:9px; background:#15803D; color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:500;">Đăng nhập</div>
+  </div>
+
+  <!-- ============ 9d MÃ SAI ============ -->
+  <div style="width:480px; background:#fff; border-radius:16px; box-shadow:0 8px 28px rgba(15,23,42,0.08); padding:28px 30px 30px;" data-screen-label="9d Mã xác nhận sai">
+    <div style="font-size:16px; font-weight:500; margin-bottom:16px;">Mã xác nhận không đúng</div>
+    <div style="display:flex; gap:9px; align-items:flex-start; background:#FEE2E2; border-radius:9px; padding:11px 13px; margin-bottom:18px;"><span class="ms" style="font-size:18px; color:#DC2626; margin-top:1px;">error</span><span style="font-size:12.5px; color:#991B1B; line-height:1.5;">Mã xác nhận không đúng. Còn 2 lần thử.</span></div>
+    <div style="display:flex; gap:10px;">
+      <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">3</div>
+      <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">2</div>
+      <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">9</div>
+      <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">1</div>
+      <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">1</div>
+      <div style="flex:1; height:52px; border:1px solid #DC2626; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:22px; font-family:'JetBrains Mono',monospace;">7</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

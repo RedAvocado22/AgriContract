@@ -1,0 +1,24 @@
+meta {
+  name: 24. Verify escrow RELEASED (auto via contract.delivered event)
+  type: http
+  seq: 24
+}
+
+get {
+  url: {{base_url}}/api/v1/escrows/contract/{{contract_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("escrow status should be RELEASED", function() {
+    expect(res.getBody().data.status).to.equal("RELEASED");
+  });
+}

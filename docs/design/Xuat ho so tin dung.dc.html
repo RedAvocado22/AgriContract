@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,-50..200&display=block" rel="stylesheet">
+  <style>
+    body { margin:0; background:#F8FAF9; font-variant-numeric: tabular-nums; }
+    .ms { font-family:'Material Symbols Outlined'; font-weight:400; line-height:1; vertical-align:middle; }
+  </style>
+  <link rel="stylesheet" href="./responsive.css">
+  <script src="./responsive.js"></script>
+</helmet>
+
+<div style="font-family:'Be Vietnam Pro',sans-serif; min-height:100vh; background:#F8FAF9; color:#0F172A; position:relative;" data-screen-label="5.25 Xuất hồ sơ tín dụng">
+
+  <!-- dimmed reputation context -->
+  <div style="max-width:1000px; margin:0 auto; padding:48px 32px; filter:blur(1px); opacity:.5; pointer-events:none;">
+    <div style="font-size:22px; font-weight:500; margin-bottom:24px;">Hồ sơ uy tín</div>
+    <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; height:140px; margin-bottom:16px;"></div>
+    <div style="background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:12px; height:80px;"></div>
+  </div>
+
+  <!-- state toggle (demo helper) -->
+  <div style="position:fixed; top:16px; right:16px; display:flex; gap:6px; background:#FFFFFF; border:0.5px solid #E2E8F0; border-radius:8px; padding:4px; z-index:10;">
+    <span onClick="{{ goConsent }}" style="padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; background:{{ tConsent }}; color:{{ cConsent }};">Xin phép</span>
+    <span onClick="{{ goOk }}" style="padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; background:{{ tOk }}; color:{{ cOk }};">Đủ điều kiện</span>
+    <span onClick="{{ goBlocked }}" style="padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; background:{{ tBlocked }}; color:{{ cBlocked }};">Bị chặn</span>
+  </div>
+
+  <div style="position:fixed; inset:0; background:rgba(15,23,42,.4); display:flex; align-items:center; justify-content:center; padding:24px;">
+
+    <!-- STEP 1: consent -->
+    <sc-if value="{{ isConsent }}" hint-placeholder-val="{{ true }}">
+    <div style="width:560px; max-width:100%; background:#FFFFFF; border-radius:12px; overflow:hidden;">
+      <div style="padding:18px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Xuất hồ sơ tín dụng</div>
+        <span style="font-size:12px; color:#94A3B8;">Bước 1 / 2</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="font-size:14px; color:#64748B; line-height:1.6; margin-bottom:16px;">Hồ sơ dùng để nộp ngân hàng hoặc VARI. Các nhóm dữ liệu sau sẽ được xuất:</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
+          <div style="display:flex; gap:10px; align-items:flex-start; background:#F8FAF9; border:0.5px solid #E2E8F0; border-radius:8px; padding:12px 14px;"><span class="ms" style="font-size:18px; color:#15803D;">schedule</span><div style="font-size:13px;">Lịch sử thanh toán đúng hạn</div></div>
+          <div style="display:flex; gap:10px; align-items:flex-start; background:#F8FAF9; border:0.5px solid #E2E8F0; border-radius:8px; padding:12px 14px;"><span class="ms" style="font-size:18px; color:#15803D;">insights</span><div style="font-size:13px;">Quy mô &amp; tần suất giao dịch</div></div>
+          <div style="display:flex; gap:10px; align-items:flex-start; background:#F8FAF9; border:0.5px solid #E2E8F0; border-radius:8px; padding:12px 14px;"><span class="ms" style="font-size:18px; color:#15803D;">gavel</span><div style="font-size:13px;">Vi phạm / nợ xấu</div></div>
+          <div style="display:flex; gap:10px; align-items:flex-start; background:#F8FAF9; border:0.5px solid #E2E8F0; border-radius:8px; padding:12px 14px;"><span class="ms" style="font-size:18px; color:#15803D;">history</span><div style="font-size:13px;">Thâm niên hoạt động</div></div>
+        </div>
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+          <span onClick="{{ toggleConsent }}" style="width:18px; height:18px; border-radius:4px; border:1.5px solid {{ cbBorder }}; background:{{ cbBg }}; display:flex; align-items:center; justify-content:center; color:#fff;"><span class="ms" style="font-size:14px; opacity:{{ cbOpacity }};">check</span></span>
+          <span style="font-size:14px;">Tôi đồng ý xuất hồ sơ này</span>
+        </label>
+      </div>
+      <div style="padding:16px 24px; border-top:0.5px solid #E2E8F0; display:flex; justify-content:flex-end; gap:8px;">
+        <span style="padding:9px 16px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:14px; font-weight:500; cursor:pointer;">Đóng</span>
+        <span onClick="{{ continueFromConsent }}" style="padding:9px 16px; border-radius:8px; font-size:14px; font-weight:500; background:{{ nextBg }}; color:{{ nextColor }}; cursor:{{ nextCursor }};">Tiếp tục</span>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- STEP 2a: eligible -->
+    <sc-if value="{{ isOk }}" hint-placeholder-val="{{ false }}">
+    <div style="width:560px; max-width:100%; background:#FFFFFF; border-radius:12px; overflow:hidden;">
+      <div style="padding:18px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Xuất hồ sơ tín dụng</div>
+        <span style="font-size:12px; color:#94A3B8;">Bước 2 / 2</span>
+      </div>
+      <div style="padding:24px;">
+        <div style="display:flex; align-items:center; gap:12px; background:#DCFCE7; border-radius:12px; padding:16px; margin-bottom:16px;">
+          <span class="ms" style="font-size:22px; color:#16A34A;">check_circle</span>
+          <div style="font-size:14px; color:#14532D;">Hồ sơ đủ điều kiện xuất. Đã tạo bản PDF và JSON.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; border:0.5px solid #E2E8F0; border-radius:8px; padding:12px 14px;">
+          <span class="ms" style="font-size:22px; color:#DC2626;">picture_as_pdf</span>
+          <div style="flex:1;"><div style="font-size:14px;">ho-so-tin-dung_HTX-Ea-Kar.pdf</div><div style="font-size:11px; color:#94A3B8;">312 KB · 08/07/2026</div></div>
+          <span style="font-size:13px; color:#15803D; font-weight:500; cursor:pointer;">Tải xuống</span>
+        </div>
+      </div>
+      <div style="padding:16px 24px; border-top:0.5px solid #E2E8F0; display:flex; justify-content:flex-end; gap:8px;">
+        <span style="padding:9px 16px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:14px; font-weight:500; cursor:pointer;">Đóng</span>
+        <span style="padding:9px 16px; border-radius:8px; background:#15803D; color:#fff; font-size:14px; font-weight:500; cursor:pointer;">Tải hồ sơ</span>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- STEP 2b: blocked by diversity gate -->
+    <sc-if value="{{ isBlocked }}" hint-placeholder-val="{{ false }}">
+    <div style="width:560px; max-width:100%; background:#FFFFFF; border-radius:12px; overflow:hidden;">
+      <div style="padding:18px 24px; border-bottom:0.5px solid #E2E8F0; display:flex; align-items:center; justify-content:space-between;">
+        <div style="font-size:16px; font-weight:500;">Xuất hồ sơ tín dụng</div>
+        <span style="font-size:12px; color:#94A3B8;">Bước 2 / 2</span>
+      </div>
+      <div style="padding:32px 24px; text-align:center;">
+        <div style="width:56px; height:56px; border-radius:50%; background:#FEF3C7; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;"><span class="ms" style="font-size:28px; color:#D97706;">warning</span></div>
+        <div style="font-size:16px; font-weight:500; margin-bottom:8px;">Hồ sơ chưa đủ điều kiện xuất</div>
+        <div style="font-size:14px; color:#64748B; line-height:1.7; max-width:420px; margin:0 auto;">Hồ sơ chưa đủ điều kiện xuất do thiếu đa dạng đối tác giao dịch (chỉ giao dịch với <span style="font-weight:500; color:#0F172A;">2</span> đối tác). Mở rộng giao dịch với nhiều đối tác hơn để tích luỹ hồ sơ.</div>
+      </div>
+      <div style="padding:16px 24px; border-top:0.5px solid #E2E8F0; display:flex; justify-content:flex-end;">
+        <span style="padding:9px 16px; border-radius:8px; border:0.5px solid #E2E8F0; font-size:14px; font-weight:500; cursor:pointer;">Đóng</span>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view: 'consent', consented: false };
+  renderVals(){
+    const v = this.state.view, ok = this.state.consented;
+    const on = '#15803D', onC = '#fff', off = 'transparent', offC = '#64748B';
+    return {
+      isConsent: v==='consent', isOk: v==='ok', isBlocked: v==='blocked',
+      cbBorder: ok ? '#15803D' : '#CBD5E1', cbBg: ok ? '#15803D' : '#FFFFFF', cbOpacity: ok ? 1 : 0,
+      nextBg: ok ? '#15803D' : '#F1F5F9', nextColor: ok ? '#fff' : '#94A3B8', nextCursor: ok ? 'pointer' : 'not-allowed',
+      toggleConsent: ()=> this.setState({ consented: !ok }),
+      continueFromConsent: ()=> { if(ok) this.setState({ view:'blocked' }); },
+      goConsent: ()=> this.setState({ view:'consent' }),
+      goOk: ()=> this.setState({ view:'ok' }),
+      goBlocked: ()=> this.setState({ view:'blocked' }),
+      tConsent: v==='consent'?on:off, cConsent: v==='consent'?onC:offC,
+      tOk: v==='ok'?on:off, cOk: v==='ok'?onC:offC,
+      tBlocked: v==='blocked'?on:off, cBlocked: v==='blocked'?onC:offC,
+    };
+  }
+}
+</script>
+</body>
+</html>

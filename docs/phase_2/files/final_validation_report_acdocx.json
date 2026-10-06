@@ -1,0 +1,120 @@
+{
+  "pipeline": "content/*.md -> build*.js -> md_to_acdocx.js -> acdocx.js -> docx_output.js -> materialize_toc.py",
+  "documents": {
+    "AgriContract_01_PhanTichThiTruong_final.docx": {
+      "size_bytes": 32680,
+      "sha256": "00a913b548012266a836ee9e74084f93ff998c3cfb9b3be0ec8764116090f9dd",
+      "paragraphs": 143,
+      "tables": 8,
+      "text_chars": 29285,
+      "zip_integrity": "pass"
+    },
+    "AgriContract_02_GiaiPhap_MoHinh_final.docx": {
+      "size_bytes": 25856,
+      "sha256": "eadaef6f9977600aa51647733ee45fcf52fbc0eeee518867a89152b59a40276a",
+      "paragraphs": 122,
+      "tables": 3,
+      "text_chars": 18983,
+      "zip_integrity": "pass"
+    },
+    "AgriContract_Architecture_final.docx": {
+      "size_bytes": 32012,
+      "sha256": "9a3dc23238d5b08317eac140d6900470dcc1168db7b0d9fc51fc1abdc587fdf8",
+      "paragraphs": 83,
+      "tables": 9,
+      "text_chars": 26623,
+      "zip_integrity": "pass"
+    },
+    "AgriContract_SDS_final.docx": {
+      "size_bytes": 59711,
+      "sha256": "914e4e41b234d330500105f1dec1e06eacbc452b52ffe545e8c93c5e166aca94",
+      "paragraphs": 144,
+      "tables": 13,
+      "text_chars": 60262,
+      "zip_integrity": "pass"
+    }
+  },
+  "rendered_pages": {
+    "AgriContract_01_PhanTichThiTruong_final.docx": 12,
+    "AgriContract_02_GiaiPhap_MoHinh_final.docx": 9,
+    "AgriContract_Architecture_final.docx": 13,
+    "AgriContract_SDS_final.docx": 39,
+    "total": 73
+  },
+  "contract_comparison": {
+    "openapi": {
+      "source_unique_paths": 41,
+      "source_operations": 42,
+      "doc_operations": 42,
+      "exact_operation_match": true,
+      "missing": [],
+      "extra": []
+    },
+    "schemas": {
+      "source": 38,
+      "doc": 38,
+      "exact_match": true,
+      "missing": [],
+      "extra": []
+    },
+    "events": {
+      "source": 44,
+      "doc": 44,
+      "exact_match": true,
+      "missing": [],
+      "extra": []
+    },
+    "notification_commands": {
+      "source": 16,
+      "doc": 16,
+      "exact_match": true,
+      "missing": [],
+      "extra": []
+    },
+    "verification_matrix": {
+      "source": 55,
+      "source_unique": 55,
+      "doc": 55,
+      "doc_unique": 55,
+      "exact_id_match": true,
+      "missing": [],
+      "extra": []
+    }
+  },
+  "raw_markup_residue": {
+    "AgriContract_01_PhanTichThiTruong_final.docx": {
+      "<!--": false,
+      "<table": false,
+      "</table>": false,
+      "<br>": false,
+      "<br/>": false,
+      "<br />": false
+    },
+    "AgriContract_02_GiaiPhap_MoHinh_final.docx": {
+      "<!--": false,
+      "<table": false,
+      "</table>": false,
+      "<br>": false,
+      "<br/>": false,
+      "<br />": false
+    },
+    "AgriContract_Architecture_final.docx": {
+      "<!--": false,
+      "<table": false,
+      "</table>": false,
+      "<br>": false,
+      "<br/>": false,
+      "<br />": false
+    },
+    "AgriContract_SDS_final.docx": {
+      "<!--": false,
+      "<table": false,
+      "</table>": false,
+      "<br>": false,
+      "<br/>": false,
+      "<br />": false
+    }
+  },
+  "raw_markup_clear": true,
+  "all_contract_checks_pass": true
+}

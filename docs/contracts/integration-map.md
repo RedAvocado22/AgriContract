@@ -1,0 +1,139 @@
+# AgriContract Phase 2 Integration Map
+
+Status: synchronized with the Phase 2 design/API/event set on 2026-10-06 (Vietnam domestic coffee, consent and contract documents).
+
+Time convention: cross-service timestamps are UTC; deadline owners calculate in `Asia/Ho_Chi_Minh` with the shared Vietnam business-day calendar from milestone escrow §1.1.
+
+## Source precedence
+
+1. Latest Phase 2 design Markdown.
+2. `verification-matrix-phase2.md`.
+3. Contract/API/event documents.
+4. Planning documents.
+5. Phase 1 code is an implementation baseline only.
+
+The architecture contains 12 business services. `api-gateway` is an edge component, signature is owned by `contract-service`, and hash-chain is owned by `audit-service`.
+
+## Service ownership
+
+| Service | System of record / responsibility | Publishes | Consumes | Phase 1 disposition |
+|---|---|---|---|---|
+| `user-service` | Profile, KYC, role/eligibility and persisted lock projection | User notification commands | `reputation.locked`, `reputation.unlocked` | Refactor DTO split, roles, fail-closed lookup and monotonic lock revision |
+| `product-service` | Coffee-only Product/Category/Listing writes, `CoffeeQualitySpec`, `quantityAvailable`, reservation lifecycle, orphan reaper, plot/geolocation and traceability | Existing product/category events | Contract inventory lifecycle events; user eligibility/lock projection | Reject non-coffee writes; legacy non-coffee remains read-only; keep atomic partial-fill reservation/reaper |
+| `contract-service` | Versioned `VN_COFFEE_B2B` snapshot/profile, consent evidence, Contract/Milestone/signatures, `ContractDocument`, coffee quality assessment, breach/attribution/remedy/lifecycle | Inventory lifecycle events, `contract.signed`, `contract.document_generated`, milestone/remedy events and notification commands | Product reservation, escrow funding, inspection measurements, file storage result | Reserve before `OFFERED`; create final document PENDING with second signature and render after commit |
+| `escrow-service` | Deposit and milestone funding orchestration; projection only, never remedy calculator or money source | `bank.*_requested`, escrow funding result events | `contract.signed`, milestone settlement instructions, `remedy.finalized`, `bank.*_completed`, `bank.*_failed` | Add funding retry/cure, partial-lock refund and remedy-leg orchestration |
+| `bank-service` | Append-only ledger, system lock, verifier nonce/key and reconciliation | `bank.*_completed`, `bank.*_failed`, AML/security facts | Canonical `bank.*_requested`, analytics structuring signal | New service; persist event, fund and remedy identities |
+| `inspection-service` | Level 1.5 reports/signatures, Level 2 commission/confirmation, measured/accepted quantity and typed actual metrics | `inspection.report_confirmed`, commissioning facts and notification commands | File readiness and frozen commissioning inputs | New service; never calculates quality disposition, discount or entitlement |
+| `reputation-service` | Immutable completion/dispute facts, insert-only lock ledger, query-time score and pair-risk projection | `reputation.locked`, `reputation.unlocked`, risk-clear events | Positive facts; negative consequences only from `remedy.finalized`; `analytics.structuring_pattern_detected` updates `pair_risk_state` projection | New service; RabbitMQ is not the historical store; Phase 2 does not enforce pair-risk settlement blocking |
+| `audit-service` | Sole writer of append-only `audit_record`/`audit_anchor`, dual hash chain and OTS anchoring | Audit notification commands | Canonical source events including `contract.document_generated` | Commit content hash and PDF bytes hash separately; dedup by sourceEventId |
+| `file-service` | Blob, technical metadata, virus scan, intake, retention and legal hold | `file.ready`, `file.failed`, `file.email_notice` | Storage/intake commands including system-generated final PDF | Return storage hash as documentFileHash; immutable final blob via owner proxy |
+| `pricing-service` | Advisory external reference price quote and manual price attribution | No frozen golden-flow event | None on the critical path | New service; never a dependency for contract sign, funding, adjustment or settlement |
+| `analytics-service` | CQRS facts, monthly aggregates and AML scan | `analytics.structuring_pattern_detected` | Contract/milestone/remedy lifecycle facts including `contract.terminated` | Recompute and overwrite every touched month bucket |
+| `notification-service` | Notification delivery log/templates, synchronous OTP, final-contract PDF email | No business decision event | `notification.*_requested` commands only | Final PDF command dedup by document + recipient + notification type |
+
+## Canonical interaction map
+
+| Flow | Producer | Contract | Consumer | Required invariant |
+|---|---|---|---|---|
+| Eligibility | contract/product | `GET /internal/v1/users/{userId}` | user | Fail closed on unavailable/locked user |
+| Listing reserve | contract | `POST /internal/v1/listing-reservations` | product | Derive milestone sum; unique contractId; atomic conditional decrement; 409 on insufficient/legacy-null |
+| Reserve compensation | contract | `POST /internal/v1/listing-reservations/{contractId}/release` | product | Create-persistence failure restores at most once and preserves seller listing state |
+| Consent + OTP | contract | `InitiateSign` + `POST /internal/v1/notifications/otp-email` | notification | Active statement and presented hash validated before challenge; resend supersedes old challenge; no delayed send |
+| Fully signed | contract | `contract.signed` | product, escrow, analytics, audit | Both signatures bind one hash; inventory remains releasable; PDF generation is independent |
+| Final document | contract/file | `contract.document_generated` then `notification.contract_document_ready_requested` | audit, notification | One immutable READY document; source/content hash and PDF-file hash stay distinct |
+| Activated | contract | `contract.activated` | product | Only ACTIVE finalizes reservation COMMITTED; activation failure releases |
+| Goods snapshot | product -> contract synchronous read at create | Listing/Product/Category/Plot source data -> `GoodsTermsSnapshot` | contract | Server-derived once; later source mutation/deletion cannot change snapshot/hash |
+| Bounded price selection | contract | price propose/accept REST; `milestone.price_adjusted` after accept | audit, analytics | Counterparty accept only, inside signed band and before funding; no OTP/hash mutation |
+| Initial deposit | escrow | `bank.lock_requested` | bank | One source event per command and one unique remedy/funding leg |
+| Funding result | bank | `bank.lock_completed` / `bank.lock_failed` | escrow | Delivery obligation starts only after `LOCKED` |
+| Funding failure | escrow | `escrow.milestone_funding_failed` and notification command | contract, notification | Retry/cure; refund any partial lock; use `effectiveDeliveryDeadline` |
+| Inspection measurement | inspection | `inspection.report_confirmed` with typed actual metrics inside `resultHash` | contract, audit | Report applies only in `BUYER_RECEIVED`/`CONTESTED`; rice actual has no variety; no inspector-owned disposition |
+| Quality assessment | contract | immutable assessment; quality dispute Rổ B -> `AttributionDecision`/`RemedyDecision`/`remedy.finalized` | escrow, reputation, audit | Disposition is deterministic; inspected amount uses accepted quantity/effective price without Delta 2 twice; no second `milestone.settled` trigger |
+| Evidence | contract/inspection/file | consent records, document event, milestone/inspection/file events | audit and owning consumers | Receipt consent does not waive inspection; certificate is evidence only; replay is a no-op |
+| Attribution A | contract | direct `AttributionDecision` (`breachCaseId = null`, `decisionSource = SYSTEM`) | remedy calculator | Only after objective rule is satisfied |
+| Attribution B | contract | `breach.reported`; `REPORTED -> UNDER_REVIEW -> RESOLVED` | contract workflow | Allegation has no money/reputation consequence |
+| Consequence | contract | `remedy.finalized` | escrow, reputation, audit | Sole trigger for quality-resolution/termination money and negative reputation; quality payload carries disposition plus final attribution |
+| Money command | escrow | canonical `bank.*_requested` with `sourceEventId`, `fundType`, `remedyDecisionId`, `remedyLegId` | bank | `sourceEventId` blocks command replay; `remedyLegId` blocks duplicate leg |
+| Termination | contract | `contract.terminated` | audit, analytics | Lifecycle only; notification receives `notification.contract_terminated_requested`, not the domain event |
+| Completion | contract | `contract.settled` | reputation, analytics | Positive history/lifecycle only; no money trigger |
+| Reconciliation | bank / contract | typed internal audit read plus existing `/internal/v1/bank/ledger` filtered by `contractId` | audit / bank | Bank detects ledger/audit mismatch; contract verifies every expected remedy leg and zero remaining lock before terminal transition |
+
+## Attribution and termination boundary
+
+- `requestedBy` is audit context only and never implies breach.
+- `allegedBreachingRole` exists only before the decision is final.
+- `finalBreachingRole` is nullable and is the only role usable for sanctions.
+- `finalBreachingRole = null` forbids contractual-penalty legs and reputation lock creation.
+- Canonical termination types are `WITHDRAW_OFFER`, `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, and `ACTIVATION_FAILURE`.
+- Buyer non-receipt is direct system attribution only after the notice/window expires and objective delivery evidence exists; otherwise it enters `BreachCase` review.
+
+## Signed terms and runtime boundary
+
+- Phase 2 writes are domestic Vietnam coffee only. `ContractTermsSnapshot` includes template code/version/hash and `coffeeQualityProfileVersion`; all are hash committed.
+- Consent evidence is action-specific and binds subject, statement version/hash and presented content hash. Checkbox is not represented as biometric fingerprint or CA-backed signature.
+- `ContractTermsInput` contains negotiated committed quality, delivery, inspection and pricing-band terms. `goodsTerms` and `totalContractValue` are server-only snapshot fields.
+- Signed `inspectionTerms.inspectionCostResponsibility` is fixed to `LOSER_PAYS`; disposition assigns Buyer cost for conforming and Seller cost for partial/non-conforming, while inconclusive defers allocation.
+- `agreedPrice` is the base unit price. Deposit amounts are calculated once from nominal `totalContractValue` and never recomputed from milestone adjustments.
+- Runtime address/carrier information is not signed; only delivery responsibility and risk/title/cost allocation are signed.
+- A pending price proposal is mutable workflow state and has no historical counter-offer log. An accepted adjustment is immutable and auditable.
+- Funding uses the accepted price if present and otherwise falls back immediately to base; no funding delay and no settlement true-up.
+- Clean settlement uses existing Delta 1/Delta 2. Inspected/contested settlement uses `min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)` with no second tolerance application.
+- Quality `MILESTONE_PAYMENT` legs conserve `batchAmount` independently from penalty and deposit fund sources; reject penalty base is affected milestone value, not total contract value.
+
+## Mutual replacement sequence
+
+1. Create and sign the replacement while the old contract remains non-terminal.
+2. After the replacement is `SIGNED`, move the old contract to `REPLACEMENT_PENDING` and start refunding its remaining locks.
+3. A refund interruption leaves the old contract in `SUPERSEDE_REFUND_PENDING`; it is not yet `SUPERSEDED`.
+4. Mark the old contract `SUPERSEDED` only after all old locks are zero and link both contract IDs.
+5. A later activation failure of the replacement follows its normal `ACTIVATION_FAILURE` path and never rolls back the old contract history.
+
+## Settlement and termination completion
+
+1. Last-milestone completion or final termination attribution persists the existing `AttributionDecision`/`RemedyDecision` and publishes `remedy.finalized`.
+2. Escrow consumes bank results and retries failed/missing legs; contract-service does not consume those result events.
+3. Contract-service's idempotent completion reconciler reads the existing internal bank ledger by `contractId`, checks the expected `remedyDecisionId`/`remedyLegId` set, and computes remaining lock from append-only entries.
+4. Only a complete leg set plus remaining lock `0.00` permits `SETTLED`/`TERMINATED` and their lifecycle event. A bank failure leaves the contract non-terminal.
+
+## Audit and notification boundary
+
+- Audit consumes canonical domain events directly; there is no generic audit-write command or API.
+- `audit_record.source_event_id` is unique. The record retains `sourceEventId`, `causationId`, and `correlationId`.
+- OTS anchoring uses a durable outbox/retry mechanism. Replaying the same source event creates no second record, anchor or evidence email.
+- Notification messages are commands, separate from domain events. Termination templates use `terminationType`, `finalBreachingRole`, and remedy outcome, never requester attribution.
+- `contract.document_generated` commits `sourceContentHash` and `documentFileHash` separately; only then may the final-PDF notification command be sent.
+
+## Phase 1 migration and compatibility
+
+### Remove or retire
+
+- Remove `CancelContractUseCase`, `cancel(initiatedBy)`, the `/cancel` route, `contract.cancelled`, and every old consumer/template tied to that event.
+- Remove `confirmDelivery`, `ContractDeliveredEvent`, `contract.delivered`, and consumers tied only to the single-delivery flow.
+- Retire `SEIZE_PENALTY` and any consumer that calculates remedy or infers fault locally.
+- Stop escrow money consumers of `contract.settled`/`contract.terminated` and reputation consumers other than `remedy.finalized` for negative outcomes.
+- Remove dual-write amount/balance fields that compete with the bank ledger.
+
+### Database migration and backfill
+
+- Contract DB: add LegalProfile, goods/quality/delivery/inspection/pricing snapshots, nominal total, accepted price-adjustment record, quality assessment, breach/attribution/remedy tables, remedy-leg identity, replacement links/states, milestone funding status/delay/effective deadline and outbox indexes.
+- Bank DB: add `source_event_id`, `fund_type`, `remedy_decision_id`, `remedy_leg_id`, `entry_type`, `amount`; unique indexes on source command and remedy leg, not on remedy decision alone.
+- Reputation DB: add immutable completion/dispute facts and unique negative lock identity by `remedy_decision_id`; do not persist a precomputed score.
+- Audit DB: add unique `source_event_id`, causation/correlation columns and durable anchor-outbox state.
+- Analytics DB: add termination facts for type/requester/final role/reason and replace increment-only month jobs with full touched-bucket overwrite.
+- Notification DB: add event/type/recipient/template/provider/failure metadata with Phase 1-safe defaults; backfill `recipient_email = legacy:{user_id}` before replacing `uq_event_user` with unique `(event_id, recipient_email, notification_type)`.
+- Phase 1 `CANCELLED` rows migrate to the read projection `TERMINATED` without publishing a new canonical event; `terminationType`/`finalBreachingRole` remain null when evidence is insufficient, while `cancelledBy` may be retained only as requester audit data. Do not replay automatic negative consequences.
+- Existing signed contracts retain their historical snapshot/hash schema and operate read-only. Existing drafts are not silently defaulted; signing remains blocked until all new terms are explicitly supplied.
+
+### Deployment order
+
+1. Deploy additive columns, enums, event-envelope support and tolerant consumers.
+2. Deploy new `remedy.finalized` consumers and idempotency indexes before enabling its producer.
+3. Cut producers to the canonical events, then stop legacy publishers and consumers.
+4. Backfill immutable facts/identities and reconcile terminal locks.
+5. Remove compatibility reads and legacy columns only after replay and matrix fixtures pass.
+
+## Resolved contract notes
+
+- Signature and milestone action paths already frozen by their owner designs remain authoritative.
+- The legacy `/cancel` endpoint is retired. Explicit withdraw, mutual termination/replacement, breach review/resolve and termination execution paths are frozen in `contracts/openapi/golden-flow-api.yaml` and mirrored by the milestone owner design.
+- Notification routing data remains in notification commands; approved recipient data on an evidence event is only the explicit hash-chain design exception.

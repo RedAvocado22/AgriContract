@@ -1,0 +1,1350 @@
+openapi: 3.1.0
+info:
+  title: AgriContract Golden Flow API
+  version: 0.1.0
+  description: >-
+    API paths required by the authoritative Phase 2 use cases are frozen here.
+    The Phase 1 cancel endpoint is retired; termination, breach review and mutual
+    replacement use explicit idempotent commands below.
+    Phase 2 new writes are limited to domestic Vietnam coffee contracts.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/contracts:
+    x-service-owner: contract-service
+    post:
+      operationId: createContract
+      x-roles: [BUYER]
+      x-domain-ownership-check: true
+      description: >-
+        Create an OFFERED contract from an approved listing. Buyer identity comes from JWT;
+        listing resolves seller/product ownership. Contract-service derives requestedQuantity
+        as the sum of milestoneSchedule committedQuantity, generates contractId, and calls the
+        synchronous product-service reservation API before persisting OFFERED. Only a successful
+        atomic reservation may be followed by the local Contract/outbox transaction. If local
+        persistence fails after reserve, contract-service calls the idempotent compensation release.
+        Insufficient, below-minimum, or legacy-null inventory returns 409
+        INSUFFICIENT_LISTING_QUANTITY; clients reload the listing and never blind-retry.
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateContractRequest'}}}}
+      responses:
+        '201': {description: Contract created, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {description: Eligibility or product reservation dependency unavailable; create offer fails closed and no unreserved OFFERED contract is persisted.}
+    get:
+      operationId: listContracts
+      parameters:
+        - {name: role, in: query, required: false, schema: {enum: [BUYER, SELLER]}}
+        - {name: status, in: query, required: false, schema: {type: string}}
+        - {name: page, in: query, required: false, schema: {type: integer, minimum: 0}}
+        - {name: size, in: query, required: false, schema: {type: integer, minimum: 1}}
+      responses: {'200': {description: Participant-owned paginated contract list, content: {application/json: {schema: {$ref: '#/components/schemas/ContractPage'}}}}}
+  /api/v1/contracts/{contractId}:
+    x-service-owner: contract-service
+    get:
+      operationId: getContract
+      parameters: [{name: contractId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Participant-owned contract detail, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
+  /api/v1/contracts/{contractId}/document-preview:
+    x-service-owner: contract-service
+    get:
+      operationId: previewContractDocument
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: Server-rendered preview of the current offer/negotiation snapshot. Every page or prominent header must carry CHƯA CÓ HIỆU LỰC; this representation is never the final signed document.
+      parameters: [{name: contractId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Draft PDF preview with mandatory invalidity watermark, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/contracts/{contractId}/documents:
+    x-service-owner: contract-service
+    get:
+      operationId: listContractDocuments
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      parameters: [{name: contractId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Participant-owned document metadata, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/ContractDocumentResponse'}}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/contracts/{contractId}/documents/{documentId}:
+    x-service-owner: contract-service
+    get:
+      operationId: getContractDocument
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: Owner-authorized contract-service proxy for immutable READY document bytes; MinIO object keys are never exposed.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: documentId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Immutable contract document bytes, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {description: Document metadata exists but status is PENDING or FAILED; caller must reread the document list and must not repeat signing.}
+  /api/v1/contracts/{contractId}/terms:
+    x-service-owner: contract-service
+    patch:
+      operationId: updateContractTerms
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ContractTermsInput'}}}}
+      responses: {'200': {description: Contract terms updated before first signature, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/sign/initiate:
+    x-service-owner: contract-service
+    post:
+      operationId: initiateSign
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        InitiateSign first validates and persists action-specific checkbox consent bound to the
+        current signedContentHash, then creates and persists the OTP challenge and
+        synchronously requests OTP email delivery. In the challenge transaction, every still-valid
+        prior challenge for the same signer, contractId and signedContentHash is atomically expired
+        before the new otpId is inserted. Resend therefore leaves only the newest challenge valid;
+        this rule changes neither the request nor response shape.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/InitiateSignRequest'}}}}
+      responses:
+        '200':
+          description: Notification provider accepted the OTP request; no Signature row is created yet.
+          content: {application/json: {schema: {$ref: '#/components/schemas/InitiateSignResponse'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '5XX': {description: Notification provider failure; no delayed retry is performed.}
+  /api/v1/contracts/{contractId}/sign/verify:
+    x-service-owner: contract-service
+    post:
+      operationId: verifyOtpAndSign
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        VerifyOtpAndSign(otpId, contractId, otpCode) verifies the bound challenge and inserts the
+        Signature row. Lookup remains by otpId, but an older challenge expired by resend is rejected
+        even when its OTP code is correct. Before the second signature transitions to SIGNED,
+        contract-service requires sum(milestoneSchedule.committedQuantity) == reservedQuantity;
+        mismatch fails closed with 409 and publishes no contract.signed event.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VerifyOtpAndSignRequest'}}}}
+      responses:
+        '204': {description: OTP accepted and signature inserted; the second valid signature transitions the contract to SIGNED.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/withdraw:
+    x-service-owner: contract-service
+    post:
+      operationId: withdrawOffer
+      x-roles: [BUYER, SELLER]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Offer withdrawn before the second signature; publishes contract.terminated with WITHDRAW_OFFER.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/termination/mutual/propose:
+    x-service-owner: contract-service
+    post:
+      operationId: proposeMutualTermination
+      x-roles: [BUYER, SELLER]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Mutual termination proposal recorded; the counterparty must confirm.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/termination/mutual/confirm:
+    x-service-owner: contract-service
+    post:
+      operationId: confirmMutualTermination
+      x-roles: [BUYER, SELLER]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Mutual termination accepted; remedy.finalized is emitted and contract.terminated follows only after zero-lock reconciliation.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/replacement/propose:
+    x-service-owner: contract-service
+    post:
+      operationId: proposeMutualReplacement
+      x-roles: [BUYER, SELLER]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ReplacementProposalRequest'}}}}
+      responses:
+        '201': {description: Replacement draft created, content: {application/json: {schema: {$ref: '#/components/schemas/ContractResponse'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/replacement/confirm:
+    x-service-owner: contract-service
+    post:
+      operationId: confirmMutualReplacement
+      x-roles: [BUYER, SELLER]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Replacement consent recorded; old contract commits only after the replacement reaches SIGNED.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/breach-cases:
+    x-service-owner: contract-service
+    post:
+      operationId: reportBreachCase
+      x-roles: [BUYER, SELLER, SYSTEM]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BreachCaseReportRequest'}}}}
+      responses:
+        '201': {description: Breach case reported and breach.reported published, content: {application/json: {schema: {$ref: '#/components/schemas/BreachCase'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/review:
+    x-service-owner: contract-service
+    post:
+      operationId: reviewBreachCase
+      x-roles: [ADMIN, INSPECTOR]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: breachCaseId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses: {'204': {description: Case moved to UNDER_REVIEW.}, '400': {$ref: '#/components/responses/BadRequest'}, '401': {$ref: '#/components/responses/Unauthorized'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/resolve:
+    x-service-owner: contract-service
+    post:
+      operationId: resolveBreachCase
+      x-roles: [ADMIN, INSPECTOR]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: breachCaseId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BreachCaseResolutionRequest'}}}}
+      responses: {'204': {description: AttributionDecision persisted and remedy.finalized published; terminal lifecycle waits for reconciliation.}, '400': {$ref: '#/components/responses/BadRequest'}, '401': {$ref: '#/components/responses/Unauthorized'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/termination/execute:
+    x-service-owner: contract-service
+    post:
+      operationId: executeTermination
+      x-roles: [BUYER, SELLER, ADMIN]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/TerminationExecuteRequest'}}}}
+      responses: {'204': {description: Final attribution/remedy workflow started; terminal lifecycle waits for reconciliation.}, '400': {$ref: '#/components/responses/BadRequest'}, '401': {$ref: '#/components/responses/Unauthorized'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/activation/retry-deposit-lock:
+    x-service-owner: contract-service
+    post:
+      operationId: retryDepositLock
+      x-roles: [ADMIN]
+      description: ADMIN-only recovery of the missing deposit leg after escrow.deposit_lock_failed.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Retry accepted; escrow retries only the missing leg.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/activation/mark-failed:
+    x-service-owner: contract-service
+    post:
+      operationId: markActivationFailed
+      x-roles: [ADMIN]
+      description: ADMIN-only terminal activation recovery; partial locks are refunded before ACTIVATION_FAILED.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Activation failure workflow started.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh:
+    x-service-owner: contract-service
+    post:
+      operationId: recordSellerWeighed
+      x-roles: [SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SellerWeighedRequest'}}}}
+      responses: {'204': {description: Milestone enters SELLER_WEIGHED and publishes milestone.seller_weighed.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/confirm:
+    x-service-owner: contract-service
+    post:
+      operationId: confirmMilestoneClean
+      x-roles: [BUYER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BuyerReceivedRequest'}}}}
+      responses: {'204': {description: Buyer records received weight/evidence and performs CONFIRM_CLEAN.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/flag:
+    x-service-owner: contract-service
+    post:
+      operationId: flagMilestoneIssue
+      x-roles: [BUYER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BuyerReceivedRequest'}}}}
+      responses: {'204': {description: Buyer records received weight/evidence and performs FLAG_ISSUE.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond:
+    x-service-owner: contract-service
+    post:
+      operationId: respondToMilestoneFlag
+      x-roles: [SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConsentInput'}}}}
+      responses: {'204': {description: Seller contests the flagged milestone; routing follows DisputeRoutingService.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure:
+    x-service-owner: contract-service
+    post:
+      operationId: claimForceMajeure
+      x-roles: [SELLER]
+      x-domain-ownership-check: true
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ForceMajeureClaimRequest'}}}}
+      responses: {'204': {description: Claim recorded and milestone enters FORCE_MAJEURE_PENDING_REVIEW.}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve:
+    x-service-owner: contract-service
+    post:
+      operationId: resolveForceMajeure
+      x-roles: [ADMIN]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ForceMajeureResolveRequest'}}}}
+      responses: {'204': {description: ADMIN decision recorded and milestone.force_majeure_resolved published.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/funding/retry:
+    x-service-owner: escrow-service
+    post:
+      operationId: retryMilestoneFunding
+      x-roles: [ADMIN]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses: {'204': {description: Retry accepted for the failed funding leg.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/propose:
+    x-service-owner: contract-service
+    post:
+      operationId: proposeMilestonePriceAdjustment
+      summary: Propose a bounded milestone unit price before funding
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Creates or replaces the single pending proposal before the milestone funding
+        request is emitted. JWT authenticates the proposer; OTP is not used because
+        the signed price band already authorizes the bounded runtime selection.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PriceAdjustmentProposalRequest'}}}}
+      responses:
+        '201': {description: Pending proposal created or replaced, content: {application/json: {schema: {$ref: '#/components/schemas/PendingPriceAdjustment'}}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409':
+          description: Price is outside the signed band, funding was already requested, or an adjustment was already accepted.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/{proposalId}/accept:
+    x-service-owner: contract-service
+    post:
+      operationId: acceptMilestonePriceAdjustment
+      summary: Accept the counterparty's bounded milestone price proposal
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Counterparty-only authenticated accept. The immutable accepted record is
+        created and milestone.price_adjusted is published; ContractTerms and
+        signedContentHash remain unchanged.
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: proposalId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConsentInput'}}}}
+      responses:
+        '200': {description: Adjustment accepted, content: {application/json: {schema: {$ref: '#/components/schemas/AcceptedPriceAdjustment'}}}}
+        '403':
+          description: Proposer attempted self-accept or caller is not a participant.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: Proposal is stale, funding was already requested, or another adjustment was already accepted.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+  /api/v1/users/register:
+    x-service-owner: user-service
+    post:
+      operationId: registerUser
+      security: [{bearerAuth: []}]
+      responses:
+        '2XX': {description: Idempotent registration; exact success status is not frozen.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /api/v1/users/me:
+    x-service-owner: user-service
+    get:
+      operationId: getMyProfile
+      responses:
+        '2XX': {description: Full participant profile; exact response wire shape is not frozen.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/users/{userId}:
+    x-service-owner: user-service
+    get:
+      operationId: getPublicUser
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      responses:
+        '2XX':
+          description: Public user DTO without contact PII
+          content: {application/json: {schema: {$ref: '#/components/schemas/PublicUserResponse'}}}
+  /api/v1/reputation/{userId}/public-summary:
+    x-service-owner: reputation-service
+    get:
+      operationId: getPublicReputationSummary
+      parameters: [{name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Authenticated partner reputation summary, content: {application/json: {schema: {$ref: '#/components/schemas/ReputationPublicSummary'}}}}, '404': {$ref: '#/components/responses/NotFound'}}
+  /api/v1/admin/reputation/actions/propose:
+    x-service-owner: reputation-service
+    post:
+      operationId: proposeReputationAction
+      x-roles: [ADMIN, OPERATOR]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ReputationActionProposalRequest'}}}}
+      responses: {'201': {description: Governance action proposed, content: {application/json: {schema: {$ref: '#/components/schemas/ReputationAction'}}}}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/admin/reputation/actions/{actionId}/approve:
+    x-service-owner: reputation-service
+    post:
+      operationId: approveReputationAction
+      x-roles: [ADMIN]
+      parameters: [{name: actionId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'204': {description: Action approved and applied; proposer and approver must differ.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/admin/reputation/actions/{actionId}/reject:
+    x-service-owner: reputation-service
+    post:
+      operationId: rejectReputationAction
+      x-roles: [ADMIN]
+      parameters: [{name: actionId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'204': {description: Action rejected.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/admin/users:
+    x-service-owner: user-service
+    get:
+      operationId: listPendingUsers
+      security: [{bearerAuth: []}]
+      parameters: [{name: verificationStatus, in: query, required: false, schema: {enum: [PENDING, VERIFIED, REJECTED]}}]
+      responses:
+        '2XX': {description: KYC queue; exact response wire shape is not frozen.}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/users/{userId}/verify:
+    x-service-owner: user-service
+    post:
+      operationId: verifyUser
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VerifyUserRequest'}}}}
+      responses: {'2XX': {description: Verified; exact success status is not frozen.}, '403': {$ref: '#/components/responses/Forbidden'}}
+  /api/v1/admin/users/{userId}/reject:
+    x-service-owner: user-service
+    post:
+      operationId: rejectUser
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RejectUserRequest'}}}}
+      responses: {'2XX': {description: Rejected; exact success status is not frozen.}, '403': {$ref: '#/components/responses/Forbidden'}}
+  /internal/v1/users/{userId}:
+    x-service-owner: user-service
+    get:
+      x-internal: true
+      operationId: getInternalUserInfo
+      security: [{serviceAuth: []}]
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      responses: {'2XX': {description: Internal user info as defined by user-service design section 4.3.}, '401': {$ref: '#/components/responses/Unauthorized'}}
+  /internal/v1/notifications/otp-email:
+    x-service-owner: notification-service
+    post:
+      x-internal: true
+      operationId: sendOtpEmail
+      security: [{serviceAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/OtpEmailRequest'}}}}
+      responses: {'200': {description: Provider accepted request}, '5XX': {description: Provider failure}}
+  /internal/v1/audit/records:
+    x-service-owner: audit-service
+    get:
+      x-internal: true
+      operationId: getAuditRecordsForReconciliation
+      security: [{serviceAuth: []}]
+      description: Read-only audit record query for bank-service LedgerAuditReconciliationJob; never route through Gateway.
+      parameters:
+        - {name: contractId, in: query, required: true, schema: {type: string}}
+        - {name: sourceType, in: query, required: false, schema: {type: string}}
+        - {name: from, in: query, required: false, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: false, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: Audit records matching the read-only filter.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditRecordList'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/security/audit-hash:
+    x-service-owner: audit-service
+    get:
+      operationId: getAuditHash
+      security: [{apiKeyAuth: []}]
+      x-rate-limit: required
+      parameters: [{name: contractId, in: query, required: true, schema: {type: string}}]
+      responses:
+        '200':
+          description: Current per-contract audit chain hash for External Verifier reconciliation.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditHashResponse'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /api/v1/security/emergency-lock:
+    x-service-owner: bank-service
+    post:
+      operationId: emergencyLock
+      description: External Verifier ES256 signed request. No JWT, API key, Admin bypass or Gateway retry; request cap 64 KB.
+      security: []
+      x-signed-action: LOCK
+      x-error-codes: [EXTERNAL_SIGNATURE_INVALID, EXTERNAL_KEY_UNKNOWN, SIGNATURE_TIMESTAMP_OUT_OF_WINDOW, NONCE_REPLAYED, SYSTEM_ALREADY_LOCKED]
+      x-max-body-bytes: 65536
+      x-gateway-retry: false
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExternalVerifierRequest'}}}}
+      responses:
+        '204': {description: System lock activated.}
+        '401': {$ref: '#/components/responses/ExternalSignatureInvalid'}
+        '409': {$ref: '#/components/responses/SystemAlreadyLocked'}
+  /api/v1/security/emergency-unlock:
+    x-service-owner: bank-service
+    post:
+      operationId: emergencyUnlock
+      description: External Verifier ES256 signed request. The signed action must be UNLOCK.
+      security: []
+      x-signed-action: UNLOCK
+      x-error-codes: [EXTERNAL_SIGNATURE_INVALID, EXTERNAL_KEY_UNKNOWN, SIGNATURE_TIMESTAMP_OUT_OF_WINDOW, NONCE_REPLAYED, SYSTEM_NOT_LOCKED]
+      x-max-body-bytes: 65536
+      x-gateway-retry: false
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ExternalVerifierRequest'}}}}
+      responses:
+        '204': {description: System lock released.}
+        '401': {$ref: '#/components/responses/ExternalSignatureInvalid'}
+        '409': {$ref: '#/components/responses/SystemNotLocked'}
+  /api/v1/escrows/statements:
+    x-service-owner: escrow-service
+    get:
+      operationId: exportEscrowStatement
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: Participant-owned read-only ledger statement.
+          headers:
+            Content-Disposition: {schema: {type: string}}
+          content:
+            text/csv: {schema: {type: string, format: binary}}
+            application/pdf: {schema: {type: string, format: binary}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /internal/v1/bank/ledger:
+    x-service-owner: bank-service
+    get:
+      x-internal: true
+      operationId: getInternalLedgerEntries
+      security: [{serviceAuth: []}]
+      description: >-
+        Existing read-only ledger contract used for statements and terminal-money
+        reconciliation. Callers must provide contractId or participantId. Contract-service
+        filters by contractId and verifies the expected remedyDecisionId/remedyLegId set plus
+        zero remaining lock before committing SETTLED or TERMINATED.
+      x-validation: At least one of contractId or participantId is required; from/to are optional reconciliation bounds and must be supplied together when used.
+      parameters:
+        - {name: contractId, in: query, required: false, schema: {type: string, format: uuid}}
+        - {name: participantId, in: query, required: false, schema: {type: string, format: uuid}}
+        - {name: remedyDecisionId, in: query, required: false, schema: {type: string, format: uuid}}
+        - {name: from, in: query, required: false, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: false, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: Read-only ledger entries, content: {application/json: {schema: {$ref: '#/components/schemas/LedgerEntryList'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+    serviceAuth: {type: apiKey, in: header, name: X-Gateway-Secret, description: Internal deployment secret; never accepted from an external client.}
+    apiKeyAuth: {type: apiKey, in: header, name: X-Api-Key}
+  schemas:
+    CreateContractRequest:
+      type: object
+      required: [listingId, listingVersionToken, terms]
+      additionalProperties: false
+      x-validation: The authoritative Category.commodity resolved from listingId and terms.qualityTerms.commodity must both be COFFEE. The client cannot override goodsTerms. requestedQuantity is derived only as the sum of terms.milestoneSchedule committedQuantity. The exact opaque listingVersionToken is passed to product-service reserve; no independent quantity or client-owned inventory counter is accepted.
+      properties:
+        listingId: {type: string, format: uuid}
+        listingVersionToken:
+          type: string
+          minLength: 1
+          description: Opaque token returned by ListingResponse; Phase 2 backs it with canonical UTC Listing.updatedAt. A mismatch returns 409 LISTING_VERSION_MISMATCH and no contract is created or reserved.
+        terms: {$ref: '#/components/schemas/ContractTermsInput'}
+    ContractTermsBase:
+      type: object
+      required: [agreedPrice, currency, milestoneSchedule, qualityTerms, deliveryTerms, inspectionTerms, priceBand, priceAdjustmentRule, toleranceRate, shortfallPenaltyThreshold, buyerPenaltyRate, sellerPenaltyRate, forceMajeureReportWindowDays, buyerConfirmWindowDays, buyerDepositRate, disputeFloorReleaseRate, sellerDepositRate, legalProfile]
+      x-invariant: buyerPenaltyRate and sellerPenaltyRate must each be less than or equal to legalProfile.maxContractualPenaltyRate; contract-service validates this cross-field invariant before signature.
+      properties:
+        agreedPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11, description: "Signed base unit price used when a milestone has no accepted bounded adjustment; technical maximum 99,999,999.99 VND/kg."}
+        currency: {type: string, const: VND}
+        milestoneSchedule:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: {$ref: '#/components/schemas/MilestoneTermRequest'}
+          description: requestedQuantity is server-derived as the sum of committedQuantity across this array; the request has no separate quantity field.
+        qualityTerms: {$ref: '#/components/schemas/QualityTerms'}
+        deliveryTerms: {$ref: '#/components/schemas/DeliveryTerms'}
+        inspectionTerms: {$ref: '#/components/schemas/InspectionTerms'}
+        priceBand: {$ref: '#/components/schemas/PriceBand'}
+        priceAdjustmentRule: {$ref: '#/components/schemas/PriceAdjustmentRule'}
+        toleranceRate: {type: number, minimum: 0, maximum: 0.10}
+        shortfallPenaltyThreshold: {type: number, minimum: 0.03, maximum: 0.15}
+        buyerPenaltyRate: {type: number, minimum: 0, maximum: 1, description: Must be <= legalProfile.maxContractualPenaltyRate; 8% by default for VN_COMMERCIAL_LAW.}
+        sellerPenaltyRate: {type: number, minimum: 0, maximum: 1, description: Must be <= legalProfile.maxContractualPenaltyRate; 8% by default for VN_COMMERCIAL_LAW.}
+        forceMajeureReportWindowDays: {type: integer, minimum: 1, description: Calendar-day window anchored to the seller-known event timestamp and resolved in Asia/Ho_Chi_Minh.}
+        buyerConfirmWindowDays: {type: integer, minimum: 2, maximum: 10, description: Vietnam business-day window calculated in Asia/Ho_Chi_Minh from entry into BUYER_RECEIVED.}
+        buyerDepositRate: {type: number, minimum: 0, maximum: 1, description: "Locked once at SIGNED against nominal totalContractValue and never recomputed from milestone price adjustments. Signed legacy snapshots outside the current negotiation band remain readable and operable."}
+        disputeFloorReleaseRate: {type: number, minimum: 0.50, maximum: 1, description: Must not exceed 1 - level2SafetyBufferRate; service validates the cross-field guardrail.}
+        sellerDepositRate: {type: number, minimum: 0, maximum: 1}
+        level2InspectorOrg: {type: [string, 'null']}
+        legalProfile: {$ref: '#/components/schemas/LegalProfile'}
+    ContractTermsInput:
+      description: Negotiated terms accepted by create/PATCH. goodsTerms and totalContractValue are server-derived and rejected if supplied.
+      x-validation: qualityTerms.commodity and immutable goodsTerms.commodity must both be COFFEE; any other commodity is outside Phase 2 and rejected before signature.
+      allOf:
+        - {$ref: '#/components/schemas/ContractTermsBase'}
+        - type: object
+          properties:
+            buyerDepositRate: {type: number, minimum: 0.03, maximum: 0.10, default: 0.05, description: "Negotiated per contract within the [3%, 10%] band for new create/PATCH input."}
+      unevaluatedProperties: false
+    ContractTermsSnapshot:
+      description: Full immutable terms returned by the server and canonicalized into signedContentHash.
+      allOf:
+        - {$ref: '#/components/schemas/ContractTermsBase'}
+        - type: object
+          required: [contractTemplateCode, contractTemplateVersion, contractTemplateHash, coffeeQualityProfileVersion, goodsTerms, totalContractValue]
+          properties:
+            contractTemplateCode: {type: string, const: VN_COFFEE_B2B, readOnly: true}
+            contractTemplateVersion: {type: string, minLength: 1, readOnly: true}
+            contractTemplateHash: {type: string, pattern: '^[a-f0-9]{64}$', readOnly: true}
+            coffeeQualityProfileVersion: {type: string, minLength: 1, readOnly: true, description: Versioned internal coffee-quality profile; no external ISO/TCVN claim is implied.}
+            goodsTerms: {$ref: '#/components/schemas/GoodsTermsSnapshot'}
+            totalContractValue:
+              type: string
+              pattern: '^[0-9]+\.[0-9]{2}$'
+              maxLength: 19
+              readOnly: true
+              description: Server-derived agreedPrice multiplied by total committed quantity; deposits always use this nominal value. Technical maximum 9,999,999,999,999,999.99 VND.
+      unevaluatedProperties: false
+    LegalProfile:
+      type: object
+      required: [governingLaw, contractType, maxContractualPenaltyRate, damagesPolicy]
+      additionalProperties: false
+      properties:
+        governingLaw: {enum: [VN_COMMERCIAL_LAW, VN_CIVIL_LAW]}
+        contractType: {type: string, minLength: 1}
+        maxContractualPenaltyRate: {type: number, minimum: 0, maximum: 1, description: Derived snapshot; defaults to 0.08 for VN_COMMERCIAL_LAW.}
+        damagesPolicy: {enum: [COMMERCIAL_CUMULATIVE_IF_PROVEN, CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE, EXPRESS_PENALTY_ONLY]}
+    MilestoneTermRequest:
+      type: object
+      required: [milestoneIndex, committedQuantity, expectedDeliveryDate, graceDays]
+      additionalProperties: false
+      properties:
+        milestoneIndex: {type: integer, minimum: 1}
+        committedQuantity: {type: number, exclusiveMinimum: 0, maximum: 1000000, description: "Committed quantity in canonical kilograms (kg); technical maximum 1,000,000 kg per milestone."}
+        expectedDeliveryDate: {type: string, format: date, description: Signed date-only delivery target; expires at 23:59:59.999 Asia/Ho_Chi_Minh on this date.}
+        graceDays: {type: integer, minimum: 0, description: Additional Vietnam business days after expectedDeliveryDate; the resulting date expires at 23:59:59.999 Asia/Ho_Chi_Minh.}
+    PlotRefSnapshot:
+      type: object
+      required: [registryEntryId, householdLabel, geometryType, geometryHash, verificationLevel]
+      additionalProperties: false
+      properties:
+        registryEntryId: {type: string, format: uuid}
+        householdLabel: {type: string, minLength: 1}
+        geometryType: {enum: [POINT, POLYGON]}
+        geometryHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+        verificationLevel: {enum: [SELF_DECLARED, CADASTRAL_BACKED]}
+    PlotBackedOriginSnapshot:
+      type: object
+      required: [regionText, plotRefs]
+      additionalProperties: false
+      properties:
+        regionText: {type: string, minLength: 1}
+        plotRefs: {type: array, minItems: 1, items: {$ref: '#/components/schemas/PlotRefSnapshot'}}
+    RegionOnlyOriginSnapshot:
+      type: object
+      required: [regionText, plotRefs]
+      additionalProperties: false
+      properties:
+        regionText: {type: string, minLength: 1}
+        plotRefs: {type: array, maxItems: 0, items: {$ref: '#/components/schemas/PlotRefSnapshot'}}
+    TraceabilitySnapshot:
+      type: object
+      required: [evidencePackageId, packageHash]
+      additionalProperties: false
+      properties:
+        evidencePackageId: {type: string, format: uuid}
+        packageHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+    GoodsTermsCommon:
+      type: object
+      required: [commodity, listingId, productId, categoryId, categoryName, productName, unitOfMeasure, originSnapshot]
+      properties:
+        commodity: {const: COFFEE}
+        listingId: {type: string, format: uuid}
+        productId: {type: string, format: uuid}
+        categoryId: {type: string, format: uuid}
+        categoryName: {type: string, minLength: 1}
+        productName: {type: string, minLength: 1}
+        unitOfMeasure: {type: string, const: KG}
+    CoffeeGoodsTerms:
+      allOf:
+        - {$ref: '#/components/schemas/GoodsTermsCommon'}
+        - type: object
+          properties:
+            commodity: {const: COFFEE}
+            originSnapshot: {$ref: '#/components/schemas/PlotBackedOriginSnapshot'}
+            traceabilitySnapshot:
+              oneOf: [{$ref: '#/components/schemas/TraceabilitySnapshot'}, {type: 'null'}]
+      unevaluatedProperties: false
+    GoodsTermsSnapshot:
+      $ref: '#/components/schemas/CoffeeGoodsTerms'
+    CoffeeQualitySpec:
+      type: object
+      required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
+      additionalProperties: false
+      properties:
+        commodity: {const: COFFEE}
+        type: {enum: [ARABICA, ROBUSTA]}
+        moisturePercent: {type: number, minimum: 0, maximum: 100}
+        foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
+        blackBrokenBeansPercent: {type: number, minimum: 0, maximum: 100}
+      example: {commodity: COFFEE, type: ROBUSTA, moisturePercent: 12.5, foreignMatterPercent: 0.5, blackBrokenBeansPercent: 5.0}
+    NumericDeviationPolicy:
+      type: object
+      required: [direction, tolerance, penalty, reject, discountRate]
+      additionalProperties: false
+      properties:
+        direction: {enum: [MAXIMUM, MINIMUM]}
+        tolerance: {type: number, minimum: 0}
+        penalty: {type: number, minimum: 0}
+        reject: {type: number, minimum: 0}
+        discountRate: {type: number, minimum: 0, maximum: 1}
+      x-invariant: tolerance must be less than or equal to penalty, and penalty must be less than reject.
+    ExactMatchRejectPolicy:
+      type: object
+      required: [rejectOnMismatch]
+      additionalProperties: false
+      properties:
+        rejectOnMismatch: {const: true}
+    CoffeeQualityDeviationPolicy:
+      type: object
+      required: [type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]
+      additionalProperties: false
+      properties:
+        type: {$ref: '#/components/schemas/ExactMatchRejectPolicy'}
+        moisturePercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        foreignMatterPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+        blackBrokenBeansPercent: {$ref: '#/components/schemas/NumericDeviationPolicy'}
+    CoffeeQualityTerms:
+      type: object
+      required: [commodity, committedSpec, deviationPolicy]
+      additionalProperties: false
+      properties:
+        commodity: {const: COFFEE}
+        committedSpec: {$ref: '#/components/schemas/CoffeeQualitySpec'}
+        deviationPolicy: {$ref: '#/components/schemas/CoffeeQualityDeviationPolicy'}
+    QualityTerms:
+      $ref: '#/components/schemas/CoffeeQualityTerms'
+    DeliveryTerms:
+      type: object
+      required: [deliveryResponsibility, riskTransferPoint, titleTransferPoint, transportCostBearer, unloadingCostBearer]
+      additionalProperties: false
+      properties:
+        deliveryResponsibility: {enum: [SELLER_DELIVERS, BUYER_COLLECTS]}
+        riskTransferPoint: {enum: [SELLER_DISPATCH, BUYER_RECEIPT, BUYER_ACCEPTANCE]}
+        titleTransferPoint: {enum: [FULL_PAYMENT, BUYER_RECEIPT, BUYER_ACCEPTANCE]}
+        transportCostBearer: {enum: [BUYER, SELLER, SHARED]}
+        unloadingCostBearer: {enum: [BUYER, SELLER, SHARED]}
+      description: Signed allocation rules only; runtime addresses and carriers are intentionally excluded.
+    InspectionTerms:
+      type: object
+      required: [requirement, requiredTier, reportDueBusinessDays, inspectionCostResponsibility]
+      additionalProperties: false
+      properties:
+        requirement: {enum: [NONE_UNLESS_DISPUTED, MANDATORY_BEFORE_SETTLEMENT]}
+        requiredTier: {enum: [LEVEL_1_5, LEVEL_2]}
+        reportDueBusinessDays: {type: integer, minimum: 1, maximum: 30}
+        inspectionCostResponsibility: {const: LOSER_PAYS, description: The only Phase 2 policy; final allocation follows the quality disposition rather than requestedBy.}
+      x-invariant: level2InspectorOrg must be non-null when requiredTier is LEVEL_2.
+    PriceBand:
+      type: object
+      required: [minimumUnitPrice, maximumUnitPrice]
+      additionalProperties: false
+      properties:
+        minimumUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11}
+        maximumUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11}
+      x-invariant: minimumUnitPrice <= agreedPrice <= maximumUnitPrice.
+    PriceAdjustmentRule:
+      type: object
+      required: [acceptanceMode, cutoff, maximumAcceptedAdjustmentsPerMilestone]
+      additionalProperties: false
+      properties:
+        acceptanceMode: {const: BOTH_ACCEPT}
+        cutoff: {const: BEFORE_FUNDING_REQUEST}
+        maximumAcceptedAdjustmentsPerMilestone: {const: 1}
+    ContractResponse:
+      type: object
+      required: [contractId, listingId, reservedQuantity, buyerId, sellerId, status, terms, signedContentHash, milestones]
+      additionalProperties: false
+      properties:
+        contractId: {type: string, format: uuid}
+        listingId: {type: string, format: uuid}
+        reservedQuantity: {type: number, exclusiveMinimum: 0, readOnly: true, description: Product-service reservation snapshot in canonical kilograms (kg); must equal the sum of milestone committedQuantity before SIGNED. Contract-service never treats this as an inventory counter.}
+        buyerId: {type: string, format: uuid}
+        sellerId: {type: string, format: uuid}
+        status: {enum: [OFFERED, NEGOTIATING, SIGNED, ACTIVE, REPLACEMENT_PENDING, SUPERSEDE_REFUND_PENDING, ACTIVATION_REFUND_PENDING, SETTLED, TERMINATED, WITHDRAWN, SUPERSEDED, ACTIVATION_FAILED]}
+        terms: {$ref: '#/components/schemas/ContractTermsSnapshot'}
+        signedContentHash:
+          type: [string, 'null']
+          pattern: '^[a-f0-9]{64}$'
+        milestones:
+          type: array
+          items: {$ref: '#/components/schemas/MilestoneResponse'}
+    MilestoneResponse:
+      type: object
+      required: [milestoneId, milestoneIndex, status, fundingStatus, committedQuantity, batchAmount, effectiveUnitPrice, acceptedPriceAdjustment, expectedDeliveryDate, graceDays, fundingDelayBusinessDays, effectiveDeliveryDeadline]
+      additionalProperties: false
+      properties:
+        milestoneId: {type: string, format: uuid}
+        milestoneIndex: {type: integer, minimum: 1}
+        status: {enum: [CREATED, IN_PROGRESS, SELLER_WEIGHED, BUYER_RECEIVED, AWAITING_SELLER_RESPONSE, CONTESTED, FORCE_MAJEURE_PENDING_REVIEW, SETTLED]}
+        fundingStatus: {enum: [FUNDING_PENDING, LOCKED, FUNDING_FAILED]}
+        committedQuantity: {type: number, exclusiveMinimum: 0, maximum: 1000000, description: "Committed quantity in canonical kilograms (kg); technical maximum 1,000,000 kg per milestone."}
+        batchAmount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 19, description: "Funding amount fixed when the request is emitted; committedQuantity multiplied by effectiveUnitPrice. Technical maximum 9,999,999,999,999,999.99 VND."}
+        effectiveUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11}
+        acceptedPriceAdjustment:
+          oneOf: [{$ref: '#/components/schemas/AcceptedPriceAdjustment'}, {type: 'null'}]
+        expectedDeliveryDate: {type: string, format: date, description: Signed date-only target; expires at 23:59:59.999 Asia/Ho_Chi_Minh.}
+        graceDays: {type: integer, minimum: 0, description: Vietnam business-day grace period.}
+        fundingDelayBusinessDays: {type: integer, minimum: 0, description: Delay counted with the Monday-Friday Vietnam national-holiday calendar.}
+        effectiveDeliveryDeadline: {type: string, format: date, description: expectedDeliveryDate plus fundingDelayBusinessDays plus graceDays; expires at 23:59:59.999 Asia/Ho_Chi_Minh.}
+    PriceAdjustmentProposalRequest:
+      type: object
+      required: [proposedUnitPrice]
+      additionalProperties: false
+      properties:
+        proposedUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11, description: "Must be within the signed inclusive price band and the technical maximum 99,999,999.99 VND/kg."}
+    PendingPriceAdjustment:
+      type: object
+      required: [proposalId, contractId, milestoneId, proposedUnitPrice, currency, proposerId, proposedAt, status]
+      additionalProperties: false
+      properties:
+        proposalId: {type: string, format: uuid}
+        contractId: {type: string, format: uuid}
+        milestoneId: {type: string, format: uuid}
+        proposedUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11}
+        currency: {const: VND}
+        proposerId: {type: string, format: uuid}
+        proposedAt: {type: string, format: date-time}
+        status: {const: PENDING}
+    AcceptedPriceAdjustment:
+      type: object
+      required: [adjustmentId, proposalId, contractId, milestoneId, baseUnitPrice, effectiveUnitPrice, currency, proposerId, accepterId, proposedAt, acceptedAt]
+      additionalProperties: false
+      properties:
+        adjustmentId: {type: string, format: uuid}
+        proposalId: {type: string, format: uuid}
+        contractId: {type: string, format: uuid}
+        milestoneId: {type: string, format: uuid}
+        baseUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11}
+        effectiveUnitPrice: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 11}
+        currency: {const: VND}
+        proposerId: {type: string, format: uuid}
+        accepterId: {type: string, format: uuid}
+        proposedAt: {type: string, format: date-time}
+        acceptedAt: {type: string, format: date-time}
+    BreachCase:
+      type: object
+      required: [breachCaseId, contractId, milestoneId, requestedBy, allegedBreachingRole, breachReasonCode, severity, evidenceFileIds, finalBreachingRole, decisionSource, status]
+      additionalProperties: false
+      properties:
+        breachCaseId: {type: string, format: uuid}
+        contractId: {type: string, format: uuid}
+        milestoneId: {type: [string, 'null'], format: uuid}
+        requestedBy: {enum: [BUYER, SELLER, SYSTEM]}
+        allegedBreachingRole:
+          oneOf: [{enum: [BUYER, SELLER]}, {type: 'null'}]
+        breachReasonCode: {$ref: '#/components/schemas/BreachReasonCode'}
+        severity: {enum: [MINOR, MATERIAL]}
+        evidenceFileIds: {type: array, items: {type: string, format: uuid}}
+        finalBreachingRole:
+          oneOf: [{enum: [BUYER, SELLER]}, {type: 'null'}]
+        decisionSource:
+          oneOf: [{enum: [ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}, {type: 'null'}]
+        status: {enum: [REPORTED, UNDER_REVIEW, RESOLVED]}
+    ReplacementProposalRequest:
+      type: object
+      required: [listingId, terms]
+      additionalProperties: false
+      properties:
+        listingId: {type: string, format: uuid}
+        terms: {$ref: '#/components/schemas/ContractTermsInput'}
+    BreachCaseReportRequest:
+      type: object
+      required: [milestoneId, allegedBreachingRole, breachReasonCode, severity, evidenceFileIds]
+      additionalProperties: false
+      properties:
+        milestoneId: {type: [string, 'null'], format: uuid}
+        allegedBreachingRole: {enum: [BUYER, SELLER]}
+        breachReasonCode: {$ref: '#/components/schemas/BreachReasonCode'}
+        severity: {enum: [MINOR, MATERIAL]}
+        evidenceFileIds: {type: array, items: {type: string, format: uuid}}
+    BreachCaseResolutionRequest:
+      type: object
+      required: [finalBreachingRole, decisionSource, evidenceRefs]
+      additionalProperties: false
+      properties:
+        finalBreachingRole:
+          oneOf: [{enum: [BUYER, SELLER]}, {type: 'null'}]
+        decisionSource: {enum: [ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
+        evidenceRefs: {type: array, items: {type: string}}
+    TerminationExecuteRequest:
+      type: object
+      required: [terminationType, attributionDecisionId]
+      additionalProperties: false
+      properties:
+        terminationType: {enum: [MUTUAL_TERMINATION, MUTUAL_REPLACEMENT, TERMINATION_FOR_BREACH, TERMINATION_FOR_FORCE_MAJEURE, ACTIVATION_FAILURE]}
+        attributionDecisionId: {type: string, format: uuid}
+        breachCaseId: {type: [string, 'null'], format: uuid}
+    ReputationPublicSummary:
+      type: object
+      required: [userId, score, locked, lockHistory]
+      additionalProperties: false
+      properties:
+        userId: {type: string, format: uuid}
+        score: {type: number}
+        locked: {type: boolean}
+        lockHistory: {type: array, items: {type: object, additionalProperties: false}}
+    ReputationActionProposalRequest:
+      type: object
+      required: [actionType, targetUserId, reason]
+      additionalProperties: false
+      properties:
+        actionType: {enum: [UNLOCK_EARLY, CLEAR_ELEVATED_RISK]}
+        targetUserId: {type: string, format: uuid}
+        reason: {type: string, minLength: 1}
+    ReputationAction:
+      type: object
+      required: [actionId, actionType, targetUserId, proposedBy, status]
+      additionalProperties: false
+      properties:
+        actionId: {type: string, format: uuid}
+        actionType: {enum: [UNLOCK_EARLY, CLEAR_ELEVATED_RISK]}
+        targetUserId: {type: string, format: uuid}
+        proposedBy: {type: string, format: uuid}
+        status: {enum: [PROPOSED, APPROVED, REJECTED]}
+    AttributionDecision:
+      type: object
+      required: [attributionDecisionId, breachCaseId, decisionSource, finalBreachingRole, breachReasonCode, qualityDisposition, evidenceRefs]
+      additionalProperties: false
+      allOf:
+        - if:
+            properties: {qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING]}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {type: 'null'}
+              breachReasonCode: {type: 'null'}
+        - if:
+            properties: {qualityDisposition: {const: NON_CONFORMING}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {const: SELLER}
+              breachReasonCode: {const: QUALITY_BELOW_COMMITTED}
+      properties:
+        attributionDecisionId: {type: string, format: uuid}
+        breachCaseId: {type: [string, 'null'], format: uuid}
+        decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
+        finalBreachingRole:
+          oneOf: [{enum: [BUYER, SELLER]}, {type: 'null'}]
+        breachReasonCode: {$ref: '#/components/schemas/NullableBreachReasonCode'}
+        qualityDisposition:
+          oneOf: [{enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING]}, {type: 'null'}]
+        evidenceRefs: {type: array, items: {type: string}}
+    RemedyDecision:
+      type: object
+      required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, qualityDisposition, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
+      additionalProperties: false
+      allOf:
+        - if:
+            properties: {finalBreachingRole: {type: 'null'}}
+            required: [finalBreachingRole]
+          then:
+            properties:
+              penaltyEligible: {const: false}
+              reputationEligible: {const: false}
+              remedyLegs:
+                items:
+                  properties:
+                    remedyType: {enum: [NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND]}
+        - if:
+            properties: {penaltyEligible: {const: false}}
+            required: [penaltyEligible]
+          then:
+            properties:
+              remedyLegs:
+                items:
+                  properties:
+                    remedyType: {not: {const: CONTRACTUAL_PENALTY}}
+        - if:
+            properties: {qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING]}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {type: 'null'}
+              breachReasonCode: {type: 'null'}
+              penaltyEligible: {const: false}
+              reputationEligible: {const: false}
+        - if:
+            properties: {qualityDisposition: {const: NON_CONFORMING}}
+            required: [qualityDisposition]
+          then:
+            properties:
+              finalBreachingRole: {const: SELLER}
+              breachReasonCode: {const: QUALITY_BELOW_COMMITTED}
+              penaltyEligible: {const: true}
+              reputationEligible: {const: true}
+      properties:
+        remedyDecisionId: {type: string, format: uuid}
+        attributionDecisionId: {type: string, format: uuid}
+        breachCaseId: {type: [string, 'null'], format: uuid}
+        contractId: {type: string, format: uuid}
+        buyerId: {type: string, format: uuid}
+        sellerId: {type: string, format: uuid}
+        affectedMilestoneIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        finalBreachingRole:
+          oneOf: [{enum: [BUYER, SELLER]}, {type: 'null'}]
+        breachReasonCode: {$ref: '#/components/schemas/NullableBreachReasonCode'}
+        qualityDisposition:
+          oneOf: [{enum: [CONFORMING, PARTIALLY_CONFORMING, NON_CONFORMING]}, {type: 'null'}]
+        decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
+        penaltyEligible: {type: boolean}
+        reputationEligible: {type: boolean}
+        remedyLegs: {type: array, items: {$ref: '#/components/schemas/RemedyLeg'}}
+    RemedyLeg:
+      type: object
+      required: [remedyLegId, remedyType, fundType, role, amount]
+      additionalProperties: false
+      properties:
+        remedyLegId: {type: string, format: uuid}
+        remedyType: {enum: [NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
+        fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]}
+        role: {enum: [BUYER, SELLER]}
+        amount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 19}
+    BreachReasonCode:
+      enum: [NON_DELIVERY, SHORTFALL, LATE_DELIVERY, QUALITY_BELOW_COMMITTED, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE]
+    NullableBreachReasonCode:
+      oneOf:
+        - {$ref: '#/components/schemas/BreachReasonCode'}
+        - {type: 'null'}
+    ContractPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      additionalProperties: false
+      properties:
+        content: {type: array, items: {$ref: '#/components/schemas/ContractResponse'}}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1}
+        totalElements: {type: integer, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
+    PublicUserResponse:
+      type: object
+      required: [userId, organizationName, role, verificationStatus]
+      additionalProperties: false
+      properties:
+        userId: {type: string}
+        organizationName: {type: string}
+        role: {enum: [BUYER, SELLER, ADMIN, INSPECTOR, OPERATOR]}
+        verificationStatus: {enum: [PENDING, VERIFIED, REJECTED]}
+    VerifyUserRequest:
+      type: object
+      properties: {authorizationExpiresAt: {type: [string, 'null'], format: date-time, description: UTC instant; a date-only source document expires at 23:59:59.999 Asia/Ho_Chi_Minh on that date.}}
+      additionalProperties: false
+    RejectUserRequest:
+      type: object
+      required: [reason]
+      properties: {reason: {type: string, minLength: 1}}
+      additionalProperties: false
+    OtpEmailRequest:
+      type: object
+      required: [requestId, recipientUserId, recipientEmail, contractId, otpCode, signedContentHash, expiresAt]
+      properties:
+        requestId: {type: string}
+        recipientUserId: {type: string}
+        recipientEmail: {type: string, format: email}
+        contractId: {type: string}
+        otpCode: {type: string, pattern: '^[0-9]{6}$'}
+        signedContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+        expiresAt: {type: string, format: date-time, description: UTC OTP expiry instant derived from the owner service system timestamp.}
+      additionalProperties: false
+    InitiateSignRequest:
+      type: object
+      required: [signerRole, consentStatementVersion, presentedContentHash]
+      properties:
+        signerRole: {enum: [BUYER, SELLER]}
+        consentStatementVersion: {type: string, minLength: 1, description: Active server-owned SIGN_CONTRACT checkbox statement version displayed to the signer.}
+        presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: Hash displayed to the signer; server must require equality with the current signedContentHash before creating an OTP challenge.}
+      additionalProperties: false
+    ConsentInput:
+      type: object
+      required: [statementVersion, presentedContentHash]
+      additionalProperties: false
+      properties:
+        statementVersion: {type: string, minLength: 1}
+        presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: Current server-verifiable hash of the action subject/content shown with the checkbox.}
+    InitiateSignResponse:
+      type: object
+      required: [otpId, expiresAt]
+      properties:
+        otpId: {type: string, format: uuid}
+        expiresAt: {type: string, format: date-time, description: UTC OTP expiry instant; client clock and timezone are not authoritative.}
+      additionalProperties: false
+    VerifyOtpAndSignRequest:
+      type: object
+      required: [otpId, otpCode]
+      properties:
+        otpId: {type: string, format: uuid}
+        otpCode: {type: string, pattern: '^[0-9]{6}$'}
+      additionalProperties: false
+    SellerWeighedRequest:
+      type: object
+      required: [sellerDeclaredWeight, sellerEvidenceFileId, consent]
+      properties:
+        sellerDeclaredWeight: {type: number, exclusiveMinimum: 0, description: Seller-declared loaded weight in canonical kilograms (kg).}
+        sellerEvidenceFileId: {type: string, format: uuid}
+        deliveryCertificateFileId: {type: string, format: uuid, description: Optional batch certificate used only as delivery/dispute evidence; never parsed as actual quality metrics.}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
+      additionalProperties: false
+    BuyerReceivedRequest:
+      type: object
+      required: [buyerReceivedWeight, buyerEvidenceFileId, consent]
+      properties:
+        buyerReceivedWeight: {type: number, exclusiveMinimum: 0, description: Buyer-received unloaded weight in canonical kilograms (kg).}
+        buyerEvidenceFileId: {type: string, format: uuid}
+        deliveryCertificateFileId: {type: string, format: uuid, description: Optional batch certificate used only as delivery/dispute evidence; never parsed as actual quality metrics.}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
+      additionalProperties: false
+    ContractDocumentResponse:
+      type: object
+      required: [documentId, contractId, documentType, templateCode, templateVersion, sourceContentHash, status]
+      additionalProperties: false
+      properties:
+        documentId: {type: string, format: uuid}
+        contractId: {type: string, format: uuid}
+        documentType: {enum: [DRAFT_PREVIEW, PARTIALLY_SIGNED, FINAL_SIGNED_CONTRACT, ACTIVATION_CONFIRMATION, DELIVERY_RECEIPT, INSPECTION_RECORD]}
+        templateCode: {type: string, pattern: '^VN_COFFEE_[A-Z0-9_]+$', description: FINAL_SIGNED_CONTRACT uses VN_COFFEE_B2B; supporting documents use their own versioned coffee template code.}
+        templateVersion: {type: string, minLength: 1}
+        sourceContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+        documentFileHash: {type: [string, 'null'], pattern: '^[a-f0-9]{64}$'}
+        fileId: {type: [string, 'null'], format: uuid}
+        status: {enum: [PENDING, READY, FAILED]}
+        generatedAt: {type: [string, 'null'], format: date-time}
+        failureReason: {type: [string, 'null']}
+    ForceMajeureClaimRequest:
+      type: object
+      required: [evidenceFileId, consent]
+      additionalProperties: false
+      properties:
+        evidenceFileId: {type: string, format: uuid}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
+    ForceMajeureResolveRequest:
+      type: object
+      required: [decision, consent]
+      additionalProperties: false
+      properties:
+        decision: {enum: [APPROVED, REJECTED]}
+        consent: {$ref: '#/components/schemas/ConsentInput'}
+    AuditRecordList:
+      type: array
+      items:
+        type: object
+        required: [recordId, subjectType, subjectId, sourceType, sourceEventType, sourceEventId, causationId, correlationId, content, recordHash, createdAt]
+        additionalProperties: false
+        properties:
+          recordId: {type: string}
+          subjectType: {enum: [CONTRACT, USER_PAIR, SYSTEM]}
+          subjectId: {type: string}
+          sourceType: {type: string}
+          sourceEventType: {type: string}
+          sourceEventId: {type: string, format: uuid}
+          causationId: {type: [string, 'null'], format: uuid}
+          correlationId: {type: [string, 'null'], format: uuid}
+          sourceHash: {type: [string, 'null']}
+          content: {$ref: '#/components/schemas/AuditReconciliationContent'}
+          recordHash: {type: string}
+          prevHashGlobal: {type: [string, 'null']}
+          prevHashSubject: {type: [string, 'null']}
+          createdAt: {type: string, format: date-time}
+    AuditReconciliationContent:
+      type: object
+      required: [contractId, milestoneId, settledAmount, seizedAmount, releaseLegs, refundLegs]
+      additionalProperties: false
+      properties:
+        contractId: {type: string, format: uuid}
+        milestoneId: {type: [string, 'null'], format: uuid}
+        settledAmount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 19}
+        seizedAmount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 19}
+        sourceEventId: {type: [string, 'null'], format: uuid}
+        releaseLegs: {type: array, items: {$ref: '#/components/schemas/MoneyLeg'}}
+        refundLegs: {type: array, items: {$ref: '#/components/schemas/MoneyLeg'}}
+    AuditHashResponse:
+      type: object
+      required: [contractId, recordHash]
+      additionalProperties: false
+      properties:
+        contractId: {type: string, format: uuid}
+        recordHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+    MoneyLeg:
+      type: object
+      required: [sourceEventId, entryType, fundType, remedyDecisionId, remedyLegId, amount]
+      additionalProperties: false
+      properties:
+        entryType: {enum: [RELEASE_TO_SELLER, REFUND_TO_BUYER, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
+        fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]}
+        remedyDecisionId: {type: [string, 'null'], format: uuid}
+        remedyLegId: {type: [string, 'null'], format: uuid}
+        amount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 19}
+        sourceEventId: {type: string, format: uuid}
+    LedgerEntryList:
+      type: array
+      items:
+        type: object
+        required: [entryId, sourceEventId, contractId, milestoneId, userId, entryType, fundType, remedyDecisionId, remedyLegId, amount, createdAt]
+        additionalProperties: false
+        properties:
+          entryId: {type: string, format: uuid}
+          sourceEventId: {type: string, format: uuid}
+          contractId: {type: string, format: uuid}
+          milestoneId: {type: [string, 'null'], format: uuid}
+          userId: {type: string, format: uuid}
+          entryType: {enum: [LOCK_BUYER_DEPOSIT, LOCK_SELLER_DEPOSIT, LOCK_MILESTONE, RELEASE_TO_SELLER, REFUND_TO_BUYER, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION]}
+          fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT]}
+          remedyDecisionId: {type: [string, 'null'], format: uuid}
+          remedyLegId: {type: [string, 'null'], format: uuid}
+          amount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 19}
+          createdAt: {type: string, format: date-time}
+    ExternalVerifierRequest:
+      type: object
+      required: [keyId, signedPayload, signature]
+      additionalProperties: false
+      properties:
+        keyId: {type: string, minLength: 1}
+        signedPayload:
+          type: object
+          required: [action, reason, timestamp, nonce]
+          additionalProperties: false
+          properties:
+            action: {enum: [LOCK, UNLOCK]}
+            reason: {type: string, minLength: 1}
+            timestamp: {type: string, format: date-time}
+            nonce: {type: string, format: uuid}
+        signature: {type: string, pattern: '^[A-Za-z0-9_-]+$'}
+    ErrorEnvelope:
+      type: object
+      required: [timestamp, status, error, code, message, path, traceId]
+      properties:
+        timestamp: {type: string, format: date-time}
+        status: {type: integer, minimum: 100, maximum: 599}
+        error: {type: string}
+        code: {type: string, pattern: '^[A-Z][A-Z0-9_]*$'}
+        message: {type: string}
+        path: {type: string}
+        traceId: {type: string}
+      additionalProperties: false
+  responses:
+    BadRequest: {description: Validation failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Unauthorized: {description: Authentication or API-key failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Forbidden: {description: Authorization or ownership failure, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    NotFound: {description: Resource not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    Conflict: {description: "State/terms/challenge/inventory conflict, including INSUFFICIENT_LISTING_QUANTITY and LISTING_VERSION_MISMATCH where applicable", content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    ExternalSignatureInvalid:
+      description: ES256 verification, key lookup, or timestamp validation failed. Code is EXTERNAL_SIGNATURE_INVALID, EXTERNAL_KEY_UNKNOWN, or SIGNATURE_TIMESTAMP_OUT_OF_WINDOW.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+    SystemAlreadyLocked:
+      description: Code is NONCE_REPLAYED or SYSTEM_ALREADY_LOCKED.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+    SystemNotLocked:
+      description: Code is NONCE_REPLAYED or SYSTEM_NOT_LOCKED.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+      description: Stable command identifier reused for caller retries.
+x-closed-contract-questions: [OQ-02, OQ-02b, OQ-03, OC-01, OC-05, OC-09, OC-10, OC-11]
+x-reference-only:
+  description: >-
+    Reference-only paths are retained for cross-service context and are not part of
+    the first executable golden-flow release gate. Their owner designs remain the
+    source for future DTO/status promotion; they must not be implemented from this
+    document by inference.
+  paths:
+    - /api/v1/users/register
+    - /api/v1/users/me
+    - /api/v1/users/{userId}
+    - /api/v1/admin/users
+    - /api/v1/admin/users/{userId}/verify
+    - /api/v1/admin/users/{userId}/reject

@@ -1,0 +1,31 @@
+meta {
+  name: 28. List Contracts (as buyer)
+  type: http
+  seq: 28
+}
+
+get {
+  url: {{base_url}}/api/v1/contracts?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("should return paginated response", function() {
+    const data = res.getBody().data;
+    expect(data).to.have.property("content");
+    expect(data).to.have.property("totalElements");
+    expect(data.content).to.be.an("array");
+  });
+  test("should contain our contract", function() {
+    const found = res.getBody().data.content.some(c => c.contractId === bru.getEnvVar("contract_id"));
+    expect(found).to.equal(true);
+  });
+}
