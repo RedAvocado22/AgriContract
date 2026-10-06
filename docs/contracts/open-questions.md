@@ -1,13 +1,13 @@
 # Contract Questions
 
-No unresolved contract blocker remains after the frozen Phase 2 design review.
+No unresolved technical flow blocker remains. Two legal/content selections must be completed before production signing: the approved coffee test-standard/method profile and the domestic dispute forum.
 
 ## Closed decisions
 
 | Topic | Resolution | Authoritative source |
 |---|---|---|
 | Attribution | Keep `requestedBy`, `allegedBreachingRole`, and nullable `finalBreachingRole` separate; Rổ A creates a system decision directly and Rổ B resolves a `BreachCase`. | `milestone-escrow-phase2-design.md` sections 6.0-6.7 |
-| Consequence trigger | `remedy.finalized` is the only money and negative-reputation trigger; `contract.terminated` is lifecycle/audit/analytics/notification only. | Milestone, bank, reputation, analytics and notification Phase 2 designs |
+| Consequence trigger | `remedy.finalized` is authoritative for termination/remedy money, quality-resolution money, contract-level deposit return and negative reputation; clean-path per-milestone money runs through `milestone.settled`, while `contract.terminated` remains lifecycle/audit/analytics/notification only. The two money events cannot both be emitted for one resolution. | Milestone, bank, reputation, analytics and notification Phase 2 designs |
 | Cancellation | `/cancel`, `cancel(initiatedBy)`, and `contract.cancelled` are retired. Explicit withdraw, mutual termination, breach review, replacement, termination and funding-retry paths are frozen in `golden-flow-api.yaml`. | `milestone-escrow-phase2-design.md` termination taxonomy |
 | Legal profile | Use `governingLaw`, `contractType`, `maxContractualPenaltyRate`, and `damagesPolicy`; the cumulative boolean is retired. | `milestone-escrow-phase2-design.md` section 2.1b |
 | Remedy semantics | Deposit forfeiture, contractual penalty and damages are separate legs; `remedyLegId` is the bank uniqueness unit. | Milestone and bank Phase 2 designs |
@@ -16,10 +16,12 @@ No unresolved contract blocker remains after the frozen Phase 2 design review.
 | Reputation history | Persist immutable completion/dispute facts and derive score at query time; negative lock input is only `remedy.finalized`. | `reputation-service-phase2-design.md` |
 | Audit replay | Deduplicate by source event and use durable anchor retry/outbox. | `hash-chain-phase2-design.md` |
 | Analytics | Persist type/requester/final role/reason separately and overwrite every recomputed late-arrival month bucket. | `analytics-service-phase2-design.md` |
-| Notification | Termination and breach content uses final attribution/remedy outcome and remains separate from domain events. | `notification-service-phase2-design.md` |
-| Listing quality | New listings require a commodity-matching typed `declaredQualitySpec`; legacy null remains readable only until edit/republish. | `product-phase2-design.md` section 8b |
-| Contract snapshot | Create/PATCH accepts `ContractTermsInput`; contract-service derives `goodsTerms` and nominal `totalContractValue`, and hashes the full `ContractTermsSnapshot`. | `milestone-escrow-phase2-design.md` section 2.1c and golden-flow OpenAPI |
-| Rice identity | `varietyName` belongs to goods/committed identity only and never appears in actual metrics or deviation policy. | Product, milestone and inspection Phase 2 designs |
+| Notification | Termination/breach content uses final attribution; final contract PDF is sent only after `contract.document_generated` and deduped by document/recipient/type. | `notification-service-phase2-design.md` |
+| Commodity and jurisdiction | New Phase 2 writes are domestic Vietnam `COFFEE` only; non-coffee schemas are rejected and legacy non-coffee data is read-only. | Contract-document-consent §1; product/milestone/inspection designs |
+| Listing quality | New listings require `CoffeeQualitySpec`; legacy incomplete/non-coffee listings cannot be republished into Phase 2. | `product-phase2-design.md` section 8b |
+| Contract snapshot | Contract-service derives goods/nominal value and template/profile fields; the full snapshot, including template/profile hashes/versions, forms `signedContentHash`. | contract-document-consent §3; milestone §2.1c; OpenAPI |
+| Consent evidence | Every legally meaningful action uses an action-specific statement bound to subject and presented content hash; checkbox is not a physical fingerprint or CA-backed signature. | contract-document-consent §2/§4; signature §3.1/§6 |
+| Contract documents | Drafts say `CHƯA CÓ HIỆU LỰC`; the second signature creates PENDING final document, rendering retries outside the signature transaction, and READY PDF is immutable. | contract-document-consent §5-7 |
 | Quality ownership | Inspection-service reports quantity/typed measurements; contract-service derives disposition, max-one-time discount and final entitlement. | `inspection-phase2-design.md` section 2.3/4; milestone section 3.3 |
 | Quality resolution | Every quality dispute is Rổ B and has one money trigger through `remedy.finalized`; disposition maps explicitly to attribution/remedy, inspection cost and fund-source conservation. | `milestone-escrow-phase2-design.md` section 3.3/7.1 |
 | Quality reason code | The only quality breach reason is `QUALITY_BELOW_COMMITTED`. | OpenAPI, domain events and notification schemas |
@@ -40,6 +42,7 @@ No unresolved contract blocker remains after the frozen Phase 2 design review.
 | Reputation lock scope | Reputation lock is user-level because one `userId` represents one legal entity in Phase 2; commodity/branch scope is deferred. | `reputation-service-phase2-design.md` sections 2.1 and 9 |
 | SystemLock scope | `SystemLock` is intentionally a global all-or-nothing money-flow kill switch; scoped emergency freeze is deferred. | `bank-service-phase2-design.md` sections 3.5.3 and 7 |
 | Notification authority | Email is authoritative in Phase 2; deadlines run from owner business/system timestamps, never from recipient read time. | `notification-service-phase2-design.md` sections 1 and 9 |
+| Orphan reservation reaper (BUILD) | Product-service runs a local `OrphanReservationReaperJob` using the existing durable event-dedup store. After the default 30-minute grace, only `RESERVED` rows without `contract.created` are conditionally released; signed/committed rows and seller `CLOSED`/`PAUSED` choices are untouched. A late `contract.created` after release is an inventory inconsistency that must log an error and alert Admin, with no silent no-op or second inventory path. | `product-phase2-design.md` §8b.2; `state-machines.md` inventory reservation |
 
 ## Known limitations and deferred work
 
@@ -56,5 +59,7 @@ These items are accepted Phase 2 boundaries, not unresolved blockers and not aut
 | Error envelope | `ErrorEnvelope` does not add `currentState`; clients re-GET the resource after a `409` conflict. | Optional state hints in a future versioned error contract. |
 | Rejected inspection report | `REJECTED` is terminal and has no reason granularity; resubmission requires a new commission/report. | Rejection taxonomy and dedicated resubmission lifecycle. |
 | Listing certification declaration | Certifications declared at listing time are seller-provided free text only, not platform-verified proof. | Verification of certificate validity and expiry at delivery through `documentTerms` is deferred beyond V1. |
+| Coffee quality standard | Phase 2 signs a versioned internal `coffeeQualityProfileVersion`; no ISO/TCVN compliance claim is made yet. | Select and legally review the exact external standard, sampling and test methods before production use. |
+| Domestic dispute forum | Governing law is Vietnam, but court versus domestic commercial arbitration is not silently defaulted. | Legal/product owner selects the forum and approved clause before a template version becomes signable. |
 
 Any future API/event/error addition requires a change to an authoritative Phase 2 design before this contract set can adopt it.

@@ -1,6 +1,6 @@
 # AgriContract Phase 2 State Machines
 
-Sources: milestone escrow §§2-8d, product §8b, inspection §2.3/§4, signature §§3-7, bank §§2-4, reputation §§2-4, file §2, notification §3, and the verification traceability contract.
+Sources: contract-document-consent §§1-7, milestone escrow §§2-8d, product §8b, inspection §2.3/§4, signature §§3-7, bank §§2-4, reputation §§2-4, file §2, notification §3, and the verification traceability contract.
 
 Time convention: timestamps are UTC; business deadlines resolve in `Asia/Ho_Chi_Minh`, date-only deadlines close at `23:59:59.999 ICT`, and business-day transitions use the Vietnam calendar defined in milestone escrow §1.1.
 
@@ -17,6 +17,7 @@ OFFERED -> NEGOTIATING -> SIGNED -> ACTIVE -> SETTLED
 ```
 
 - `SIGNED` means two signatures over the same immutable terms hash.
+- New Phase 2 contracts are domestic Vietnam `COFFEE` contracts using a versioned `VN_COFFEE_B2B` template/profile.
 - `ACTIVE` requires `escrow.deposit_locked`; signing is not activation.
 - `ACTIVE` persists while milestones execute; Phase 2 has no `DELIVERED` state.
 - `TERMINATED` is classified by `terminationType`; it does not imply breach.
@@ -45,20 +46,21 @@ Both -> RemedyDecision -> remedy.finalized
 - Allegation cannot trigger seizure, contractual penalty, damages, deposit forfeiture or reputation lock.
 - Buyer non-receipt is Rổ A only with objective delivery evidence after notice/window expiry; otherwise it is Rổ B.
 - `finalBreachingRole = null` is no-fault and produces no negative consequence.
-- `remedy.finalized` is the sole money/reputation consequence trigger. `contract.terminated` is lifecycle/audit/analytics/notification only.
+- `remedy.finalized` is authoritative for termination/remedy money, quality-resolution money, contract-level deposit return and reputation lock. Clean-path per-milestone money runs through `milestone.settled`; the two events cannot both be emitted for one resolution. `contract.terminated` is lifecycle/audit/analytics/notification only.
 - Every quality dispute is Rổ B. Its final `qualityDisposition` is carried with final attribution; `requestedBy`/`flaggedBy` never determines blame.
 - Completion is confirmed through the existing internal bank-ledger read filtered by `contractId`; contract-service verifies all expected `remedyLegId` values and computes zero remaining lock before publishing a terminal lifecycle event. Bank result events remain escrow-owned.
 
 ## Signature and OTP
 
 ```text
+ConsentEvidence: append-only accepted record -> bound OTP/action
 OTP challenge: created -> verified
                |-> expired / attempts exhausted / invalidated by terms change
                |-> superseded by newer challenge for same signer+contract+hash
 Signature: none -> first BUYER|SELLER -> matching second signature -> SIGNED
 ```
 
-OTP state is derived from persisted challenge fields; no OTP status enum is stored. Challenge binding includes `otpId`, user, contract, signer role and terms hash. Initiate/resend atomically expires every older still-valid challenge for the same binding before inserting the new one; verify by an older `otpId` is rejected even with the correct code. OTP delivery is synchronous and cannot be retried later in the background after a caller-visible failure.
+Before OTP creation, server validates action-specific statement version and `presentedContentHash` against the current subject hash, then persists append-only consent. OTP state is derived from persisted challenge fields; no OTP status enum is stored. Challenge binding includes `otpId`, consent, user, contract, signer role and terms hash. Checkbox is consent evidence, not biometric fingerprint or CA-backed digital signature.
 
 ## Listing inventory and reservation
 
@@ -69,7 +71,7 @@ Listing: DRAFT -> AVAILABLE -> PARTIALLY_COMMITTED -> CLOSED
 
 Reservation: RESERVED -> SIGNED_RELEASABLE -> COMMITTED
                   |              |
-                  +-----------> RELEASED
+                  +-----------> RELEASED (withdraw/activation-failure/compensation/reaper)
 ```
 
 - Product-service owns `quantityAvailable`; contract-service stores only `reservedQuantity` and must reserve synchronously before `OFFERED`.
@@ -77,6 +79,7 @@ Reservation: RESERVED -> SIGNED_RELEASABLE -> COMMITTED
 - `contract.signed` does not commit inventory. `contract.activation_failed` releases, while `contract.activated` is the hard commit point.
 - Reservation/event replay is idempotent by `contractId`/`eventId`; release cannot restore the same quantity twice.
 - Legacy `quantityAvailable = null` fails reservation closed until seller edit/republish initializes it.
+- `OrphanReservationReaperJob` is local-only: after the configured grace period it conditionally releases only stale `RESERVED` rows with no durable `contract.created`; `SIGNED_RELEASABLE`/`COMMITTED` are untouched, seller lifecycle is preserved, and a late `contract.created` after release is an error + Admin alert rather than a silent no-op.
 
 ## Milestone delivery
 
@@ -163,7 +166,8 @@ domain event -> audit_record + anchor_request_outbox (same transaction)
 
 ```text
 File: PROCESSING -> READY | FAILED
+ContractDocument: PENDING -> READY | FAILED
 Notification: PENDING -> SENT | FAILED
 ```
 
-Evidence files become usable only after `file.ready`. Notification commands remain separate from domain events and deduplicate on `(event_id, recipient_email, notification_type)`.
+The second signature commits `SIGNED` plus final document `PENDING`; render/storage runs after commit and retries without changing signatures. READY is immutable, publishes `contract.document_generated`, enters audit with separate content/PDF hashes, then triggers final-PDF notification. Draft preview is not persisted as final and always says `CHƯA CÓ HIỆU LỰC`. Evidence files become usable only after `file.ready`. Notification commands remain separate from domain events and final document mail deduplicates by document + recipient + type.

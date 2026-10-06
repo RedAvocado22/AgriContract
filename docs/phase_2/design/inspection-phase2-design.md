@@ -11,6 +11,8 @@ metadata:
 
 ## 1. Bối cảnh & Scope
 
+**Scope override chốt 06/10/2026:** Phase 2 inspection chỉ nhận contract có `commodity = COFFEE`. Mọi result schema public/canonical phải reject rice/rubber/cashew; các variant cũ bên dưới là lịch sử thiết kế, không phải executable contract.
+
 > **Role vận hành (18/07/2026):** các use case Admin trong doc này (review/moderate/nhập liệu hằng ngày) nhận thêm role `OPERATOR` theo `data-governance-phase2-design.md` §5 — permission matrix ở đó là source of truth, doc này không lặp lại; flow/state/schema không đổi.
 
 
@@ -58,21 +60,17 @@ InspectionSettlementResultV1 {
   measuredQuantityKg: decimal >= 0,
   acceptedQuantityKg: decimal >= 0 and <= measuredQuantityKg,
   measurementStatus: COMPLETE | INCONCLUSIVE,
-  actualQualityMetrics: CoffeeActualMetrics | RiceActualMetrics |
-                        RubberActualMetrics | CashewActualMetrics,
+  actualQualityMetrics: CoffeeActualMetrics,
   inconclusiveReasons?: string[],
   determinedAt: timestamp
 }
 ```
 
-Actual union discriminated bằng `commodity`; variant phải khớp commodity của contract. Field đo được:
+`actualQualityMetrics.commodity` bắt buộc `COFFEE` và phải khớp contract. Field đo được:
 
 - Coffee: `type`, `moisturePercent`, `foreignMatterPercent`, `blackBrokenBeansPercent`.
-- Rice: `brokenPercent`, `moisturePercent`, `chalkyKernelPercent`, `foreignMatterPercent`, `purityPercent`. **Không có `varietyName`** — đây là identity attribute của goods/committed spec, không phải kết quả đo và không thể làm reject.
-- Rubber: `grade`, `dirtPercent`, `ashPercent`, `volatileMatterPercent`, `nitrogenPercent`, `plasticityRetentionIndex`.
-- Cashew: `grade`, `moisturePercent`, `defectiveKernelPercent`, `foreignMatterPercent`, `kernelOutturnLbsPer80Kg`.
 
-Inspection-service không còn sở hữu `qualityDisposition`. Nó chỉ cam kết quantity + actual measurements + việc report có kết luận được hay không. Contract-service đối chiếu committed spec/deviation policy để tạo disposition, quality discount và final entitlement; coffee `type` và rubber/cashew `grade` là ba categorical field duy nhất được exact-match-reject.
+Inspection-service không còn sở hữu `qualityDisposition`. Nó chỉ cam kết quantity + actual measurements + việc report có kết luận được hay không. Contract-service đối chiếu committed coffee spec/deviation policy để tạo disposition, quality discount và final entitlement; coffee `type` là categorical field duy nhất được exact-match-reject.
 
 Certificate/phiếu kiểm theo batch mà Seller hoặc Buyer đính kèm lúc cân là delivery/dispute evidence riêng. Inspection-service không parse nó thành actual metric, không chép nó vào `InspectionSettlementResultV1`, không commit nó trong `resultHash`, không dùng nó để tự sinh disposition và không coi nó là bản thay thế cho report `CONFIRMED`.
 
@@ -412,6 +410,8 @@ CREATE TABLE inspection_report (
 ## 7. Status — Inspection Design
 
 **Chốt (03/07/2026; hash contract superseded 18/07/2026):** Level 1.5 = actor thật, nhánh signature thuộc inspection-service, KYC nội dung khác Buyer/Seller, session freshness `inspectionAuthMaxAgeSeconds` = 1800s. Level 2 = không Signature, không RBAC; `level2InspectorOrg` NOT NULL có điều kiện trong `ContractTerms`, negotiate lúc ký, không hardcode danh sách tổ chức. Hash contract hiện hành là `InspectionSettlementResultV1` + `resultHash` + revised `reportHash` ở §2.3.
+
+**Chốt bổ sung (06/10/2026):** `InspectionSettlementResultV1.actualQualityMetrics` chỉ còn `CoffeeActualMetrics`; non-coffee payload fail schema validation trước khi report được CONFIRMED. Bộ tiêu chuẩn/phương pháp thử cụ thể được resolve qua `coffeeQualityProfileVersion` đã ký, chưa tự claim ISO/TCVN khi chưa duyệt nguồn.
 
 **Chốt bổ sung (04/07/2026) — merge addendum + fix kiến trúc:**
 - **Level 2 ingestion chuyển từ thuần thủ công sang auto-intake + human-confirm:** hòm mail platform (`intake@...`, qua IMAP polling của file-service — sửa 17/07/2026, xem §3.3) thay thế vị trí Admin trong 3-mail song song gốc (buyer/seller không đổi, §3.3). Thêm use case `InitiateLevel2Inspection` ghi nhận platform đã yêu cầu commission org đi đâu, lúc nào (§3.4). Case ID của org dùng làm join key qua bảng `level2_inspection_commission`, match tự động chỉ ở mức gợi ý, Admin xác nhận thật (§3.5). Report cuối ingest tự động, hash đóng băng ngay khi nhận, publish audit chain dời sang lúc Admin `CONFIRMED` qua `ReviewPendingExternalReport` (§3.6). Giữ ingestion thủ công gốc làm fallback (`ingestion_source = ADMIN_MANUAL`).

@@ -1,6 +1,6 @@
 # Verification Matrix Traceability
 
-This table covers the complete current `verification-matrix-phase2.md` plus the signed goods/quality/delivery/pricing, reservation and OTP-supersession additions frozen on 2026-07-23. Each row maps to a dependency-ordered implementation task; the task must cite the authoritative design section and fixture before it can pass its release gate.
+This table is an English derived view of the complete current `verification-matrix-phase2.md`, including the 2026-10-06 Vietnam-coffee scope, consent evidence and contract-document lifecycle. Matrix IDs are owned by the original matrix, not by this translation.
 
 | Matrix row | Contract surface / invariant | Planned task | Fixture / exit |
 |---|---|---|---|
@@ -33,6 +33,9 @@ This table covers the complete current `verification-matrix-phase2.md` plus the 
 | 11q | Evidence replay audit/anchor/email dedup | T9/T10 | Same event produces one record/anchor/email |
 | 11r | Reservation/release idempotency | T2/T12 | Same contract/event never decrements or restores twice |
 | 11s | Reserved quantity and activation commit point | T2/T3/T12 | Mismatch blocks SIGNED; activation failure releases; activated commits |
+| 11t | Template/profile fields are hash committed | T2 | Any template/profile version/hash change changes signedContentHash and invalidates old consent/OTP |
+| 11u | Final PDF matches signed content and is immutable | T2/T9/T12 | Source hash and PDF bytes hash verify; overwrite rejected |
+| 11v | Document generation failure preserves signatures | T2/T12 | SIGNED remains; retry creates one READY document |
 | 12 | Participant ownership checks | T1/T2/T7 | Other user receives 403 |
 | 13 | Gateway strips client identity headers | T1 | Forged identity is ignored |
 | 14 | Internal routes are not public | T1 | External `/internal/**` is blocked |
@@ -49,7 +52,8 @@ This table covers the complete current `verification-matrix-phase2.md` plus the 
 | 21e | Two-step file deletion self-heals | T12 | Blob retry reconciles tombstone |
 | 21f | Listing/offer fail closed on user outage/lock | T1/T12 | Create operation returns 503/403 |
 | 21g | OTP resend supersedes previous challenge | T2 | Old otpId rejected; newest valid only |
-| 22 | Commodity plot gate | T12 | Coffee/rubber and rice/cashew two-way fixture |
+| 21h | Consent binds action, subject, statement and content | T2/T3 | Wrong/stale binding rejected before side effect |
+| 22 | Coffee-only scope and plot gate | T2/T7/T12 | Non-coffee rejected; coffee without plot rejected |
 | 23 | Analytics outage is non-critical and catches up | T11 | Queue backlog catches up after restart |
 | 24 | Notification recipient/type dedup | T10 | Two recipients, retry, one SENT each |
 | 25 | Restore money traffic only after verify | T9/T13 | Two verification passes required |
@@ -62,24 +66,28 @@ This table covers the complete current `verification-matrix-phase2.md` plus the 
 | 26g | Analytics stores final role separately from requester | T11 | Termination fact fields and mutual exclusion |
 | 26h | Exonerated allegation has no negative consequence | T3/T4/T8 | Resolved null role, refund/release only |
 | 26i | Pending inspection blocks auto-confirm | T7 | Timer applies only to `BUYER_RECEIVED` |
-| 27 | Declared/committed/actual quality unions cover four commodities | T2/T7/T12 | Four valid variants and all commodity/spec mismatches rejected |
-| 27b | Rice variety is identity, not an actual/deviation metric | T2/T7/T12 | `varietyName` accepted in goods/committed spec and rejected in rice actual/policy |
-| 27c | Goods snapshot is independent from mutable source records | T2/T12 | Listing/Product/Category/Plot edit/delete leaves stored snapshot and hash unchanged |
-| 27d | Every new signed field is hash committed; legacy policy is explicit | T2 | Nested-field mutation changes hash; first signature locks PATCH; signed legacy reads, incomplete legacy draft cannot sign |
-| 27e | Quality disposition is deterministic | T4/T7 | Recompute from `signedContentHash` committed spec/deviation policy and `resultHash` actuals; subjective reviewer input cannot change result |
-| 27f | Inspection requirement does not add milestone state | T3/T7 | Clean optional flow creates no report; mandatory guard blocks settlement in `BUYER_RECEIVED`/`CONTESTED` until confirmed report |
-| 27g | Bounded milestone price acceptance is authenticated and cutoff-safe | T2/T6/T9/T11 | In/out-band, self-accept, stale/cutoff, immutable accept event and unchanged signed hash |
-| 27h | Funding uses effective price while deposits remain nominal | T5/T6 | Base fallback, accepted-price funding amount, no settlement true-up, deposit unchanged for upward/downward adjustment |
-| 27i | Quality disposition maps exactly to attribution/remedy | T3/T4/T5/T8 | Conforming has null role/no consequences; partial max discount once/no punitive reputation; non-conforming is Seller + `QUALITY_BELOW_COMMITTED` with rejected-milestone refund/policy penalties; inconclusive emits no money |
-| 27j | Exact quality rejection is commodity-limited | T2/T7/T12 | Coffee `type` and rubber/cashew `grade` mismatch reject; rice remains numeric-only |
-| 27k | Quantity precedence prevents double tolerance | T4/T5/T7 | Clean path keeps Delta 1/Delta 2; inspected/contested path uses accepted quantity × effective price with safety cap and no second Delta 2 |
-| 27l | Delivery certificate is evidence only | T2/T7/T10 | Optional seller/buyer certificate refs are not parsed into actual metrics, `resultHash` or disposition and cannot replace a confirmed report |
-| 27m | Quality money conserves per fund source | T4/T5/T9 | `MILESTONE_PAYMENT` legs sum to `batchAmount`; penalty and seller-deposit forfeiture reconcile separately; penalty base is affected milestone value |
-| 27n | Quality resolution has one idempotent money trigger | T4/T5/T7 | Replay `remedy.finalized` is a no-op by leg identity and no `milestone.settled` is emitted/consumed for the same resolution |
-| 27o | Inspection cost policy is signed and deterministic | T2/T4/T7 | Only `LOSER_PAYS` validates; conforming assigns Buyer, partial/non-conforming Seller, inconclusive defers until final result |
-| 27p | Quality reject remains milestone-scoped | T3/T4 | `NON_CONFORMING` fails only the affected milestone and does not auto-terminate; alternate bargain requires supersede |
+| 27 | Quality disposition is deterministic | T4/T7 | Recompute from `signedContentHash` committed spec/deviation policy and `resultHash` actuals; subjective reviewer input cannot change result |
+| 27b | Coffee exact rejection follows the signed profile | T2/T7/T12 | Type mismatch and numeric thresholds use the signed coffee profile only |
+| 27c | Quality disposition maps exactly to attribution/remedy | T3/T4/T5/T8 | Conforming has null role/no consequences; partial max discount once/no punitive reputation; non-conforming is Seller + `QUALITY_BELOW_COMMITTED` with rejected-milestone refund/policy penalties; inconclusive emits no money |
+| 27d | Quantity precedence prevents double tolerance | T4/T5/T7 | Clean path keeps Delta 1/Delta 2; inspected/contested path uses accepted quantity × effective price with safety cap and no second Delta 2 |
+| 27e | Quality money conserves per fund source | T4/T5/T9 | `MILESTONE_PAYMENT` legs sum to `batchAmount`; penalty and seller-deposit forfeiture reconcile separately; penalty base is affected milestone value |
+| 27f | Quality resolution has one idempotent money trigger | T4/T5/T7 | Replay `remedy.finalized` is a no-op by leg identity and no `milestone.settled` is emitted/consumed for the same resolution |
+| 27g | Delivery certificate is evidence only | T2/T7/T10 | Optional seller/buyer certificate refs are not parsed into actual metrics, `resultHash` or disposition and cannot replace a confirmed report |
+| 27h | Inspection cost policy is signed and deterministic | T2/T4/T7 | Only `LOSER_PAYS` validates; conforming assigns Buyer, partial/non-conforming Seller, inconclusive defers until final result |
+| 27i | Quality reject remains milestone-scoped | T3/T4 | `NON_CONFORMING` fails only the affected milestone and does not auto-terminate; alternate bargain requires supersede |
+| 27j | Declared/committed/actual schemas are coffee-only | T2/T7/T12 | Coffee variants pass; every non-coffee discriminator/shape fails |
+| 27k | Goods snapshot is independent from mutable source records | T2/T12 | Listing/Product/Category/Plot edit/delete leaves stored snapshot and hash unchanged |
+| 27l | Every new signed field is hash committed; legacy policy is explicit | T2 | Nested-field mutation changes hash; first signature locks PATCH; signed legacy reads, incomplete legacy draft cannot sign |
+| 27m | Inspection requirement does not add milestone state | T3/T7 | Clean optional flow creates no report; mandatory guard blocks settlement in `BUYER_RECEIVED`/`CONTESTED` until confirmed report |
+| 27n | Bounded milestone price acceptance is authenticated and cutoff-safe | T2/T6/T9/T11 | In/out-band, self-accept, stale/cutoff, immutable accept event and unchanged signed hash |
+| 27o | Funding uses effective price while deposits remain nominal | T5/T6 | Base fallback, accepted-price funding amount, no settlement true-up, deposit unchanged for upward/downward adjustment |
 | 28 | Listing partial-fill is atomic and legacy-null fails closed | T2/T12 | 100 -> 60 -> 20; next 30 rejected; one concurrent winner |
 | 28b | Restore preserves seller lifecycle choice | T3/T12 | Quantity returns once while CLOSED/PAUSED remains unchanged |
+| 28c | Orphan reservation reaping is local, idempotent and race-visible | T12/T13 | Only stale unconfirmed `RESERVED` rows release; signed/committed rows and seller lifecycle stay untouched; replay restores once; late `contract.created` raises error log and Admin alert without a second inventory path |
+| 29 | Draft preview is visibly ineffective | T2 | Every preview contains `CHƯA CÓ HIỆU LỰC` and cannot masquerade as final |
+| 29b | Receipt consent does not waive quality rights | T3/T7 | Inspection/dispute remains available under signed terms |
+| 29c | Document generation/event/mail are idempotent | T2/T9/T10/T12 | One READY document, audit record and final email per recipient |
+| 29d | Document event commits separate content and PDF hashes | T2/T9/T12 | Swapping either hash fails verification |
 
 ## Release rule
 

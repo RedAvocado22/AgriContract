@@ -63,53 +63,8 @@ $defs:
       blackBrokenBeansPercent: {type: number, minimum: 0, maximum: 100}
     examples:
       - {commodity: COFFEE, type: ROBUSTA, moisturePercent: 13.0, foreignMatterPercent: 0.7, blackBrokenBeansPercent: 5.5}
-  riceActualMetrics:
-    description: varietyName is intentionally absent; rice identity cannot cause inspection rejection.
-    type: object
-    required: [commodity, brokenPercent, moisturePercent, chalkyKernelPercent, foreignMatterPercent, purityPercent]
-    additionalProperties: false
-    properties:
-      commodity: {const: RICE}
-      brokenPercent: {type: number, minimum: 0, maximum: 100}
-      moisturePercent: {type: number, minimum: 0, maximum: 100}
-      chalkyKernelPercent: {type: number, minimum: 0, maximum: 100}
-      foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
-      purityPercent: {type: number, minimum: 0, maximum: 100}
-    examples:
-      - {commodity: RICE, brokenPercent: 6.0, moisturePercent: 14.2, chalkyKernelPercent: 3.5, foreignMatterPercent: 0.3, purityPercent: 97.5}
-  rubberActualMetrics:
-    type: object
-    required: [commodity, grade, dirtPercent, ashPercent, volatileMatterPercent, nitrogenPercent, plasticityRetentionIndex]
-    additionalProperties: false
-    properties:
-      commodity: {const: RUBBER}
-      grade: {enum: [SVR_3L, SVR_5, SVR_10, SVR_20]}
-      dirtPercent: {type: number, minimum: 0, maximum: 100}
-      ashPercent: {type: number, minimum: 0, maximum: 100}
-      volatileMatterPercent: {type: number, minimum: 0, maximum: 100}
-      nitrogenPercent: {type: number, minimum: 0, maximum: 100}
-      plasticityRetentionIndex: {type: number, minimum: 0, maximum: 100}
-    examples:
-      - {commodity: RUBBER, grade: SVR_10, dirtPercent: 0.09, ashPercent: 0.65, volatileMatterPercent: 0.85, nitrogenPercent: 0.62, plasticityRetentionIndex: 48}
-  cashewActualMetrics:
-    type: object
-    required: [commodity, grade, moisturePercent, defectiveKernelPercent, foreignMatterPercent, kernelOutturnLbsPer80Kg]
-    additionalProperties: false
-    properties:
-      commodity: {const: CASHEW}
-      grade: {enum: [W180, W210, W240, W320, W450]}
-      moisturePercent: {type: number, minimum: 0, maximum: 100}
-      defectiveKernelPercent: {type: number, minimum: 0, maximum: 100}
-      foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
-      kernelOutturnLbsPer80Kg: {type: number, minimum: 0, maximum: 80}
-    examples:
-      - {commodity: CASHEW, grade: W320, moisturePercent: 5.3, defectiveKernelPercent: 8.5, foreignMatterPercent: 0.6, kernelOutturnLbsPer80Kg: 47.5}
   actualQualityMetrics:
-    oneOf:
-      - $ref: "#/$defs/coffeeActualMetrics"
-      - $ref: "#/$defs/riceActualMetrics"
-      - $ref: "#/$defs/rubberActualMetrics"
-      - $ref: "#/$defs/cashewActualMetrics"
+    $ref: "#/$defs/coffeeActualMetrics"
   inspectionSettlementResultV1:
     type: object
     required: [resultSchemaVersion, measuredQuantityKg, acceptedQuantityKg, measurementStatus, actualQualityMetrics, determinedAt]
@@ -192,7 +147,7 @@ $defs:
               contractId: {$ref: "#/$defs/uuid"}
               listingId: {$ref: "#/$defs/uuid"}
               reservedQuantity: {$ref: "#/$defs/positiveQuantityKg"}
-              commodity: {enum: [COFFEE, RICE, RUBBER, CASHEW]}
+              commodity: {const: COFFEE}
               buyerId: {$ref: "#/$defs/uuid"}
               sellerId: {$ref: "#/$defs/uuid"}
               totalAmount: {$ref: "#/$defs/money"}
@@ -751,7 +706,7 @@ $defs:
         x-publisher: contract-service
         x-consumers: [escrow-service, reputation-service, audit-service]
         x-source: milestone-escrow-phase2-design.md sections 6.4b, 6.7 and 7.2
-        x-verification-matrix: [11g, 11i, 11j, 11k, 11m, 11o, 11q, 26f, 26h, 27i, 27m, 27n, 27p]
+        x-verification-matrix: [11g, 11i, 11j, 11k, 11m, 11o, 11q, 26f, 26h, 27c, 27e, 27f, 27i]
         x-side-effect-boundary: Sole canonical trigger for termination/remedy money legs and reputation lock, including every final quality-dispute resolution and normal-completion return of contract-level deposits.
         x-idempotency: remedyLegId is unique per bank leg; remedyDecisionId groups all legs and is unique for at most one reputation lock.
         x-quality-invariant: >-
@@ -788,7 +743,7 @@ $defs:
         x-publisher: contract-service
         x-consumers: [escrow-service, analytics-service, audit-service]
         x-source: milestone-escrow-phase2-design.md section 7.1
-        x-verification-matrix: [1, 8, 27n]
+        x-verification-matrix: [1, 8, 27f]
         x-pii-exception: recipients.email is explicitly required for the later anchor notification; broker TTL and log redaction apply.
         x-side-effect-boundary: Clean-path settlement only. A quality dispute resolved through AttributionDecision and RemedyDecision must not emit milestone.settled for the same resolution.
   milestoneDisputeResolved:
@@ -1004,6 +959,7 @@ $defs:
         x-publisher: contract-service
         x-consumers: []
         x-source: milestone-escrow-phase2-design.md sections 3.2 and 7.1
+        x-note: No mandatory domain consumer. Notification is requested through notification.milestone_status_requested; the actual evidence is already carried by milestone.buyer_confirmed.
   milestoneForceMajeureClaimed:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -1163,6 +1119,32 @@ $defs:
         x-publisher: file-service
         x-consumers: [contract-service, inspection-service]
         x-source: file-service-phase2-design.md section 5
+  contractDocumentGenerated:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.document_generated}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [documentId, contractId, documentType, fileId, sourceContentHash, documentFileHash, templateCode, templateVersion, generatedAt]
+            additionalProperties: false
+            properties:
+              documentId: {$ref: "#/$defs/uuid"}
+              contractId: {$ref: "#/$defs/uuid"}
+              documentType: {enum: [FINAL_SIGNED_CONTRACT, ACTIVATION_CONFIRMATION, DELIVERY_RECEIPT, INSPECTION_RECORD]}
+              fileId: {$ref: "#/$defs/uuid"}
+              sourceContentHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              documentFileHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+              templateCode: {type: string, pattern: "^VN_COFFEE_[A-Z0-9_]+$"}
+              templateVersion: {type: string, minLength: 1}
+              generatedAt: {type: string, format: date-time}
+        x-publisher: contract-service
+        x-consumers: [audit-service]
+        x-source: contract-document-consent-phase2-design.md sections 5-7; hash-chain-phase2-design.md section 2.4
+        x-verification-matrix: [11t, 11u, 29d]
+        x-idempotency: documentId identifies one immutable generated representation; redelivery must not create a second READY document.
   bankSecurityLockChanged:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -1364,6 +1346,7 @@ oneOf:
   - $ref: "#/$defs/reputationUnlocked"
   - $ref: "#/$defs/fileReady"
   - $ref: "#/$defs/fileFailed"
+  - $ref: "#/$defs/contractDocumentGenerated"
   - $ref: "#/$defs/bankSecurityLockChanged"
   - $ref: "#/$defs/bankVerifierKeyRegistered"
   - $ref: "#/$defs/bankLargeTransactionFlagged"

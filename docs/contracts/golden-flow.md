@@ -2,29 +2,30 @@
 
 ## Scenario
 
-Typed listing declaration + product-owned reservable inventory -> synchronous idempotent reservation -> server-derived goods snapshot + immutable negotiated terms -> two OTP-bound signatures -> activation-time inventory commit -> bounded milestone price selection -> deposit lock/milestone funding -> delivery/inspection measurement -> contract-owned quality assessment -> attribution -> `remedy.finalized` -> bank/reputation consequences -> lifecycle termination or settlement -> audit/analytics/notification.
+Vietnam domestic coffee listing -> product-owned reservable inventory -> synchronous idempotent reservation -> versioned coffee contract template/profile + immutable negotiated terms -> consent + two OTP-bound signatures -> asynchronous immutable final PDF -> activation-time inventory commit -> bounded milestone price selection -> deposit lock/milestone funding -> delivery/inspection measurement -> contract-owned quality assessment -> attribution -> `remedy.finalized` -> bank/reputation consequences -> lifecycle termination or settlement -> audit/analytics/notification.
 
 All quantities/weights are canonical kilograms (`kg`). Timestamps are stored/serialized in UTC; business deadlines are calculated in `Asia/Ho_Chi_Minh`, date-only deadlines close at `23:59:59.999 ICT`, and business days use Monday-Friday minus the annually maintained Vietnam national-holiday list.
 
 ## Frozen sequence
 
-1. `product-service` exposes an approved listing whose required `declaredQualitySpec` is discriminated by `Category.commodity`; `ListingResponse` includes opaque `listingVersionToken`, seller `minOrderQuantity`, and server-owned nullable `quantityAvailable`. New rows initialize availability from `offeredQuantity`. Legacy-null inventory is readable but cannot be reserved until seller edit/republish initializes it.
+1. `product-service` exposes an approved `COFFEE` listing with required `CoffeeQualitySpec`; every Phase 2 write rejects non-coffee commodities. `ListingResponse` includes opaque `listingVersionToken`, seller `minOrderQuantity`, and server-owned nullable `quantityAvailable`. New rows initialize availability from `offeredQuantity`. Legacy data remains readable but cannot be republished into the new scope unless it is coffee and complete.
 2. Create/PATCH accepts `ContractTermsInput`, never client-supplied `goodsTerms`, `totalContractValue`, independent requested quantity, or inventory counter. Contract-service derives `requestedQuantity = Σ milestoneSchedule[].committedQuantity`, generates `contractId`, then synchronously reserves in product-service using the listing token before it persists `OFFERED`. Insufficient/below-minimum/legacy-null returns `409 INSUFFICIENT_LISTING_QUANTITY`; stale token returns `409 LISTING_VERSION_MISMATCH`. Persistence failure after reserve invokes idempotent compensation release.
 2a. After reserve succeeds, contract-service persists `reservedQuantity`, snapshot, milestones and `contract.created` outbox atomically. Product-service treats `contract.created` as confirmation only and never decrements twice. Source edits/deletion after contract creation cannot change the snapshot.
-3. `ContractTermsSnapshot` includes goods, committed quality/deviation, delivery risk/title/cost allocation, inspection requirement with `inspectionCostResponsibility = LOSER_PAYS`, `LegalProfile`, currency, signed `priceBand` and `priceAdjustmentRule`. Every nested signed field is included in canonical bytes for `signedContentHash`. Terms become immutable after the first signature; legacy signed contracts remain read-only/operable, while legacy drafts cannot sign until all required terms exist.
-3a. `InitiateSign` atomically expires older valid challenges for the same signer/contract/hash, persists the new challenge and synchronously calls `POST /internal/v1/notifications/otp-email`. `VerifyOtpAndSign` binds `otpId`, caller, contract, role and terms hash; a superseded otpId is rejected. Two signatures must share one `signedContentHash`.
-4. Before the second signature transitions to `SIGNED`, F18 requires `Σ committedQuantity == reservedQuantity`. `contract-service` then publishes `contract.signed` once; product-service marks the reservation signed-but-releasable and escrow starts deposit locks.
+3. `ContractTermsSnapshot` includes `VN_COFFEE_B2B`, template version/hash, `coffeeQualityProfileVersion`, coffee goods/quality, delivery, inspection, `LegalProfile`, currency and pricing rules. Fixed clauses, structured executable terms and hybrid clauses render from one versioned snapshot. Every nested field is included in canonical bytes for `signedContentHash`.
+3a. Every meaningful acknowledgement has action-specific `ConsentEvidence`. `InitiateSign` requires active consent-statement version plus `presentedContentHash == signedContentHash`, then atomically supersedes older challenges and sends OTP. Checkbox is evidence of intent, not a physical fingerprint or CA-backed digital signature.
+3b. Offer/negotiation preview always displays `CHƯA CÓ HIỆU LỰC`; a one-party-signed representation clearly states that the counterparty signature is still pending.
+4. Before the second signature transitions to `SIGNED`, F18 requires `Σ committedQuantity == reservedQuantity`. Contract-service publishes `contract.signed` immediately and creates `FINAL_SIGNED_CONTRACT` as `PENDING`. A durable worker renders/stores the PDF after commit; failure retries without rolling back signatures. READY publishes `contract.document_generated`, then final email carries the PDF, source-content hash, PDF-file hash and template version.
 5. `escrow.deposit_locked` is the only activation signal. The contract moves `SIGNED -> ACTIVE` and publishes `contract.activated`; only then product-service commits the reservation. `contract.activation_failed` releases it, so `SIGNED` is not the inventory commit point.
 6. Before funding request, Buyer or Seller may propose one price inside the signed band and only the counterparty may accept via JWT + `Idempotency-Key`. No OTP is used for this bounded runtime selection. One pending proposal may be overwritten; only the accepted record is immutable/auditable and publishes `milestone.price_adjusted`. Funding never waits for a proposal: it uses accepted `effectiveUnitPrice`, otherwise `agreedPrice`.
 6a. Each milestone funding projection moves `FUNDING_PENDING -> LOCKED` or `FUNDING_FAILED`. `batchAmount = committedQuantity × effectiveUnitPrice` is fixed when funding is requested and is never true-upped at settlement. Seller delivery obligations do not begin before `LOCKED`. After lock, seller deadlines use `effectiveDeliveryDeadline = expectedDeliveryDate + fundingDelayBusinessDays + graceDays`.
 7. Funding failure retries the failed leg. After `fundingCureWindowDays`, buyer non-funding is Rổ A: a persisted `AttributionDecision` has `breachCaseId = null`, `decisionSource = SYSTEM`, `finalBreachingRole = BUYER`.
 8. Seller weighing, buyer receipt, clean confirmation, flagging, force majeure and inspection follow the canonical milestone state machine. Optional batch certificates may be attached at seller/buyer weigh as delivery/dispute evidence only; they are never parsed as actual quality, included in `resultHash`, or treated as a confirmed report. `NONE_UNLESS_DISPUTED` has no inspection/actual metrics on the clean path. `MANDATORY_BEFORE_SETTLEMENT` uses an auxiliary guard without adding a milestone state and accepts reports in `BUYER_RECEIVED` or `CONTESTED`.
-8a. Inspection-service owns measured/accepted quantity, `measurementStatus`, and commodity-discriminated actual metrics inside `resultHash`; it does not own disposition or money. Rice actual metrics never contain `varietyName`. Contract-service deterministically compares actuals with the committed spec/deviation policy; a reviewer verifies those signed/hashed inputs and does not make a subjective quality ruling.
+8a. Inspection-service owns measured/accepted quantity, `measurementStatus`, and `CoffeeActualMetrics` inside `resultHash`; it does not own disposition or money. Contract-service deterministically compares actuals with the signed coffee profile/spec/deviation policy; a reviewer verifies those hashed inputs and does not add subjective criteria.
 8b. Quality disputes are always Rổ B and converge on `AttributionDecision -> RemedyDecision -> remedy.finalized`. `CONFORMING` and `PARTIALLY_CONFORMING` have null final breach role and no penalty/reputation; partial applies the maximum discount once. `NON_CONFORMING` attributes Seller with `QUALITY_BELOW_COMMITTED`, refunds the rejected milestone and applies existing remedy policy. `INCONCLUSIVE` releases no money and continues reinspection/Level 2.
 8c. Clean quantity settlement keeps existing Delta 1/Delta 2 rules. Inspected/contested calculation uses `min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)` without applying Delta 2 again. `milestone.buyer_confirmed` never triggers money; `milestone.settled` is clean-path settlement only and cannot coexist with `remedy.finalized` for the same quality resolution.
 9. Buyer non-receipt is Rổ A only after notice/window expiry and objective delivery evidence. Without objective evidence, contract-service opens a Rổ B `BreachCase` and moves `REPORTED -> UNDER_REVIEW -> RESOLVED`.
 10. Rổ B outcomes create `AttributionDecision` only after review. `requestedBy`, `allegedBreachingRole` and `finalBreachingRole` remain separate; allegation alone cannot seize funds or lock reputation.
-11. Every final attribution/no-fault decision feeds the remedy calculator. Normal completion creates the existing SYSTEM/no-fault attribution plus a `RemedyDecision` whose owner-return legs release the buyer deposit and optional seller deposit. `remedy.finalized` is the sole canonical consequence event for escrow/bank money legs and reputation lock. Each leg has a unique `remedyLegId`; `remedyDecisionId` groups the set and is not unique per ledger row.
+11. Every final attribution/no-fault decision feeds the remedy calculator. Normal completion creates the existing SYSTEM/no-fault attribution plus a `RemedyDecision` whose owner-return legs release the buyer deposit and optional seller deposit. `remedy.finalized` is authoritative for termination money, remedy money, quality-resolution money, contract-level deposit return and reputation lock; clean-path per-milestone money runs through `milestone.settled`. The two events must not both be emitted for one resolution. Each remedy leg has a unique `remedyLegId`; `remedyDecisionId` groups the set and is not unique per ledger row.
 11a. `remedy.finalized` carries `attributionDecisionId`, `buyerId`, `sellerId`, nullable `qualityDisposition` and explicit `affectedMilestoneIds[]`; nullable breach fields are present on the wire. Reputation maps the final role to the participant ID from this event without a cross-service lookup. Notification renders `qualityDisposition` with final attribution and never infers blame from `requestedBy`.
 12. `contract.terminated` carries lifecycle facts only: `terminationType`, `requestedBy`, `finalBreachingRole`, `breachReasonCode`, affected milestones and replacement pointers. Escrow and reputation must not consume it for consequences. Contract-service publishes it only after the existing internal bank-ledger read confirms every expected remedy leg and zero remaining lock.
 13. `finalBreachingRole = null` produces only owner-return settlement/refund legs and never contractual penalty, deposit forfeiture or reputation lock.
@@ -35,24 +36,21 @@ All quantities/weights are canonical kilograms (`kg`). Timestamps are stored/ser
 18. Analytics records `terminationType`, `requestedBy`, `finalBreachingRole` and `breachReasonCode`; monthly jobs recompute and overwrite each touched month bucket. Notification templates use termination type, final attribution and remedy outcome, never `requestedBy` as blame.
 19. Completion requires bank/audit reconciliation and the invariant that every terminal contract has zero remaining lock. Normal settlement stays `ACTIVE`, and generic termination stays in its current non-terminal state, until that guard succeeds; a failed/missing bank leg cannot produce `contract.settled` or `contract.terminated`.
 
-## Frozen goods and quality shapes
+## Frozen coffee shape
 
 | Commodity | Committed identity/exact field | Measurable committed/actual metrics |
 |---|---|---|
 | `COFFEE` | `type = ARABICA|ROBUSTA` | `moisturePercent`, `foreignMatterPercent`, `blackBrokenBeansPercent` |
-| `RICE` | `varietyName` (goods/committed only) | `brokenPercent`, `moisturePercent`, `chalkyKernelPercent`, `foreignMatterPercent`, `purityPercent` |
-| `RUBBER` | `grade = SVR_3L|SVR_5|SVR_10|SVR_20` | `dirtPercent`, `ashPercent`, `volatileMatterPercent`, `nitrogenPercent`, `plasticityRetentionIndex` |
-| `CASHEW` | `grade = W180|W210|W240|W320|W450` | `moisturePercent`, `defectiveKernelPercent`, `foreignMatterPercent`, `kernelOutturnLbsPer80Kg` |
 
-Every numeric deviation entry is `{direction, tolerance, penalty, reject, discountRate}` with `tolerance <= penalty < reject`. Only coffee `type` and rubber/cashew `grade` use exact-match rejection. Rice deviation keys are numeric-only.
+Every numeric deviation entry is `{direction, tolerance, penalty, reject, discountRate}` with `tolerance <= penalty < reject`. Coffee `type` may use exact-match rejection. The concrete external standard/test-method citation is unresolved; the signed internal profile is versioned and must not be marketed as ISO/TCVN compliance without approval.
 
-`originSnapshot` is exactly `{regionText, plotRefs[]}`. Coffee/rubber require non-empty plot refs and may carry nullable `traceabilitySnapshot`; rice/cashew require an empty plot list and cannot carry traceability evidence in the signed goods variant.
+`originSnapshot` is exactly `{regionText, plotRefs[]}`. Coffee requires non-empty plot refs and may carry nullable `traceabilitySnapshot`.
 
 ## Frozen REST surface
 
 The OpenAPI file freezes the owner-design command paths:
 
-- Contract/signature: create, list/detail, pre-sign terms update, sign initiate/verify, withdraw offer, mutual termination/replacement, breach report/review/resolve, termination execute.
+- Contract/signature/document: create, list/detail, pre-sign terms update, sign initiate/verify, draft preview, document list/detail, withdraw offer, mutual termination/replacement, breach report/review/resolve, termination execute.
 - Activation recovery: retry deposit lock and mark activation failed.
 - Milestone actions: weigh, confirm, flag, respond, force-majeure claim/resolve, milestone funding retry, bounded price propose/accept.
 - Reputation: authenticated public summary and maker-checker propose/approve/reject.
@@ -63,11 +61,14 @@ The Phase 1 endpoint `POST /api/v1/contracts/{contractId}/cancel` is retired. Th
 ## Hard invariants
 
 - Every event has one publisher; notification commands are not domain events.
-- `remedy.finalized` is the only trigger for termination/remedy money and reputation consequences.
+- `remedy.finalized` is authoritative for termination/remedy money, quality-resolution money, contract-level deposit return and reputation lock; clean-path per-milestone money runs through `milestone.settled`, and the two events cannot both be emitted for one resolution.
 - No consumer infers fault from `requestedBy` or allegation fields.
 - `finalBreachingRole = null` cannot create penalty/forfeiture/reputation effects.
 - Every remedy leg is idempotent by `remedyLegId`; every bank request is replay-safe by `sourceEventId`.
 - Signed terms, signatures, ledger records, lock facts, audit records and anchors are append-only/immutable as designed.
+- Phase 2 new writes are Vietnam-only coffee; non-coffee listing/terms/inspection/event payloads are rejected.
+- Consent must match action, subject, active statement version and current content hash; delivery acknowledgement never silently waives later inspection/dispute rights.
+- Draft/partial documents say `CHƯA CÓ HIỆU LỰC`; final PDF is immutable and keeps `signedContentHash` separate from `documentFileHash`.
 - Input cannot supply server-owned `goodsTerms`/`totalContractValue`; source records cannot rehydrate or mutate an existing snapshot.
 - New clients cannot create from a stale listing view; `listingVersionToken` is checked before snapshot and mismatch is a non-mutating `409`.
 - Product-service is the only inventory owner. Reservation is unique by `contractId`, atomic with decrement, and replay-safe; contract-service stores no competing counter.
@@ -75,7 +76,6 @@ The Phase 1 endpoint `POST /api/v1/contracts/{contractId}/cancel` is retired. Th
 - `SIGNED` inventory remains releasable; only `contract.activated` commits. Withdraw, activation failure and create compensation restore at most once, without reopening seller-closed/paused listings.
 - Every contract has exactly one Buyer and one Seller; multi-party/consortium/broker structures are outside Phase 2.
 - `agreedPrice` remains the signed base price and deposits always use nominal `totalContractValue`; milestone adjustments affect only pre-funding milestone amount.
-- Rice `varietyName` is goods/committed identity only and cannot appear in actual metrics or deviation policy.
 - Multiple penalty-zone quality metrics apply the greatest `discountRate` once; quality adjustment is not a contractual-penalty ledger leg.
 - Quality `MILESTONE_PAYMENT` legs conserve exactly one `batchAmount`; penalty and deposit-forfeiture reconcile against separate fund sources. Reject penalty base is `effectiveUnitPrice × committedQuantity`, never `totalContractValue`.
 - `NON_CONFORMING` fails only the affected milestone and never auto-terminates the contract; a different commercial bargain requires mutual supersede.

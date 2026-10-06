@@ -11,6 +11,8 @@ metadata:
 
 ## 1. Bối cảnh & Scope
 
+**Scope override chốt 06/10/2026:** Phase 2 chỉ cho tạo mới Product/Listing/Contract thuộc `COFFEE` phục vụ giao dịch nội địa Việt Nam. Các phân tích lịch sử về bốn commodity bên dưới được giữ làm bối cảnh nghiên cứu nhưng không còn là executable scope. Public write schema và `Category.approve()` cho scope Phase 2 phải reject `RICE`, `RUBBER`, `CASHEW`; legacy data chỉ được đọc theo compatibility policy.
+
 > **Role vận hành (18/07/2026):** các use case Admin trong doc này (review/moderate/nhập liệu hằng ngày) nhận thêm role `OPERATOR` theo `data-governance-phase2-design.md` §5 — permission matrix ở đó là source of truth, doc này không lặp lại; flow/state/schema không đổi.
 
 
@@ -253,9 +255,8 @@ Không có `UPDATE`/migration nào chạy trên data cũ — bảng mới, rỗn
   - **`originalKmlFileId` (mới, 05/07/2026):** file KML upload lưu qua `file-service` trước, `fileId` trả về gán vào `originalKmlFileId` của mọi `PlotRegistryEntry` tạo/update trong lần import này — cùng giá trị lặp lại cho cả batch (§2.1).
 - **`AddPlotManually(sellerId, householdLabel, lat, long, accuracyMeters, declaredProvince)`** (mới, cập nhật 05/07/2026 — thêm `declaredProvince`) — fallback, tạo/update `PlotRegistryEntry` (cùng matching rule theo `householdLabel` như KML) với `geometryType = POINT`, `source = MANUAL_PIN`. Không nhận polygon qua đường này (§2.2). `originalKmlFileId` luôn `NULL` (không qua KML). Cùng cơ chế province cross-check như trên (§2.2.2) — áp dụng cho từng entry đơn lẻ thay vì cả batch.
   - **Kiểm tra độ chính xác (04/07/2026):** `accuracyMeters` lấy trực tiếp từ `coords.accuracy` của Geolocation API trình duyệt (bán kính sai số 1-độ-lệch-chuẩn tính bằng mét, trả kèm toạ độ, không cần tính thêm) — lưu lại, không bỏ qua. Nếu `accuracyMeters > accuracyWarningThresholdMeters` (chốt 20m, `application.yml` — 1 cạnh plot 4ha điển hình ~200m, sai số 20m vẫn dùng được nhưng đáng cảnh báo), UI hiển thị cảnh báo trước khi seller xác nhận lưu ("độ chính xác thấp, thử lại ở nơi thoáng hoặc dùng file KML"). Không chặn cứng — thiết bị rẻ/trong nhà kính có thể không bao giờ đạt ngưỡng tốt hơn, chặn cứng loại bỏ hẳn 1 nhóm user thay vì chỉ cảnh báo.
-- **`CreateListing`:** đổi input — nhận `List<registryEntryId>` (chọn từ danh sách plot đã có sẵn trong registry của seller, UI dạng checkbox) thay vì `List<ProductPlotRequest>` với `geoJson` đầy đủ. Use case tự copy dữ liệu từ `PlotRegistryEntry` đã chọn sang `ProductPlot` mới (snapshot, §2.4). Validate: `registryEntryId` phải thuộc đúng `sellerId` đang tạo listing, ít nhất 1 plot được chọn (giữ nguyên yêu cầu ≥1 plot từ bản gốc).
-  - **Commodity-gate (mới, 08/07/2026 — C3):** yêu cầu ≥1 plot **chỉ áp dụng cho commodity thuộc EUDR** (cà phê, cao su). Với gạo/điều (không thuộc EUDR, xem §1), toàn bộ tầng geolocation là **optional** — seller không bị bắt buộc khai plot, `CreateListing` không reject vì thiếu plot. Gate đọc `Category.commodity` (enum cứng `COFFEE/RICE/RUBBER/CASHEW`, field trên aggregate `Category` Phase 1 — admin gán lúc `approve()`, xem đồng bộ ở `milestone-escrow-phase2-design.md` §7.2) của category gắn với product: `COFFEE`/`RUBBER` → bật geolocation bắt buộc; `RICE`/`CASHEW` → bỏ qua tầng này. Không hardcode "luôn cần plot" — nếu để nguyên yêu cầu ≥1 plot cho mọi commodity thì gạo/điều bị ép khai plot vô nghĩa, đúng bug scope báo cáo rà soát nêu.
-  - **Validate mới (06/07/2026):** reject nếu bất kỳ `registryEntryId` nào đang `geoVerificationStatus = PENDING` (§2.2.4) — tránh race condition listing lên sàn trước khi biết kết quả satellite check. Không áp dụng cho `CHECKED` (dù `HIGH_RISK`) hay `UNVERIFIED` — cả hai đều được coi là "đã có câu trả lời" (dù câu trả lời là rủi ro cao hay không xác minh được), chỉ `PENDING` (chưa có câu trả lời gì) mới bị chặn. **Chỉ áp dụng khi commodity thuộc EUDR** (gạo/điều không có bước satellite check nên không có state `PENDING` để chặn).
+- **`CreateListing`:** đổi input — nhận `List<registryEntryId>` (chọn từ danh sách plot đã có sẵn trong registry của seller, UI dạng checkbox) thay vì `List<ProductPlotRequest>` với `geoJson` đầy đủ. Use case tự copy dữ liệu từ `PlotRegistryEntry` đã chọn sang `ProductPlot` mới (snapshot, §2.4). Validate: `registryEntryId` phải thuộc đúng `sellerId` đang tạo listing, ít nhất 1 plot được chọn và `Category.commodity == COFFEE`. Commodity khác bị reject vì ngoài Phase 2, không còn nhánh optional-geolocation cho write mới.
+  - **Validate mới (cập nhật 06/10/2026):** reject nếu bất kỳ `registryEntryId` nào đang `geoVerificationStatus = PENDING` (§2.2.4) — tránh race condition listing cà phê lên sàn trước khi biết kết quả satellite check. `CHECKED` và `UNVERIFIED` đã có outcome nên không bị chặn bởi riêng guard này.
 - **`UploadCadastralExtract(sellerId, registryEntryId, extractFile)`** (mới, 04/07/2026) — seller upload file scan/PDF trích lục bản đồ địa chính cho 1 entry đã có sẵn (không tạo entry mới). Nhận `JPG`/`PNG`/`PDF`, cùng giới hạn dung lượng đã áp cho evidence file khác trong hệ thống (`sellerEvidenceFileId`...) — không thêm constraint riêng. Lưu qua `file-service` → `cadastralExtractFileId`, set `verificationLevel = CADASTRAL_BACKED`.
   - **Giới hạn thật, không phải chi tiết vặt (04/07/2026):** platform **không đối chiếu** nội dung file (số thửa, tờ bản đồ ghi trong trích lục) với `geoJson` đã khai cho đúng entry đó — không có OCR, không tra hệ thống địa chính thật để xác nhận khớp. Seller về lý thuyết có thể upload trích lục của 1 thửa đất bất kỳ, không liên quan gì tới toạ độ đã nhập, vẫn được gắn `CADASTRAL_BACKED`. Đây là giới hạn cùng nhóm với "self-declared" đã nêu ở §2.2.1 — file chỉ là bằng chứng đính kèm, không phải cơ chế xác minh khớp tự động.
 - **`RequestGeoReevaluation(sellerId, registryEntryId, photoFile)`** (mới, 06/07/2026) — seller khiếu nại khi `geoRiskLevel = HIGH_RISK`/`INCONCLUSIVE` (§2.2.4). Chỉ nhận ảnh chụp trực tiếp qua camera app (chặn chọn ảnh có sẵn trong thư viện máy). Lưu qua `file-service` → bóc EXIF (GPS + timestamp) → point-in-polygon đối chiếu với `geoJson` đã đăng ký của đúng `registryEntryId` đó.
@@ -320,7 +321,7 @@ Không đụng tới `contract-service`, `escrow-service`, hay bất kỳ use ca
 **Các điểm treo đã đóng hết (13/07/2026):** ngưỡng NDVI đã **GỠ** nhờ chuyển sang baseline ForTy/Natural Forests làm sẵn (L2, §2.2.4). `geoVerificationTimeoutHours` chốt **6 giờ** (`application.yml`), tinh chỉnh được khi có dữ liệu vận hành thật (§2.2.4). Không còn điểm treo số liệu.
 
 **Cập nhật (08/07/2026) — rà soát end-to-end, 2 điểm định vị (không đụng code lõi geolocation):**
-- **C3 — geolocation là conditional theo commodity:** EUDR chỉ áp cà phê/cao su, không áp gạo/điều — thêm commodity-gate ở `CreateListing` (§4), gạo/điều không bị bắt buộc khai plot. Field geo vốn đã nullable, đây là làm rõ + kiểm tra khi implement để tránh bug scope (ép gạo/điều khai plot vô nghĩa). Framing: "module EUDR bật/tắt theo commodity", không phải over-invest (§1).
+- **C3 — superseded cho executable Phase 2:** phân tích conditional bốn commodity vẫn có giá trị roadmap, nhưng write scope hiện tại chỉ còn cà phê nên `CreateListing` luôn bắt plot và reject commodity khác (§1/§4).
 - **C2 — quan hệ với CSDL vùng trồng nhà nước (Bộ NN&PTNT + IDH + VICOFA):** AgriContract không cạnh tranh tầng traceability — ở tầng contract/escrow/dispute. Geolocation thiết kế để liên thông/tiêu thụ CSDL nhà nước (nguồn `CADASTRAL_BACKED` lý tưởng) thay vì tự dựng, không thay thế nó (§1). **Known Limitation:** cơ chế liên thông cụ thể (API, format, quyền truy cập) không xác nhận được với Bộ trong phạm vi đồ án — thiết kế giữ ở mức "sẵn sàng tiêu thụ", không claim đã tích hợp. Defend hội đồng: nắm bối cảnh hạ tầng nhà nước, thiết kế để liên thông khi có điều kiện, không tự dựng lại tầng dữ liệu.
 
 **Cập nhật (08/07/2026) — L1/L2 từ báo cáo rà soát Limitations, gỡ 2 giới hạn:**
@@ -332,6 +333,8 @@ Product Phase 2 (Farm Plot Geolocation) — **ĐÓNG SESSION HOÀN TOÀN, sẵn 
 ---
 
 ## 8. Cross-service Note — `Product.varietyName` (không thuộc phạm vi Geolocation, ghi lại để đồng bộ với pricing-service)
+
+> **Superseded cho Phase 2 (06/10/2026):** phần `varietyName` cho rice chỉ là ghi chú roadmap/legacy; không được expose trên write contract cà phê hiện tại.
 
 **Chốt (05/07/2026), phát sinh từ session thiết kế `pricing-service`, không liên quan gì tới EUDR/geolocation:** pricing-service cần phân biệt giống lúa cụ thể để hiện đúng giá tham khảo (VNSAT trả nhiều giống — OM 18, ST25, IR 50404... — cùng tỉnh/cùng ngày với giá khác hẳn nhau, không phải 1 giá/tỉnh/ngày như cà phê). `Product` hiện chỉ có `category` (ENUM tầng rộng, VD "Gạo"), không có field nào ở tầng chi tiết giống.
 
@@ -346,7 +349,7 @@ Product Phase 2 (Farm Plot Geolocation) — **ĐÓNG SESSION HOÀN TOÀN, sẵn 
 
 ## 8b. `Listing.declaredQualitySpec`, partial-fill inventory và contract snapshot (mới, 23/07/2026)
 
-`Listing` thêm `declaredQualitySpec`, bắt buộc cho listing mới và phải là đúng variant của `Category.commodity`. Listing legacy được phép `NULL` để đọc/hiển thị, nhưng lần sửa hoặc republish kế tiếp phải bổ sung spec hợp lệ; không được tiếp tục phát hành listing legacy thiếu quality declaration.
+`Listing` thêm `declaredQualitySpec`, bắt buộc là `CoffeeQualitySpec` và `Category.commodity` bắt buộc `COFFEE`. Listing legacy commodity khác hoặc quality `NULL` được phép đọc/hiển thị, nhưng không được edit/republish thành listing Phase 2 mới.
 
 Mọi quantity/weight của product/listing dùng canonical **kilogram (`kg`)**. `offeredQuantity`, `minOrderQuantity` và `quantityAvailable` luôn là kg; `unitOfMeasure = KG` được giữ trong DTO hiện có để tương thích, không thêm `quantityUnit` mới. `minOrderQuantity` là mức tối thiểu seller chấp nhận cho một contract và phải `> 0`, `<= offeredQuantity`.
 
@@ -384,20 +387,31 @@ WHERE listingId = :listingId
 
 Zero-row update được re-read để phân loại: legacy-null, dưới `minOrderQuantity` hoặc không đủ tồn đều trả `409 INSUFFICIENT_LISTING_QUANTITY`; token stale khi tồn vẫn đủ trả `409 LISTING_VERSION_MISMATCH`; state seller-paused/closed trả state conflict. Client phải reload listing, không blind retry. Hai transaction tranh phần tồn cuối chỉ một conditional update thắng.
 
-`contract.created` chỉ xác nhận reservation đã được gắn với contract persist thành công, tuyệt đối không decrement lần hai. Product-service consume lifecycle event theo `eventId` với dedup durable: `contract.withdrawn` release pre-sign; `contract.signed` chuyển `RESERVED -> SIGNED_RELEASABLE`; `contract.activation_failed` release cả reservation signed; `contract.activated` chuyển sang `COMMITTED`. Event replay và compensation release dùng cùng conditional transition nên không thể restore hai lần.
+`contract.created` chỉ xác nhận reservation đã được gắn với contract persist thành công, tuyệt đối không decrement lần hai. Product-service consume lifecycle event theo `eventId` với dedup durable: `contract.withdrawn` release pre-sign; `contract.signed` chuyển `RESERVED -> SIGNED_RELEASABLE`; `contract.activation_failed` release cả reservation signed; `contract.activated` chuyển sang `COMMITTED`. Event replay và compensation release dùng cùng conditional transition nên không thể restore hai lần. Nếu `contract.created` tới sau khi reservation đã `RELEASED`, consumer phải phân loại đây là bất nhất tồn kho của một contract sống với reservation đã restore, ghi error log và alert Admin; không được silent no-op, decrement lại, đảo state hay tạo money/inventory path thứ hai.
+
+#### `OrphanReservationReaperJob`
+
+Product-service chạy `OrphanReservationReaperJob` định kỳ để thu hồi reservation bị bỏ rơi mà không gọi contract-service và không tạo endpoint hay coupling đồng bộ mới. Job chỉ đọc dữ liệu cục bộ của product-service và durable event-dedup store hiện có (bản ghi lifecycle được dedup theo `eventId`). Một reservation là **orphan** khi đồng thời:
+
+1. reservation đang ở `RESERVED`;
+2. durable dedup store chưa ghi nhận event `contract.created` cho `contractId`; và
+3. tuổi reservation vượt `orphanReservationGraceMinutes`, tính từ timestamp tạo reservation.
+
+`orphanReservationGraceMinutes` là config, mặc định **30 phút**: đủ dài để compensation/outbox retry hoàn tất trong điều kiện bình thường nhưng không để hàng treo quá lâu trong trạng thái không có contract đã persist. Không thêm bảng, marker hay cơ chế persistence mới cho job.
+
+Với mỗi orphan, job dùng đúng conditional transition `RESERVED -> RELEASED` của reservation aggregate. `SIGNED_RELEASABLE` và `COMMITTED` không bao giờ là ứng viên reaper. Conditional update bảo đảm duplicate run, restart hoặc concurrent worker chỉ restore một lần; seller-close và `PAUSED` chỉ được tăng lại counter, không tự mở listing. Mỗi lần release ghi operational log và phát alert cho Admin để theo dõi.
+
+Race delivery trễ được xử lý tường minh: nếu `contract.created` đến sau khi reaper đã release, consumer nhìn thấy reservation `RELEASED`, ghi error log kèm `contractId`/`eventId` và alert Admin. Consumer vẫn dedup event theo `eventId` sau khi ghi nhận bất nhất để retry không tạo nhiều cảnh báo, nhưng không tự decrement, không chuyển state ngược và không phát thêm money/inventory command. Vận hành phải xử lý contract sống và reservation đã restore như một incident tồn kho.
 
 `ListingResponse` bắt buộc expose `listingVersionToken` opaque. Trong Phase 2, product-service tạo token từ canonical UTC representation của `Listing.updatedAt`; buyer client giữ token đã xem và gửi lại khi `CreateContract`. Contract-service so exact token trước khi snapshot, mismatch trả `409 LISTING_VERSION_MISMATCH`. Token được đặt tên opaque để sau này có thể chuyển sang monotonic version mà không đổi public field; việc thêm numeric version chính thức nằm ngoài batch này.
 
-Declared spec và committed spec dùng chung bốn typed schema:
+Declared spec và committed spec dùng chung một schema cà phê:
 
 | Commodity | Identity / exact field | Measurable numeric fields |
 |---|---|---|
 | `COFFEE` | `type` (`ARABICA`/`ROBUSTA`) | `moisturePercent`, `foreignMatterPercent`, `blackBrokenBeansPercent` |
-| `RICE` | `varietyName` | `brokenPercent`, `moisturePercent`, `chalkyKernelPercent`, `foreignMatterPercent`, `purityPercent` |
-| `RUBBER` | `grade` (`SVR_3L`/`SVR_5`/`SVR_10`/`SVR_20`) | `dirtPercent`, `ashPercent`, `volatileMatterPercent`, `nitrogenPercent`, `plasticityRetentionIndex` |
-| `CASHEW` | `grade` (`W180`/`W210`/`W240`/`W320`/`W450`) | `moisturePercent`, `defectiveKernelPercent`, `foreignMatterPercent`, `kernelOutturnLbsPer80Kg` |
 
-`type`/`grade` là field inspector có thể exact-match; `Rice.varietyName` là identity do nguồn hàng khai và **không** đi vào actual inspection schema. Actual schemas chỉ chứa các field đo/inspect được trong cột cuối. Product-service reject mọi cặp `commodity/spec` mismatch ở create/update/republish, thay vì dựa vào consumer tự đoán từ field shape.
+`type` là field inspector có thể exact-match. Product-service reject mọi commodity khác `COFFEE` và mọi quality shape không đúng `CoffeeQualitySpec` ở create/update/republish.
 
 Khi contract-service tạo contract, nó đọc authoritative listing/product/category/plot và tạo `GoodsTermsSnapshot`; input từ buyer không được gửi object này. Snapshot dùng shape nguồn gốc chuẩn hoá:
 
@@ -408,7 +422,7 @@ originSnapshot {
 }
 ```
 
-`plotRefs` bắt buộc non-empty cho `COFFEE`/`RUBBER`, rỗng cho `RICE`/`CASHEW`. `traceabilitySnapshot` là nullable evidence-package reference, chỉ hợp lệ cho `COFFEE`/`RUBBER`. Đây là contract snapshot: sửa/xoá Listing, Product, Category hay PlotRegistryEntry sau create contract không cascade và không làm đổi `goodsTerms`/`signedContentHash`; lookup nguồn chỉ phục vụ provenance/audit, không tái hydrate terms.
+`plotRefs` bắt buộc non-empty cho `COFFEE`. `traceabilitySnapshot` là nullable evidence-package reference. Đây là contract snapshot: sửa/xoá Listing, Product, Category hay PlotRegistryEntry sau create contract không cascade và không làm đổi `goodsTerms`/`signedContentHash`; lookup nguồn chỉ phục vụ provenance/audit, không tái hydrate terms.
 
 Contract create ordering và invariant chữ ký được owner contract-service chốt ở `milestone-escrow-phase2-design.md` §2.1d: reserve sync trước khi persist `OFFERED`, persistence failure phải gọi compensation release idempotent, và **F18** bắt buộc `Σ committedQuantity == reservedQuantity` trước transition `SIGNED`.
 
@@ -416,7 +430,7 @@ Contract create ordering và invariant chữ ký được owner contract-service
 
 ## 8c. Thông tin bổ sung cho Product và Listing (mới, 23/07/2026)
 
-Các thuộc tính sau là metadata bổ sung, đều nullable/không bắt buộc và không thay đổi lifecycle, settlement, event hay signed contract snapshot:
+Các thuộc tính sau là metadata bổ sung, đều nullable/không bắt buộc và không tạo lifecycle, settlement hay event mới. Ba field Product được project read-only từ Product sang `ListingResponse`; client không được gửi chúng khi create/update Listing.
 
 | Aggregate | Field | Loại | Ý nghĩa |
 |---|---|---|---|
@@ -427,7 +441,9 @@ Các thuộc tính sau là metadata bổ sung, đều nullable/không bắt bu�
 | `Listing` | `warehouseLocation` | Free-text, nullable | Vị trí kho phục vụ thông tin listing; khác với delivery point được thoả thuận trong contract/delivery terms. |
 | `Listing` | `estimatedAvailabilityDate` | Date, nullable | Ngày dự kiến hàng sẵn có; không tạo deadline hay state transition. |
 
-Ba field `Listing` được expose qua common create/response DTO. Ba field `Product` chỉ được ghi nhận trong domain design ở batch này vì supplementary API hiện không có Product DTO; không project `cropYear`, `harvestSeason` hoặc `certifications` sang Listing API.
+Ba field `Listing` được expose qua common create/response DTO. Ba field `Product` được expose trong `ListingResponse` common DTO dưới dạng read-only, nullable và derived từ Product; Product vẫn là owner duy nhất, không thêm Product DTO public riêng. `certifications` là list free-text do seller cam kết cho hàng tương lai, không typed và không có expiry.
+
+Lý do consistency: `goodsTerms` snapshot lúc ký đã mang `cropYear`/`harvestSeason`. Nếu buyer ký hợp đồng có các field này nhưng lúc xem Listing lại không thấy, buyer đang ký một phần thông tin mà họ chưa từng nhìn thấy. ListingResponse phải hiển thị cùng lớp thông tin với snapshot; đây là cùng lớp vấn đề với `listingVersionToken`/listing-version guard.
 
 ---
 
@@ -438,13 +454,13 @@ Ba field `Listing` được expose qua common create/response DTO. Ba field `Pro
 **Bối cảnh:** Phase 1 đang redesign `Product.category` từ String tự do thành `categoryId` (FK) trỏ tới aggregate `Category` mới (`PENDING → APPROVED | REJECTED`, admin duyệt/seller propose động). Điều này đụng tới nhiều service Phase 2 vốn dùng `commodity` để gate logic — cần làm rõ 2 tầng để không lẫn:
 
 **2 tầng khác mục đích, giữ cả hai:**
-- **`commodity`** (enum cứng `COFFEE/RICE/RUBBER/CASHEW`) — tầng "loại hàng hoá gốc", gắn với **luật/nguồn giá/EUDR**. Dùng để gate logic ở nhiều service: `pricing-service` (COFFEE/RICE scrape VNSAT vs RUBBER/CASHEW admin nhập tay), `product-service` EUDR gate (chỉ COFFEE/RUBBER bắt khai plot), `analytics-service` (`agg_monthly_commodity_stats` gộp theo commodity, PK `(month_id, commodity)`). Cần đúng 1 tập cố định 4 giá trị — không thay bằng category động được, vì các logic này phân nhánh cứng theo 4 nhóm.
+- **`commodity`** — Phase 2 executable value duy nhất là `COFFEE`. Enum lịch sử có thể còn tồn tại khi migrate legacy data, nhưng mọi write path mới và contract/event schema phải dùng `COFFEE`; pricing/analytics không được quảng bá hỗ trợ ba commodity còn lại.
 - **`category`** (aggregate động, admin/seller thêm) — tầng "phân loại marketplace" cho filter/hiển thị. Linh hoạt, không giới hạn số lượng ("Cà phê Arabica Cầu Đất", "Gạo ST25 hữu cơ"...).
 
-**Điểm nối 2 tầng — `Category.commodity`:** aggregate `Category` (Phase 1) cần thêm **field `commodity`** (enum cứng 4 giá trị), admin **gán bắt buộc lúc `approve()`** category. Đây là điểm map duy nhất, 1 lần, đúng người có thẩm quyền — thay cho mọi bảng tra cứng `category (tiếng Việt) → commodity` mà các bản Phase 2 docs trước đây (06-08/07) giả định. Vì `approve()` bắt buộc gán `commodity` và category chỉ dùng được khi `APPROVED`, mọi `Product` hợp lệ luôn truy ra được `commodity` non-null qua `Category.commodity` — không có case rơi `NULL`/exception khi publish `contract.signed` hay gate EUDR.
+**Điểm nối 2 tầng — `Category.commodity`:** aggregate `Category` vẫn giữ field `commodity`, nhưng Phase 2 approval chỉ chấp nhận `COFFEE`. Đây là điểm map duy nhất, 1 lần, đúng người có thẩm quyền; mọi Product/Listing hợp lệ trong scope luôn truy ra `COFFEE` non-null khi snapshot hoặc publish `contract.signed`.
 
 **Việc cần làm (đồng bộ Phase 1 ↔ Phase 2):**
-- Phase 1 `Category` aggregate thêm field `commodity` (enum, non-null, validate ∈ 4 giá trị) + admin gán lúc `approve()`. Migration `categories` thêm cột `commodity`.
+- Phase 1 `Category` aggregate thêm field `commodity` (non-null; Phase 2 write validation chỉ nhận `COFFEE`) + admin gán lúc `approve()`. Migration `categories` thêm cột `commodity`.
 - Các service Phase 2 (`contract-service` publish `contract.signed`, `product-service` EUDR gate, `analytics-service` dimension) đọc `commodity` qua `Category.commodity` thay vì tự map từ enum cũ.
 - **Duplicate check của `Category` (Phase 1 §1.2) không đụng tầng `commodity`** — 2 category khác tên nhưng cùng `commodity` là hợp lệ ("Cà phê Robusta" và "Cà phê Arabica" đều `commodity = COFFEE`, không phải trùng). `commodity` là thuộc tính phân nhóm, không phải khoá unique.
 

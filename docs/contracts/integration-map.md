@@ -1,6 +1,6 @@
 # AgriContract Phase 2 Integration Map
 
-Status: synchronized with the frozen Phase 2 design/API/event set on 2026-07-23.
+Status: synchronized with the Phase 2 design/API/event set on 2026-10-06 (Vietnam domestic coffee, consent and contract documents).
 
 Time convention: cross-service timestamps are UTC; deadline owners calculate in `Asia/Ho_Chi_Minh` with the shared Vietnam business-day calendar from milestone escrow §1.1.
 
@@ -19,17 +19,17 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 | Service | System of record / responsibility | Publishes | Consumes | Phase 1 disposition |
 |---|---|---|---|---|
 | `user-service` | Profile, KYC, role/eligibility and persisted lock projection | User notification commands | `reputation.locked`, `reputation.unlocked` | Refactor DTO split, roles, fail-closed lookup and monotonic lock revision |
-| `product-service` | Product, category, typed `Listing.declaredQualitySpec`, `quantityAvailable`, reservation records/lifecycle, plot/geolocation, traceability references and risk signals | Existing product/category events | `contract.created`, `contract.withdrawn`, `contract.signed`, `contract.activation_failed`, `contract.activated`; user eligibility/lock projection | Reuse CRUD; add atomic partial-fill reservation; legacy null inventory is read-only/fail-closed until edit/republish |
-| `contract-service` | `ContractTermsInput` validation, server-derived `requestedQuantity`/`reservedQuantity` reference, `ContractTermsSnapshot`/goods/nominal value, Contract, Milestone, signatures, bounded price acceptance, deterministic quality assessment, `BreachCase`, `AttributionDecision`, remedy and termination lifecycle | Contract inventory lifecycle events, `milestone.price_adjusted`, clean milestone facts, `breach.reported`, `remedy.finalized`, `contract.terminated`, notification commands | Product reservation response, escrow funding results and inspection measurements | Reserve before `OFFERED`; preserve legacy signed reads while blocking incomplete legacy drafts from signing |
+| `product-service` | Coffee-only Product/Category/Listing writes, `CoffeeQualitySpec`, `quantityAvailable`, reservation lifecycle, orphan reaper, plot/geolocation and traceability | Existing product/category events | Contract inventory lifecycle events; user eligibility/lock projection | Reject non-coffee writes; legacy non-coffee remains read-only; keep atomic partial-fill reservation/reaper |
+| `contract-service` | Versioned `VN_COFFEE_B2B` snapshot/profile, consent evidence, Contract/Milestone/signatures, `ContractDocument`, coffee quality assessment, breach/attribution/remedy/lifecycle | Inventory lifecycle events, `contract.signed`, `contract.document_generated`, milestone/remedy events and notification commands | Product reservation, escrow funding, inspection measurements, file storage result | Reserve before `OFFERED`; create final document PENDING with second signature and render after commit |
 | `escrow-service` | Deposit and milestone funding orchestration; projection only, never remedy calculator or money source | `bank.*_requested`, escrow funding result events | `contract.signed`, milestone settlement instructions, `remedy.finalized`, `bank.*_completed`, `bank.*_failed` | Add funding retry/cure, partial-lock refund and remedy-leg orchestration |
 | `bank-service` | Append-only ledger, system lock, verifier nonce/key and reconciliation | `bank.*_completed`, `bank.*_failed`, AML/security facts | Canonical `bank.*_requested`, analytics structuring signal | New service; persist event, fund and remedy identities |
 | `inspection-service` | Level 1.5 reports/signatures, Level 2 commission/confirmation, measured/accepted quantity and typed actual metrics | `inspection.report_confirmed`, commissioning facts and notification commands | File readiness and frozen commissioning inputs | New service; never calculates quality disposition, discount or entitlement |
 | `reputation-service` | Immutable completion/dispute facts, insert-only lock ledger, query-time score and pair-risk projection | `reputation.locked`, `reputation.unlocked`, risk-clear events | Positive facts; negative consequences only from `remedy.finalized`; `analytics.structuring_pattern_detected` updates `pair_risk_state` projection | New service; RabbitMQ is not the historical store; Phase 2 does not enforce pair-risk settlement blocking |
-| `audit-service` | Sole writer of append-only `audit_record`/`audit_anchor`, dual hash chain and OTS anchoring | Audit notification commands | Canonical source events directly | Add `sourceEventId` dedup and durable anchor outbox/retry |
-| `file-service` | Blob, technical metadata, virus scan, intake, retention and legal hold | `file.ready`, `file.failed`, `file.email_notice` | Storage/intake commands | New service |
+| `audit-service` | Sole writer of append-only `audit_record`/`audit_anchor`, dual hash chain and OTS anchoring | Audit notification commands | Canonical source events including `contract.document_generated` | Commit content hash and PDF bytes hash separately; dedup by sourceEventId |
+| `file-service` | Blob, technical metadata, virus scan, intake, retention and legal hold | `file.ready`, `file.failed`, `file.email_notice` | Storage/intake commands including system-generated final PDF | Return storage hash as documentFileHash; immutable final blob via owner proxy |
 | `pricing-service` | Advisory external reference price quote and manual price attribution | No frozen golden-flow event | None on the critical path | New service; never a dependency for contract sign, funding, adjustment or settlement |
 | `analytics-service` | CQRS facts, monthly aggregates and AML scan | `analytics.structuring_pattern_detected` | Contract/milestone/remedy lifecycle facts including `contract.terminated` | Recompute and overwrite every touched month bucket |
-| `notification-service` | Notification delivery log and templates; synchronous OTP delivery | No business decision event | `notification.*_requested` commands only | Refactor ingress, templates and recipient/type dedup |
+| `notification-service` | Notification delivery log/templates, synchronous OTP, final-contract PDF email | No business decision event | `notification.*_requested` commands only | Final PDF command dedup by document + recipient + notification type |
 
 ## Canonical interaction map
 
@@ -38,8 +38,9 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 | Eligibility | contract/product | `GET /internal/v1/users/{userId}` | user | Fail closed on unavailable/locked user |
 | Listing reserve | contract | `POST /internal/v1/listing-reservations` | product | Derive milestone sum; unique contractId; atomic conditional decrement; 409 on insufficient/legacy-null |
 | Reserve compensation | contract | `POST /internal/v1/listing-reservations/{contractId}/release` | product | Create-persistence failure restores at most once and preserves seller listing state |
-| OTP | contract | `POST /internal/v1/notifications/otp-email` | notification | Resend supersedes older valid challenge; no delayed send after failed synchronous request |
-| Fully signed | contract | `contract.signed` | product, escrow, analytics, audit | Both signatures bind the same hash; milestone sum equals reservedQuantity; inventory remains releasable |
+| Consent + OTP | contract | `InitiateSign` + `POST /internal/v1/notifications/otp-email` | notification | Active statement and presented hash validated before challenge; resend supersedes old challenge; no delayed send |
+| Fully signed | contract | `contract.signed` | product, escrow, analytics, audit | Both signatures bind one hash; inventory remains releasable; PDF generation is independent |
+| Final document | contract/file | `contract.document_generated` then `notification.contract_document_ready_requested` | audit, notification | One immutable READY document; source/content hash and PDF-file hash stay distinct |
 | Activated | contract | `contract.activated` | product | Only ACTIVE finalizes reservation COMMITTED; activation failure releases |
 | Goods snapshot | product -> contract synchronous read at create | Listing/Product/Category/Plot source data -> `GoodsTermsSnapshot` | contract | Server-derived once; later source mutation/deletion cannot change snapshot/hash |
 | Bounded price selection | contract | price propose/accept REST; `milestone.price_adjusted` after accept | audit, analytics | Counterparty accept only, inside signed band and before funding; no OTP/hash mutation |
@@ -48,7 +49,7 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 | Funding failure | escrow | `escrow.milestone_funding_failed` and notification command | contract, notification | Retry/cure; refund any partial lock; use `effectiveDeliveryDeadline` |
 | Inspection measurement | inspection | `inspection.report_confirmed` with typed actual metrics inside `resultHash` | contract, audit | Report applies only in `BUYER_RECEIVED`/`CONTESTED`; rice actual has no variety; no inspector-owned disposition |
 | Quality assessment | contract | immutable assessment; quality dispute Rổ B -> `AttributionDecision`/`RemedyDecision`/`remedy.finalized` | escrow, reputation, audit | Disposition is deterministic; inspected amount uses accepted quantity/effective price without Delta 2 twice; no second `milestone.settled` trigger |
-| Evidence | contract/inspection/file | canonical milestone, inspection and file events; optional batch certificate refs | audit and owning consumers | Certificate is delivery/dispute evidence only, never actual quality or a confirmed report; replay is a no-op by `sourceEventId` |
+| Evidence | contract/inspection/file | consent records, document event, milestone/inspection/file events | audit and owning consumers | Receipt consent does not waive inspection; certificate is evidence only; replay is a no-op |
 | Attribution A | contract | direct `AttributionDecision` (`breachCaseId = null`, `decisionSource = SYSTEM`) | remedy calculator | Only after objective rule is satisfied |
 | Attribution B | contract | `breach.reported`; `REPORTED -> UNDER_REVIEW -> RESOLVED` | contract workflow | Allegation has no money/reputation consequence |
 | Consequence | contract | `remedy.finalized` | escrow, reputation, audit | Sole trigger for quality-resolution/termination money and negative reputation; quality payload carries disposition plus final attribution |
@@ -68,6 +69,8 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 
 ## Signed terms and runtime boundary
 
+- Phase 2 writes are domestic Vietnam coffee only. `ContractTermsSnapshot` includes template code/version/hash and `coffeeQualityProfileVersion`; all are hash committed.
+- Consent evidence is action-specific and binds subject, statement version/hash and presented content hash. Checkbox is not represented as biometric fingerprint or CA-backed signature.
 - `ContractTermsInput` contains negotiated committed quality, delivery, inspection and pricing-band terms. `goodsTerms` and `totalContractValue` are server-only snapshot fields.
 - Signed `inspectionTerms.inspectionCostResponsibility` is fixed to `LOSER_PAYS`; disposition assigns Buyer cost for conforming and Seller cost for partial/non-conforming, while inconclusive defers allocation.
 - `agreedPrice` is the base unit price. Deposit amounts are calculated once from nominal `totalContractValue` and never recomputed from milestone adjustments.
@@ -98,6 +101,7 @@ The architecture contains 12 business services. `api-gateway` is an edge compone
 - `audit_record.source_event_id` is unique. The record retains `sourceEventId`, `causationId`, and `correlationId`.
 - OTS anchoring uses a durable outbox/retry mechanism. Replaying the same source event creates no second record, anchor or evidence email.
 - Notification messages are commands, separate from domain events. Termination templates use `terminationType`, `finalBreachingRole`, and remedy outcome, never requester attribution.
+- `contract.document_generated` commits `sourceContentHash` and `documentFileHash` separately; only then may the final-PDF notification command be sent.
 
 ## Phase 1 migration and compatibility
 

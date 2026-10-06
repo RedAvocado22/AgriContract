@@ -6,7 +6,7 @@ metadata:
   type: design
   phase: 2
   extends: "notification-service Phase 1; AgriContract Architecture v2 §3.12; SDS Phần 5 §3"
-  related: "signature-phase2-design.md §4.1/§6; hash-chain-phase2-design.md §4-5; milestone-escrow-phase2-design.md §7"
+  related: "signature-phase2-design.md §4.1/§6; hash-chain-phase2-design.md §4-5; milestone-escrow-phase2-design.md §7; contract-document-consent-phase2-design.md §5-7"
 ---
 
 ## 1. Bối cảnh & Scope
@@ -100,12 +100,13 @@ Unique key: `(event_id, recipient_email, notification_type)`. Key cũ `(event_id
 
 Template được version trong code/resources để review cùng source; DB chỉ lưu `templateVersion` đã dùng. Không cho Admin sửa nội dung evidence/security template runtime vì sẽ làm mất khả năng tái hiện bằng chứng.
 
-### 3.3 Attachment cho evidence mail (mới, 17/07/2026)
+### 3.3 Attachment cho evidence mail (cập nhật 06/10/2026)
 
 2 luồng evidence cần nhiều hơn text thuần, trước đây chưa chốt:
 
 - `notification.milestone_anchor_requested` — email quyết toán **đính file `.ots`** làm attachment: proof là binary, publisher (audit-service) truyền base64 trong payload (`otsProof`), notification decode và attach, tên file `{contractId}-{milestoneId}.ots`.
-- `notification.contract_anchor_requested` — snapshot `ContractTerms` render **thẳng trong body email** (HTML/JSON có cấu trúc) kèm dòng `signedContentHash`. **Không sinh PDF trong Phase 2** — email anchor cần nội dung + timestamp độc lập, không cần định dạng in ấn; PDF generation là enhancement.
+- `notification.contract_anchor_requested` — chỉ dùng cho compatibility nếu cần gửi structured snapshot cũ; không còn là final-document command.
+- `notification.contract_document_ready_requested` — phát sau `contract.document_generated`, đính `FINAL_SIGNED_CONTRACT` PDF lấy qua trusted file reference và render trong body các giá trị `sourceContentHash`, `documentFileHash`, template code/version. Đây là email final canonical của Phase 2.
 
 `NotificationLog` không lưu attachment bytes — chỉ lưu size + SHA-256 của attachment trong metadata để đối soát; bytes tái hiện được từ nguồn (audit-service giữ proof trong `audit_anchor.proof` — hash-chain §3, sửa 18/07/2026).
 
@@ -116,6 +117,7 @@ Template được version trong code/resources để review cùng source; DB ch�
 | `notification.user_kyc_result_requested` / user-service | User tương ứng | Kết quả KYC, reason nếu reject |
 | `notification.user_lock_changed_requested` / user-service | User bị tác động | LOCKED/UNLOCKED, thời hạn/lý do |
 | `notification.contract_anchor_requested` / contract-service | Buyer + Seller | Snapshot `ContractTerms` + `signedContentHash` + contractId |
+| `notification.contract_document_ready_requested` / contract-service | Buyer + Seller | `documentId`, contractId, trusted `fileId`, `sourceContentHash`, `documentFileHash`, template code/version; chỉ gửi khi document READY |
 | `notification.contract_terminated_requested` / contract-service (**SỬA 19/07/2026 — thay `contract_cancelled_requested`**) | Buyer + Seller | Canonical lifecycle fields (`contractId`, `terminationType`, `requestedBy`, nullable attribution/reason/decision/case fields, affected milestones and replacement pointers) plus `remedyLegs` and `payload.recipients`. Template PHẢI phân biệt: mutual/replacement/FM/technical (không ai vi phạm — giọng trung tính) vs breach (nêu bên vi phạm theo attribution). KHÔNG dùng chữ "huỷ do X" khi X chỉ là requestedBy |
 | `notification.breach_notice_requested` / contract-service (**mới 19/07/2026**) | Bên bị cáo buộc + bên cáo buộc | `breachCaseId`, `breachReasonCode`, severity, evidence refs — thông báo `BreachCase` mở (milestone-escrow §6.4); là notice chính thức có timestamp, đầu chuỗi bằng chứng wrongful-termination |
 | `notification.remedy_finalized_requested` / contract-service (**mới 19/07/2026; quality sync 23/07/2026**) | Buyer + Seller | Canonical remedy fields gồm `remedyDecisionId`, `attributionDecisionId`, nullable `breachCaseId`, `contractId`, `buyerId`, `sellerId`, `affectedMilestoneIds[]`, nullable final attribution/reason, nullable `qualityDisposition`, eligibility flags và exact `remedyLegs`; quality resolution bắt buộc disposition non-null và template hiển thị nó cùng final attribution, không suy blame từ `requestedBy`/`flaggedBy`; command chỉ bổ sung `payload.recipients` cho routing |
@@ -148,6 +150,7 @@ receive → validate → reserve unique key/PENDING → render → provider send
 - Duplicate khi row `SENT` → ack/skip. Row `PENDING/FAILED` chỉ retry theo policy, không tạo row mới.
 - Retry async tối đa 3 lần với exponential backoff; permanent validation error đi DLQ ngay.
 - OTP synchronous không retry nền sau khi đã trả lỗi cho caller, tránh caller tạo OTP mới trong khi OTP cũ bất ngờ được gửi muộn. Caller có thể retry cùng `requestId`; idempotency trả lại kết quả đã biết.
+- Final document dedup theo semantic key `(documentId, recipientEmail, CONTRACT_FINAL_PDF)`; redelivery event/command không được gửi hai bản final cho cùng recipient.
 - DLQ security/evidence tạo operational alert; không silently discard.
 
 ## 6. Database Migration
@@ -211,6 +214,8 @@ SMTP/SendGrid credential chỉ từ secret/env. MailHog dùng local development.
 **Cập nhật 19/07/2026 (quality sync 23/07/2026):** `contract_cancelled_requested` → `contract_terminated_requested` (template theo `terminationType`/`finalBreachingRole`, không theo initiatedBy); thêm 3 command mới: `breach_notice_requested`, `remedy_finalized_requested`, `milestone_funding_status_requested`. Quality resolution qua `remedy_finalized_requested` mang `qualityDisposition` cùng final attribution và không suy blame từ requester. Dedup key `(event_id, recipient_email, notification_type)` sẵn có cover được — mỗi statusType/terminationType map 1 notificationType riêng, cùng quy tắc đã chốt cho `milestone_status`.
 
 **Cập nhật 17/07/2026:** thêm command `notification.contract_activation_failed_requested` (khoá cọc fail sau `SIGNED` — milestone-escrow §3.1); làm rõ 2 template dễ sót của `milestone_status` (`LEVEL2_OPTOUT_REQUESTED` có deadline, `BUYER_RECEIVE_REMINDER`); §3.3 chốt attachment `.ots` + snapshot render trong body, không PDF Phase 2; migration thêm DEFAULT sentinel + backfill `legacy:{user_id}` trước khi tạo unique index mới; xác nhận không có end-user API (Gateway bỏ route).
+
+**Cập nhật 06/10/2026 (supersede phần “không PDF Phase 2” ở dòng trên):** final contract PDF nay là scope chính thức nhưng được render async ngoài transaction ký. Notification chỉ gửi sau `contract.document_generated`/document READY qua `notification.contract_document_ready_requested`, đính PDF và cả hai hash; dedup theo document + recipient + type.
 
 ---
 
