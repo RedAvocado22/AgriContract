@@ -209,6 +209,33 @@ class GatewayBoundaryTest {
         assertThat(received.getPath()).isEqualTo("/api/v1/categories");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/admin/users?verificationStatus=PENDING", "/api/v1/admin/users/user-456/verify"})
+    void adminUserRoute_isForwardedToUserServiceWithJwtIdentity(String path) throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+
+        client.get().uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
+                .header("X-User-Role", "ADMIN")
+                .exchange()
+                .expectStatus().isOk();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getPath()).isEqualTo(path);
+        assertThat(received.getHeaders().values("X-User-Id")).containsExactly("user-123");
+        assertThat(received.getHeaders().values("X-User-Role")).containsExactly("BUYER");
+    }
+
+    @Test
+    void adminUserRoute_withoutToken_isRejected() throws InterruptedException {
+        client.post().uri("/api/v1/admin/users/user-456/verify")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        assertNotForwarded();
+    }
+
     private static void assertNotForwarded() throws InterruptedException {
         assertThat(downstream.takeRequest(300, TimeUnit.MILLISECONDS))
                 .as("request must not reach the downstream service")
