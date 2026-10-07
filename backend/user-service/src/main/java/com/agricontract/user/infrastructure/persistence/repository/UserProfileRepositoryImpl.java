@@ -1,16 +1,22 @@
 package com.agricontract.user.infrastructure.persistence.repository;
 
+import com.agricontract.user.common.exception.UserAlreadyExistsException;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.UserId;
+import com.agricontract.user.domain.model.vo.VerificationStatus;
 import com.agricontract.user.domain.repository.UserProfileRepository;
 import com.agricontract.user.infrastructure.persistence.entity.UserProfileJpaEntity;
 import com.agricontract.user.infrastructure.persistence.mapper.UserProfileMapper;
-import com.agricontract.user.common.exception.UserAlreadyExistsException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @Repository
@@ -33,6 +39,16 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     }
 
     @Override
+    @Transactional
+    public UserProfile update(UserProfile userProfile) {
+        String userId = userProfile.getUserId().value();
+        UserProfileJpaEntity entity = jpaRepository.findByUserId(userId)
+                .orElseThrow(() -> new NoSuchElementException("User not found: " + userId));
+        mapper.updateEntity(userProfile, entity);
+        return mapper.toDomain(entity);
+    }
+
+    @Override
     public Optional<UserProfile> findById(UserId userId) {
         Optional<UserProfileJpaEntity> userProfileJpaEntity = jpaRepository.findByUserId(userId.value());
         return userProfileJpaEntity.map(mapper::toDomain);
@@ -41,5 +57,20 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     @Override
     public boolean existsById(UserId userId) {
         return jpaRepository.existsByUserId(userId.value());
+    }
+
+    @Override
+    public List<UserProfile> findByVerificationStatus(VerificationStatus status, Pageable pageable) {
+        // Queue order is fixed; client sort parameters are ignored so they cannot reference arbitrary columns.
+        Pageable oldestFirst = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(Sort.Direction.ASC, "createdAt", "id"));
+        return jpaRepository.findByVerificationStatus(status, oldestFirst).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countByVerificationStatus(VerificationStatus status) {
+        return jpaRepository.countByVerificationStatus(status);
     }
 }
