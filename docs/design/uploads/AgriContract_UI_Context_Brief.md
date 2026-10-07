@@ -1,6 +1,7 @@
 # AgriContract — UI Context Brief (dành cho Claude Design)
 
 > **Cách dùng:** Paste **PHẦN 0 → 3** một lần đầu tiên (đây là context nền, Claude Design sẽ giữ trong hội thoại).
+> Đây là context thủ công dành cho Claude Design, không phải nguồn build hoặc regenerate các file DOCX.
 > Sau đó mỗi lần dựng 1 màn thì paste **spec màn đó ở PHẦN 5** + câu lệnh `Dựng màn [tên] theo spec dưới đây, dùng đúng design system và component library đã thống nhất.`
 > PHẦN 6 (component) và PHẦN 7 (notification) paste khi cần dựng component library hoặc notification center.
 
@@ -8,21 +9,22 @@
 
 # PHẦN 0 — SẢN PHẨM LÀ GÌ
 
-AgriContract là nền tảng **B2B số hoá hợp đồng nông sản** cho thị trường Việt Nam, phục vụ 4 mặt hàng: **cà phê, gạo, cao su, điều**.
+AgriContract là nền tảng **B2B số hoá hợp đồng cà phê** cho thị trường Việt Nam. Phase 2 chỉ cho phép `COFFEE`; mọi lựa chọn mặt hàng khác là roadmap và không xuất hiện trong luồng vận hành.
 
-Vấn đề nó giải: hợp đồng nông sản kỳ hạn (forward contract) ở VN thường bị **bẻ kèo** khi giá thị trường biến động — nông dân/HTX bán ra ngoài khi giá lên, doanh nghiệp ép giá hoặc chậm trả khi giá xuống. Không có cơ chế nào ràng buộc ngoài niềm tin. Bên yếu thế (nông dân/HTX) chịu rủi ro lớn hơn.
+Vấn đề nó giải: hợp đồng nông sản kỳ hạn (forward contract) ở VN thường bị **phá hợp đồng** khi giá thị trường biến động — nông dân/HTX bán ra ngoài khi giá lên, doanh nghiệp ép giá hoặc chậm trả khi giá xuống. Không có cơ chế nào ràng buộc ngoài niềm tin. Bên yếu thế (nông dân/HTX) chịu rủi ro lớn hơn.
 
 Cách nó giải:
 1. **Ký quỹ tự thực thi (self-enforcing escrow)** — tiền bị khoá trước, giải ngân tự động theo cột mốc.
 2. **Cột mốc giao hàng (milestone)** — mỗi đợt giao là 1 milestone có vòng đời riêng, giải ngân riêng.
 3. **Giải quyết tranh chấp 3 tầng** — Admin nội bộ → Vinacontrol/Quatest → SGS/Bureau Veritas.
 4. **Điểm uy tín (reputation)** — vi phạm bị khoá tài khoản có thời hạn, lịch sử công khai cho đối tác xem trước khi ký.
-5. **Truy xuất nguồn gốc + EUDR** — với cà phê/cao su, phải khai vùng trồng (toạ độ) để tuân thủ EU 2023/1115.
+5. **Truy xuất nguồn gốc + EUDR** — cà phê phải khai vùng trồng (toạ độ) để hỗ trợ hồ sơ tuân thủ EU 2023/1115.
 
 **Nguyên tắc thiết kế xuyên suốt sản phẩm** (phải phản ánh vào UI):
 - Khi có xung đột giữa bảo vệ buyer và bảo vệ seller → **nghiêng về seller**, vì seller (nông dân/HTX) là bên yếu thế hơn.
 - **Sổ cái chỉ ghi thêm (append-only)** — không có nút sửa/xoá bút toán ở bất kỳ đâu trong UI. Đây là tính năng, không phải hạn chế, và nó phải **nhìn thấy được** trên màn hình.
 - **Thất bại thành thật hơn là đúng-một-cách-tự-tin** — nếu hệ thống không chắc, nó hiển thị "chưa xác minh được", không đoán bừa. (VD: `INCONCLUSIVE` ≠ `HIGH_RISK`.)
+- **Mọi hành vi tạo cam kết/hệ quả phải có checkbox đặc thù** gắn đúng nội dung đang hiển thị. Ký hợp đồng, mutual termination/replacement dùng checkbox + session step-up còn hạn + OTP; cân giao, nhận hàng, flag, chấp nhận giá và quyết định quản trị dùng checkbox + auth/role guard. Không gọi checkbox là điểm chỉ hoặc vân tay.
 
 ---
 
@@ -94,7 +96,7 @@ LAYOUT
 - Nút = **động từ đứng trước**, 1–3 từ, không dấu chấm: "Tạo hợp đồng", "Xác nhận nhận hàng", "Ký hợp đồng".
 - Lỗi = **chuyện gì xảy ra + làm gì tiếp**, một câu, không tiền tố "Lỗi:". VD: `Không khoá được ký quỹ. Kiểm tra số dư rồi thử lại.`
 - Không dùng: "vui lòng", "thành công", "chỉ cần", "đơn giản", dấu chấm than.
-- Không dùng tiếng lóng cho vi phạm. Dùng "vi phạm hợp đồng", không dùng "bùng kèo".
+- Không dùng tiếng lóng cho vi phạm. Dùng "vi phạm hợp đồng".
 - Số tiền: `1.250.000.000 ₫` — dấu chấm ngăn nghìn, ký hiệu ₫ đứng sau, cách 1 space.
 - Khối lượng: `20 tấn` / `20.500 kg`. Tỷ lệ: `± 2%`.
 - Ngày: `12/05/2026`. Ngày + giờ: `12/05/2026 14:30`.
@@ -126,11 +128,8 @@ Bối cảnh dùng thật: seller thường là HTX ở nông thôn, dùng **đi
 | Enum | Nhãn | Ghi chú |
 |---|---|---|
 | `COFFEE` | Cà phê | **Thuộc EUDR** → bắt buộc khai vùng trồng |
-| `RUBBER` | Cao su | **Thuộc EUDR** → bắt buộc khai vùng trồng |
-| `RICE` | Gạo | Không thuộc EUDR → **ẩn hoàn toàn** tầng vùng trồng khỏi UI |
-| `CASHEW` | Điều | Không thuộc EUDR → **ẩn hoàn toàn** tầng vùng trồng khỏi UI |
 
-> Đây là một **feature gate theo mặt hàng**, không phải field optional. Khi tạo listing gạo/điều, UI không được hiện bước "Khai vùng trồng" rồi cho bỏ qua — phải không có bước đó.
+> Phase 2 không hiển thị dropdown nhiều mặt hàng. Commodity được cố định là cà phê và bước "Khai vùng trồng" là bắt buộc, không phải field optional.
 
 ## 3.2 Trạng thái hợp đồng (`Contract.status`)
 
@@ -230,7 +229,7 @@ UI phải hiện **hai con số riêng biệt** ở màn xác nhận nhận hàn
 - Hết `level2BufferTerminalDays` (**30 ngày**) mà báo cáo vẫn không về → phán quyết 1.5 thành chung thẩm.
 - UI ở state `PROVISIONALLY_RELEASED` phải nói rõ: **số này là tạm, còn giữ đệm, có thể điều chỉnh khi báo cáo Level 2 về.** Kèm đồng hồ đếm ngược tới `level2BufferTerminalDays`.
 
-## 3.8 Vùng trồng & EUDR (chỉ áp cho cà phê / cao su)
+## 3.8 Vùng trồng cà phê & EUDR
 
 | Field | Enum | Nhãn UI |
 |---|---|---|
@@ -347,7 +346,7 @@ Quan trọng: upload xong **không có nghĩa là dùng được ngay**. UI ph�
 50. Cảnh báo giao dịch lớn (AML)
 51. Đóng băng / mở băng hệ thống
 52. Quản lý uy tín & khoá tài khoản
-53. Nhập giá thủ công (cao su / điều)
+53. Nhập giá cà phê dự phòng
 54. Analytics
 
 ---
@@ -405,7 +404,7 @@ Sau khi nộp: fail-closed — chuyển thẳng sang màn "Chờ duyệt", khôn
 Khác Buyer ở nội dung:
 - 4 thẻ: Hợp đồng đang hoạt động · **Tiền sắp được giải ngân** · Việc cần xử lý · Điểm uy tín.
 - Card "Cột mốc cần giao": mỗi dòng có nút "Cân hàng" nổi bật.
-- Card "Vùng trồng" (chỉ hiện nếu seller có mặt hàng cà phê/cao su): số vùng đã khai, số vùng đang chờ kiểm tra vệ tinh, số vùng rủi ro cao.
+- Card "Vùng trồng": số vùng cà phê đã khai, số vùng đang chờ kiểm tra vệ tinh, số vùng rủi ro cao.
 - Nếu tài khoản đang bị khoá: banner đỏ toàn trang, đếm ngược ngày mở khoá, mọi nút "tạo mới" bị vô hiệu kèm tooltip lý do.
 
 ---
@@ -461,7 +460,9 @@ Màn quan trọng nhất. Đây là nơi hội đồng bảo vệ sẽ nhìn lâ
 |---|---|---|---|
 | `toleranceRate` | Ngưỡng hao hụt vận chuyển chấp nhận | 0% – 10% | Input tự chặn, không cho gõ ngoài dải; hiện dòng đỏ nhỏ dưới field |
 | `shortfallPenaltyThreshold` | Ngưỡng thiếu hàng bắt đầu tính phạt | 3% – 15% | Cùng cơ chế |
-| `buyerPenaltyRate` / `sellerPenaltyRate` | Mức phạt vi phạm | 0% – 30% | Cùng cơ chế |
+| `buyerPenaltyRate` / `sellerPenaltyRate` | Mức phạt vi phạm | 0% – `maxContractualPenaltyRate` | Cùng cơ chế; contract-service kiểm tra cap theo `legalProfile` trước ký |
+| `buyerDepositRate` | Tỷ lệ cọc bên mua | 3% – 10%, default 5% | Cùng cơ chế cho create/PATCH mới; signed legacy ngoài band vẫn đọc/vận hành |
+| `disputeFloorReleaseRate` | Sàn giải ngân provisional khi tranh chấp | 50% – 85%, default 50% | Cùng cơ chế; không vượt `1 - level2SafetyBufferRate` |
 | `sellerDepositRate` | Tỷ lệ cọc bên bán | Tuỳ chọn, mặc định 0% | Không có dải chặn — 0% là giá trị hợp lệ, không đánh dấu lỗi |
 
 Mỗi input có slider kèm số, hai đầu slider khoá cứng theo dải — không thể kéo ra ngoài. Tooltip cạnh mỗi field giải thích một câu vì sao có giới hạn này, ví dụ: "Giới hạn để bên mua không thể ép về 0%, khiến bên bán chịu phạt từ gram thiếu đầu tiên."
@@ -471,8 +472,6 @@ Nút "Gửi đề xuất" (đẩy bản nháp cho đối tác) và "Chấp nhậ
 **Trạng thái:** đang chờ đối tác phản hồi (banner vàng nhạt, khoá input, chỉ xem) · đối tác vừa sửa (đẩy noti + tự bôi vàng phần mới đổi) · đã đồng thuận cả hai bên (nút "Ký hợp đồng" sáng lên).
 
 **Bẫy:** input không được **cảnh báo rồi vẫn cho gửi** — phải chặn cứng tại chỗ (disable nút gửi + không cho gõ số ngoài dải), vì đây là guardrail chống ép giá, không phải gợi ý.
-
-> **Ghi chú riêng:** có thông tin nhắc tới một field `disputeFloorReleaseRate` (dải đề xuất 50%–85%, sàn giải ngân tối thiểu khi có tranh chấp) — **chưa xác nhận được field này trong bộ tài liệu thiết kế hiện có.** Nếu team xác nhận field này tồn tại, bổ sung thêm 1 dòng vào bảng trên theo đúng dải đã chốt; nếu không, bỏ qua để tránh đưa số chưa kiểm chứng vào UI.
 
 ---
 
@@ -512,8 +511,8 @@ Stepper: `1. Thông tin chung → 2. Mặt hàng & khối lượng → 3. Cột 
 
 - **Bước 2:** mặt hàng, khối lượng, đơn giá (kèm link "Giá tham khảo hôm nay: 118.500 ₫/kg — VNSAT"), tổng giá trị (tự tính, chỉ đọc, nổi bật), tiêu chuẩn chất lượng, dung sai khối lượng (± % và kg).
 - **Bước 3:** danh sách cột mốc lặp lại được. Mỗi cột mốc: tên, khối lượng đợt, **ngày giao dự kiến**, **số ngày ân hạn**, địa điểm giao. Tổng khối lượng các cột mốc phải khớp bước 2 — validate ngay, hiện thanh "Đã phân bổ 18/20 tấn".
-- **Bước 4:** tỷ lệ cọc bên mua (bắt buộc, > 0), **tỷ lệ cọc bên bán (tuỳ chọn, mặc định 0 — kèm dòng giải thích rằng để 0 sẽ giảm gánh nặng vốn cho bên bán)**, mức phạt vi phạm, cửa sổ báo bất khả kháng.
-- **Bước 5:** xem lại toàn văn + checkbox xác nhận + nút "Ký hợp đồng" → mở modal OTP.
+- **Bước 4:** tỷ lệ cọc bên mua (bắt buộc, đàm phán trong band 3%–10%, default 5%), **tỷ lệ cọc bên bán (tuỳ chọn, mặc định 0 — kèm dòng giải thích rằng để 0 sẽ giảm gánh nặng vốn cho bên bán)**, mức phạt vi phạm, cửa sổ báo bất khả kháng.
+- **Bước 5:** xem lại toàn văn mẫu `VN_COFFEE_B2B`, version template/profile chất lượng và hash nội dung. Preview phải có watermark nổi bật `CHƯA CÓ HIỆU LỰC`. Checkbox dùng statement cụ thể theo phiên bản, ví dụ "Tôi đã đọc và đồng ý ký đúng nội dung có mã băm ..."; tick xong mới bật nút "Tiếp tục xác thực".
 
 Sidebar phải: card tóm tắt dính (sticky) cập nhật trực tiếp.
 
@@ -523,9 +522,11 @@ Sidebar phải: card tóm tắt dính (sticky) cập nhật trực tiếp.
 
 ## 5.8 Ký hợp đồng + OTP
 
-Modal. Xem lại hash nội dung hợp đồng (mono, rút gọn `a3f9...c21b`, có nút sao chép), ô nhập 6 số OTP, đếm ngược **05:00**, link gửi lại.
+Nếu session step-up đã hết hạn, mở bước xác thực lại trước khi gửi OTP. Modal OTP hiển thị lại mã hợp đồng, signer role, version statement và hash nội dung (mono, rút gọn `a3f9...c21b`, có nút sao chép), ô nhập 6 số OTP, đếm ngược **05:00**, link gửi lại. Không cho đổi nội dung sau khi challenge đã tạo; hash thay đổi phải quay lại preview và tick lại checkbox.
 
 Sau khi hết giờ: OTP vô hiệu, phải khởi tạo lại. Không cho gõ tiếp.
+
+Sau chữ ký thứ hai, UI hiển thị riêng trạng thái tài liệu `Đang tạo bản PDF chính thức`; không cho tải preview như bản final. Khi document `READY`, hiện nút "Tải hợp đồng đã ký" cùng `sourceContentHash` và `documentFileHash`; nếu render fail, báo "Chữ ký đã được ghi nhận, tài liệu đang được tạo lại" và không yêu cầu ký lại.
 
 Trạng thái đặc biệt: **ký xong nhưng khoá cọc thất bại**. Modal chuyển sang màn kết quả: "Đã ghi nhận chữ ký. Chưa khoá được ký quỹ." + nút "Thử lại". Vì `contract.signed` đã bắn — chữ ký là sự thật kể cả khi tiền chưa khoá.
 
@@ -535,7 +536,7 @@ Trạng thái đặc biệt: **ký xong nhưng khoá cọc thất bại**. Modal
 
 **Mục tiêu:** một tay, ngoài kho, mạng chậm.
 
-**Bố cục dọc:** tên cột mốc + mã HĐ → ô nhập khối lượng cân được (bàn phím số, đơn vị kg cố định bên phải) → **so sánh trực tiếp với khối lượng cam kết**, hiện Delta 1 ngay: nếu thiếu, chip vàng "Thiếu 320 kg so với cam kết — có thể bị tính phạt" kèm link "Báo bất khả kháng" → khu vực upload ảnh (chụp trực tiếp, tối thiểu 1 ảnh cân) → nút chính "Xác nhận đã cân".
+**Bố cục dọc:** tên cột mốc + mã HĐ → ô nhập khối lượng cân được (bàn phím số, đơn vị kg cố định bên phải) → **so sánh trực tiếp với khối lượng cam kết**, hiện Delta 1 ngay: nếu thiếu, chip vàng "Thiếu 320 kg so với cam kết — có thể bị tính phạt" kèm link "Báo bất khả kháng" → khu vực upload ảnh (chụp trực tiếp, tối thiểu 1 ảnh cân) → checkbox ghi rõ khối lượng/evidence đang xác nhận → nút chính "Xác nhận đã cân".
 
 **Trạng thái upload:** ảnh hiện thumbnail + trạng thái `PROCESSING` (spinner nhỏ) → `READY` (tick) → `FAILED` (đỏ + lý do + nút thử lại). **Nút "Xác nhận đã cân" bị khoá cho tới khi mọi ảnh `READY`.**
 
@@ -554,7 +555,7 @@ Hao hụt vận chuyển (Delta 2)    19.680 kg → 19.550 kg    −130 kg   Kh�
 
 Bên dưới: số tiền sẽ giải ngân, tính pro-rata, hiện công thức rút gọn.
 
-Ba hành động: **Xác nhận đúng** (nút chính xanh) · **Báo vấn đề** (nút viền đỏ) · liên kết phụ "Tính lại".
+Trước ba hành động có checkbox statement chứa khối lượng/evidence hiện hành và câu "Việc xác nhận nhận hàng không từ bỏ quyền kiểm tra chất lượng, khiếu nại hoặc giám định còn hiệu lực theo hợp đồng". Ba hành động: **Xác nhận đúng** (nút chính xanh) · **Báo vấn đề** (nút viền đỏ) · liên kết phụ "Tính lại".
 
 Kèm dòng nhắc: "Nếu không thao tác trong 2 ngày làm việc, hệ thống tự xác nhận theo số đã ghi nhận." — đây là timeout thật, phải nói trước, không âm thầm.
 
@@ -564,7 +565,7 @@ Kèm dòng nhắc: "Nếu không thao tác trong 2 ngày làm việc, hệ thố
 
 ## 5.11 Báo bất khả kháng (Seller)
 
-Form: loại sự kiện (thiên tai / dịch bệnh / khác) · ngày xảy ra · **ngày seller biết về sự kiện** (đây mới là mốc tính cửa sổ, không phải ngày giao hàng) · mô tả · upload bằng chứng (xác nhận của chính quyền địa phương, ảnh, tin tức).
+Form: loại sự kiện (thiên tai / dịch bệnh / khác) · ngày xảy ra · **ngày seller biết về sự kiện** (đây mới là mốc tính cửa sổ, không phải ngày giao hàng) · mô tả · upload bằng chứng (xác nhận của chính quyền địa phương, ảnh, tin tức) · checkbox xác nhận nội dung khai báo và evidence đang nộp.
 
 Trên form hiện rõ đồng hồ: "Còn 3 ngày trong cửa sổ báo bất khả kháng".
 
@@ -637,7 +638,7 @@ Nút: "Xuất hồ sơ tín dụng" (4 nhóm chỉ số, dùng để nộp ngân
 
 ---
 
-## 5.16 Sổ vùng trồng (Seller — chỉ cà phê / cao su)
+## 5.16 Sổ vùng trồng cà phê (Seller)
 
 Nửa trái: bản đồ với polygon vùng trồng, tô màu theo `geoRiskLevel`. Nửa phải: danh sách vùng.
 
@@ -659,9 +660,7 @@ Nút: "Nhập từ file KML" và "Ghim thủ công trên bản đồ".
 
 Bước: Thông tin sản phẩm → Danh mục → Giá & khối lượng → **[Vùng trồng]** → Xem lại.
 
-Bước "Vùng trồng" **chỉ tồn tại khi danh mục thuộc cà phê hoặc cao su.** Với gạo/điều, wizard chỉ có 4 bước. Không hiện bước rồi cho bỏ qua.
-
-**Riêng cho Gạo (bước "Thông tin sản phẩm"):** thêm text input "Tên giống lúa cụ thể" (VD OM 18, ST25, IR 50404), không bắt buộc chọn từ danh sách cứng — field tự do để hệ thống pricing khớp đúng giá tham khảo theo giống (cùng tỉnh, cùng ngày nhưng khác giống thì giá lệch nhau đáng kể). Không hiện field này cho cà phê/cao su/điều.
+Bước "Vùng trồng" **luôn tồn tại và bắt buộc** vì Phase 2 chỉ cho phép listing cà phê. UI không hiển thị lựa chọn commodity khác để né yêu cầu này.
 
 ---
 
@@ -722,23 +721,21 @@ Chỉ Admin thấy màn này. Không có bất kỳ dấu hiệu nào lộ ra ch
 
 Chọn mặt hàng + tỉnh → biểu đồ đường giá 30/90/365 ngày + bảng giá theo ngày.
 
-Mỗi dòng có badge nguồn: `VNSAT` (tự động thu thập) hoặc `Nhập tay` (admin nhập, dùng cho cao su & điều).
-
-Với gạo, thêm bộ lọc **giống lúa** (OM 18, ST25, IR 50404...) — cùng tỉnh cùng ngày mà khác giống thì giá khác hẳn.
+Mỗi dòng có badge nguồn: `VNSAT` (tự động thu thập) hoặc `Nhập tay` (Admin/Operator nhập dự phòng cho cà phê khi nguồn gián đoạn, có lý do và audit).
 
 Dòng chú thích: "Giá tham khảo, không phải giá giao dịch trên nền tảng."
 
 ---
 
-## 5.24 Nhập giá thủ công (Admin — cao su / điều)
+## 5.24 Nhập giá cà phê dự phòng (Admin / Operator)
 
-**Mục tiêu:** `pricing-service` tự cào giá cà phê/gạo từ VNSAT, nhưng cao su/điều không cào tự động (lệch tỷ giá/đơn vị quốc tế) — Admin phải nhập tay mỗi ngày.
+**Mục tiêu:** `pricing-service` tự thu thập giá cà phê từ VNSAT; khi nguồn gián đoạn hoặc cần hiệu chỉnh có kiểm soát, Admin/Operator được thêm một bản giá cà phê dự phòng có lý do và audit.
 
-**Bố cục:** form đơn giản, không phải wizard. Dropdown "Mặt hàng" (chỉ hiện Cao su / Điều — không hiện cà phê/gạo ở đây), ô nhập "Giá" (đơn vị cố định ₫/kg), date picker "Ngày áp dụng". **Không có ô chọn tỉnh** — giá nhập tay là giá chung toàn quốc (`province = NULL`), khác hẳn giá VNSAT vốn theo tỉnh.
+**Bố cục:** form đơn giản, không phải wizard. Mặt hàng hiển thị cố định `Cà phê`; có ô tỉnh, giá (đơn vị cố định ₫/kg), ngày áp dụng, nguồn tham chiếu và lý do nhập tay. Không có dropdown cho gạo/cao su/điều.
 
-Bên dưới form: bảng lịch sử giá đã nhập tay, cột `Mặt hàng | Giá | Ngày áp dụng | Người nhập`, mọi dòng đều có badge nguồn `Nhập tay`.
+Bên dưới form: bảng lịch sử append-only, cột `Tỉnh | Giá | Ngày áp dụng | Nguồn tham chiếu | Lý do | Người nhập`, mọi dòng đều có badge nguồn `Nhập tay`; không có nút sửa/xoá.
 
-**Bẫy:** đừng thêm dropdown tỉnh "cho giống với màn giá VNSAT" — đây là hai luồng dữ liệu có ý nghĩa khác nhau, thêm tỉnh vào đây là bịa dữ liệu không tồn tại.
+**Bẫy:** manual entry là fallback cho cà phê, không phải luồng giá cho commodity ngoài scope; không được dùng nó để mở rộng Phase 2 bằng UI.
 
 ---
 
@@ -774,12 +771,12 @@ Mở 1 dòng → panel: xem lại toàn bộ email gốc (subject, thời gian, 
 
 ## 5.27 Analytics — Tổng quan vận hành (Admin & Hiệp hội)
 
-**Mục tiêu:** 3 báo cáo B2B đinh cho Admin và các hiệp hội ngành (VICOFA, VRA...).
+**Mục tiêu:** 3 báo cáo B2B chính cho Admin và hiệp hội cà phê (VICOFA).
 
 **Bố cục:** dòng chú thích cố định đầu trang: **"Dữ liệu được tổng hợp định kỳ vào 1:00 sáng hàng ngày."** — vì backend chạy batch, không query real-time. Bộ lọc: khoảng thời gian, mặt hàng.
 
 Ba khối biểu đồ:
-1. **Tỷ lệ bẻ kèo theo ngành hàng** — biểu đồ cột nhóm theo mặt hàng (cà phê/gạo/cao su/điều), trục % hợp đồng bị huỷ giữa chừng.
+1. **Tỷ lệ phá hợp đồng cà phê** — biểu đồ cột nhóm tách `seller_breach_rate` và `buyer_breach_rate` theo thời gian/vùng. Mutual termination và no-fault được báo cáo riêng; không gộp mọi hợp đồng huỷ giữa chừng thành một tỷ lệ duy nhất.
 2. **Hiệu quả ký quỹ theo cột mốc** — biểu đồ đường/vùng đối chiếu "Tổng tiền đã khoá" vs "Tổng tiền thực nhận" theo tháng, minh hoạ chia nhỏ đợt giúp giải phóng vốn lưu động ra sao.
 3. **Xu hướng bất khả kháng** — bản đồ nhiệt hoặc biểu đồ cột theo tỉnh + theo mùa vụ, dùng để báo cáo Bộ NN&PTNT.
 
@@ -792,7 +789,7 @@ Ba khối biểu đồ:
 Dựng đủ các component dưới đây thành một trang "Component library" để tái sử dụng.
 
 ## 6.1 Điều hướng
-- **Sidebar** 240px. Mục: Tổng quan · Hợp đồng · Cột mốc · Ký quỹ · Kiểm định · Sản phẩm *(seller)* · Vùng trồng *(seller, cà phê/cao su)* · Uy tín · Nhật ký · Cài đặt. Mục active có nền xanh nhạt + viền trái xanh đậm.
+- **Sidebar** 240px. Mục: Tổng quan · Hợp đồng · Cột mốc · Ký quỹ · Kiểm định · Sản phẩm *(seller)* · Vùng trồng cà phê *(seller)* · Uy tín · Nhật ký · Cài đặt. Mục active có nền xanh nhạt + viền trái xanh đậm.
 - **Top bar** 64px: ô tìm kiếm toàn cục, chuông thông báo (badge số đỏ), chip điểm uy tín, avatar + dropdown.
 - **Bottom tab bar** (mobile) 5 mục: Tổng quan · Hợp đồng · Cột mốc · Thông báo · Tài khoản.
 - **Breadcrumb**: `Hợp đồng / HĐ-2026-0142 / Cột mốc 2`.
@@ -862,6 +859,7 @@ Mỗi thông báo dưới đây map 1-1 với một event thật trong hệ th�
 | Event | Người nhận | Loại | Nội dung (tiếng Việt) | Hành động |
 |---|---|---|---|---|
 | `contract.signed` | Cả hai bên | Info | Hợp đồng HĐ-2026-0142 đã được ký bởi cả hai bên. | Xem hợp đồng |
+| `contract.document_generated` | Cả hai bên | Success | Bản PDF hợp đồng đã ký đã sẵn sàng và được khoá bằng mã băm. | Tải hợp đồng |
 | `escrow.deposit_locked` | Cả hai bên | Success | Đã khoá ký quỹ 5.000.000.000 ₫. Hợp đồng bắt đầu thực hiện. | Xem ký quỹ |
 | `bank.lock_failed` | Bên phải nạp | **Danger** | Không khoá được ký quỹ. Hợp đồng đang chờ, chưa thực hiện. | Thử khoá lại |
 | `milestone.seller_weighed` | Buyer | Info | Bên bán đã cân 19.680 kg cho cột mốc 2. Hàng đang vận chuyển. | Xem cột mốc |
@@ -875,7 +873,7 @@ Mỗi thông báo dưới đây map 1-1 với một event thật trong hệ th�
 | `milestone.dispute_resolved` | Cả hai | Info | Tranh chấp cột mốc 2 đã có phán quyết, nghiêng về bên bán. | Xem phán quyết |
 | `milestone.cancelled_with_penalty` | Cả hai | **Danger** | Cột mốc 2 bị huỷ. Trừ phạt 400.000.000 ₫. | Xem sổ cái |
 | `contract.settled` | Cả hai | Success | Hợp đồng HĐ-2026-0142 đã tất toán. Hoàn trả cọc 500.000.000 ₫. | Xem hợp đồng |
-| `contract.cancelled` | Cả hai | **Danger** | Hợp đồng HĐ-2026-0142 đã huỷ. Xử lý cọc theo điều khoản. | Xem chi tiết |
+| `contract.terminated` | Cả hai | **Danger** | Hợp đồng HĐ-2026-0142 đã chấm dứt. Xử lý cọc theo quyết định cuối cùng. | Xem chi tiết |
 | `file.ready` | Người upload | *(không thông báo)* | Cập nhật trạng thái tại chỗ trong ô upload. | — |
 | `file.failed` | Người upload | **Danger** | Không xử lý được tệp `can-hang-01.jpg`: phát hiện virus. | Tải lại tệp |
 | `reputation.locked` | Người bị khoá | **Danger** | Tài khoản bị hạn chế đến 15/09/2026 do vi phạm hợp đồng HĐ-2026-0137. | Xem hồ sơ uy tín |
@@ -900,7 +898,7 @@ Mỗi thông báo dưới đây map 1-1 với một event thật trong hệ th�
 **Empty state:**
 - Chưa có hợp đồng: `Chưa có hợp đồng nào.` / `Bắt đầu bằng cách tìm nguồn hàng phù hợp.` / [Tìm nguồn hàng]
 - Rỗng do lọc: `Không có hợp đồng khớp bộ lọc.` / [Xoá bộ lọc]
-- Chưa có vùng trồng: `Chưa khai vùng trồng nào.` / `Cà phê và cao su cần khai vùng trồng để tuân thủ EUDR.` / [Nhập từ file KML]
+- Chưa có vùng trồng: `Chưa khai vùng trồng nào.` / `Cà phê cần khai vùng trồng để hỗ trợ hồ sơ EUDR.` / [Nhập từ file KML]
 - Chưa có thông báo: `Chưa có thông báo.`
 
 **Lỗi:**

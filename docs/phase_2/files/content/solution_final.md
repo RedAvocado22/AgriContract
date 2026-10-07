@@ -1,6 +1,6 @@
 ---
 title: "AGRICONTRACT"
-subtitle: "Giải pháp và mô hình nghiệp vụ Phase 2"
+subtitle: "Giải pháp và mô hình nghiệp vụ của đồ án"
 author: "Tài liệu đồ án tốt nghiệp"
 date: "Phiên bản final · Tháng 7/2026"
 toc-title: "Mục lục"
@@ -8,7 +8,9 @@ toc-title: "Mục lục"
 
 # **Tóm tắt điều hành**
 
-AgriContract là contract layer cho giao dịch nông sản B2B: hợp đồng điện tử, cọc và milestone escrow qua custody boundary, giao nhận/giám định, attribution/remedy, reputation và audit evidence. Thiết kế Phase 2 thay mô hình “huỷ một nút rồi phạt” bằng taxonomy chấm dứt và decision chain rõ ràng. Tiền và uy tín không phản ứng trực tiếp với allegation hoặc lifecycle event; chúng chỉ phản ứng với quyết định cuối cùng canonical.
+AgriContract là contract layer cho giao dịch nông sản B2B: hợp đồng điện tử, cọc và milestone escrow qua custody boundary, giao nhận/giám định, attribution/remedy, reputation và audit evidence. Thiết kế của đồ án thay mô hình “huỷ một nút rồi phạt” bằng taxonomy chấm dứt và decision chain rõ ràng. Tiền và uy tín không phản ứng trực tiếp với allegation hoặc lifecycle event; chúng chỉ phản ứng với quyết định cuối cùng canonical.
+
+Đồ án chỉ nhận giao dịch cà phê B2B nội địa Việt Nam (`commodity = COFFEE`). Mẫu hợp đồng, profile chất lượng, API write và UI đều khóa theo phạm vi này; commodity khác là roadmap, không phải capability đang hỗ trợ.
 
 Tài liệu này mô tả mô hình người dùng, golden flow, giá trị, các quy tắc nghiệp vụ và giới hạn ở mức nghiệp vụ. Các quyết định về API, event, schema, idempotency và migration được tóm lược đủ trong phạm vi tài liệu này; mọi capability được mô tả là target design, còn tích hợp ngân hàng/giám định production và legal validation vẫn là giới hạn.
 
@@ -16,7 +18,7 @@ Tài liệu này mô tả mô hình người dùng, golden flow, giá trị, cá
 
 AgriContract là nền tảng số hoá hợp đồng mua bán nông sản B2B với cơ chế tiền cọc và tiền phong toả do custodian/tổ chức tín dụng phù hợp giữ theo mô hình pilot. Hợp đồng không bị phủ nhận giá trị pháp lý chỉ vì được giao kết và lưu trữ bằng phương tiện điện tử; hiệu lực vẫn phụ thuộc các điều kiện chung của giao dịch, pháp luật về hợp đồng và quy định có liên quan. [27]
 
-**Phạm vi giới hạn có chủ đích ở tầng hợp đồng.** AgriContract không xử lý logistics, không phải sàn thương mại điện tử, không thay thế hệ thống kế toán doanh nghiệp. Phần mềm giải quyết một vấn đề cụ thể — thiếu cơ chế thực thi workflow theo điều kiện trong giao dịch forward contract nông sản B2B — và không có tham vọng giải quyết toàn bộ chuỗi cung ứng.
+**Phạm vi giới hạn có chủ đích ở tầng hợp đồng cà phê nội địa.** AgriContract không xử lý logistics, không phải sàn thương mại điện tử, không thay thế hệ thống kế toán doanh nghiệp. Phần mềm giải quyết một vấn đề cụ thể — thiếu cơ chế thực thi workflow theo điều kiện trong giao dịch forward contract cà phê B2B tại Việt Nam — và không có tham vọng giải quyết toàn bộ chuỗi cung ứng.
 
 > **Căn cứ pháp lý — Luật GDĐT 2023, Điều 8, Điều 14 và Điều 34–36.** Thông tin không bị phủ nhận giá trị pháp lý chỉ vì ở dạng thông điệp dữ liệu; việc giao kết và thực hiện hợp đồng điện tử vẫn phải tuân thủ pháp luật về hợp đồng và quy định liên quan. Audit trail có thể được sử dụng làm chứng cứ, với giá trị phụ thuộc độ tin cậy của phương thức tạo lập, gửi, nhận, lưu trữ và bảo toàn tính toàn vẹn. [27]
 
@@ -28,7 +30,7 @@ Nền tảng có năm nhóm người dùng với quan hệ pháp lý và quyền
 
 | **Tầng** | **Chủ thể** | **Vai trò** |
 |---|---|---|
-| Tầng 1 — Software Buyer | Hiệp hội ngành hàng (VICOFA, VRA, VINACAS) hoặc doanh nghiệp thu mua lớn (Intimex, Phúc Sinh Group, XNK 2/9 Đắk Lắk) | Trả phí license/subscription — nguồn doanh thu của nền tảng. Triển khai cho cộng đồng thành viên; chỉ định OPERATOR vận hành hằng ngày và ADMIN kiểm soát hành động rủi ro cao |
+| Tầng 1 — Software Buyer | Hiệp hội cà phê (VICOFA) hoặc doanh nghiệp thu mua/xuất khẩu cà phê lớn | Trả phí license/subscription — nguồn doanh thu của nền tảng. Triển khai cho cộng đồng thành viên; chỉ định OPERATOR vận hành hằng ngày và ADMIN kiểm soát hành động rủi ro cao |
 | Tầng 2 — Platform Buyer | Doanh nghiệp thu mua, tập đoàn xuất khẩu nông sản (nhiều trường hợp trùng Tầng 1) | Khởi tạo offer và đàm phán điều khoản; khoá tiền ký quỹ trước khi bên bán giao hàng; xác nhận nhận hàng để kích hoạt giải ngân |
 | Tầng 3 — Platform Seller | Hợp tác xã nông sản, nông hộ liên kết, doanh nghiệp cung ứng nguyên liệu | Đăng listing sau khi được xác minh; đàm phán và ký hợp đồng điện tử; giao hàng và nhận thanh toán. Nhóm được cơ chế ký quỹ bảo vệ trực tiếp nhất |
 | Tầng 4 — INSPECTOR | Tổ chức giám định được Nhà nước công nhận: Vinacontrol, Quatest, SGS, Bureau Veritas, Intertek | Nhân chứng chuyên môn độc lập, không phải người phán xử. Xác định số lượng/chất lượng tại điểm giao nhận; nộp inspection report với cam kết hash để phát hiện thay đổi sau khi submit |
@@ -47,13 +49,13 @@ Khi doanh nghiệp thu mua vừa mua license vừa là bên mua hàng trên nề
 
 Khuyến nghị vận hành: có thể thử triển khai qua hiệp hội ngành hàng, nhưng không mặc định hiệp hội luôn trung lập hoặc loại bỏ xung đột lợi ích; mỗi pilot cần ghi nhận vai trò, quyền truy cập và cơ chế recusal cụ thể.
 
-# **3. Luồng giao dịch Phase 2**
+# **3. Luồng giao dịch của đồ án**
 
 ## **3.1 Golden flow từ listing đến quyết toán**
 
-1. Seller đã đủ điều kiện tạo listing; product-service đóng băng snapshot sản phẩm/plot theo commodity.
-2. Buyer tạo hợp đồng `OFFERED`; hai bên chỉ sửa `ContractTerms` trước chữ ký thứ hai.
-3. Mỗi chữ ký dùng OTP challenge binding theo user–contract–terms. Hai chữ ký phải có cùng `signedContentHash`; sau đó hợp đồng thành `SIGNED` và terms bất biến.
+1. Seller đã đủ điều kiện tạo listing cà phê; product-service bắt buộc plot và đóng băng snapshot sản phẩm/vùng trồng.
+2. Buyer tạo hợp đồng `OFFERED`; hai bên chỉ sửa `ContractTerms` trước chữ ký đầu tiên.
+3. Mỗi chữ ký yêu cầu checkbox theo đúng statement, session step-up còn hạn và OTP binding theo user–contract–action–content hash. `ConsentEvidence` được ghi append-only; hai chữ ký phải có cùng `signedContentHash`, sau đó hợp đồng thành `SIGNED` và terms bất biến.
 4. escrow-service yêu cầu bank-service lock buyer deposit và seller deposit. Chỉ khi cả hai leg thành công hợp đồng mới `ACTIVE`. Lock một phần rồi thất bại phải refund leg đã lock trước khi `ACTIVATION_FAILED`.
 5. Mỗi milestone có funding riêng: `FUNDING_PENDING → LOCKED` hoặc `FUNDING_FAILED`. Seller obligation clock chỉ chạy sau `LOCKED`; lỗi kỹ thuật/ngân hàng đã xác nhận không bị suy thành seller breach.
 6. Seller cân và khai giao; buyer xác nhận sạch hoặc flag. Nếu có inspection đang pending, timer không được auto-confirm.
@@ -117,7 +119,7 @@ Reputation không phạt theo allegation, `contract.terminated`, hành vi bấm 
 
 `lock_entry` là insert-only, unique theo `remedy_decision_id`; một decision tạo tối đa một lock. Mở khoá sớm dùng override append-only và maker-checker, không UPDATE record lịch sử. user-service nhận projection với `lockRevision` tăng đơn điệu và lưu `last_lock_revision` để không bị event cũ ghi đè sau restart. Completion/dispute facts được lưu bất biến; score được tính khi query, không persist như chân lý cố định.
 
-Tín hiệu `ELEVATED_RISK`/AML chỉ là projection hỗ trợ review ở Phase 2, không tự chặn settlement hoặc thay thế quyết định của tổ chức tín dụng.
+Tín hiệu `ELEVATED_RISK`/AML chỉ là projection hỗ trợ review trong đồ án, không tự chặn settlement hoặc thay thế quyết định của tổ chức tín dụng.
 
 # **6. Bằng chứng, audit và notification**
 
@@ -126,6 +128,10 @@ Audit-service tạo `audit_record` append-only với dual chain global/per-subje
 Bằng chứng có thể được đối chiếu ở nhiều vị trí: chain trong database, digest/anchor và OpenTimestamps theo thiết kế. Đây là cơ chế phát hiện sửa đổi, không chứng minh nội dung khai báo là đúng hay giao dịch hợp pháp.
 
 Notification-service nhận **notification command riêng**, không được dùng business event như một trigger hậu quả. RabbitMQ là đường mặc định; internal synchronous API chỉ dùng cho OTP để bảo đảm provider fail thì không có mail gửi muộn ngoài kiểm soát. Dedup theo `(event_id, recipient_email, notification_type)`.
+
+Hợp đồng cà phê dùng template `VN_COFFEE_B2B` và coffee quality profile có version; version/hash template nằm trong snapshot được ký. Preview trước final luôn có watermark `CHƯA CÓ HIỆU LỰC`. Sau chữ ký thứ hai, transaction chỉ commit chữ ký + `SIGNED` + `ContractDocument(PENDING)`; worker render PDF bất đồng bộ, lưu qua file-service rồi chuyển `READY`, phát `contract.document_generated` và `notification.contract_document_ready_requested`. `sourceContentHash` chứng minh nội dung pháp lý nguồn, còn `documentFileHash` chứng minh đúng bytes PDF; final PDF không được overwrite.
+
+Checkbox là bằng chứng ý chí cho đúng hành vi/nội dung, không phải điểm chỉ hay vân tay sinh trắc học và không tự biến cơ chế này thành chữ ký số có chứng thư CA.
 
 # **7. Khung pháp lý và quản trị rủi ro**
 
@@ -137,7 +143,7 @@ Phân loại deposit theo BLDS Điều 328, tiền phong toả/ký quỹ tại t
 
 ## **7.2 Governance và trust boundary**
 
-Role Phase 2: `BUYER`, `SELLER`, `ADMIN`, `INSPECTOR`, `OPERATOR`. Maker-checker chỉ áp ở hai điểm high-risk đã thiết kế; người đề xuất không tự approve. Gateway xác thực coarse-grained và strip identity header; owner service chịu ownership/fine-grained authorization. `/internal/**` không có route external và các use case ký/listing/offer fail-closed khi user-service unavailable.
+Role của đồ án: `BUYER`, `SELLER`, `ADMIN`, `INSPECTOR`, `OPERATOR`. Maker-checker chỉ áp ở hai điểm high-risk đã thiết kế; người đề xuất không tự approve. Gateway xác thực coarse-grained và strip identity header; owner service chịu ownership/fine-grained authorization. `/internal/**` không có route external và các use case ký/listing/offer fail-closed khi user-service unavailable.
 
 External Verifier dùng ES256, canonical JSON, nonce persist và cửa sổ timestamp; lock/unlock đi trực tiếp bank-service, không có Admin bypass hay gateway retry. Đây là **zero-trust-oriented control tại một boundary**, không phải mô hình Zero Trust toàn diện. Nếu verifier key holder và các operator liên quan thông đồng, rủi ro vẫn tồn tại.
 
@@ -157,13 +163,13 @@ AgriContract không cạnh tranh bằng việc trở thành nhà phân phối ha
 
 # **10. Chiến lược vào thị trường — anchor buyer pilot**
 
-Pilot nên bắt đầu từ một anchor buyer có mạng lưới HTX/supplier sẵn có, một hoặc hai commodity và contract template được luật sư xác nhận. Phạm vi pilot cần giới hạn số nhánh termination/remedy, ngân hàng/custodian sandbox, tổ chức giám định và KPI release/reconciliation. Không launch hai phía rộng khi chưa đo funnel mời–KYC–listing–ký–funding–settlement.
+Pilot nên bắt đầu từ một anchor buyer cà phê có mạng lưới HTX/supplier sẵn có và template `VN_COFFEE_B2B` được luật sư xác nhận. Phạm vi pilot cần giới hạn số nhánh termination/remedy, ngân hàng/custodian sandbox, tổ chức giám định và KPI release/reconciliation. Không launch hai phía rộng khi chưa đo funnel mời–KYC–listing–ký–funding–settlement.
 
 # **11. Câu hỏi phản biện trọng yếu**
 
 **Hệ thống có tự phán xử không?** Không. Rổ A chỉ tự attribution khi evidence khách quan đáp ứng guard đã ký; Rổ B cần review. Hệ thống tạo workflow và bằng chứng, không thay toà án/trọng tài.
 
-**Ai giữ tiền?** Trong sản phẩm thật phải là custodian/tổ chức tín dụng hợp pháp. bank-service Phase 2 là ledger/adapter mô phỏng interface, không phải tuyên bố AgriContract được phép giữ tiền.
+**Ai giữ tiền?** Trong sản phẩm thật phải là custodian/tổ chức tín dụng hợp pháp. bank-service của đồ án là ledger/adapter mô phỏng interface, không phải tuyên bố AgriContract được phép giữ tiền.
 
 **Người yêu cầu chấm dứt có bị phạt không?** Không mặc định. `requestedBy` và `finalBreachingRole` là hai field khác nhau; sanction chỉ dựa trên quyết định cuối.
 
@@ -171,14 +177,32 @@ Pilot nên bắt đầu từ một anchor buyer có mạng lưới HTX/supplier 
 
 **Tại sao event-driven nhưng không double money?** Transactional outbox + source event id + `remedyLegId` unique + consumer idempotency; terminal lifecycle còn có reconciliation guard và zero-lock invariant.
 
+# **11.1 Frozen design synchronization**
+
+Terms chỉ được sửa trước chữ ký đầu tiên; chữ ký đầu tiên freeze terms và `signedContentHash`, chữ ký thứ hai phải cùng hash. OTP chỉ verify trong tuple `(signerUserId, contractId, signedContentHash)` và challenge mới nhất còn hạn của tuple; không có latest OTP xuyên user/contract. Normal completion dùng `milestone.settled` cho milestone cuối, còn `remedy.finalized` chỉ trả contract-level deposits.
+
+`ContractTemplateProfile { contractTemplateCode = VN_COFFEE_B2B, contractTemplateVersion, contractTemplateHash, coffeeQualityProfileVersion }` là một phần nội dung ký. Mỗi action có `ConsentEvidence` riêng gồm actor/role, statement code-version-hash, `presentedContentHash`, subject, timestamp và correlation; statement phải đặc thù theo hành vi. Preview luôn ghi `CHƯA CÓ HIỆU LỰC`; final PDF sinh bất đồng bộ sau ký, bất biến khi READY và được kiểm chứng riêng bằng `sourceContentHash` + `documentFileHash`.
+
+Product-service sở hữu `minOrderQuantity`, `quantityAvailable`, `reservedQuantity`, listing và reservations. Listing đi `AVAILABLE -> PARTIALLY_COMMITTED -> CLOSED` (giữ `PAUSED`); reservation đi `RESERVED -> SIGNED_RELEASABLE -> COMMITTED | RELEASED`. Reserve synchronous trước khi persist `OFFERED`, compensation release khi persistence fail, `contract.activated` mới commit, `requestedQuantity = SUM(committedQuantity)`, và legacy `quantityAvailable = null` fail closed. Opaque `listingVersionToken` lấy từ canonical UTC `Listing.updatedAt`; `LISTING_VERSION_MISMATCH` là `VERSION_MISMATCH` cần reload/retry, `INSUFFICIENT_LISTING_QUANTITY` là `STATE_CONFLICT` cần refresh không blind retry.
+
+Reaper product-service mặc định `orphanReservationGraceMinutes = 30`, chỉ release `RESERVED` quá grace khi chưa có durable `contract.created`; không cross-service call/endpoint, không đụng `SIGNED_RELEASABLE`/`COMMITTED`, không reopen `CLOSED`/`PAUSED`, log + alert Admin. Late `contract.created` sau `RELEASED` là inventory inconsistency phải error log + alert, không silent deduplication/reverse/re-decrement/path thứ hai.
+
+Signed `priceBand` và `priceAdjustmentRule` được chấp thuận bằng JWT + idempotency, không OTP, chỉ trước funding. In-band adjustment thực thi rule đã ký, không amend/hash; `milestone.price_adjusted` audit-only. Funding dùng `effectiveUnitPrice`, không true-up; deposit từ nominal `totalContractValue`. `buyerDepositRate` band `[3%, 10%]`, default `5%`, lock tại `SIGNED`; legacy ngoài band vẫn read/operate; pricing-service advisory.
+
+CREATE snapshot server-derived `goodsTerms`, `deliveryTerms`, `inspectionTerms`, Listing/Product/Category/Plot; source edits/deletes không đổi snapshot/hash, goods change dùng replacement. `commodity` bắt buộc `COFFEE` và `originSnapshot.plotRefs[]` không được rỗng. Chỉ delivery allocation rules signed; warehouse/carrier/address/tracking runtime. Inspection cost luôn `LOSER_PAYS`; `MANDATORY_BEFORE_SETTLEMENT` là guard, không milestone state. `cropYear` và `harvestSeason` là server-derived required-but-nullable fields trong signed goods snapshot. `certifications`, `packagingDeclaration`, `warehouseLocation`, `estimatedAvailabilityDate` là listing metadata read-only; certifications vẫn là seller-declared free text, không phải verified compliance claim.
+
+Quality cà phê đi theo declared -> committed -> actual; clean confirmation không đo quality nếu không flag/mandatory. Per-metric `deviationPolicy {direction, tolerance, penalty, reject, discountRate}` có zones disjoint, strict-side inclusive. Inspector chỉ cung cấp raw actual metrics + hashes; contract-service tính disposition. `CONFORMING` bác allegation và settle bình thường, Buyer trả phí; `PARTIALLY_CONFORMING` chỉ payment adjustment, không breach/penalty/reputation, dùng discountRate lớn nhất một lần và chuyển chênh cho Buyer; `NON_CONFORMING` là Seller breach, penalty base affected milestone, chỉ fail milestone, không auto-terminate; `INCONCLUSIVE` đi reinspection/L2 không tự phát tiền/breach. Exact reject chỉ áp cho coffee `type`. Một quality resolution phát đúng một `remedy.finalized`.
+
+Quy ước chung: kg/`unitOfMeasure = KG`; lưu UTC, deadline ICT (`Asia/Ho_Chi_Minh`) và ICT day-end, working days Monday-Friday trừ ngày lễ Việt Nam; money `DECIMAL(18,2)`/`HALF_UP`, chỉ contract-service round, bank không round lại. Money schema là decimal string đúng 2 fractional digits với `pattern` và `maxLength` 11/19; guardrail 100 milestones, 1,000,000 kg/milestone, delivered `exclusiveMinimum: 0`, measured/accepted `minimum: 0` (accepted zero hợp lệ). Event catalog 50; lifecycle events `contract.created`, `contract.activated`, `contract.withdrawn`, `contract.activation_failed` map contract-service -> product-service; `contract.signed` có `listingId`, `reservedQuantity`; `contract.document_generated` commit metadata + hai hash của tài liệu. LegalProfile: LTM 301 cap 8%, LTM 266 ceiling 10x inspection fee, LTM 302/307 damages/penalty, BLDS 328/330 deposit/security; deposit classification vẫn cần lawyer confirmation.
+
 # **12. Current Scope**
 
-Phase 2 bao phủ contract layer cho giao dịch nông sản B2B: listing/offer, terms và hai chữ ký, buyer/seller deposit, milestone funding, delivery/inspection, attribution/remedy, reputation, audit/evidence, notification, pricing tham chiếu, file intake, governance và các projection analytics liên quan. Luồng canonical phân biệt `requestedBy`, allegation và `finalBreachingRole`; money/reputation chỉ phản ứng với `remedy.finalized`; terminal lifecycle yêu cầu expected remedy legs hoàn tất và remaining lock bằng `0.00`.
+Đồ án bao phủ contract layer cho giao dịch cà phê B2B nội địa Việt Nam: listing/offer, template `VN_COFFEE_B2B`, consent + hai chữ ký, buyer/seller deposit, milestone funding, delivery/inspection, attribution/remedy, reputation, audit/evidence, tài liệu PDF bất biến, notification, pricing tham chiếu, file intake, governance và các projection analytics liên quan. Luồng canonical phân biệt `requestedBy`, allegation và `finalBreachingRole`; termination/remedy/quality-resolution money và negative reputation chỉ phản ứng với `remedy.finalized`, còn clean-path per-milestone money đi qua `milestone.settled`; terminal lifecycle yêu cầu expected remedy legs hoàn tất và remaining lock bằng `0.00`.
 
 # **13. Known Limitations**
 
 - 12 business services, API/event/schema và Verification Matrix là thiết kế implementation-ready, chưa phải code/production đã chứng minh.
-- Không tích hợp ngân hàng thật, CA chữ ký số, tổ chức inspection production, đối tác tín dụng hoặc cold rebuild analytics trong Phase 2 hiện tại.
+- Không tích hợp ngân hàng thật, CA chữ ký số, tổ chức inspection production, đối tác tín dụng hoặc cold rebuild analytics trong đồ án hiện tại.
 - Không có full amendment; thay đổi sau ký dùng mutual replacement saga. Mutual termination chỉ cho toàn bộ remaining scope.
 - Không tự xử lý logistics, kế toán, bảo hiểm, due-diligence statement EUDR hay phán quyết pháp lý.
 - Baseline rừng, plot overlap và yield anomaly là signal/review support; không tự kết luận gian lận hoặc factual truth.
@@ -191,7 +215,7 @@ Phase 2 bao phủ contract layer cho giao dịch nông sản B2B: listing/offer,
 - Productionize custodian/ngân hàng, CA/WebAuthn, inspection/accreditation, email/price adapters và OpenTimestamps anchoring.
 - Bổ sung ContractVersion amendment, notice–cure–remedy đầy đủ, quality-indexed settlement và payment/security package mở rộng.
 - Hoàn thiện mTLS/KMS/HSM, separation of duties, deployment attestation, DR/scale và cross-border/ND13 controls.
-- Tự động hoá giá cao su quốc tế sau khi chốt chuẩn hoá đơn vị/tỷ giá; tích hợp logistics/3PL khi có đối tác thật.
+- Nghiên cứu mở rộng commodity sau cà phê bằng template, quality profile, nguồn giá và verification matrix riêng; tích hợp logistics/3PL khi có đối tác thật.
 
 # **15. Danh mục nguồn tham khảo**
 

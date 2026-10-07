@@ -6,7 +6,7 @@ const { Packer } = D;
 const body = [
   ...cover(
     "AGRICONTRACT",
-    "Giải pháp và mô hình nghiệp vụ Phase 2",
+    "Giải pháp và mô hình nghiệp vụ của đồ án",
     "Contract layer, golden flow, attribution/remedy, escrow, reputation và evidence",
     ["Tài liệu đồ án tốt nghiệp", "Phiên bản final · Tháng 7/2026"]
   ),
@@ -16,7 +16,7 @@ const body = [
 ];
 
 const doc = buildDoc(body, {
-  title: "AgriContract — Giải pháp và mô hình nghiệp vụ Phase 2 — Final",
+  title: "AgriContract — Giải pháp và mô hình nghiệp vụ của đồ án — Final",
   headerText: "AgriContract · Giải pháp và mô hình",
   footerText: "Final · Tháng 7/2026",
 });

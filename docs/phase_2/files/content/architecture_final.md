@@ -1,6 +1,6 @@
 ---
 title: "AGRICONTRACT"
-subtitle: "Kiến trúc kỹ thuật hệ thống Phase 2"
+subtitle: "Kiến trúc kỹ thuật của đồ án"
 author: "Tài liệu đồ án tốt nghiệp"
 date: "Phiên bản final · Tháng 7/2026"
 toc-title: "Mục lục"
@@ -10,9 +10,11 @@ toc-title: "Mục lục"
 
 Kiến trúc mục tiêu gồm **12 business services** và `api-gateway` ở lớp biên. Signature/OTP thuộc `contract-service`; hash chain/anchor thuộc `audit-service`; gateway không được tính như business service. Hệ thống dùng database-per-service, transactional outbox và at-least-once messaging, nhưng đặt guard mạnh hơn trên đường tiền: bank ledger là sổ tiền authoritative, mỗi money leg có idempotency key riêng, và lifecycle terminal chỉ được commit sau ledger reconciliation + zero remaining lock.
 
-Ranh giới quan trọng nhất là **decision trước consequence**. `requestedBy`, allegation và final attribution được tách. `remedy.finalized` là event canonical duy nhất kích hoạt money consequences và negative reputation. `contract.settled`/`contract.terminated` chỉ phản ánh lifecycle/audit/analytics; bank và reputation không được consume chúng để release/seize/lock.
+Phạm vi thực thi của đồ án chỉ là hợp đồng cà phê B2B nội địa Việt Nam. API write, product/listing, quality schema, pricing, template và document profile đều khóa `COFFEE`; dữ liệu commodity cũ chỉ được đọc/vận hành theo compatibility policy.
 
-Kiến trúc áp dụng các control zero-trust-oriented tại edge, internal route và External Verifier, nhưng không claim mô hình Zero Trust toàn diện. Bank thật, CA signature, external inspection production và một số DR/data integration vẫn ngoài phạm vi Phase 2 implementation.
+Ranh giới quan trọng nhất là **decision trước consequence**. `requestedBy`, allegation và final attribution được tách. `remedy.finalized` authoritative cho termination/remedy/quality-resolution money, contract-level deposit return và reputation lock; clean-path per-milestone money chạy qua `milestone.settled`; hai event không cùng phát cho một resolution. `contract.settled`/`contract.terminated` chỉ phản ánh lifecycle/audit/analytics; bank và reputation không được consume chúng để release/seize/lock.
+
+Kiến trúc áp dụng các control zero-trust-oriented tại edge, internal route và External Verifier, nhưng không claim mô hình Zero Trust toàn diện. Bank thật, CA signature, external inspection production và một số DR/data integration vẫn ngoài phạm vi triển khai của đồ án.
 
 # **1. Context, phạm vi và nguyên tắc**
 
@@ -47,7 +49,7 @@ Gateway không route `/internal/**`; downstream không tin `X-User-*` do client 
 |---|---|---|---|---|
 | user-service | Identity, KYC, role, eligibility và lock projection | user_db | user KYC/lock commands; internal eligibility API | Không sở hữu reputation ledger |
 | product-service | Plot registry, product/listing, commodity gate, geo/yield risk | product_db | user eligibility; file.ready | Plot là seller-owned; overlap là signal |
-| contract-service | Contract, milestone, signature/OTP, attribution, remedy, termination | contract_db | REST commands; domain events; internal user/OTP | Owner duy nhất của business decision và lifecycle |
+| contract-service | Contract, milestone, consent/signature/OTP, template/document, attribution, remedy, termination | contract_db | REST commands; domain events; internal user/OTP/file | Owner duy nhất của business decision, lifecycle và immutable contract representation metadata |
 | escrow-service | Projection escrow và chuyển remedy legs thành bank commands | escrow_db | contract.signed, remedy.finalized, milestone outcomes, bank results | Không sở hữu sổ tiền authoritative |
 | bank-service | Append-only monetary ledger, lock/release/refund/seize, security lock | bank_db | bank.*_requested; structuring signal; external verifier | Sở hữu sổ tiền authoritative |
 | inspection-service | Level 1.5/2 commission, result/report hash, confirmation | inspection_db | contract/milestone commands, file.ready | Không ra phán quyết pháp lý |
@@ -64,7 +66,7 @@ Gateway không route `/internal/**`; downstream không tin `X-User-*` do client 
 
 ## **3.2 Ownership của signature và evidence**
 
-Signature/OTP challenge là domain con của contract-service vì phải binding với exact terms hash và state. audit-service sở hữu audit record/hash/anchor; file-service sở hữu blob lifecycle; inspection-service sở hữu result/report commitment. Các hash khác nhau có mục tiêu khác nhau và không được trộn thành một “hash chung”.
+Consent/signature/OTP challenge là domain con của contract-service vì phải binding với exact action, statement, terms hash và state. `ContractTemplateProfile` và `ContractDocument` metadata cũng do contract-service sở hữu; file-service chỉ giữ blob đã scan/hashed. audit-service sở hữu audit record/hash/anchor; inspection-service sở hữu result/report commitment. `signedContentHash`/`sourceContentHash`, `documentFileHash`, report/result hash và audit record hash có mục tiêu khác nhau, không được trộn thành một “hash chung”.
 
 # **4. Integration model và consistency**
 
@@ -108,7 +110,7 @@ Contract-service không consume bank result trực tiếp để quyết định 
 
 ## **5.1 Canonical consequence boundary**
 
-- `remedy.finalized`: producer `contract-service`; consumers `escrow-service`, `reputation-service`, `audit-service`; sole trigger cho money/reputation consequences.
+- `remedy.finalized`: producer `contract-service`; consumers `escrow-service`, `reputation-service`, `audit-service`; authoritative cho termination/remedy/quality-resolution money, contract-level deposit return và reputation lock; clean-path per-milestone money chạy qua `milestone.settled`; hai event không cùng phát cho một resolution.
 - `contract.terminated`: consumers `audit-service`, `analytics-service`; lifecycle facts only. Notification đi qua `notification.contract_terminated_requested`.
 - `contract.settled`: positive completion/audit/analytics/reputation facts; bank không release deposit từ event này.
 - `milestone.cancelled_with_penalty`: observational outcome cho analytics/audit; money đã được biểu diễn bằng remedy legs.
@@ -117,56 +119,63 @@ Contract-service không consume bank result trực tiếp để quyết định 
 
 | Event | Producer | Consumers | Side-effect boundary |
 |---|---|---|---|
-| contract.signed | contract-service | escrow-service, analytics-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| escrow.deposit_locked | escrow-service | contract-service, escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| escrow.deposit_lock_failed | escrow-service | contract-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.lock_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.lock_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.lock_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.release_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.release_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.release_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.seize_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.seize_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.seize_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.refund_requested | escrow-service | bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.refund_completed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.refund_failed | bank-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| contract.settled | contract-service | reputation-service, analytics-service | Lifecycle/positive-history event only. Normal completion first emits the existing SYSTEM/no-fault remedy.finalized owner-return legs; this event is published only after all expected legs reconcile and remaining lock is zero, and must not be consumed by escrow-service for money. |
-| contract.terminated | contract-service | audit-service, analytics-service | Lifecycle/audit/analytics/notification only. Escrow and reputation MUST NOT consume this event for consequences. |
-| breach.reported | contract-service | audit-service | Allegation only; no bank or reputation consumer is permitted. |
-| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | Sole canonical trigger for termination/remedy money legs and reputation lock, including normal-completion return of contract-level deposits. |
-| milestone.settled | contract-service | escrow-service, analytics-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.dispute_resolved | contract-service | reputation-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.level2_provisional_settled | contract-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.level2_buffer_reconciled | contract-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.level2_terminal_settled | contract-service | escrow-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| inspection.report_confirmed | inspection-service | audit-service, contract-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.seller_weighed | contract-service | file-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.buyer_confirmed | contract-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.flagged | contract-service |  | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.force_majeure_claimed | contract-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.force_majeure_resolved | contract-service | escrow-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| milestone.cancelled_with_penalty | contract-service | analytics-service, audit-service | Observational milestone outcome only. Money and reputation are already triggered by remedy.finalized and must not be consumed here. |
-| escrow.milestone_funding_failed | escrow-service | contract-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| reputation.locked | reputation-service | user-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| reputation.unlocked | reputation-service | user-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| file.ready | file-service | contract-service, inspection-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| file.failed | file-service | contract-service, inspection-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.security_lock_changed | bank-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.verifier_key_registered | bank-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.large_transaction_flagged | bank-service | reputation-service, audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| bank.suspicious_report_created | bank-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| analytics.structuring_pattern_detected | analytics-service | reputation-service, bank-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| reputation.elevated_risk_cleared | reputation-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| inspection.level2_commissioned | inspection-service | audit-service | Canonical contract; consumer follows the side-effect boundary described in this document |
-| file.email_notice | file-service | inspection-service | Canonical contract; consumer follows the side-effect boundary described in this document |
+| contract.created | contract-service | product-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| contract.withdrawn | contract-service | product-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| contract.signed | contract-service | product-service, escrow-service, analytics-service, audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| contract.activation_failed | contract-service | product-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| contract.activated | contract-service | product-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| escrow.deposit_locked | escrow-service | contract-service, escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| escrow.deposit_lock_failed | escrow-service | contract-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.lock_requested | escrow-service | bank-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.lock_completed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.lock_failed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.release_requested | escrow-service | bank-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.release_completed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.release_failed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.seize_requested | escrow-service | bank-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.seize_completed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.seize_failed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.refund_requested | escrow-service | bank-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.refund_completed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.refund_failed | bank-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| contract.settled | contract-service | reputation-service, analytics-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| contract.terminated | contract-service | audit-service, analytics-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| breach.reported | contract-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.settled | contract-service | escrow-service, analytics-service, audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.dispute_resolved | contract-service | reputation-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.level2_provisional_settled | contract-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.level2_buffer_reconciled | contract-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.level2_terminal_settled | contract-service | escrow-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.price_adjusted | contract-service | audit-service, analytics-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| inspection.report_confirmed | inspection-service | audit-service, contract-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.seller_weighed | contract-service | file-service, audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.buyer_confirmed | contract-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.flagged | contract-service |  | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.force_majeure_claimed | contract-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.force_majeure_resolved | contract-service | escrow-service, audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| milestone.cancelled_with_penalty | contract-service | analytics-service, audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| escrow.milestone_funding_failed | escrow-service | contract-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| reputation.locked | reputation-service | user-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| reputation.unlocked | reputation-service | user-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| file.ready | file-service | contract-service, inspection-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| file.failed | file-service | contract-service, inspection-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| contract.document_generated | contract-service | audit-service | Immutable representation is READY once; audit records both source-content and PDF-file hashes |
+| bank.security_lock_changed | bank-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.verifier_key_registered | bank-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.large_transaction_flagged | bank-service | reputation-service, audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| bank.suspicious_report_created | bank-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| analytics.structuring_pattern_detected | analytics-service | reputation-service, bank-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| reputation.elevated_risk_cleared | reputation-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| inspection.level2_commissioned | inspection-service | audit-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
+| file.email_notice | file-service | inspection-service | Canonical event; consumers apply the frozen side-effect boundary and durable idempotency rules |
 
 ## **5.3 Notification command catalog**
 
 | Command | Producer | Consumer | Payload required |
 |---|---|---|---|
 | notification.contract_anchor_requested | contract-service | notification-service | `contractId`, `recipients`, `contractTermsSnapshot`, `signedContentHash`, `signedAt` |
+| notification.contract_document_ready_requested | contract-service | notification-service | `documentId`, `contractId`, `recipients`, `fileId`, `sourceContentHash`, `documentFileHash`, `templateCode`, `templateVersion`, `generatedAt` |
 | notification.contract_activation_failed_requested | contract-service | notification-service | `contractId`, `recipients`, `failedLeg`, `buyerDepositState`, `sellerDepositState`, `nextActions` |
 | notification.contract_terminated_requested | contract-service | notification-service | `contractId`, `recipients`, `terminationType`, `requestedBy`, `finalBreachingRole`, `breachReasonCode`, `remedyDecisionId`, `breachCaseId`, `affectedMilestoneIds`, `supersededByContractId`, `replacesContractId`, `remedyLegs` |
 | notification.breach_notice_requested | contract-service | notification-service | `breachCaseId`, `contractId`, `recipients`, `breachReasonCode`, `severity`, `evidenceRefs` |
@@ -236,6 +245,10 @@ ES256 public key baked/deploy-time, RFC 8785 canonicalization, timestamp ±300s,
 
 Audit hash hỗ trợ kiểm tra record có bị sửa sau commit hay không; content/report hash hỗ trợ kiểm tra artefact bytes/normalized result; OTP ghi nhận challenge holder đã hoàn tất thao tác. Không lớp nào tự chứng minh dữ liệu đầu vào đúng, người thao tác có thẩm quyền pháp lý hoặc điều khoản hợp pháp; giá trị chứng cứ phụ thuộc độ tin cậy, tính toàn vẹn và khả năng xác định chủ thể trong bối cảnh giao dịch. [27]
 
+Mỗi hành vi cần xác nhận tạo `ConsentEvidence` append-only, gắn actor/role, action, subject, statement code-version-hash, `presentedContentHash`, thời điểm và correlation ID. Ký hợp đồng yêu cầu checkbox + session step-up + OTP; hành vi vận hành như cân giao, nhận hàng, flag hoặc accept giá yêu cầu checkbox + authenticated ownership check. Checkbox không phải điểm chỉ/vân tay sinh trắc học và không nâng tier chữ ký thành chữ ký số CA.
+
+Template hợp đồng có profile `{VN_COFFEE_B2B, contractTemplateVersion, contractTemplateHash, coffeeQualityProfileVersion}` nằm trong signed snapshot. Preview server-side luôn có watermark `CHƯA CÓ HIỆU LỰC`. Chữ ký thứ hai commit `SIGNED` và `ContractDocument(PENDING)`; worker render/lưu PDF ngoài transaction, rồi chuyển `READY`, phát `contract.document_generated` và notification final. `sourceContentHash` commit nội dung pháp lý, `documentFileHash` commit bytes PDF; document READY và blob final không được overwrite.
+
 ## **8.4 Retention/DR**
 
 PII/evidence/ledger/audit có retention khác nhau; legal hold override deletion. File xoá hai bước tự lành. DLQ replay giữ original event ID. Restore bank/audit phải qua hai verification pass trước mở money traffic. Cross-border/ND13 là deployment constraint chưa được “giải quyết tự động”.
@@ -255,13 +268,16 @@ Môi trường mục tiêu dùng container, MySQL per service/schema, RabbitMQ, 
 
 # **10. API surface overview**
 
-OpenAPI frozen có 41 paths và 42 operations. Bảng dưới trình bày ownership-level catalog, request schema và auth/role; JSON error dùng `ErrorEnvelope` gồm `timestamp`, `status`, `error`, `code`, `message`, `path`, `traceId`. Endpoint không khai báo security riêng kế thừa bearer JWT; `/internal/**` dùng `serviceAuth`, audit hash dùng `X-Api-Key`, emergency lock/unlock chỉ nhận signed request của External Verifier.
+OpenAPI frozen có **46 paths / 47 operations / 62 schemas**. Supplementary API có **16 paths / 18 operations / 15 schemas**. Bảng dưới trình bày ownership-level catalog, request schema và auth/role; JSON error dùng `ErrorEnvelope` gồm `timestamp`, `status`, `error`, `code`, `message`, `path`, `traceId`. Endpoint không khai báo security riêng kế thừa bearer JWT; `/internal/**` dùng `serviceAuth`, audit hash dùng `X-Api-Key`, emergency lock/unlock chỉ nhận signed request của External Verifier.
 
 | Method | Path | Owner | Operation | Request | Auth/role |
 |---|---|---|---|---|---|
 | POST | /api/v1/contracts | contract-service | createContract | CreateContractRequest | BUYER |
 | GET | /api/v1/contracts | contract-service | listContracts | — | JWT |
 | GET | /api/v1/contracts/{contractId} | contract-service | getContract | — | JWT |
+| GET | /api/v1/contracts/{contractId}/document-preview | contract-service | previewContractDocument | — | BUYER, SELLER |
+| GET | /api/v1/contracts/{contractId}/documents | contract-service | listContractDocuments | — | BUYER, SELLER |
+| GET | /api/v1/contracts/{contractId}/documents/{documentId} | contract-service | getContractDocument | — | BUYER, SELLER |
 | PATCH | /api/v1/contracts/{contractId}/terms | contract-service | updateContractTerms | ContractTermsRequest | BUYER, SELLER |
 | POST | /api/v1/contracts/{contractId}/sign/initiate | contract-service | initiateSign | InitiateSignRequest | BUYER, SELLER |
 | POST | /api/v1/contracts/{contractId}/sign/verify | contract-service | verifyOtpAndSign | VerifyOtpAndSignRequest | BUYER, SELLER |
@@ -279,10 +295,12 @@ OpenAPI frozen có 41 paths và 42 operations. Bảng dưới trình bày owners
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh | contract-service | recordSellerWeighed | SellerWeighedRequest | SELLER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/confirm | contract-service | confirmMilestoneClean | BuyerReceivedRequest | BUYER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/flag | contract-service | flagMilestoneIssue | BuyerReceivedRequest | BUYER |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond | contract-service | respondToMilestoneFlag | — | SELLER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond | contract-service | respondToMilestoneFlag | ConsentInput | SELLER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure | contract-service | claimForceMajeure | ForceMajeureClaimRequest | SELLER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve | contract-service | resolveForceMajeure | ForceMajeureResolveRequest | ADMIN |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/funding/retry | escrow-service | retryMilestoneFunding | — | ADMIN |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/propose | contract-service | proposeMilestonePriceAdjustment | PriceAdjustmentProposalRequest | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/{proposalId}/accept | contract-service | acceptMilestonePriceAdjustment | ConsentInput | BUYER, SELLER |
 | POST | /api/v1/users/register | user-service | registerUser | — | JWT |
 | GET | /api/v1/users/me | user-service | getMyProfile | — | JWT |
 | GET | /api/v1/users/{userId} | user-service | getPublicUser | — | JWT |
@@ -302,16 +320,85 @@ OpenAPI frozen có 41 paths và 42 operations. Bảng dưới trình bày owners
 | GET | /api/v1/escrows/statements | escrow-service | exportEscrowStatement | — | JWT |
 | GET | /internal/v1/bank/ledger | bank-service | getInternalLedgerEntries | — | serviceAuth |
 
+# **10.1 Frozen design synchronization addendum**
+
+## **Signature, lifecycle và OTP**
+
+Terms chỉ hợp lệ để sửa trước bất kỳ chữ ký nào. Chữ ký đầu tiên làm đóng băng toàn bộ terms và `signedContentHash`; chữ ký thứ hai bắt buộc dùng đúng hash đó. Không có `PATCH /terms` sau chữ ký đầu tiên. Normal completion phát `milestone.settled` cho milestone cuối và dùng `remedy.finalized` chỉ để trả cọc cấp contract; hai event không cùng làm money consequence cho một quality resolution.
+
+OTP được binding theo tuple `(signerUserId, contractId, signedContentHash)`. Không có khái niệm “latest OTP” xuyên user hoặc xuyên contract; trong cùng tuple chỉ challenge mới nhất còn hạn mới verify, còn challenge cũ bị vô hiệu khi resend. Matrix item tương ứng là `21g`.
+
+Trước khi tạo challenge, server kiểm tra checkbox statement đang active, session step-up và `presentedContentHash`, rồi ghi `ConsentEvidence` append-only. Template profile `VN_COFFEE_B2B` và coffee quality profile version nằm trong `ContractTermsSnapshot`; đổi template/profile làm đổi `signedContentHash`. Sau chữ ký thứ hai, final PDF đi qua `PENDING -> READY | FAILED` bất đồng bộ; lỗi render không rollback chữ ký. Preview luôn mang watermark `CHƯA CÓ HIỆU LỰC`; final READY được kiểm chứng bằng cả `sourceContentHash` và `documentFileHash`.
+
+## **Inventory, reservation và concurrency**
+
+Product-service là owner duy nhất của `minOrderQuantity`, `quantityAvailable`, `reservedQuantity`, listing và reservation. Listing lifecycle là `AVAILABLE -> PARTIALLY_COMMITTED -> CLOSED` (vẫn giữ `PAUSED`); reservation lifecycle là `RESERVED -> SIGNED_RELEASABLE -> COMMITTED | RELEASED`. Reserve qua synchronous internal product-service API trước khi persist `OFFERED`; persistence failure phải compensation-release idempotent. `contract.activated` mới commit inventory; `requestedQuantity = SUM(committedQuantity)` và F18 fail closed nếu tổng không bằng `reservedQuantity`.
+
+Listing response expose opaque `listingVersionToken`, tạo từ canonical UTC `Listing.updatedAt`. Stale token trả `LISTING_VERSION_MISMATCH` (`VERSION_MISMATCH`, reload/retry); thiếu tồn, dưới `minOrderQuantity`, legacy `quantityAvailable = null` hoặc state conflict trả `INSUFFICIENT_LISTING_QUANTITY` (`STATE_CONFLICT`, refresh, không blind retry). Reservation replay không decrement/restore lần hai.
+
+`OrphanReservationReaperJob` chạy trong product-service, mặc định `orphanReservationGraceMinutes = 30`. Job chỉ release reservation `RESERVED` quá grace khi durable store chưa có `contract.created`; không gọi cross-service, không thêm endpoint, không đụng `SIGNED_RELEASABLE`/`COMMITTED`, không reopen `CLOSED`/`PAUSED`, và log + alert Admin mỗi release. Late `contract.created` sau `RELEASED` là inventory inconsistency: error log + Admin alert, không silent deduplication, reverse transition, re-decrement hoặc inventory path thứ hai.
+
+## **Signed pricing, deposits và money authority**
+
+`priceBand` và `priceAdjustmentRule` là signed terms và nằm trong `signedContentHash`. Propose/accept là hai JWT-authenticated, idempotent actions, không OTP, chỉ hợp lệ trước funding. Adjustment in-band chỉ thực thi rule đã ký, không amend terms/hash; phát `milestone.price_adjusted` audit/lifecycle-only. Funding dùng `effectiveUnitPrice` (accepted adjustment hoặc agreed fallback), không true-up settlement. Deposit tính một lần từ nominal `totalContractValue`; `pricing-service` chỉ advisory.
+
+`buyerDepositRate` có band `[3%, 10%]`, default `5%`, lock tại `SIGNED` trên nominal value. Signed legacy rate ngoài band vẫn readable và operable, không migration normalize/backfill. `sellerDepositRate` optional giữ nguyên vocabulary hiện hành.
+
+## **Snapshots, delivery, inspection và metadata**
+
+Contract CREATE server-derives and snapshots `goodsTerms`, `deliveryTerms`, `inspectionTerms` from Listing/Product/Category/Plot. Later source edits/deletes do not alter snapshot/hash; changing goods requires replacement. Các thao tác ghi mới của đồ án require `commodity = COFFEE` and a non-empty `originSnapshot.plotRefs[]`; other commodity values are rejected. Only delivery allocation rules are signed; warehouse, carrier, address, tracking and concrete delivery instances remain runtime data. `cropYear` and `harvestSeason` are required-but-nullable server-derived signed snapshot fields; `certifications` remains seller-declared listing metadata, not verified compliance.
+
+Inspection terms include level/cost and require `inspectionCostResponsibility = LOSER_PAYS`; `MANDATORY_BEFORE_SETTLEMENT` is a settlement guard, not a milestone state. Read-only nullable listing metadata are `cropYear`, `harvestSeason`, `certifications`, `packagingDeclaration`, `warehouseLocation`, and `estimatedAvailabilityDate`; certifications are seller-declared free text, and warehouse location is distinct from delivery point.
+
+## **Quality and disposition**
+
+Quality has declared, committed and actual layers. A clean confirmation does not measure quality unless a quality flag exists or inspection is mandatory. Each metric carries `deviationPolicy {direction, tolerance, penalty, reject, discountRate}` with disjoint tolerance/penalty/reject zones and inclusive boundaries on the stricter side. Inspection reports contain raw actual metrics and `resultHash`; contract-service, not inspector, computes disposition and money.
+
+The four dispositions are explicit: `CONFORMING` rejects an allegation after a flag, settles normally, and Buyer bears inspection cost under `LOSER_PAYS`; `PARTIALLY_CONFORMING` is payment adjustment only, not a breach, with no penalty, breach attribution or reputation effect, selects only the largest applicable `discountRate`, reduces `RELEASE_TO_SELLER`, and transfers the difference to Buyer; `NON_CONFORMING` is Seller breach with standard remedy, penalty base equal to affected milestone value, fails only that milestone, and does not auto-terminate the contract; `INCONCLUSIVE` routes to reinspection/Level 2 without inventing money or breach consequences. Các schema chất lượng của đồ án accept only coffee; exact-match rejection applies to coffee `type`. Complete quality resolution emits exactly one `remedy.finalized`.
+
+## **Conventions and guardrails**
+
+Canonical mass unit is `kg`; `unitOfMeasure` is constant `KG`. Store timestamps in UTC; display and calculate deadlines in `Asia/Ho_Chi_Minh`; date deadlines end at ICT day end; working days are Monday-Friday excluding Vietnamese holidays. Money uses `DECIMAL(18,2)` with `HALF_UP`; only contract-service rounds, and bank-service never re-multiplies or re-rounds. Money strings are decimal strings with exactly two fractional digits, schema `pattern` enforced, and field-specific `maxLength` `11` or `19` (not numeric `maximum`). Guardrails: max 100 milestones per contract, max 1,000,000 kg per milestone, delivered quantity `exclusiveMinimum: 0`, measured/accepted quantities `minimum: 0`, so `accepted = 0` is valid.
+
+## **LegalProfile references**
+
+`LegalProfile` aligns LTM Điều 301 with the 8% contractual-penalty cap, LTM Điều 266 with the 10x inspection-fee ceiling, LTM Điều 302/307 with damages and penalty interaction, and BLDS Điều 328/330 with deposit/security references. The existing Known Limitation remains: classification of the deposit under BLDS Điều 328 requires lawyer confirmation.
+
+# **10.2 Supplementary API and event totals**
+
+The authoritative supplementary API catalog is `16 paths / 18 operations / 15 schemas`. The authoritative domain-event catalog is **50 events**; lifecycle mappings are `contract.created` (contract-service -> product-service), `contract.activated` (contract-service -> product-service), `contract.withdrawn` (contract-service -> product-service), and `contract.activation_failed` (contract-service -> product-service). `contract.signed` includes `listingId` and `reservedQuantity` and is consumed by product-service, escrow-service, analytics-service and audit-service. `contract.document_generated` carries the immutable generated representation hashes to audit-service.
+| Supplementary method | Path | Owner | operationId | Auth/role |
+|---|---|---|---|---|
+| POST | /api/v1/plots | product-service | registerPlot | SELLER |
+| POST | /api/v1/listings | product-service | createListing | SELLER |
+| GET | /api/v1/listings | product-service | searchListings | JWT |
+| PUT | /api/v1/listings/{listingId} | product-service | updateListing | SELLER |
+| POST | /internal/v1/listing-reservations | product-service | reserveListingQuantity | service-to-service |
+| POST | /internal/v1/listing-reservations/{contractId}/release | product-service | compensateListingReservation | service-to-service |
+| POST | /api/v1/listings/{listingId}/offers | product-service | createOffer | BUYER |
+| GET | /api/v1/prices/{commodity}/{province} | pricing-service | getPriceQuote | public |
+| GET | /api/v1/prices/{commodity}/{province}/items | pricing-service | listPriceItems | public |
+| POST | /api/v1/prices/manual | pricing-service | recordManualPrice | ADMIN |
+| GET | /api/v1/analytics/terminations | analytics-service | getTerminationAnalytics | ADMIN |
+| GET | /api/v1/analytics/escrow-effectiveness | analytics-service | getEscrowEffectiveness | ADMIN |
+| GET | /api/v1/analytics/force-majeure-trends | analytics-service | getForceMajeureTrends | ADMIN |
+| POST | /api/v1/inspections/{contractId}/milestones/{milestoneId}/reports | inspection-service | submitInspectionReport | INSPECTOR |
+| POST | /internal/v1/files | file-service | storeOnBehalfOf | service-to-service |
+| GET | /internal/v1/files/{fileId} | file-service | getFile | service-to-service |
+| DELETE | /internal/v1/files/{fileId} | file-service | deleteFile | service-to-service |
+| POST | /internal/v1/files/{fileId}/confirm-attached | file-service | confirmAttached | service-to-service |
+
+
 # **11. Current Scope**
 
-Phase 2 hiện thực hoá boundary của 12 business services, API Gateway, database-per-service, event envelope, outbox/idempotency, contract–escrow–bank golden flow, inspection, reputation, audit/evidence, product geolocation, file intake, external reference pricing, user governance, notification và analytics projection. Các state, event, endpoint, schema và side-effect boundary trong tài liệu là contract thiết kế để triển khai; chúng không phải bằng chứng rằng toàn bộ capability đã chạy production.
+Đồ án hiện thực hoá boundary của 12 business services cho giao dịch cà phê B2B nội địa Việt Nam: API Gateway, database-per-service, event envelope, outbox/idempotency, consent/signature, template và immutable document lifecycle, contract–escrow–bank golden flow, inspection, reputation, audit/evidence, product geolocation, file intake, external reference pricing, user governance, notification và analytics projection. Các state, event, endpoint, schema và side-effect boundary trong tài liệu là contract thiết kế để triển khai; chúng không phải bằng chứng rằng toàn bộ capability đã chạy production.
 
 # **12. Known Limitations**
 
-- Bank/custodian thật, CA signature, tổ chức inspection production, provider pricing và OpenTimestamps production chưa được tích hợp trong Phase 2; bank-service là ledger/adapter mô phỏng.
+- Bank/custodian thật, CA signature, tổ chức inspection production, provider pricing và OpenTimestamps production chưa được tích hợp trong đồ án; bank-service là ledger/adapter mô phỏng.
 - Full mTLS/service mesh, HSM/KMS độc lập, multi-region HA, deployment attestation và cold rebuild analytics chưa thuộc phạm vi implementation.
 - Geo/yield/AML/overlap chỉ là tín hiệu hỗ trợ review; traceability phụ thuộc chất lượng dữ liệu, chi phí và quy trình due diligence, nên không tự kết luận gian lận, sự thật địa chính, compliance EUDR hay trách nhiệm pháp lý. [21], [22], [30]
-- OTP là một phương thức xác nhận điện tử; giá trị chứng cứ và thẩm quyền đại diện vẫn cần đánh giá theo giao dịch, định danh và tài liệu thực tế. [27]
+- Checkbox/step-up/OTP là cơ chế bằng chứng điện tử tầng cơ sở; không phải điểm chỉ/vân tay thật hoặc chữ ký số CA. Giá trị chứng cứ và thẩm quyền đại diện vẫn cần đánh giá theo giao dịch, định danh và tài liệu thực tế. [27]
 - Phân loại tiền cọc, penalty, damages, licensing boundary và mẫu hợp đồng cần legal validation; việc tách custody khỏi platform không tự chứng minh compliance. [28], [29], [45], [46]
 - Hệ thống không bảo vệ tuyệt đối trước collusion của các trust domain hoặc hạ tầng bị compromise đồng thời; zero-trust-oriented controls chỉ giảm implicit trust tại các boundary đã nêu.
 - Analytics/notification có eventual consistency; queue backlog chỉ hỗ trợ catch-up outage ngắn, không phải cold rebuild toàn bộ lịch sử.
@@ -322,7 +409,7 @@ Phase 2 hiện thực hoá boundary của 12 business services, API Gateway, dat
 - Tích hợp CA/WebAuthn, production inspection/accreditation và adapter email/provider phù hợp deployment.
 - Tách separation-of-duties hạ tầng, mTLS/KMS/HSM, deployment attestation và DR/scale production.
 - Thiết kế riêng cho ContractVersion amendment sau ký, full notice–cure–remedy state machine, quality-indexed settlement, payment/security package đầy đủ và partial mutual termination.
-- Tự động hoá nguồn giá cao su quốc tế sau khi có chuẩn hoá đơn vị/tỷ giá; logistics/3PL tracking chỉ khi có đối tác thật.
+- Nghiên cứu mở rộng commodity sau cà phê bằng template, quality profile, nguồn giá và verification matrix riêng; logistics/3PL tracking chỉ khi có đối tác thật.
 - Hoàn thiện cross-border/ND13 assessment, DSAR và các chính sách vận hành ngoài prototype.
 
 # **14. Danh mục nguồn tham khảo**

@@ -10,22 +10,24 @@ toc-title: "Mục lục"
 
 AgriContract nhắm tới khoảng trống ở **tầng thực thi hợp đồng nông sản B2B**: chuẩn hoá thoả thuận, ký điện tử, quản lý cọc và tiền milestone qua một đơn vị giữ tiền hợp pháp, ghi nhận giao nhận/giám định, phân định trách nhiệm và tạo gói bằng chứng kiểm chứng được. Nền tảng không thay thế logistics, sàn thương mại điện tử, ngân hàng, cơ quan giải quyết tranh chấp hoặc tổ chức chứng nhận EUDR.
 
-Bản thiết kế Phase 2 làm rõ ba điểm ảnh hưởng trực tiếp đến luận điểm thị trường. Thứ nhất, hệ thống không dùng một nút “huỷ và phạt”; rút đề nghị, chấm dứt đồng thuận, thay thế hợp đồng, vi phạm, bất khả kháng và lỗi kích hoạt là các tình huống khác nhau. Thứ hai, người yêu cầu chấm dứt không mặc nhiên là bên vi phạm; hậu quả tiền và uy tín chỉ phát sinh sau **AttributionDecision/RemedyDecision** cuối cùng. Thứ ba, tiền cọc giữa các bên và khoản tiền được tổ chức tín dụng phong toả phải được phân biệt về bản chất pháp lý và mô hình vận hành.
+**Phạm vi đồ án được khóa ở giao dịch cà phê B2B nội địa Việt Nam.** Gạo, cao su và điều chỉ còn là dữ liệu so sánh thị trường/roadmap; chúng không phải commodity được API, UI hoặc mẫu hợp đồng của đồ án chấp nhận.
 
-Các số liệu TAM/SAM/SOM, willingness-to-pay, mức cọc khởi điểm và tác động giảm “bẻ kèo” vẫn là giả thuyết cần pilot xác nhận. Vì vậy tài liệu trình bày cơ hội thị trường và logic sản phẩm, không tuyên bố AgriContract đã vận hành production, đã tích hợp ngân hàng thật hoặc đã chứng minh hiệu quả nhân quả.
+Bản thiết kế của đồ án làm rõ ba điểm ảnh hưởng trực tiếp đến luận điểm thị trường. Thứ nhất, hệ thống không dùng một nút “huỷ và phạt”; rút đề nghị, chấm dứt đồng thuận, thay thế hợp đồng, vi phạm, bất khả kháng và lỗi kích hoạt là các tình huống khác nhau. Thứ hai, người yêu cầu chấm dứt không mặc nhiên là bên vi phạm; hậu quả tiền và uy tín chỉ phát sinh sau **AttributionDecision/RemedyDecision** cuối cùng. Thứ ba, tiền cọc giữa các bên và khoản tiền được tổ chức tín dụng phong toả phải được phân biệt về bản chất pháp lý và mô hình vận hành.
+
+Các số liệu TAM/SAM/SOM, willingness-to-pay, mức cọc khởi điểm và tác động giảm “phá hợp đồng” vẫn là giả thuyết cần pilot xác nhận. Vì vậy tài liệu trình bày cơ hội thị trường và logic sản phẩm, không tuyên bố AgriContract đã vận hành production, đã tích hợp ngân hàng thật hoặc đã chứng minh hiệu quả nhân quả.
 
 # **1. Quy mô thị trường**
 
 Theo Bộ Nông nghiệp và Môi trường, kim ngạch xuất khẩu nông, lâm, thuỷ sản Việt Nam năm 2025 đạt khoảng 70,09 tỷ USD. Con số này cho thấy quy mô chuỗi nông sản, nhưng không tự suy ra TAM hoặc doanh thu phần mềm. Mục tiêu xuất khẩu năm 2026 được báo cáo ở mức 73–74 tỷ USD. [23], [24]
 
-| **Mặt hàng**        | **Kim ngạch 2025** | **Tăng trưởng YoY** | **Vị thế toàn cầu**              |
-|---------------------|--------------------|---------------------|----------------------------------|
-| Cà phê              | 8,57 tỷ USD        | Số liệu Chính phủ công bố cho năm 2025 | 1,5 triệu tấn [24] |
-| Điều nhân           | 5,19 tỷ USD        | Số liệu Chính phủ công bố cho năm 2025 | Số liệu được dùng nhất quán trong bộ tài liệu [24] |
-| Lúa gạo             | Chưa chốt trong corpus này | Giữ trong phạm vi sản phẩm | Cần nguồn thống kê riêng trước khi nêu số liệu |
-| Cao su              | Chưa chốt trong corpus này | Thuộc nhóm hàng EUDR | Cần nguồn thống kê riêng trước khi nêu số liệu [30] |
+| **Mặt hàng**        | **Kim ngạch 2025** | **Vai trò trong tài liệu** | **Ghi chú** |
+|---------------------|--------------------|-----------------------------|-------------|
+| Cà phê              | 8,57 tỷ USD        | Phạm vi triển khai đồ án | 1,5 triệu tấn [24] |
+| Điều nhân           | 5,19 tỷ USD        | So sánh thị trường/roadmap | Không phải executable scope [24] |
+| Lúa gạo             | Chưa chốt trong corpus này | So sánh nghiên cứu/roadmap | Cần nguồn thống kê riêng trước khi nêu số liệu |
+| Cao su              | Chưa chốt trong corpus này | So sánh EUDR/roadmap | Cần nguồn thống kê riêng trước khi nêu số liệu [30] |
 
-Bốn ngành hàng nằm trong phạm vi phục vụ trực tiếp của nền tảng — **cà phê, lúa gạo, cao su, điều** — được chọn vì chúng hội tụ đủ hai điều kiện: giá trị giao dịch cao và quy trình thu mua từ HTX còn phụ thuộc nặng vào niềm tin cá nhân. Cà phê và cao su thuộc phạm vi điều chỉnh của EUDR; lúa gạo và điều không thuộc EUDR nhưng chịu đúng ba đặc thù cấu trúc mô tả ở Mục 2.
+Cà phê được chọn làm phạm vi phục vụ trực tiếp vì hội tụ giá trị giao dịch cao, biến động giá, quy trình thu mua từ HTX và yêu cầu dữ liệu nguồn gốc. Ba ngành còn lại được giữ để kiểm tra khả năng khái quát của bài toán, không được dùng để tuyên bố đồ án đã hỗ trợ đa hàng hoá.
 
 ## **1.1 Cà phê — Siêu chu kỳ giá và hệ quả chuỗi cung ứng**
 
@@ -33,17 +35,17 @@ Trong năm 2024, các nguồn báo chí và báo cáo ngành ghi nhận giá cà
 
 Kim ngạch xuất khẩu cà phê năm 2025 được Chính phủ báo cáo ở mức 8,57 tỷ USD với sản lượng 1,5 triệu tấn. EUDR áp dụng cho cà phê, nhưng tỷ trọng EU cụ thể phải được kiểm tra theo từng năm và nguồn trước khi sử dụng. [24], [30]
 
-## **1.2 Lúa gạo — Quy mô nội địa lớn và bất đối xứng thu mua**
+## **1.2 Lúa gạo — Bằng chứng so sánh ngoài phạm vi đồ án**
 
 Lúa gạo không thuộc phạm vi EUDR. Trong một nghiên cứu trên 280 hộ trồng gạo đặc sản ở Đồng bằng sông Hồng, collectors/wholesalers là kênh tiêu thụ phổ biến; 86,6% và 83,8% hộ lần lượt nêu láng giềng và thương lái là nguồn thông tin thường dùng. Kết quả này hỗ trợ cơ chế bất đối xứng thông tin trong một bối cảnh cụ thể, không đủ để suy ra tỷ lệ kênh thu mua 90/10 cho toàn quốc. [13]
 
-Với lúa gạo, giá trị cốt lõi của nền tảng nằm ở cơ chế ký quỹ, giải quyết tranh chấp và tích luỹ uy tín — không phải ở compliance EUDR.
+Kết quả này chỉ hỗ trợ phân tích cơ chế bất đối xứng; đồ án không triển khai luồng hợp đồng lúa gạo.
 
-## **1.3 Cao su — Tăng trưởng giá trị**
+## **1.3 Cao su — Bằng chứng so sánh ngoài phạm vi đồ án**
 
 Cao su thuộc nhóm hàng liên quan của EUDR. Corpus bằng chứng hiện tại chưa chốt lại các số liệu kim ngạch chi tiết đang có trong bản cũ; vì vậy luận điểm ở đây chỉ dùng phạm vi tuân thủ và nhu cầu dữ liệu geolocation, không dùng quy mô xuất khẩu chưa được kiểm chứng lại. [30]
 
-## **1.4 Điều — Dẫn đầu xuất khẩu, phụ thuộc nguyên liệu nhập khẩu**
+## **1.4 Điều — Bằng chứng so sánh ngoài phạm vi đồ án**
 
 Báo cáo Chính phủ ghi kim ngạch xuất khẩu điều năm 2025 ở mức 5,19 tỷ USD. Con số này hỗ trợ nhận định rằng đây là ngành hàng có quy mô giao dịch lớn; nó không tự chứng minh prevalence của vi phạm hợp đồng hoặc nhu cầu mua phần mềm. [24]
 
@@ -53,7 +55,7 @@ Kim ngạch xuất khẩu 70,09 tỷ USD chứng minh quy mô và mức độ qu
 
 | **Lớp** | **Định nghĩa vận hành**                                                                   | **Công thức ưu tiên**                                                          | **Dữ liệu còn thiếu**                        |
 |---------|-------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|----------------------------------------------|
-| TAM     | Toàn bộ doanh nghiệp/HTX pháp nhân trong bốn ngành có nhu cầu quản trị hợp đồng B2B       | N tổ chức mục tiêu × phí trung bình năm; hoặc GMV hợp đồng phù hợp × take rate | Số tổ chức, số hợp đồng/năm, mức phí thực tế |
+| TAM     | Toàn bộ doanh nghiệp/HTX pháp nhân trong chuỗi cà phê Việt Nam có nhu cầu quản trị hợp đồng B2B | N tổ chức mục tiêu × phí trung bình năm; hoặc GMV hợp đồng cà phê phù hợp × take rate | Số tổ chức, số hợp đồng/năm, mức phí thực tế |
 | SAM     | Phần TAM có tài khoản ngân hàng, hợp đồng điện tử và quy trình đủ chuẩn hoá để triển khai | TAM × tỷ lệ đủ điều kiện số hoá và tích hợp                                    | Tỷ lệ sẵn sàng số, quy mô hợp đồng tối thiểu |
 | SOM     | Số anchor buyer/hiệp hội có thể tiếp cận và triển khai trong ba năm đầu                   | Số khách hàng khả thi × ACV đã kiểm chứng                                      | Pipeline, chu kỳ bán hàng, conversion rate   |
 
@@ -61,7 +63,7 @@ Kim ngạch xuất khẩu 70,09 tỷ USD chứng minh quy mô và mức độ qu
 
 # **2. Ba đặc thù cấu trúc tạo ra nhu cầu**
 
-Các nghiên cứu cho thấy contract farming có thể tạo lợi ích nhưng kết quả không đồng nhất; side-selling/default có liên hệ với incentive, chênh lệch giá, chậm thanh toán và quyền định giá. Mức độ của các cơ chế này trong bốn ngành hàng tại Việt Nam cần được đo riêng. [1], [4], [6]–[8]
+Các nghiên cứu cho thấy contract farming có thể tạo lợi ích nhưng kết quả không đồng nhất; side-selling/default có liên hệ với incentive, chênh lệch giá, chậm thanh toán và quyền định giá. Các nghiên cứu ngoài ngành cà phê chỉ là benchmark cơ chế; mức độ trong chuỗi cà phê Việt Nam phải được đo riêng. [1], [4], [6]–[8]
 
 ## **2.1 Tính mùa vụ — phá vỡ hợp đồng là quyết định kinh tế hợp lý**
 
@@ -128,7 +130,7 @@ Chính sách quốc gia xác định nông nghiệp là lĩnh vực ưu tiên ch
 | Kamereo                    | B2B procurement cho nhà hàng/retailer; Series B 7,8 triệu USD    | Không phải forward contract nông sản; không phục vụ HTX                                             | Đang hoạt động — segment khác                                 |
 | Alibaba Trade Assurance    | Ký quỹ B2B quốc tế; bảo vệ hơn 160 triệu đơn; 37 triệu buyer     | Không bản địa hoá cho HTX Việt Nam; không workflow tiếng Việt; không tích hợp EUDR                  | Bằng chứng khái niệm ở quy mô lớn                             |
 | Koina (đóng cửa 2024)      | Farm-to-business; VinaCapital hậu thuẫn; huy động \>1 triệu USD  | Không có contract layer hoặc ký quỹ trong phạm vi rà soát; mô hình full-stack đòi hỏi vận hành nặng | Đã ngừng — nguyên nhân công khai chưa đủ để kết luận duy nhất |
-| AgriContract               | Vòng đời hợp đồng + Quản lý cọc/escrow + audit trail + hỗ trợ xử lý tranh chấp | Không giải quyết logistics — phạm vi giới hạn có chủ đích                                           | Phase 2 ở trạng thái thiết kế; chưa production                                               |
+| AgriContract               | Vòng đời hợp đồng + Quản lý cọc/escrow + audit trail + hỗ trợ xử lý tranh chấp | Không giải quyết logistics — phạm vi giới hạn có chủ đích                                           | Đồ án ở trạng thái thiết kế; chưa production                                               |
 
 *Nguồn: Kamereo Series B (2024); Alibaba Trade Assurance.*
 
@@ -157,62 +159,65 @@ Nhìn theo trục “tầng giá trị” thay vì từng sản phẩm, rà soá
 
 **Thời điểm.** Trước khi EUDR có deadline pháp lý cứng, không có áp lực bên ngoài nào buộc doanh nghiệp xuất khẩu phải số hoá tầng thu mua — Excel và hợp đồng giấy vẫn đủ để vận hành. Các mốc 30/12/2026 và 30/6/2027 biến việc chuẩn hoá dữ liệu truy xuất và due diligence đối với hàng thuộc phạm vi EUDR thành nghĩa vụ cấp thiết; việc mua AgriContract vẫn là lựa chọn thương mại cần chứng minh.
 
-## **4.3 Bốn ngành — bốn cấu hình, một nền tảng**
+## **4.3 Cà phê-first — một cấu hình triển khai rõ ràng**
 
-Bốn ngành hàng mục tiêu không đồng nhất về yêu cầu: EUDR chỉ áp cà phê và cao su (không áp gạo và điều); nguồn giá tự động chỉ có cho cà phê/gạo (VNSAT); cao su có nguồn quốc tế nhưng Phase 2 vẫn nhập tay để tránh chuẩn hoá đơn vị/tỷ giá ngoài phạm vi; geolocation chỉ bắt buộc cho ngành thuộc EUDR. AgriContract xử lý sự khác biệt này bằng thiết kế module hoá — bật/tắt tầng geolocation và giá tham chiếu theo commodity — thay vì ép một cấu hình chung cho mọi ngành.
+Đồ án cố ý chọn một cấu hình duy nhất: `COFFEE`, giao dịch nội địa Việt Nam, plot bắt buộc, giá VNSAT chỉ để tham khảo, chất lượng theo profile cà phê có version và mẫu hợp đồng `VN_COFFEE_B2B`. Việc thu hẹp này giúp nhóm kiểm chứng trọn flow hợp đồng–cọc–giao nhận–giám định–tranh chấp thay vì mở enum nhưng thiếu chiều sâu nghiệp vụ.
 
-| **Ngành** | **Thuộc EUDR?** | **Giá tự động?** | **Geolocation?** | **Động lực chính cho AgriContract**          |
-|-----------|-----------------|------------------|------------------|----------------------------------------------|
-| Cà phê    | Có — nặng nhất  | Có (VNSAT)       | Bắt buộc         | EUDR + escrow + tranh chấp — cấu hình đầy đủ |
-| Gạo       | Không           | Có (VNSAT)       | Tuỳ chọn         | Escrow + tranh chấp + Đề án 1 triệu ha       |
-| Cao su    | Có              | Không — Admin nhập tay | Bắt buộc         | EUDR + escrow — có giá tham chiếu quốc tế    |
-| Điều      | Không           | Không (Admin)    | Không            | Escrow + tranh chấp — core tối giản          |
+| **Phạm vi** | **EUDR/data nguồn** | **Giá tham khảo** | **Hợp đồng/chất lượng** | **Trạng thái** |
+|---|---|---|---|---|
+| Cà phê Việt Nam | Plot bắt buộc; evidence hỗ trợ due diligence | VNSAT + manual fallback có audit | `VN_COFFEE_B2B` + coffee quality profile có version | Thuộc phạm vi đồ án |
+| Gạo/cao su/điều | Phải phân tích lại theo từng ngành | Chưa triển khai | Chưa có template/profile được duyệt | Roadmap |
 
-**Ý nghĩa cho phản biện:** bốn ngành cho bốn cấu hình khác nhau chứng minh geolocation/EUDR là module bật-tắt theo luật, không phải năng lực lõi phổ quát. Điều — không EUDR, không giá tự động — là ví dụ cho thấy giá trị cốt lõi (escrow + tranh chấp + uy tín) vận hành độc lập với EUDR; cà phê là ví dụ đầy đủ tính năng. Đây là câu trả lời sẵn cho câu hỏi “vì sao đầu tư nặng vào geolocation mà chỉ phục vụ 2/4 ngành”.
-
-*Nguồn: Tổng hợp rà soát bốn ngành hàng — phạm vi EUDR (EU 2023/1115), nguồn giá VNSAT/quốc tế, yêu cầu geolocation theo commodity (2026).*
+**Ý nghĩa cho phản biện:** nghiên cứu đa ngành giúp nhận diện phần nào là core và phần nào phụ thuộc commodity, nhưng claim sản phẩm hiện tại chỉ là cà phê. Mở rộng sau này phải bổ sung nguồn giá, quality schema, template pháp lý và verification matrix tương ứng; không chỉ thêm giá trị enum.
 
 # **5. Ba pain point hệ thống và ánh xạ giải pháp**
 
-| **Pain point** | **Biểu hiện thực tế** | **Cơ chế Phase 2** | **Giới hạn/điều kiện** |
+| **Pain point** | **Biểu hiện thực tế** | **Cơ chế của đồ án** | **Giới hạn/điều kiện** |
 |---|---|---|---|
-| Thiếu bằng chứng hợp đồng | Thoả thuận phân tán qua giấy, tin nhắn và file rời; khó chứng minh bản terms nào đã được hai bên chấp thuận | `ContractTerms` bất biến sau hai chữ ký cùng `signedContentHash`; OTP được binding theo user–contract–terms; audit chain append-only và gói bằng chứng | Chữ ký nền tảng chưa phải chữ ký số CA; giá trị chứng cứ vẫn do cơ quan có thẩm quyền đánh giá |
-| Không có cơ chế giữ và giải ngân tiền trung lập | Trả trước, cọc và thanh toán theo đợt phụ thuộc niềm tin; dễ phát sinh trì hoãn hoặc chiếm dụng | bank-service giữ sổ cái tiền tệ duy nhất; escrow-service chỉ chiếu trạng thái; mọi leg tiền cuối cùng đi từ `remedy.finalized`; terminal chỉ khi đủ leg và tổng tiền lock bằng 0 | Ngân hàng thật là tích hợp ngoài phạm vi đồ án; mock ledger không được diễn giải là giấy phép giữ tiền |
-| Không có phân định trách nhiệm đáng tin cậy | Người bấm nút chấm dứt dễ bị đánh đồng với bên vi phạm; allegation có thể gây phạt oan | Tách `requestedBy`, `allegedBreachingRole`, `finalBreachingRole`; Rổ A tự động khi có bằng chứng khách quan, Rổ B qua `BreachCase`; uy tín tiêu cực chỉ từ quyết định cuối cùng | Phase 2 không thay thế toà án/trọng tài; attribution của trường hợp chủ quan vẫn cần quy trình review/giám định |
+| Thiếu bằng chứng hợp đồng | Thoả thuận phân tán qua giấy, tin nhắn và file rời; khó chứng minh bản terms nào đã được hai bên chấp thuận | Mẫu `VN_COFFEE_B2B` có version/hash; chữ ký đầu đóng băng terms, template và quality profile; checkbox + step-up + OTP tạo `ConsentEvidence`; final PDF bất biến gắn `sourceContentHash` và `documentFileHash`; audit chain append-only | Checkbox không phải điểm chỉ/vân tay thật, chữ ký nền tảng chưa phải chữ ký số CA; giá trị chứng cứ vẫn do cơ quan có thẩm quyền đánh giá |
+| Không có cơ chế giữ và giải ngân tiền trung lập | Trả trước, cọc và thanh toán theo đợt phụ thuộc niềm tin; dễ phát sinh trì hoãn hoặc chiếm dụng | bank-service giữ sổ cái tiền tệ duy nhất; escrow-service chỉ chiếu trạng thái; mọi leg tiền termination/remedy, quality-resolution và hoàn cọc cấp contract đi từ `remedy.finalized`, còn clean-path per-milestone money đi qua `milestone.settled`; terminal chỉ khi đủ leg và tổng tiền lock bằng 0 | Ngân hàng thật là tích hợp ngoài phạm vi đồ án; mock ledger không được diễn giải là giấy phép giữ tiền |
+| Không có phân định trách nhiệm đáng tin cậy | Người bấm nút chấm dứt dễ bị đánh đồng với bên vi phạm; allegation có thể gây phạt oan | Tách `requestedBy`, `allegedBreachingRole`, `finalBreachingRole`; Rổ A tự động khi có bằng chứng khách quan, Rổ B qua `BreachCase`; uy tín tiêu cực chỉ từ quyết định cuối cùng | Đồ án không thay thế toà án/trọng tài; attribution của trường hợp chủ quan vẫn cần quy trình review/giám định |
 | Thiếu dữ liệu đối tác có kiểm chứng | Lịch sử hoàn thành, tranh chấp, giao hàng và thanh toán có thể bị phân tán | Lưu immutable facts theo nghĩa invariant thiết kế và tính reputation tại thời điểm truy vấn; analytics tách loại chấm dứt, người yêu cầu và bên vi phạm cuối cùng | Reputation chỉ là tín hiệu từ fact đã ghi nhận và có thể chịu bias/dispute; dữ liệu tín dụng/AML không tự động cấp tín dụng hoặc chặn settlement [18], [20] |
 
 # **6. Tầm nhìn dài hạn — hạ tầng dữ liệu cho tín dụng nông nghiệp**
 
-Dữ liệu hợp đồng, milestone, thanh toán, giám định và lịch sử hoàn thành có thể là input bổ sung cho đánh giá dòng tiền. Bằng chứng hiện có chưa cho phép khẳng định transaction history tự động cải thiện quyết định cấp tín dụng tại Việt Nam. Phase 2 chỉ thiết kế lớp event, audit và read model; chưa có credit model được ngân hàng phê duyệt và không chuyển dữ liệu khi thiếu căn cứ pháp lý/đồng ý phù hợp. [17], [33]
+Dữ liệu hợp đồng, milestone, thanh toán, giám định và lịch sử hoàn thành có thể là input bổ sung cho đánh giá dòng tiền. Bằng chứng hiện có chưa cho phép khẳng định transaction history tự động cải thiện quyết định cấp tín dụng tại Việt Nam. Đồ án chỉ thiết kế lớp event, audit và read model; chưa có credit model được ngân hàng phê duyệt và không chuyển dữ liệu khi thiếu căn cứ pháp lý/đồng ý phù hợp. [17], [33]
 
 Giá trị gần hạn là giảm chi phí đối chiếu và làm rõ bằng chứng. Giá trị dài hạn — tín dụng dựa trên dòng tiền, bảo hiểm, benchmark ngành — phải được coi là hướng mở rộng có điều kiện, không phải capability đã hoàn thành.
 
 # **7. Khung pháp lý tham chiếu**
 
-| **Chủ đề** | **Khung tham chiếu trong tài liệu** | **Cách Phase 2 phản ánh** |
+| **Chủ đề** | **Khung tham chiếu trong tài liệu** | **Cách đồ án phản ánh** |
 |---|---|---|
-| Hợp đồng điện tử | Luật Giao dịch điện tử 2023: thông điệp dữ liệu không bị phủ nhận chỉ vì ở dạng điện tử; giá trị chứng cứ phụ thuộc độ tin cậy của cách khởi tạo, gửi, nhận, lưu trữ [27] | Lưu bản terms bất biến theo invariant thiết kế, cùng content hash cho hai chữ ký, timestamp, audit record và provenance; không tự bảo đảm nội dung đầu vào đúng |
+| Hợp đồng điện tử | Luật Giao dịch điện tử 2023: thông điệp dữ liệu không bị phủ nhận chỉ vì ở dạng điện tử; giá trị chứng cứ phụ thuộc độ tin cậy của cách khởi tạo, gửi, nhận, lưu trữ [27] | Template/profile có version, `ConsentEvidence` theo từng hành vi, cùng content hash cho hai chữ ký, preview `CHƯA CÓ HIỆU LỰC`, final PDF có hai hash tách biệt, timestamp/audit/provenance; không tự bảo đảm nội dung đầu vào đúng |
 | Đặt cọc giữa các bên | BLDS 2015 Điều 328 [45] | `buyerDepositRate`/`sellerDepositRate` là tham số hợp đồng; bản chất và hậu quả cụ thể phải được luật sư xác nhận cho mẫu hợp đồng pilot |
 | Ký quỹ/tài khoản phong toả tại tổ chức tín dụng | BLDS 2015 Điều 330 và pháp luật ngân hàng/thanh toán liên quan | AgriContract không tự nhận giữ tiền thật; bank-service là adapter/ledger mô phỏng ranh giới tích hợp với custodian hợp pháp |
-| Phạt vi phạm và bồi thường | Luật Thương mại 2005 Điều 300, 301, 302; BLDS và điều khoản hợp đồng áp dụng [45], [46] | `LegalProfile` đóng băng governing law, mức trần và `damagesPolicy`; penalty tính trên phần nghĩa vụ bị vi phạm; không double recovery |
+| Trách nhiệm giám định | Luật Thương mại 2005 Điều 266 | `inspectionCostResponsibility = LOSER_PAYS`; ceiling trách nhiệm giám định là 10 lần thù lao dịch vụ theo LegalProfile |
+| Phạt vi phạm và bồi thường | Luật Thương mại 2005 Điều 301 (cap 8%), Điều 302 và Điều 307; BLDS và điều khoản hợp đồng áp dụng [45], [46] | `LegalProfile` đóng băng governing law, mức trần và `damagesPolicy`; penalty tính trên phần nghĩa vụ bị vi phạm; không double recovery |
 | Bất khả kháng/miễn trách | BLDS 2015 và điều khoản hợp đồng | Có flow claim–review riêng; kết quả no-fault có `finalBreachingRole = null`, không phạt tiền/uy tín |
 | Tranh chấp | Nghị định 98/2018, Luật Trọng tài thương mại 2010 và thoả thuận các bên [26], [47] | Hệ thống hỗ trợ review, giám định và đóng gói bằng chứng; không tự nhận là cơ quan tài phán |
+
+**LegalProfile đã hiệu chỉnh theo thiết kế frozen:** LTM Điều 301 là căn cứ cho trần phạt vi phạm 8% trên phần nghĩa vụ bị vi phạm; LTM Điều 266 áp ceiling 10 lần thù lao giám định cho trách nhiệm giám định; LTM Điều 302 và Điều 307 tách bồi thường và tương tác phạt–bồi thường; BLDS Điều 328 và Điều 330 là tham chiếu cho đặt cọc/ký quỹ và bảo đảm. Đây chỉ là mapping kỹ thuật–pháp lý, không phải legal opinion. Disclaimer hiện hành được giữ nguyên: phân loại tiền cọc theo BLDS 328 cần luật sư xác nhận trước pilot.
+
+## **7.1 Đồng bộ kỹ thuật có ý nghĩa thị trường**
+
+Luận điểm “giảm rủi ro phá hợp đồng” được giới hạn bởi các guard đã đóng băng: template `VN_COFFEE_B2B` và quality profile nằm trong hash ký; consent bind đúng action/statement/content; terms freeze sau chữ ký đầu tiên; final document được sinh bất đồng bộ và không overwrite; inventory reserve/commit tách khỏi listing và chỉ commit ở `contract.activated`; quality disposition có bốn kết quả (`CONFORMING`, `PARTIALLY_CONFORMING`, `NON_CONFORMING`, `INCONCLUSIVE`) và không biến mọi khiếu nại thành breach. Giá runtime chỉ chọn `effectiveUnitPrice` trong `priceBand` đã ký, không true-up settlement; cọc vẫn dựa trên nominal value. Các điểm này là cơ chế sản phẩm mục tiêu, chưa phải bằng chứng hiệu quả nhân quả tại thị trường Việt Nam.
 
 **Ranh giới bắt buộc khi bảo vệ đồ án:** thiết kế pháp lý là framing kỹ thuật–nghiệp vụ, không phải legal opinion. Việc phân loại cọc, điều khoản phạt/bồi thường, mẫu hợp đồng và mô hình ngân hàng thật phải được tư vấn pháp lý xác nhận trước pilot có tiền thật.
 
 # **8. Current Scope**
 
-Phân tích này tập trung vào bốn commodity (cà phê, gạo, cao su, điều), nhu cầu contract layer B2B, mô hình phân phối qua anchor buyer/hiệp hội, các áp lực EUDR và tuân thủ, cùng cách các pain point thị trường ánh xạ vào workflow milestone, custody, inspection, attribution, audit và evidence. Các ước lượng TAM/SAM/SOM được dùng như khung định hướng; không đồng nhất kim ngạch nông sản với doanh thu phần mềm.
+Phân tích này tập trung executable scope vào cà phê B2B nội địa Việt Nam; dữ liệu về gạo, cao su và điều chỉ là benchmark/roadmap. Tài liệu đánh giá mô hình phân phối qua anchor buyer/hiệp hội, áp lực EUDR và cách pain point ánh xạ vào workflow milestone, custody, inspection, attribution, audit và evidence. Các ước lượng TAM/SAM/SOM được dùng như khung định hướng; không đồng nhất kim ngạch nông sản với doanh thu phần mềm.
 
 # **9. Known Limitations**
 
-- Phase 2 đang ở trạng thái **DESIGNED — chưa code/production**. Các bảng mô tả target contract, không phải bằng chứng hệ thống đã vận hành.
+- Đồ án đang ở trạng thái **DESIGNED — chưa code/production**. Các bảng mô tả target contract, không phải bằng chứng hệ thống đã vận hành.
 - Bank integration, chuyển tiền thật, quy trình đối soát với tổ chức tín dụng và tuân thủ giấy phép nằm ngoài phạm vi implementation hiện tại.
 - External inspection, email intake, OpenTimestamps, nguồn giá và baseline địa lý có điểm tích hợp/mô phỏng; độ tin cậy production phải được kiểm chứng riêng.
 - Các control “zero-trust-oriented” chỉ áp tại một số trust boundary (Gateway, external verifier, identity header, fail-closed). Hệ thống không claim mô hình Zero Trust toàn diện.
 - Geolocation/baseline rừng hỗ trợ EUDR evidence, không tự tạo due-diligence statement và không chứng minh tuyệt đối tính đúng của khai báo.
 - Mức cọc, cửa sổ xác nhận, release floor, penalty rate trong giới hạn pháp luật, pricing và payer là tham số pilot; chưa phải tối ưu đã được chứng minh.
-- Reputation/analytics là projection từ fact cuối cùng. Tín hiệu AML hoặc elevated risk Phase 2 không tự động hold tiền và không thay thế thẩm định con người.
+- Reputation/analytics là projection từ fact cuối cùng. Tín hiệu AML hoặc elevated risk trong đồ án không tự động hold tiền và không thay thế thẩm định con người.
 - Không có causal evidence tại Việt Nam để tuyên bố mức giảm vi phạm; cần baseline, cohort và đo trước–sau.
 
 ## **8.1 Gói validation sơ cấp trước product–market fit**

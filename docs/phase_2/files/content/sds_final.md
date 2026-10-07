@@ -1,6 +1,6 @@
 ---
 title: "AGRICONTRACT"
-subtitle: "Software
+subtitle: "Đặc tả thiết kế phần mềm của đồ án"
 author: "Tài liệu thiết kế chi tiết hợp nhất"
 date: "Phiên bản final · Tháng 7/2026"
 toc-title: "Mục lục"
@@ -8,15 +8,15 @@ toc-title: "Mục lục"
 
 # **0. Phạm vi, trạng thái và quy tắc diễn giải**
 
-SDS này là đặc tả thiết kế mục tiêu Phase 2 ở trạng thái **implementation-ready**, không phải tuyên bố rằng mọi integration đã chạy production.
+SDS này là đặc tả thiết kế mục tiêu của đồ án ở trạng thái **implementation-ready**, không phải tuyên bố rằng mọi integration đã chạy production. Executable scope chỉ nhận giao dịch cà phê B2B nội địa Việt Nam (`commodity = COFFEE`); commodity khác là legacy read/roadmap và bị từ chối ở mọi write mới.
 
-Quy tắc diễn giải: service owner là nơi phát quyết định; consumer không tự suy diễn nghĩa mới; `requestedBy` không đồng nghĩa `finalBreachingRole`; `breach.reported` chỉ là allegation; `remedy.finalized` là nguồn canonical duy nhất cho money/reputation consequences; lifecycle event chỉ được phát sau terminal reconciliation.
+Quy tắc diễn giải: service owner là nơi phát quyết định; consumer không tự suy diễn nghĩa mới; `requestedBy` không đồng nghĩa `finalBreachingRole`; `breach.reported` chỉ là allegation; `remedy.finalized` authoritative cho termination/remedy/quality-resolution money, contract-level deposit return và reputation lock; clean-path per-milestone money chạy qua `milestone.settled`; hai event không cùng phát cho một resolution; lifecycle event chỉ được phát sau terminal reconciliation.
 
 # **1. System scope và actor model**
 
 ## **1.1 Phạm vi**
 
-AgriContract số hoá contract layer nông sản B2B: user eligibility/KYC, plot/listing, hợp đồng/terms/signature, deposit + milestone funding, delivery/inspection, attribution/remedy, ledger, reputation, audit/evidence, file, pricing, analytics và notification. Không bao gồm logistics, kế toán, phán quyết tài phán, dịch vụ thanh toán được cấp phép, due-diligence statement EUDR hoặc tín dụng tự động.
+AgriContract số hoá contract layer cà phê B2B nội địa Việt Nam: user eligibility/KYC, plot/listing, template/terms/consent/signature, immutable contract document, deposit + milestone funding, delivery/inspection, attribution/remedy, ledger, reputation, audit/evidence, file, pricing, analytics và notification. Không bao gồm commodity khác, logistics, kế toán, phán quyết tài phán, dịch vụ thanh toán được cấp phép, due-diligence statement EUDR hoặc tín dụng tự động.
 
 ## **1.2 Actors và role**
 
@@ -36,7 +36,7 @@ AgriContract số hoá contract layer nông sản B2B: user eligibility/KYC, plo
 |---|---|---|---|---|
 | user-service | Identity, KYC, role, eligibility và lock projection | user KYC/lock commands; internal eligibility API | Không sở hữu reputation ledger | Owner-only mutation |
 | product-service | Plot registry, product/listing, commodity gate, geo/yield risk | user eligibility; file.ready | Plot là seller-owned; overlap là signal | Owner-only mutation |
-| contract-service | Contract, milestone, signature/OTP, attribution, remedy, termination | REST commands; domain events; internal user/OTP | Owner duy nhất của business decision và lifecycle | Owner-only mutation |
+| contract-service | Contract, milestone, template, consent/signature/OTP, document metadata, attribution, remedy, termination | REST commands; domain events; internal user/OTP/file | Owner duy nhất của business decision, lifecycle và contract representation metadata | Owner-only mutation |
 | escrow-service | Projection escrow và chuyển remedy legs thành bank commands | contract.signed, remedy.finalized, milestone outcomes, bank results | Không sở hữu sổ tiền authoritative | Owner-only mutation |
 | bank-service | Append-only monetary ledger, lock/release/refund/seize, security lock | bank.*_requested; structuring signal; external verifier | Sở hữu sổ tiền authoritative | Money authoritative only |
 | inspection-service | Level 1.5/2 commission, result/report hash, confirmation | contract/milestone commands, file.ready | Không ra phán quyết pháp lý | Owner-only mutation |
@@ -91,9 +91,12 @@ UUID là identity xuyên service; tiền dùng decimal dương, không float. Ti
 | **Model** | **Fields/quan hệ trọng yếu** | **Invariant** |
 |---|---|---|
 | Contract | buyerId, sellerId, state, termsVersion, signedContentHash, replacement pointers | Participant-only; signed terms immutable; terminal zero-lock |
-| ContractTerms | commodity, total, milestones, deposits, windows, inspector selection, legalProfile | Chỉ sửa pre-second-signature; snapshot/frozen |
+| ContractTerms | commodity, total, milestones, deposits, windows, inspector selection, legalProfile | Chỉ sửa trước chữ ký đầu tiên; snapshot/frozen |
+| ContractTemplateProfile | templateCode/version/hash, coffeeQualityProfileVersion | `VN_COFFEE_B2B`; mọi version/hash nằm trong signed snapshot |
 | LegalProfile | governingLaw, contractType, maxContractualPenaltyRate, damagesPolicy | Penalty cap/policy quyết định remedy; không boolean cumulative cũ |
 | Signature/OTP challenge | userId, contractId, termsHash, otpId, expiry, attempts | Same terms hash; actor binding; không “OTP mới nhất” cross-user |
+| ConsentEvidence | action/subject, actor/role, statement code-version-hash, presentedContentHash, timestamp, correlation | Append-only; server verify statement/content trước side effect |
+| ContractDocument | type, template version, source/file hash, fileId, PENDING/READY/FAILED | Final READY immutable; render retry idempotent theo documentId |
 | Milestone | funding + delivery state, quantities, deadlines, inspection/flag refs | Aggregate riêng trong contract-service; settled immutable |
 | BreachCase | alleged role/reason/evidence, REPORTED/UNDER_REVIEW/RESOLVED | Allegation không tạo consequence |
 | AttributionDecision | breachCaseId nullable, finalBreachingRole nullable, reason, source | Điểm hội tụ Rổ A/Rổ B |
@@ -127,11 +130,11 @@ Không có generic `/cancel`. Command transport và exact paths nằm trong §10
 ## **4.4 Signature flow**
 
 1. Validate user eligibility/unlocked via internal user-service, fail-closed.
-2. Canonicalize complete terms + legal profile; calculate SHA-256.
-3. Create OTP challenge bound to user/contract/terms hash; synchronous notification call.
+2. Canonicalize complete terms + legal/template/coffee-quality profiles; calculate SHA-256.
+3. Validate checkbox statement/version/hash and session step-up; persist append-only `ConsentEvidence`, then create OTP challenge bound to user/contract/action/terms hash; synchronous notification call.
 4. Verify actor, otpId, contract state, expiry/attempt and current hash.
 5. Persist signature; second signature must match first hash.
-6. Commit `SIGNED` + outbox `contract.signed` atomically; reject all later term changes.
+6. Commit `SIGNED` + outbox `contract.signed` + `ContractDocument(PENDING)` atomically; reject all later term changes. Durable worker renders/stores final PDF outside this transaction, then marks READY and publishes `contract.document_generated`.
 
 ## **4.5 Attribution and remedy rules**
 
@@ -159,7 +162,7 @@ Quality dispute luôn là Rổ B. Reviewer chỉ xác nhận phép tính từ co
 
 ## **4.7 Completion rules**
 
-Normal completion tạo no-fault remedy decision để settlement milestone còn lại và return contract deposits. Termination/replacement/activation failure cũng tạo expected leg set. Reconciler query bank ledger, không dựa vào event ordering đơn lẻ. Lifecycle event chỉ phát sau state terminal commit.
+Normal completion tạo no-fault remedy decision để return contract deposits. Termination/replacement/activation failure cũng tạo expected leg set. Reconciler query bank ledger, không dựa vào event ordering đơn lẻ. Lifecycle event chỉ phát sau state terminal commit.
 
 # **5. Milestone and escrow orchestration**
 
@@ -219,7 +222,7 @@ Audit catalog ingest domain/security/evidence events. Canonical record hash comm
 
 ## **8.1 product-service**
 
-Commodity enum `COFFEE/RICE/RUBBER/CASHEW`; category hai cấp + `varietyName`. Plot seller-owned, snapshot vào listing/contract. Coffee/rubber bắt buộc plot; rice/cashew không. KML primary, pin fallback; GEOMETRY SRID 4326 + JTS validation. Province cross-check giảm lỗi. ForTy/Natural Forest baseline là risk support. Cross-seller overlap HIGH → OPERATOR review, không auto reject. Yield anomaly là signal, không gate.
+Mô hình ghi của đồ án khóa `commodity = COFFEE`; category hai cấp chỉ phân loại sản phẩm cà phê trong scope. Plot seller-owned, bắt buộc cho listing cà phê và được snapshot vào contract. KML primary, pin fallback; GEOMETRY SRID 4326 + JTS validation. Province cross-check giảm lỗi. ForTy/Natural Forest baseline là risk support. Cross-seller overlap HIGH → OPERATOR review, không auto reject. Yield anomaly là signal, không gate. `cropYear`/`harvestSeason` được server derive vào signed goods snapshot; `certifications` chỉ là seller-declared listing metadata.
 
 ## **8.2 file-service**
 
@@ -227,7 +230,7 @@ Entrypoints: DIRECT_UPLOAD, EMAIL_INTAKE, SYSTEM_GENERATED; channel do server qu
 
 ## **8.3 pricing-service**
 
-`PriceQuote` theo commodity/region/source/time. VNSAT scrape COFFEE/RICE; RUBBER/CASHEW admin/manual theo source
+`PriceQuote` theo region/source/time và luôn có `commodity = COFFEE`. VNSAT scrape cà phê; Admin/Operator manual fallback yêu cầu tỉnh, nguồn tham chiếu và lý do, lưu append-only. Pricing chỉ advisory, không tham gia settlement.
 
 # **9. User, notification và analytics**
 
@@ -237,7 +240,7 @@ Roles BUYER/SELLER/ADMIN/INSPECTOR/OPERATOR; KYC PENDING/VERIFIED/REJECTED. Publ
 
 ## **9.2 notification-service**
 
-RabbitMQ command là ingress mặc định; synchronous `/internal/v1/notifications/otp-email` chỉ OTP. `NotificationLog PENDING/SENT/FAILED`, EMAIL channel, attachment evidence qua file-service READY. Dedup `(event_id, recipient_email, notification_type)`. Business service quyết recipient/purpose; notification không quyết định nghiệp vụ.
+RabbitMQ command là ingress mặc định; synchronous `/internal/v1/notifications/otp-email` chỉ OTP. `NotificationLog PENDING/SENT/FAILED`, EMAIL channel, attachment evidence qua file-service READY. Dedup `(event_id, recipient_email, notification_type)`. Final contract email chỉ được gửi từ `notification.contract_document_ready_requested` sau `contract.document_generated`, không gửi file “final” khi document còn PENDING. Business service quyết recipient/purpose; notification không quyết định nghiệp vụ.
 
 ## **9.3 analytics-service**
 
@@ -245,14 +248,19 @@ CQRS read models ingest idempotent. `fact_contract_termination` tách `terminati
 
 # **10. Frozen API, schemas và event contracts**
 
-## **10.1 OpenAPI path catalog (41 paths)**
+## **10.1 OpenAPI path catalog (46 paths / 47 operations)**
+
+Supplementary API catalog: **16 paths / 18 operations / 15 schemas** (authoritative `supplementary-services-api.yaml`).
 
 | Method | Path | Owner | operationId | Request, response and errors | Auth/role |
 |---|---|---|---|---|---|
-| POST | /api/v1/contracts | contract-service | createContract | Request `CreateContractRequest`; success/error: 201:ContractResponse, 400:—, 403:—, 503:— | BUYER |
+| POST | /api/v1/contracts | contract-service | createContract | Request `CreateContractRequest`; success/error: 201:ContractResponse, 400:—, 403:—, 409:—, 503:— | BUYER |
 | GET | /api/v1/contracts | contract-service | listContracts | Request `—`; success/error: 200:ContractPage | JWT |
 | GET | /api/v1/contracts/{contractId} | contract-service | getContract | Request `—`; success/error: 200:ContractResponse, 403:—, 404:— | JWT |
-| PATCH | /api/v1/contracts/{contractId}/terms | contract-service | updateContractTerms | Request `ContractTermsRequest`; success/error: 200:ContractResponse, 409:— | BUYER, SELLER |
+| GET | /api/v1/contracts/{contractId}/document-preview | contract-service | previewContractDocument | Request `—`; success/error: 200:—, 403:—, 404:— | BUYER, SELLER |
+| GET | /api/v1/contracts/{contractId}/documents | contract-service | listContractDocuments | Request `—`; success/error: 200:—, 403:—, 404:— | BUYER, SELLER |
+| GET | /api/v1/contracts/{contractId}/documents/{documentId} | contract-service | getContractDocument | Request `—`; success/error: 200:—, 403:—, 404:—, 409:— | BUYER, SELLER |
+| PATCH | /api/v1/contracts/{contractId}/terms | contract-service | updateContractTerms | Request `ContractTermsInput`; success/error: 200:ContractResponse, 409:— | BUYER, SELLER |
 | POST | /api/v1/contracts/{contractId}/sign/initiate | contract-service | initiateSign | Request `InitiateSignRequest`; success/error: 200:InitiateSignResponse, 401:—, 403:—, 409:—, 5XX:— | BUYER, SELLER |
 | POST | /api/v1/contracts/{contractId}/sign/verify | contract-service | verifyOtpAndSign | Request `VerifyOtpAndSignRequest`; success/error: 204:—, 401:—, 403:—, 409:— | BUYER, SELLER |
 | POST | /api/v1/contracts/{contractId}/withdraw | contract-service | withdrawOffer | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
@@ -260,137 +268,170 @@ CQRS read models ingest idempotent. `fact_contract_termination` tách `terminati
 | POST | /api/v1/contracts/{contractId}/termination/mutual/confirm | contract-service | confirmMutualTermination | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
 | POST | /api/v1/contracts/{contractId}/replacement/propose | contract-service | proposeMutualReplacement | Request `ReplacementProposalRequest`; success/error: 201:ContractResponse, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
 | POST | /api/v1/contracts/{contractId}/replacement/confirm | contract-service | confirmMutualReplacement | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
-| POST | /api/v1/contracts/{contractId}/breach-cases | contract-service | reportBreachCase | Request `BreachCaseReportRequest`; success/error: 201:BreachCase, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER, SYSTEM |
-| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/review | contract-service | reviewBreachCase | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | ADMIN, INSPECTOR |
-| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/resolve | contract-service | resolveBreachCase | Request `BreachCaseResolutionRequest`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | ADMIN, INSPECTOR |
-| POST | /api/v1/contracts/{contractId}/termination/execute | contract-service | executeTermination | Request `TerminationExecuteRequest`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER, ADMIN |
-| POST | /api/v1/contracts/{contractId}/activation/retry-deposit-lock | contract-service | retryDepositLock | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
-| POST | /api/v1/contracts/{contractId}/activation/mark-failed | contract-service | markActivationFailed | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| POST | /api/v1/contracts/{contractId}/breach-cases | contract-service | reportBreachCase | Request `BreachCaseReportRequest`; success/error: 201:BreachCase, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER, ADMIN/INSPECTOR |
+| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/review | contract-service | reviewBreachCase | Request `—`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER, ADMIN/INSPECTOR |
+| POST | /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/resolve | contract-service | resolveBreachCase | Request `BreachCaseResolutionRequest`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER, ADMIN/INSPECTOR |
+| POST | /api/v1/contracts/{contractId}/termination/execute | contract-service | executeTermination | Request `TerminationExecuteRequest`; success/error: 204:—, 400:—, 401:—, 403:—, 404:—, 409:— | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/activation/retry-deposit-lock | contract-service | retryDepositLock | Request `—`; success/error: 204:—, 403:—, 409:— | JWT |
+| POST | /api/v1/contracts/{contractId}/activation/mark-failed | contract-service | markActivationFailed | Request `—`; success/error: 204:—, 403:—, 409:— | JWT |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh | contract-service | recordSellerWeighed | Request `SellerWeighedRequest`; success/error: 204:—, 409:— | SELLER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/confirm | contract-service | confirmMilestoneClean | Request `BuyerReceivedRequest`; success/error: 204:—, 409:— | BUYER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/flag | contract-service | flagMilestoneIssue | Request `BuyerReceivedRequest`; success/error: 204:—, 409:— | BUYER |
-| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond | contract-service | respondToMilestoneFlag | Request `—`; success/error: 204:—, 409:— | SELLER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/respond | contract-service | respondToMilestoneFlag | Request `ConsentInput`; success/error: 204:—, 409:— | SELLER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure | contract-service | claimForceMajeure | Request `ForceMajeureClaimRequest`; success/error: 204:—, 409:— | SELLER |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve | contract-service | resolveForceMajeure | Request `ForceMajeureResolveRequest`; success/error: 204:—, 403:—, 409:— | ADMIN |
 | POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/funding/retry | escrow-service | retryMilestoneFunding | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/propose | contract-service | proposeMilestonePriceAdjustment | Request `PriceAdjustmentProposalRequest`; success/error: 201:PendingPriceAdjustment, 400:—, 403:—, 409:ErrorEnvelope | BUYER, SELLER |
+| POST | /api/v1/contracts/{contractId}/milestones/{milestoneId}/price-adjustments/{proposalId}/accept | contract-service | acceptMilestonePriceAdjustment | Request `ConsentInput`; success/error: 200:AcceptedPriceAdjustment, 403:ErrorEnvelope, 404:—, 409:ErrorEnvelope | BUYER, SELLER |
 | POST | /api/v1/users/register | user-service | registerUser | Request `—`; success/error: 2XX:—, 400:— | JWT |
 | GET | /api/v1/users/me | user-service | getMyProfile | Request `—`; success/error: 2XX:—, 401:— | JWT |
 | GET | /api/v1/users/{userId} | user-service | getPublicUser | Request `—`; success/error: 2XX:PublicUserResponse | JWT |
 | GET | /api/v1/reputation/{userId}/public-summary | reputation-service | getPublicReputationSummary | Request `—`; success/error: 200:ReputationPublicSummary, 404:— | JWT |
-| POST | /api/v1/admin/reputation/actions/propose | reputation-service | proposeReputationAction | Request `ReputationActionProposalRequest`; success/error: 201:ReputationAction, 403:—, 409:— | ADMIN, OPERATOR |
-| POST | /api/v1/admin/reputation/actions/{actionId}/approve | reputation-service | approveReputationAction | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
-| POST | /api/v1/admin/reputation/actions/{actionId}/reject | reputation-service | rejectReputationAction | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN |
-| GET | /api/v1/admin/users | user-service | listPendingUsers | Request `—`; success/error: 2XX:—, 403:— | JWT |
-| POST | /api/v1/admin/users/{userId}/verify | user-service | verifyUser | Request `VerifyUserRequest`; success/error: 2XX:—, 403:— | JWT |
-| POST | /api/v1/admin/users/{userId}/reject | user-service | rejectUser | Request `RejectUserRequest`; success/error: 2XX:—, 403:— | JWT |
+| POST | /api/v1/admin/reputation/actions/propose | reputation-service | proposeReputationAction | Request `ReputationActionProposalRequest`; success/error: 201:ReputationAction, 403:—, 409:— | ADMIN/OPERATOR |
+| POST | /api/v1/admin/reputation/actions/{actionId}/approve | reputation-service | approveReputationAction | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN/OPERATOR |
+| POST | /api/v1/admin/reputation/actions/{actionId}/reject | reputation-service | rejectReputationAction | Request `—`; success/error: 204:—, 403:—, 409:— | ADMIN/OPERATOR |
+| GET | /api/v1/admin/users | user-service | listPendingUsers | Request `—`; success/error: 2XX:—, 403:— | ADMIN/OPERATOR |
+| POST | /api/v1/admin/users/{userId}/verify | user-service | verifyUser | Request `VerifyUserRequest`; success/error: 2XX:—, 403:— | ADMIN/OPERATOR |
+| POST | /api/v1/admin/users/{userId}/reject | user-service | rejectUser | Request `RejectUserRequest`; success/error: 2XX:—, 403:— | ADMIN/OPERATOR |
 | GET | /internal/v1/users/{userId} | user-service | getInternalUserInfo | Request `—`; success/error: 2XX:—, 401:— | serviceAuth |
 | POST | /internal/v1/notifications/otp-email | notification-service | sendOtpEmail | Request `OtpEmailRequest`; success/error: 200:—, 5XX:— | serviceAuth |
 | GET | /internal/v1/audit/records | audit-service | getAuditRecordsForReconciliation | Request `—`; success/error: 200:AuditRecordList, 401:— | serviceAuth |
 | GET | /api/v1/security/audit-hash | audit-service | getAuditHash | Request `—`; success/error: 200:AuditHashResponse, 401:— | X-Api-Key |
-| POST | /api/v1/security/emergency-lock | bank-service | emergencyLock | Request `ExternalVerifierRequest`; success/error: 204:—, 401:—, 409:— | External Verifier (signed request) |
-| POST | /api/v1/security/emergency-unlock | bank-service | emergencyUnlock | Request `ExternalVerifierRequest`; success/error: 204:—, 401:—, 409:— | External Verifier (signed request) |
+| POST | /api/v1/security/emergency-lock | bank-service | emergencyLock | Request `ExternalVerifierRequest`; success/error: 204:—, 401:—, 409:— | External Verifier |
+| POST | /api/v1/security/emergency-unlock | bank-service | emergencyUnlock | Request `ExternalVerifierRequest`; success/error: 204:—, 401:—, 409:— | External Verifier |
 | GET | /api/v1/escrows/statements | escrow-service | exportEscrowStatement | Request `—`; success/error: 200:—, 403:— | JWT |
 | GET | /internal/v1/bank/ledger | bank-service | getInternalLedgerEntries | Request `—`; success/error: 200:LedgerEntryList, 401:— | serviceAuth |
 
-## **10.2 OpenAPI component schemas (38)**
+## **10.2 OpenAPI component schemas (62)**
 
 Ký hiệu `?` là optional; field required nhưng nullable vẫn phải xuất hiện và nhận `null` theo schema.
 
 | Schema | Fields/type | Constraint |
 |---|---|---|
-| CreateContractRequest | `listingId`: string<br>`terms`: ContractTermsRequest | closed object |
-| ContractTermsRequest | `agreedPrice`: string<br>`milestoneSchedule`: array<MilestoneTermRequest><br>`toleranceRate`: number<br>`shortfallPenaltyThreshold`: number<br>`buyerPenaltyRate`: number<br>`sellerPenaltyRate`: number<br>`forceMajeureReportWindowDays`: integer<br>`buyerConfirmWindowDays`: integer<br>`buyerDepositRate`: number<br>`disputeFloorReleaseRate`: number<br>`sellerDepositRate`: number<br>`level2InspectorOrg?`: ['string', 'null']<br>`legalProfile`: LegalProfile | closed object |
-| LegalProfile | `governingLaw`: `VN_COMMERCIAL_LAW`, `VN_CIVIL_LAW`<br>`contractType`: string<br>`maxContractualPenaltyRate`: number<br>`damagesPolicy`: `COMMERCIAL_CUMULATIVE_IF_PROVEN`, `CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE`, `EXPRESS_PENALTY_ONLY` | closed object |
-| MilestoneTermRequest | `milestoneIndex`: integer<br>`committedQuantity`: number<br>`expectedDeliveryDate`: string<br>`graceDays`: integer | closed object |
-| ContractResponse | `contractId`: string<br>`listingId`: string<br>`buyerId`: string<br>`sellerId`: string<br>`status`: `OFFERED`, `NEGOTIATING`, `SIGNED`, `ACTIVE`, `REPLACEMENT_PENDING`, `SUPERSEDE_REFUND_PENDING`, `ACTIVATION_REFUND_PENDING`, `SETTLED`, `TERMINATED`, `WITHDRAWN`, `SUPERSEDED`, `ACTIVATION_FAILED`<br>`terms`: ContractTermsRequest<br>`milestones`: array<MilestoneResponse> | closed object |
-| MilestoneResponse | `milestoneId`: string<br>`milestoneIndex`: integer<br>`status`: `CREATED`, `IN_PROGRESS`, `SELLER_WEIGHED`, `BUYER_RECEIVED`, `AWAITING_SELLER_RESPONSE`, `CONTESTED`, `FORCE_MAJEURE_PENDING_REVIEW`, `SETTLED`<br>`fundingStatus`: `FUNDING_PENDING`, `LOCKED`, `FUNDING_FAILED`<br>`committedQuantity`: number<br>`batchAmount`: string<br>`expectedDeliveryDate`: string<br>`graceDays`: integer<br>`fundingDelayBusinessDays`: integer<br>`effectiveDeliveryDeadline`: string | closed object |
-| BreachCase | `breachCaseId`: string<br>`contractId`: string<br>`milestoneId`: ['string', 'null']<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`allegedBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: BreachReasonCode<br>`severity`: `MINOR`, `MATERIAL`<br>`evidenceFileIds`: array<string><br>`finalBreachingRole`: `BUYER`, `SELLER` / null<br>`decisionSource`: `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL` / null<br>`status`: `REPORTED`, `UNDER_REVIEW`, `RESOLVED` | closed object |
-| ReplacementProposalRequest | `listingId`: string<br>`terms`: ContractTermsRequest | closed object |
-| BreachCaseReportRequest | `milestoneId`: ['string', 'null']<br>`allegedBreachingRole`: `BUYER`, `SELLER`<br>`breachReasonCode`: BreachReasonCode<br>`severity`: `MINOR`, `MATERIAL`<br>`evidenceFileIds`: array<string> | closed object |
-| BreachCaseResolutionRequest | `finalBreachingRole`: `BUYER`, `SELLER` / null<br>`decisionSource`: `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`evidenceRefs`: array<string> | closed object |
-| TerminationExecuteRequest | `terminationType`: `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, `ACTIVATION_FAILURE`<br>`attributionDecisionId`: string<br>`breachCaseId?`: ['string', 'null'] | closed object |
-| ReputationPublicSummary | `userId`: string<br>`score`: number<br>`locked`: boolean<br>`lockHistory`: array<object> | closed object |
-| ReputationActionProposalRequest | `actionType`: `UNLOCK_EARLY`, `CLEAR_ELEVATED_RISK`<br>`targetUserId`: string<br>`reason`: string | closed object |
-| ReputationAction | `actionId`: string<br>`actionType`: `UNLOCK_EARLY`, `CLEAR_ELEVATED_RISK`<br>`targetUserId`: string<br>`proposedBy`: string<br>`status`: `PROPOSED`, `APPROVED`, `REJECTED` | closed object |
-| AttributionDecision | `attributionDecisionId`: string<br>`breachCaseId`: ['string', 'null']<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`finalBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: NullableBreachReasonCode<br>`qualityDisposition`: `CONFORMING`, `PARTIALLY_CONFORMING`, `NON_CONFORMING` / null<br>`evidenceRefs`: array<string> | closed object |
-| RemedyDecision | `remedyDecisionId`: string<br>`attributionDecisionId`: string<br>`breachCaseId`: ['string', 'null']<br>`contractId`: string<br>`buyerId`: string<br>`sellerId`: string<br>`affectedMilestoneIds`: array<string><br>`finalBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: NullableBreachReasonCode<br>`qualityDisposition`: `CONFORMING`, `PARTIALLY_CONFORMING`, `NON_CONFORMING` / null<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<RemedyLeg> | closed object |
-| RemedyLeg | `remedyLegId`: string<br>`remedyType`: `NONE`, `PAYMENT_SETTLEMENT`, `PAYMENT_REFUND`, `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION`<br>`fundType`: `BUYER_DEPOSIT`, `SELLER_DEPOSIT`, `MILESTONE_PAYMENT`<br>`role`: `BUYER`, `SELLER`<br>`amount`: string | closed object |
-| BreachReasonCode | `NON_DELIVERY`, `SHORTFALL`, `LATE_DELIVERY`, `QUALITY_BELOW_COMMITTED`, `SIDE_SELLING`, `PRODUCTION_SHOCK_NON_FM`, `FUNDING_FAILURE`, `LATE_PAYMENT`, `FAILURE_TO_RECEIVE`, `WRONGFUL_REJECTION`, `FORCE_MAJEURE`, `MUTUAL_EXIT`, `ACTIVATION_FAILURE` | enum: NON_DELIVERY, SHORTFALL, LATE_DELIVERY, QUALITY_BELOW_COMMITTED, SIDE_SELLING, PRODUCTION_SHOCK_NON_FM, FUNDING_FAILURE, LATE_PAYMENT, FAILURE_TO_RECEIVE, WRONGFUL_REJECTION, FORCE_MAJEURE, MUTUAL_EXIT, ACTIVATION_FAILURE |
-| NullableBreachReasonCode | BreachReasonCode / null | oneOf |
-| ContractPage | `content`: array<ContractResponse><br>`page`: integer<br>`size`: integer<br>`totalElements`: integer<br>`totalPages`: integer | closed object |
-| PublicUserResponse | `userId`: string<br>`organizationName`: string<br>`role`: `BUYER`, `SELLER`, `ADMIN`, `INSPECTOR`, `OPERATOR`<br>`verificationStatus`: `PENDING`, `VERIFIED`, `REJECTED` | closed object |
-| VerifyUserRequest | `authorizationExpiresAt?`: ['string', 'null'] | closed object |
+| CreateContractRequest | `listingId`: string (uuid)<br>`listingVersionToken`: string<br>`terms`: ContractTermsInput | closed object |
+| ContractTermsBase | `agreedPrice`: string<br>`currency`: string (const VND)<br>`milestoneSchedule`: array<br>`qualityTerms`: QualityTerms<br>`deliveryTerms`: DeliveryTerms<br>`inspectionTerms`: InspectionTerms<br>`priceBand`: PriceBand<br>`priceAdjustmentRule`: PriceAdjustmentRule<br>`toleranceRate`: number<br>`shortfallPenaltyThreshold`: number<br>`buyerPenaltyRate`: number<br>`sellerPenaltyRate`: number<br>`forceMajeureReportWindowDays`: integer<br>`buyerConfirmWindowDays`: integer<br>`buyerDepositRate`: number<br>`disputeFloorReleaseRate`: number<br>`sellerDepositRate`: number<br>`level2InspectorOrg`: ['string', 'null']<br>`legalProfile`: LegalProfile | required: agreedPrice, currency, milestoneSchedule, qualityTerms, deliveryTerms, inspectionTerms, priceBand, priceAdjustmentRule, toleranceRate, shortfallPenaltyThreshold, buyerPenaltyRate, sellerPenaltyRate, forceMajeureReportWindowDays, buyerConfirmWindowDays, buyerDepositRate, disputeFloorReleaseRate, sellerDepositRate, legalProfile |
+| ContractTermsInput | — | — |
+| ContractTermsSnapshot | — | — |
+| LegalProfile | `governingLaw`: enum ({VN_COMMERCIAL_LAW, VN_CIVIL_LAW})<br>`contractType`: string<br>`maxContractualPenaltyRate`: number<br>`damagesPolicy`: enum ({COMMERCIAL_CUMULATIVE_IF_PROVEN, CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE, EXPRESS_PENALTY_ONLY}) | closed object |
+| MilestoneTermRequest | `milestoneIndex`: integer<br>`committedQuantity`: number<br>`expectedDeliveryDate`: string (date)<br>`graceDays`: integer | closed object |
+| PlotRefSnapshot | `registryEntryId`: string (uuid)<br>`householdLabel`: string<br>`geometryType`: enum ({POINT, POLYGON})<br>`geometryHash`: string<br>`verificationLevel`: enum ({SELF_DECLARED, CADASTRAL_BACKED}) | closed object |
+| PlotBackedOriginSnapshot | `regionText`: string<br>`plotRefs`: array | closed object |
+| RegionOnlyOriginSnapshot | `regionText`: string<br>`plotRefs`: array | closed object |
+| TraceabilitySnapshot | `evidencePackageId`: string (uuid)<br>`packageHash`: string | closed object |
+| GoodsTermsCommon | `commodity`: value (const COFFEE)<br>`listingId`: string (uuid)<br>`productId`: string (uuid)<br>`categoryId`: string (uuid)<br>`categoryName`: string<br>`productName`: string<br>`unitOfMeasure`: string (const KG)<br>`cropYear`: ['integer', 'null']<br>`harvestSeason`: ['string', 'null'] | required: commodity, listingId, productId, categoryId, categoryName, productName, unitOfMeasure, cropYear, harvestSeason, originSnapshot |
+| CoffeeGoodsTerms | — | — |
+| GoodsTermsSnapshot | — | — |
+| CoffeeQualitySpec | `commodity`: value (const COFFEE)<br>`type`: enum ({ARABICA, ROBUSTA})<br>`moisturePercent`: number<br>`foreignMatterPercent`: number<br>`blackBrokenBeansPercent`: number | closed object |
+| NumericDeviationPolicy | `direction`: enum ({MAXIMUM, MINIMUM})<br>`tolerance`: number<br>`penalty`: number<br>`reject`: number<br>`discountRate`: number | closed object |
+| ExactMatchRejectPolicy | `rejectOnMismatch`: value (const True) | closed object |
+| CoffeeQualityDeviationPolicy | `type`: ExactMatchRejectPolicy<br>`moisturePercent`: NumericDeviationPolicy<br>`foreignMatterPercent`: NumericDeviationPolicy<br>`blackBrokenBeansPercent`: NumericDeviationPolicy | closed object |
+| CoffeeQualityTerms | `commodity`: value (const COFFEE)<br>`committedSpec`: CoffeeQualitySpec<br>`deviationPolicy`: CoffeeQualityDeviationPolicy | closed object |
+| QualityTerms | — | — |
+| DeliveryTerms | `deliveryResponsibility`: enum ({SELLER_DELIVERS, BUYER_COLLECTS})<br>`riskTransferPoint`: enum ({SELLER_DISPATCH, BUYER_RECEIPT, BUYER_ACCEPTANCE})<br>`titleTransferPoint`: enum ({FULL_PAYMENT, BUYER_RECEIPT, BUYER_ACCEPTANCE})<br>`transportCostBearer`: enum ({BUYER, SELLER, SHARED})<br>`unloadingCostBearer`: enum ({BUYER, SELLER, SHARED}) | closed object |
+| InspectionTerms | `requirement`: enum ({NONE_UNLESS_DISPUTED, MANDATORY_BEFORE_SETTLEMENT})<br>`requiredTier`: enum ({LEVEL_1_5, LEVEL_2})<br>`reportDueBusinessDays`: integer<br>`inspectionCostResponsibility`: value (const LOSER_PAYS) | closed object |
+| PriceBand | `minimumUnitPrice`: string<br>`maximumUnitPrice`: string | closed object |
+| PriceAdjustmentRule | `acceptanceMode`: value (const BOTH_ACCEPT)<br>`cutoff`: value (const BEFORE_FUNDING_REQUEST)<br>`maximumAcceptedAdjustmentsPerMilestone`: value (const 1) | closed object |
+| ContractResponse | `contractId`: string (uuid)<br>`listingId`: string (uuid)<br>`reservedQuantity`: number<br>`buyerId`: string (uuid)<br>`sellerId`: string (uuid)<br>`status`: enum ({OFFERED, NEGOTIATING, SIGNED, ACTIVE, REPLACEMENT_PENDING, SUPERSEDE_REFUND_PENDING, ACTIVATION_REFUND_PENDING, SETTLED, TERMINATED, WITHDRAWN, SUPERSEDED, ACTIVATION_FAILED})<br>`terms`: ContractTermsSnapshot<br>`signedContentHash`: ['string', 'null']<br>`milestones`: array | closed object |
+| MilestoneResponse | `milestoneId`: string (uuid)<br>`milestoneIndex`: integer<br>`status`: enum ({CREATED, IN_PROGRESS, SELLER_WEIGHED, BUYER_RECEIVED, AWAITING_SELLER_RESPONSE, CONTESTED, FORCE_MAJEURE_PENDING_REVIEW, SETTLED})<br>`fundingStatus`: enum ({FUNDING_PENDING, LOCKED, FUNDING_FAILED})<br>`committedQuantity`: number<br>`batchAmount`: string<br>`effectiveUnitPrice`: string<br>`acceptedPriceAdjustment`: value<br>`expectedDeliveryDate`: string (date)<br>`graceDays`: integer<br>`fundingDelayBusinessDays`: integer<br>`effectiveDeliveryDeadline`: string (date) | closed object |
+| PriceAdjustmentProposalRequest | `proposedUnitPrice`: string | closed object |
+| PendingPriceAdjustment | `proposalId`: string (uuid)<br>`contractId`: string (uuid)<br>`milestoneId`: string (uuid)<br>`proposedUnitPrice`: string<br>`currency`: value (const VND)<br>`proposerId`: string (uuid)<br>`proposedAt`: string (date-time)<br>`status`: value (const PENDING) | closed object |
+| AcceptedPriceAdjustment | `adjustmentId`: string (uuid)<br>`proposalId`: string (uuid)<br>`contractId`: string (uuid)<br>`milestoneId`: string (uuid)<br>`baseUnitPrice`: string<br>`effectiveUnitPrice`: string<br>`currency`: value (const VND)<br>`proposerId`: string (uuid)<br>`accepterId`: string (uuid)<br>`proposedAt`: string (date-time)<br>`acceptedAt`: string (date-time) | closed object |
+| BreachCase | `breachCaseId`: string (uuid)<br>`contractId`: string (uuid)<br>`milestoneId`: ['string', 'null'] (uuid)<br>`requestedBy`: enum ({BUYER, SELLER, SYSTEM})<br>`allegedBreachingRole`: value<br>`breachReasonCode`: BreachReasonCode<br>`severity`: enum ({MINOR, MATERIAL})<br>`evidenceFileIds`: array<br>`finalBreachingRole`: value<br>`decisionSource`: value<br>`status`: enum ({REPORTED, UNDER_REVIEW, RESOLVED}) | closed object |
+| ReplacementProposalRequest | `listingId`: string (uuid)<br>`terms`: ContractTermsInput | closed object |
+| BreachCaseReportRequest | `milestoneId`: ['string', 'null'] (uuid)<br>`allegedBreachingRole`: enum ({BUYER, SELLER})<br>`breachReasonCode`: BreachReasonCode<br>`severity`: enum ({MINOR, MATERIAL})<br>`evidenceFileIds`: array | closed object |
+| BreachCaseResolutionRequest | `finalBreachingRole`: value<br>`decisionSource`: enum ({ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL})<br>`evidenceRefs`: array | closed object |
+| TerminationExecuteRequest | `terminationType`: enum ({MUTUAL_TERMINATION, MUTUAL_REPLACEMENT, TERMINATION_FOR_BREACH, TERMINATION_FOR_FORCE_MAJEURE, ACTIVATION_FAILURE})<br>`attributionDecisionId`: string (uuid)<br>`breachCaseId`: ['string', 'null'] (uuid) | closed object |
+| ReputationPublicSummary | `userId`: string (uuid)<br>`score`: number<br>`locked`: boolean<br>`lockHistory`: array | closed object |
+| ReputationActionProposalRequest | `actionType`: enum ({UNLOCK_EARLY, CLEAR_ELEVATED_RISK})<br>`targetUserId`: string (uuid)<br>`reason`: string | closed object |
+| ReputationAction | `actionId`: string (uuid)<br>`actionType`: enum ({UNLOCK_EARLY, CLEAR_ELEVATED_RISK})<br>`targetUserId`: string (uuid)<br>`proposedBy`: string (uuid)<br>`status`: enum ({PROPOSED, APPROVED, REJECTED}) | closed object |
+| AttributionDecision | `attributionDecisionId`: string (uuid)<br>`breachCaseId`: ['string', 'null'] (uuid)<br>`decisionSource`: enum ({SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL})<br>`finalBreachingRole`: value<br>`breachReasonCode`: NullableBreachReasonCode<br>`qualityDisposition`: value<br>`evidenceRefs`: array | closed object |
+| RemedyDecision | `remedyDecisionId`: string (uuid)<br>`attributionDecisionId`: string (uuid)<br>`breachCaseId`: ['string', 'null'] (uuid)<br>`contractId`: string (uuid)<br>`buyerId`: string (uuid)<br>`sellerId`: string (uuid)<br>`affectedMilestoneIds`: array<br>`finalBreachingRole`: value<br>`breachReasonCode`: NullableBreachReasonCode<br>`qualityDisposition`: value<br>`decisionSource`: enum ({SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL})<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array | closed object |
+| RemedyLeg | `remedyLegId`: string (uuid)<br>`remedyType`: enum ({NONE, PAYMENT_SETTLEMENT, PAYMENT_REFUND, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION})<br>`fundType`: enum ({BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT})<br>`role`: enum ({BUYER, SELLER})<br>`amount`: string | closed object |
+| BreachReasonCode | — | — |
+| NullableBreachReasonCode | — | — |
+| ContractPage | `content`: array<br>`page`: integer<br>`size`: integer<br>`totalElements`: integer<br>`totalPages`: integer | closed object |
+| PublicUserResponse | `userId`: string<br>`organizationName`: string<br>`role`: enum ({BUYER, SELLER, ADMIN, INSPECTOR, OPERATOR})<br>`verificationStatus`: enum ({PENDING, VERIFIED, REJECTED}) | closed object |
+| VerifyUserRequest | `authorizationExpiresAt`: ['string', 'null'] (date-time) | closed object |
 | RejectUserRequest | `reason`: string | closed object |
-| OtpEmailRequest | `requestId`: string<br>`recipientUserId`: string<br>`recipientEmail`: string<br>`contractId`: string<br>`otpCode`: string<br>`signedContentHash`: string<br>`expiresAt`: string | closed object |
-| InitiateSignRequest | `signerRole`: `BUYER`, `SELLER` | closed object |
-| InitiateSignResponse | `otpId`: string<br>`expiresAt`: string | closed object |
-| VerifyOtpAndSignRequest | `otpId`: string<br>`otpCode`: string | closed object |
-| SellerWeighedRequest | `sellerDeclaredWeight`: number<br>`sellerEvidenceFileId`: string<br>`deliveryCertificateFileId?`: string | closed object |
-| BuyerReceivedRequest | `buyerReceivedWeight`: number<br>`buyerEvidenceFileId`: string<br>`deliveryCertificateFileId?`: string | closed object |
-| ForceMajeureClaimRequest | `evidenceFileId`: string | closed object |
-| ForceMajeureResolveRequest | `decision`: `APPROVED`, `REJECTED` | closed object |
-| AuditRecordList | array<object> | — |
-| AuditReconciliationContent | `contractId`: string<br>`milestoneId`: ['string', 'null']<br>`settledAmount`: string<br>`seizedAmount`: string<br>`sourceEventId?`: ['string', 'null']<br>`releaseLegs`: array<MoneyLeg><br>`refundLegs`: array<MoneyLeg> | closed object |
-| AuditHashResponse | `contractId`: string<br>`recordHash`: string | closed object |
-| MoneyLeg | `entryType`: `RELEASE_TO_SELLER`, `REFUND_TO_BUYER`, `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION`<br>`fundType`: `BUYER_DEPOSIT`, `SELLER_DEPOSIT`, `MILESTONE_PAYMENT`<br>`remedyDecisionId`: ['string', 'null']<br>`remedyLegId`: ['string', 'null']<br>`amount`: string<br>`sourceEventId`: string | closed object |
-| LedgerEntryList | array<object> | — |
+| OtpEmailRequest | `requestId`: string<br>`recipientUserId`: string<br>`recipientEmail`: string (email)<br>`contractId`: string<br>`otpCode`: string<br>`signedContentHash`: string<br>`expiresAt`: string (date-time) | closed object |
+| InitiateSignRequest | `signerRole`: enum ({BUYER, SELLER})<br>`consentStatementVersion`: string<br>`presentedContentHash`: string | closed object |
+| ConsentInput | `statementVersion`: string<br>`presentedContentHash`: string | closed object |
+| InitiateSignResponse | `otpId`: string (uuid)<br>`expiresAt`: string (date-time) | closed object |
+| VerifyOtpAndSignRequest | `otpId`: string (uuid)<br>`otpCode`: string | closed object |
+| SellerWeighedRequest | `sellerDeclaredWeight`: number<br>`sellerEvidenceFileId`: string (uuid)<br>`deliveryCertificateFileId`: string (uuid)<br>`consent`: ConsentInput | closed object |
+| BuyerReceivedRequest | `buyerReceivedWeight`: number<br>`buyerEvidenceFileId`: string (uuid)<br>`deliveryCertificateFileId`: string (uuid)<br>`consent`: ConsentInput | closed object |
+| ContractDocumentResponse | `documentId`: string (uuid)<br>`contractId`: string (uuid)<br>`documentType`: enum ({DRAFT_PREVIEW, PARTIALLY_SIGNED, FINAL_SIGNED_CONTRACT, ACTIVATION_CONFIRMATION, DELIVERY_RECEIPT, INSPECTION_RECORD})<br>`templateCode`: string<br>`templateVersion`: string<br>`sourceContentHash`: string<br>`documentFileHash`: ['string', 'null']<br>`fileId`: ['string', 'null'] (uuid)<br>`status`: enum ({PENDING, READY, FAILED})<br>`generatedAt`: ['string', 'null'] (date-time)<br>`failureReason`: ['string', 'null'] | immutable generated-document metadata |
+| ForceMajeureClaimRequest | `evidenceFileId`: string (uuid)<br>`consent`: ConsentInput | closed object |
+| ForceMajeureResolveRequest | `decision`: enum ({APPROVED, REJECTED})<br>`consent`: ConsentInput | closed object |
+| AuditRecordList | — | — |
+| AuditReconciliationContent | `contractId`: string (uuid)<br>`milestoneId`: ['string', 'null'] (uuid)<br>`settledAmount`: string<br>`seizedAmount`: string<br>`sourceEventId`: ['string', 'null'] (uuid)<br>`releaseLegs`: array<br>`refundLegs`: array | closed object |
+| AuditHashResponse | `contractId`: string (uuid)<br>`recordHash`: string | closed object |
+| MoneyLeg | `entryType`: enum ({RELEASE_TO_SELLER, REFUND_TO_BUYER, DEPOSIT_FORFEITURE, CONTRACTUAL_PENALTY, DAMAGES_COMPENSATION})<br>`fundType`: enum ({BUYER_DEPOSIT, SELLER_DEPOSIT, MILESTONE_PAYMENT})<br>`remedyDecisionId`: ['string', 'null'] (uuid)<br>`remedyLegId`: ['string', 'null'] (uuid)<br>`amount`: string<br>`sourceEventId`: string (uuid) | closed object |
+| LedgerEntryList | — | — |
 | ExternalVerifierRequest | `keyId`: string<br>`signedPayload`: object<br>`signature`: string | closed object |
-| ErrorEnvelope | `timestamp`: string<br>`status`: integer<br>`error`: string<br>`code`: string<br>`message`: string<br>`path`: string<br>`traceId`: string | closed object |
+| ErrorEnvelope | `timestamp`: string (date-time)<br>`status`: integer<br>`error`: string<br>`code`: string<br>`message`: string<br>`path`: string<br>`traceId`: string | closed object |
 
-## **10.3 Domain/bank events (44)**
+## **10.3 Domain/bank events (49)**
 
 | Event | Producer | Consumers | Payload fields | Nullability/idempotency/guard |
 |---|---|---|---|---|
-| contract.signed | contract-service | escrow-service, analytics-service, audit-service | `contractId`: uuid<br>`commodity`: `COFFEE`, `RICE`, `RUBBER`, `CASHEW`<br>`buyerId`: uuid<br>`sellerId`: uuid<br>`totalAmount`: money<br>`buyerDepositAmount`: money<br>`sellerDepositAmount`: money<br>`signedContentHash`: string<br>`signedAt`: string |  |
-| escrow.deposit_locked | escrow-service | contract-service, escrow-service | `contractId`: uuid<br>`buyerDepositState`: `DEPOSIT_LOCKED`, `DEPOSIT_RELEASED`, `DEPOSIT_SEIZED`<br>`sellerDepositState`: `DEPOSIT_LOCKED`, `DEPOSIT_RELEASED`, `DEPOSIT_SEIZED` |  |
-| escrow.deposit_lock_failed | escrow-service | contract-service | `contractId`: uuid<br>`failedLeg`: `BUYER`, `SELLER`, `BOTH`<br>`buyerDepositState`: string<br>`sellerDepositState`: string<br>`reason`: string |  |
-| bank.lock_requested | escrow-service | bank-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: `LOCK_BUYER_DEPOSIT`, `LOCK_SELLER_DEPOSIT`, `LOCK_MILESTONE`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid |  |
-| bank.lock_completed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: `LOCK_BUYER_DEPOSIT`, `LOCK_SELLER_DEPOSIT`, `LOCK_MILESTONE`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`ledgerEntryId`: uuid |  |
-| bank.lock_failed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: `LOCK_BUYER_DEPOSIT`, `LOCK_SELLER_DEPOSIT`, `LOCK_MILESTONE`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`failureReason`: string |  |
-| bank.release_requested | escrow-service | bank-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `RELEASE_TO_SELLER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid |  |
-| bank.release_completed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `RELEASE_TO_SELLER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`ledgerEntryId`: uuid |  |
-| bank.release_failed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `RELEASE_TO_SELLER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`failureReason`: string |  |
-| bank.seize_requested | escrow-service | bank-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION`<br>`fundType`: fundType<br>`remedyDecisionId`: uuid<br>`remedyLegId`: uuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid |  |
-| bank.seize_completed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION`<br>`fundType`: fundType<br>`remedyDecisionId`: uuid<br>`remedyLegId`: uuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`ledgerEntryId`: uuid |  |
-| bank.seize_failed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: `DEPOSIT_FORFEITURE`, `CONTRACTUAL_PENALTY`, `DAMAGES_COMPENSATION`<br>`fundType`: fundType<br>`remedyDecisionId`: uuid<br>`remedyLegId`: uuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`failureReason`: string |  |
-| bank.refund_requested | escrow-service | bank-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `REFUND_TO_BUYER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid |  |
-| bank.refund_completed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `REFUND_TO_BUYER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`ledgerEntryId`: uuid |  |
-| bank.refund_failed | bank-service | escrow-service | `contractId`: uuid<br>`milestoneId?`: uuid / null<br>`userId`: uuid<br>`entryType`: const `REFUND_TO_BUYER`<br>`fundType`: fundType<br>`remedyDecisionId`: nullableUuid<br>`remedyLegId`: nullableUuid<br>`amount`: positiveMoney<br>`sourceEventId`: uuid<br>`failureReason`: string |  |
-| contract.settled | contract-service | reputation-service, analytics-service | `contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid |  |
-| contract.terminated | contract-service | audit-service, analytics-service | `contractId`: uuid<br>`terminationType`: `WITHDRAW_OFFER`, `MUTUAL_TERMINATION`, `MUTUAL_REPLACEMENT`, `TERMINATION_FOR_BREACH`, `TERMINATION_FOR_FORCE_MAJEURE`, `ACTIVATION_FAILURE`<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`remedyDecisionId`: nullableUuid<br>`breachCaseId`: nullableUuid<br>`affectedMilestoneIds`: array<uuid><br>`supersededByContractId`: nullableUuid<br>`replacesContractId`: nullableUuid | `finalBreachingRole` và `breachReasonCode` là required-but-nullable cho mutual, force-majeure và technical no-fault; replacement pointers chỉ non-null với `MUTUAL_REPLACEMENT`. Trừ pre-sign `WITHDRAW_OFFER`, chỉ publish sau khi đủ expected `remedyDecisionId/remedyLegId` và remaining contract lock bằng 0. |
-| breach.reported | contract-service | audit-service | `breachCaseId`: uuid<br>`contractId`: uuid<br>`milestoneId`: nullableUuid<br>`requestedBy`: `BUYER`, `SELLER`, `SYSTEM`<br>`allegedBreachingRole`: `BUYER`, `SELLER` / null<br>`breachReasonCode`: breachReasonCode<br>`severity`: `MINOR`, `MATERIAL` |  |
-| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | `remedyDecisionId`: uuid<br>`attributionDecisionId`: uuid<br>`breachCaseId`: nullableUuid<br>`contractId`: uuid<br>`buyerId`: uuid<br>`sellerId`: uuid<br>`affectedMilestoneIds`: array<uuid><br>`finalBreachingRole`: breachingRole<br>`breachReasonCode`: nullableBreachReasonCode<br>`qualityDisposition`: `CONFORMING`, `PARTIALLY_CONFORMING`, `NON_CONFORMING` / null<br>`decisionSource`: `SYSTEM`, `ADMIN`, `INSPECTOR_L1_5`, `INSPECTOR_L2`, `MUTUAL`<br>`penaltyEligible`: boolean<br>`reputationEligible`: boolean<br>`remedyLegs`: array<object> | Khi `finalBreachingRole = null`, cả hai eligibility flag phải false và legs chỉ có `NONE`, `PAYMENT_SETTLEMENT`, `PAYMENT_REFUND`; khi `penaltyEligible = false`, không có `CONTRACTUAL_PENALTY`. Quality resolution là money trigger duy nhất; `MILESTONE_PAYMENT` legs conserve `batchAmount` riêng với penalty/deposit. |
-| milestone.settled | contract-service | escrow-service, analytics-service, audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`lockedAmount`: money<br>`actualAmount`: money<br>`recipients`: array<object> |  |
-| milestone.dispute_resolved | contract-service | reputation-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`flaggedBy`: const `BUYER`<br>`flaggedByUserId`: uuid<br>`resolutionFavors`: `BUYER`, `SELLER` |  |
-| milestone.level2_provisional_settled | contract-service | escrow-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`level1_5ReportId`: uuid<br>`level1_5EntitlementAmount`: money<br>`releaseRate`: string<br>`sellerReleaseAmount`: money<br>`remainingLockedAmount`: money |  |
-| milestone.level2_buffer_reconciled | contract-service | escrow-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`level1_5ReportId`: uuid<br>`level2ReportId`: uuid<br>`finalSellerEntitlementAmount`: money<br>`alreadyReleasedAmount`: money<br>`sellerAdditionalReleaseAmount`: money<br>`buyerRefundAmount`: money<br>`overReleaseAmount`: money |  |
-| milestone.level2_terminal_settled | contract-service | escrow-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`level1_5ReportId`: uuid<br>`finalSellerEntitlementAmount`: money<br>`alreadyReleasedAmount`: money<br>`sellerAdditionalReleaseAmount`: money<br>`buyerRefundAmount`: money |  |
-| inspection.report_confirmed | inspection-service | audit-service, contract-service | `reportId`: uuid<br>`contractId`: uuid<br>`milestoneId`: uuid<br>`tier`: `LEVEL_1_5`, `LEVEL_2`<br>`normalizedResult`: inspectionSettlementResultV1<br>`resultHash`: string<br>`reportFileHash`: string<br>`reportHash`: string<br>`confirmedAt`: string<br>`inspectorId?`: uuid<br>`confirmedByAdminId?`: uuid |  |
-| milestone.seller_weighed | contract-service | file-service, audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`sellerDeclaredWeight`: number<br>`sellerEvidenceFileId`: uuid |  |
-| milestone.buyer_confirmed | contract-service | audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`buyerReceivedWeight`: number<br>`buyerEvidenceFileId`: uuid |  |
-| milestone.flagged | contract-service |  | `contractId`: uuid<br>`milestoneId`: uuid<br>`flaggedBy`: const `BUYER` |  |
-| milestone.force_majeure_claimed | contract-service | audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`forceMajeureClaimId`: uuid |  |
-| milestone.force_majeure_resolved | contract-service | escrow-service, audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`forceMajeureClaimId`: uuid<br>`decision`: `APPROVED`, `REJECTED` |  |
-| milestone.cancelled_with_penalty | contract-service | analytics-service, audit-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`remedyDecisionId`: uuid<br>`finalBreachingRole`: `BUYER`, `SELLER`<br>`breachReasonCode`: breachReasonCode<br>`penaltyAmount`: money |  |
-| escrow.milestone_funding_failed | escrow-service | contract-service | `contractId`: uuid<br>`milestoneId`: uuid<br>`reason`: string |  |
-| reputation.locked | reputation-service | user-service | `userId`: uuid<br>`lockedUntil`: string<br>`reasonCode`: string<br>`lockRevision`: integer<br>`occurredAt`: string |  |
-| reputation.unlocked | reputation-service | user-service | `userId`: uuid<br>`effectiveLockedUntil`: string / null<br>`reasonCode`: string<br>`lockRevision`: integer<br>`occurredAt`: string |  |
-| file.ready | file-service | contract-service, inspection-service | `fileId`: uuid<br>`uploadedBy`: string<br>`ingestChannel`: `DIRECT_UPLOAD`, `EMAIL_INTAKE`, `SYSTEM_GENERATED`<br>`contentType`: string<br>`fileSize`: integer<br>`emailMeta?`: object |  |
-| file.failed | file-service | contract-service, inspection-service | `fileId`: uuid<br>`uploadedBy`: string<br>`ingestChannel`: `DIRECT_UPLOAD`, `EMAIL_INTAKE`, `SYSTEM_GENERATED`<br>`failureReason`: string |  |
-| bank.security_lock_changed | bank-service | audit-service | `action`: `LOCKED`, `UNLOCKED`<br>`verifierOrgId`: string<br>`reason`: string<br>`signedPayload`: object |  |
-| bank.verifier_key_registered | bank-service | audit-service | `publicKeyFingerprint`: string<br>`rotationSignedByOldKey?`: ['boolean', 'null'] |  |
-| bank.large_transaction_flagged | bank-service | reputation-service, audit-service | `transferId`: uuid<br>`relatedEntryId?`: nullableUuid<br>`contractId`: uuid<br>`userId`: uuid<br>`amount`: positiveMoney<br>`transferType`: string<br>`occurredAt`: string |  |
-| bank.suspicious_report_created | bank-service | audit-service | `buyerId`: uuid<br>`sellerId`: uuid<br>`windowEnd`: string<br>`reportHash`: string |  |
-| analytics.structuring_pattern_detected | analytics-service | reputation-service, bank-service | `buyerId`: uuid<br>`sellerId`: uuid<br>`contractIds`: array<uuid><br>`nearThresholdCount`: integer<br>`windowStart`: string<br>`windowEnd`: string<br>`detectedAt`: string |  |
-| reputation.elevated_risk_cleared | reputation-service | audit-service | `buyerId`: uuid<br>`sellerId`: uuid<br>`clearedByAdminId`: uuid<br>`reason`: string<br>`proposedByOperatorId`: uuid<br>`approvedByAdminId`: uuid |  |
-| inspection.level2_commissioned | inspection-service | audit-service | `contractId`: uuid<br>`commissionId`: uuid<br>`org`: string<br>`requestedAt`: string |  |
-| file.email_notice | file-service | inspection-service | `senderDomain`: string<br>`spfDkimResult`: string<br>`subject`: string<br>`snippet`: string<br>`receivedAt`: string |  |
+| contract.created | contract-service | product-service | `contractId`<br>`listingId`<br>`reservedQuantity`<br>`createdAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| contract.withdrawn | contract-service | product-service | `contractId`<br>`listingId`<br>`reservedQuantity`<br>`withdrawnAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| contract.signed | contract-service | product-service, escrow-service, analytics-service, audit-service | `contractId`<br>`listingId`<br>`reservedQuantity`<br>`commodity`<br>`buyerId`<br>`sellerId`<br>`totalAmount`<br>`buyerDepositAmount`<br>`sellerDepositAmount`<br>`signedContentHash`<br>`signedAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| contract.activation_failed | contract-service | product-service | `contractId`<br>`listingId`<br>`reservedQuantity`<br>`activationFailedAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| contract.activated | contract-service | product-service | `contractId`<br>`listingId`<br>`reservedQuantity`<br>`activatedAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| escrow.deposit_locked | escrow-service | contract-service, escrow-service | `contractId`<br>`buyerDepositState`<br>`sellerDepositState` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| escrow.deposit_lock_failed | escrow-service | contract-service | `contractId`<br>`failedLeg`<br>`buyerDepositState`<br>`sellerDepositState`<br>`reason` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.lock_requested | escrow-service | bank-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.lock_completed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`ledgerEntryId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.lock_failed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`failureReason` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.release_requested | escrow-service | bank-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.release_completed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`ledgerEntryId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.release_failed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`failureReason` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.seize_requested | escrow-service | bank-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.seize_completed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`ledgerEntryId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.seize_failed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`failureReason` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.refund_requested | escrow-service | bank-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.refund_completed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`ledgerEntryId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.refund_failed | bank-service | escrow-service | `contractId`<br>`milestoneId`<br>`userId`<br>`entryType`<br>`fundType`<br>`remedyDecisionId`<br>`remedyLegId`<br>`amount`<br>`sourceEventId`<br>`failureReason` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| contract.settled | contract-service | reputation-service, analytics-service | `contractId`<br>`buyerId`<br>`sellerId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| contract.terminated | contract-service | audit-service, analytics-service | `contractId`<br>`terminationType`<br>`requestedBy`<br>`finalBreachingRole`<br>`breachReasonCode`<br>`remedyDecisionId`<br>`breachCaseId`<br>`affectedMilestoneIds`<br>`supersededByContractId`<br>`replacesContractId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| breach.reported | contract-service | audit-service | `breachCaseId`<br>`contractId`<br>`milestoneId`<br>`requestedBy`<br>`allegedBreachingRole`<br>`breachReasonCode`<br>`severity` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| remedy.finalized | contract-service | escrow-service, reputation-service, audit-service | `remedyDecisionId`<br>`attributionDecisionId`<br>`breachCaseId`<br>`contractId`<br>`buyerId`<br>`sellerId`<br>`affectedMilestoneIds`<br>`finalBreachingRole`<br>`breachReasonCode`<br>`qualityDisposition`<br>`decisionSource`<br>`penaltyEligible`<br>`reputationEligible`<br>`remedyLegs` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.settled | contract-service | escrow-service, analytics-service, audit-service | `contractId`<br>`milestoneId`<br>`lockedAmount`<br>`actualAmount`<br>`recipients` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.dispute_resolved | contract-service | reputation-service | `contractId`<br>`milestoneId`<br>`flaggedBy`<br>`flaggedByUserId`<br>`resolutionFavors` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.level2_provisional_settled | contract-service | escrow-service | `contractId`<br>`milestoneId`<br>`level1_5ReportId`<br>`level1_5EntitlementAmount`<br>`releaseRate`<br>`sellerReleaseAmount`<br>`remainingLockedAmount` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.level2_buffer_reconciled | contract-service | escrow-service | `contractId`<br>`milestoneId`<br>`level1_5ReportId`<br>`level2ReportId`<br>`finalSellerEntitlementAmount`<br>`alreadyReleasedAmount`<br>`sellerAdditionalReleaseAmount`<br>`buyerRefundAmount`<br>`overReleaseAmount` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.level2_terminal_settled | contract-service | escrow-service | `contractId`<br>`milestoneId`<br>`level1_5ReportId`<br>`finalSellerEntitlementAmount`<br>`alreadyReleasedAmount`<br>`sellerAdditionalReleaseAmount`<br>`buyerRefundAmount` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.price_adjusted | contract-service | audit-service, analytics-service | `contractId`<br>`milestoneId`<br>`baseUnitPrice`<br>`effectiveUnitPrice`<br>`currency`<br>`proposerId`<br>`accepterId`<br>`acceptedAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| inspection.report_confirmed | inspection-service | audit-service, contract-service | `reportId`<br>`contractId`<br>`milestoneId`<br>`tier`<br>`normalizedResult`<br>`resultHash`<br>`reportFileHash`<br>`reportHash`<br>`confirmedAt`<br>`inspectorId`<br>`confirmedByAdminId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.seller_weighed | contract-service | file-service, audit-service | `contractId`<br>`milestoneId`<br>`sellerDeclaredWeight`<br>`sellerEvidenceFileId`<br>`deliveryCertificateFileId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.buyer_confirmed | contract-service | audit-service | `contractId`<br>`milestoneId`<br>`buyerReceivedWeight`<br>`buyerEvidenceFileId`<br>`deliveryCertificateFileId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.flagged | contract-service |  | `contractId`<br>`milestoneId`<br>`flaggedBy` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.force_majeure_claimed | contract-service | audit-service | `contractId`<br>`milestoneId`<br>`forceMajeureClaimId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.force_majeure_resolved | contract-service | escrow-service, audit-service | `contractId`<br>`milestoneId`<br>`forceMajeureClaimId`<br>`decision` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| milestone.cancelled_with_penalty | contract-service | analytics-service, audit-service | `contractId`<br>`milestoneId`<br>`remedyDecisionId`<br>`finalBreachingRole`<br>`breachReasonCode`<br>`penaltyAmount` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| escrow.milestone_funding_failed | escrow-service | contract-service | `contractId`<br>`milestoneId`<br>`reason` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| reputation.locked | reputation-service | user-service | `userId`<br>`lockedUntil`<br>`reasonCode`<br>`lockRevision`<br>`occurredAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| reputation.unlocked | reputation-service | user-service | `userId`<br>`effectiveLockedUntil`<br>`reasonCode`<br>`lockRevision`<br>`occurredAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| file.ready | file-service | contract-service, inspection-service | `fileId`<br>`uploadedBy`<br>`ingestChannel`<br>`contentType`<br>`fileSize`<br>`emailMeta` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| file.failed | file-service | contract-service, inspection-service | `fileId`<br>`uploadedBy`<br>`ingestChannel`<br>`failureReason` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| contract.document_generated | contract-service | audit-service | `documentId`<br>`contractId`<br>`documentType`<br>`fileId`<br>`sourceContentHash`<br>`documentFileHash`<br>`templateCode`<br>`templateVersion`<br>`generatedAt` | `documentId` identifies one immutable representation; redelivery cannot create a second READY document |
+| bank.security_lock_changed | bank-service | audit-service | `action`<br>`verifierOrgId`<br>`reason`<br>`signedPayload` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.verifier_key_registered | bank-service | audit-service | `publicKeyFingerprint`<br>`rotationSignedByOldKey` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.large_transaction_flagged | bank-service | reputation-service, audit-service | `transferId`<br>`relatedEntryId`<br>`contractId`<br>`userId`<br>`amount`<br>`transferType`<br>`occurredAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| bank.suspicious_report_created | bank-service | audit-service | `buyerId`<br>`sellerId`<br>`windowEnd`<br>`reportHash` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| analytics.structuring_pattern_detected | analytics-service | reputation-service, bank-service | `buyerId`<br>`sellerId`<br>`contractIds`<br>`nearThresholdCount`<br>`windowStart`<br>`windowEnd`<br>`detectedAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| reputation.elevated_risk_cleared | reputation-service | audit-service | `buyerId`<br>`sellerId`<br>`clearedByAdminId`<br>`reason`<br>`proposedByOperatorId`<br>`approvedByAdminId` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| inspection.level2_commissioned | inspection-service | audit-service | `contractId`<br>`commissionId`<br>`org`<br>`requestedAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
+| file.email_notice | file-service | inspection-service | `senderDomain`<br>`spfDkimResult`<br>`subject`<br>`snippet`<br>`receivedAt` | Required fields and idempotency follow authoritative YAML; replay is durable and side-effect safe |
 
-## **10.4 Notification commands (16)**
+## **10.4 Notification commands (17)**
 
 | Command | Producer | Consumer | Required payload; optional payload |
 |---|---|---|---|
 | notification.contract_anchor_requested | contract-service | notification-service | `contractId`, `recipients`, `contractTermsSnapshot`, `signedContentHash`, `signedAt` |
+| notification.contract_document_ready_requested | contract-service | notification-service | `documentId`, `contractId`, `recipients`, `fileId`, `sourceContentHash`, `documentFileHash`, `templateCode`, `templateVersion`, `generatedAt` |
 | notification.contract_activation_failed_requested | contract-service | notification-service | `contractId`, `recipients`, `failedLeg`, `buyerDepositState`, `sellerDepositState`, `nextActions` |
 | notification.contract_terminated_requested | contract-service | notification-service | `contractId`, `recipients`, `terminationType`, `requestedBy`, `finalBreachingRole`, `breachReasonCode`, `remedyDecisionId`, `breachCaseId`, `affectedMilestoneIds`, `supersededByContractId`, `replacesContractId`, `remedyLegs` |
 | notification.breach_notice_requested | contract-service | notification-service | `breachCaseId`, `contractId`, `recipients`, `breachReasonCode`, `severity`, `evidenceRefs` |
@@ -411,7 +452,7 @@ Mọi notification command dùng envelope required `eventId`, `eventType`, `even
 
 # **11. Verification Matrix và release gate**
 
-Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutability/evidence là gate trước golden-flow merge; P1 gate trước external exposure; P2 gate trước pilot claim. Matrix hiện có 55 rows.
+Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutability/evidence là gate trước golden-flow merge; P1 gate trước external exposure; P2 gate trước pilot claim. Matrix hiện có **84 rows**.
 
 | # | Priority | Invariant | Acceptance test |
 |---|---|---|---|
@@ -442,6 +483,11 @@ Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutabi
 | 11o | P0 | Một `remedyDecisionId` → đúng 1 bộ bank legs, ≤ 1 reputation lock (chặn double-consume) | Replay `remedy.finalized` / gửi leg trùng → `ledger_entry.remedy_leg_id` UNIQUE chặn từng leg (đơn vị dedup đúng — 1 decision nhiều legs), reconcile `SUM` group theo `remedy_decision_id` khớp đúng 1 bộ; reputation `lock_entry.remedy_decision_id` UNIQUE chặn lock thứ 2 kể cả từ event khác |
 | 11p | P0 | Supersede crash windows không nuốt tiền/không kẹt hợp đồng | (a) draft replacement không đủ 2 chữ ký → cũ vẫn `ACTIVE`, zero sự kiện tiền; (b) mới `SIGNED`, refund cũ fail giữa chừng → cũ đứng `SUPERSEDE_REFUND_PENDING` + alert, không nhảy `SUPERSEDED`; (c) cũ `SUPERSEDED` xong, activation mới fail → mới đi đường `ACTIVATION_FAILED` chuẩn, cũ không rollback |
 | 11q | P0 | Replay evidence event không nhân đôi audit record/anchor | Redeliver cùng `remedy.finalized`/`contract.terminated` (eventId cũ) → `audit_record.source_event_id` UNIQUE reject/no-op, không record mới, không anchor mới, không email evidence thứ 2 |
+| 11r | P0 | Reservation/release không double-decrement hoặc double-restore | Reserve replay cùng `contractId` trả cùng record; withdraw/activation-failed/compensation replay cùng hoặc khác eventId hợp lệ chỉ transition `RELEASED` một lần và counter khớp |
+| 11s | P0 | `SIGNED` chưa commit inventory và quantity snapshot phải khớp | Ép `Σ committedQuantity != reservedQuantity` → chặn `SIGNED`; đúng tổng → `SIGNED_RELEASABLE`; activation failure restore, chỉ `contract.activated` chuyển `COMMITTED` |
+| 11t | P0 | Template/profile là một phần nội dung ký | Đổi riêng `contractTemplateVersion`, `contractTemplateHash` hoặc `coffeeQualityProfileVersion` → `signedContentHash` đổi; OTP/consent cũ bị reject |
+| 11u | P0 | Final PDF khớp đúng nội dung đã ký và không overwrite | Recompute PDF bytes = `documentFileHash`, metadata `sourceContentHash = signedContentHash`; thử replace blob/document READY → reject, bản cũ còn đọc được |
+| 11v | P0 | PDF generation fail không làm mất chữ ký | Chữ ký thứ hai commit `SIGNED` + document `PENDING`; mock renderer/file-service fail rồi retry → hai Signature vẫn còn, cuối cùng đúng một document READY/event |
 | 12 | P1 | User khác không thao tác contract người khác | Ownership check → `403` (contract, escrow, statement) |
 | 13 | P1 | Client không tự tiêm identity | Gửi kèm `X-User-Id`/`X-User-Role`/`X-Gateway-Secret` giả → bị strip/overwrite, downstream nhận identity từ JWT |
 | 14 | P1 | `/internal/**` không ra ngoài | Gọi từ external → `404/403` tại Gateway, không forward |
@@ -457,7 +503,9 @@ Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutabi
 | 21d | P1 | `legalHold` chặn xoá tuyệt đối | Set legalHold + retention đã hết → lifecycle job gọi `DeleteFile` → REJECT, file còn nguyên |
 | 21e | P1 | Xoá file 2 bước tự lành | Mock MinIO delete fail sau tombstone → job re-run → cả DB lẫn blob về trạng thái nhất quán, không rác |
 | 21f | P1 | Listing/offer fail-closed khi user-service chết | Stop user-service → CreateListing/CreateOffer trả 503, user đang khoá không lách được |
-| 22 | P2 | Cà phê/cao su bắt buộc plot; gạo/điều không | Commodity-gate test 2 chiều: tạo listing thiếu plot → fail/pass đúng theo commodity |
+| 21g | P1 | OTP scope và supersession đúng tuple | Verify phải cùng `(signerUserId, contractId, signedContentHash)`; không có cross-user/cross-contract latest OTP; resend làm challenge cũ reject, chỉ newest still-valid challenge pass |
+| 21h | P1 | Consent bind đúng action, subject, statement và content hash | Dùng consent của contract/action khác, statement version cũ hoặc `presentedContentHash` lệch → reject trước side effect/OTP; đúng input tạo đúng một append-only ConsentEvidence |
+| 22 | P2 | Đồ án chỉ nhận cà phê và cà phê bắt buộc plot | Create/republish listing hoặc create contract với `RICE`/`RUBBER`/`CASHEW` → schema/domain reject; `COFFEE` thiếu plot → reject |
 | 23 | P2 | Analytics chết không ảnh hưởng giao dịch | Stop analytics-service → settle milestone vẫn hoàn tất; analytics **catch-up từ queue backlog** khi sống lại (outage ngắn — KHÔNG phải cold rebuild, sửa 18/07/2026) |
 | 24 | P2 | Notification dedup theo recipient + type | 1 event 2 recipients + retry → mỗi (recipient, type) đúng 1 mail `SENT` |
 | 25 | P2 | Restore đụng tiền phải qua verify mới mở | Restore `bank_db` test env → 2 job verify chạy pass trước khi mở traffic (demo DR) |
@@ -465,11 +513,34 @@ Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutabi
 | 26b | P2 | Plot overlap chéo seller bị bắt | Seller B đăng ký polygon trùng/lọt trong polygon Seller A → `plotReuseRisk = HIGH` + OPERATOR review, không auto-reject |
 | 26c | P2 | Yield anomaly là signal, không phải gate | `declaredQuantity` vượt Σ(plotArea×maxYield) → `yieldRisk` + yêu cầu bổ sung/review; listing KHÔNG bị auto-reject |
 | 26d | P2 | Deployment policy enforce được | CI check: image pin theo digest, secret không nằm trong image, protected branch bắt buộc approval — fail build nếu vi phạm (policy test, không phải runtime test) |
-| 26e | P2 | Delta 1 vượt threshold không auto-gán bẻ kèo | Shortfall > threshold, không FM claim → milestone mở `BreachCase` (không bắn `milestone.cancelled_with_penalty` tự động); pro-rata phần đã giao vẫn release |
+| 26e | P2 | Delta 1 vượt threshold không auto-gán phá hợp đồng | Shortfall > threshold, không FM claim → milestone mở `BreachCase` (không bắn `milestone.cancelled_with_penalty` tự động); pro-rata phần đã giao vẫn release |
 | 26f | P2 | Reputation chỉ phạt strategic breach | `remedy.finalized` với `breachReasonCode = PRODUCTION_SHOCK_NON_FM` → không `lock_entry`; với `SIDE_SELLING` → có; `zeroProgressMultiplier` 1.5x chỉ khi strategic + 0 settled |
 | 26g | P2 | Analytics đo `finalBreachingRole`, không đo người bấm nút | `contract.terminated` các nhánh → `fact_contract_termination` tách `terminationType`/`requestedBy`/`finalBreachingRole`; mutual không đếm vào default rate |
-| 26h | P2 | Allegation bị bác/được miễn trách không phát hậu quả tiêu cực (đổi tên 19/07 lần 2 — Phase 2 cố tình chưa có cure state, không gọi "cure thành công") | `BreachCase` RESOLVED với `finalBreachingRole = NULL` → không termination, không lock_entry cho bên bị cáo buộc; `remedy.finalized` nếu phát chỉ chứa refund/release legs |
+| 26h | P2 | Allegation bị bác/được miễn trách không phát hậu quả tiêu cực (đổi tên 19/07 lần 2 — đồ án chưa có cure state, không gọi "cure thành công") | `BreachCase` RESOLVED với `finalBreachingRole = NULL` → không termination, không lock_entry cho bên bị cáo buộc; `remedy.finalized` nếu phát chỉ chứa refund/release legs |
 | 26i | P2 | Inspection đang pending chặn auto-confirm | Milestone `CONTESTED`/có commission Level 1.5-2 đang chạy → hết `buyerConfirmWindowDays` KHÔNG auto `CONFIRM_CLEAN`, không release; timer chỉ áp khi milestone còn đúng state `BUYER_RECEIVED` |
+
+| 27 | P2 | Quality disposition tính tất định | Recompute từ committed spec/deviation policy trong `signedContentHash` + actual metrics trong `resultHash`; reviewer không thể thêm criterion chủ quan làm đổi kết quả |
+| 27b | P2 | Exact reject đúng quality profile cà phê | Coffee `type` mismatch → reject; numeric metric dùng đúng tolerance/penalty/reject boundary trong coffee profile đã ký |
+| 27c | P2 | Mapping disposition → attribution/remedy | Sau flag: `CONFORMING` zero punitive/reputation; `PARTIALLY_CONFORMING` max discount một lần và null role; `NON_CONFORMING` Seller + `QUALITY_BELOW_COMMITTED`, refund milestone + policy penalty/forfeiture; `INCONCLUSIVE` zero money |
+| 27d | P2 | Inspected path không áp Delta 2 lần hai | Clean path giữ Delta 1/Delta 2; inspected/contested dùng `min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)`; over-delivery chỉ bị cap |
+| 27e | P2 | Quality conservation tách theo fund source | Sum `MILESTONE_PAYMENT` legs = `batchAmount`; penalty và `SELLER_DEPOSIT` forfeiture đối soát riêng; penalty base = `effectiveUnitPrice × committedQuantity`, không phải `totalContractValue` |
+| 27f | P2 | Một quality resolution chỉ có một money trigger | Publish/replay `remedy.finalized` → đúng một bộ legs theo `remedyLegId`; không publish/consume `milestone.settled` cho cùng resolution |
+| 27g | P2 | Delivery certificate chỉ là evidence | Đính kèm certificate ở seller/buyer weigh vẫn không xuất hiện trong actual metrics/resultHash, không sinh disposition và không thay report confirmed |
+| 27h | P2 | Inspection cost policy chỉ `LOSER_PAYS` | Schema reject mọi giá trị khác; conforming → Buyer, partial/non-conforming → Seller, inconclusive chưa allocate |
+| 27i | P2 | Quality reject chỉ fail milestone liên quan | `NON_CONFORMING` refund/phạt milestone bị reject nhưng contract vẫn active cho milestone khác; chỉ supersede/termination flow tường minh mới đổi contract lifecycle |
+| 27j | P2 | Typed quality spec khóa ở cà phê | Declared/committed/actual đều chỉ nhận `COFFEE`; mọi discriminator hoặc field set của commodity khác bị schema/domain reject |
+| 27k | P2 | Goods snapshot độc lập nguồn mutable | Sửa/xoá Listing/Product/Category/Plot sau create không đổi `goodsTerms` đã lưu hoặc `signedContentHash` |
+| 27l | P2 | Signed fields/hash và legacy policy đầy đủ | Thay bất kỳ nested signed field mới nào làm đổi canonical hash; chữ ký đầu khoá PATCH; legacy signed vẫn read/operate, legacy draft thiếu terms không được ký |
+| 27m | P2 | Inspection guard không tạo milestone state | `NONE_UNLESS_DISPUTED` clean path không tạo report; mandatory inspection chặn settlement ở `BUYER_RECEIVED`/`CONTESTED` tới report confirmed nhưng không thêm/chuyển milestone state chỉ vì chờ inspection |
+| 27n | P2 | Bounded price acceptance đúng auth và cutoff | In-band pass; out-of-band, self-accept, stale proposal hoặc sau funding cutoff bị reject; accepted record immutable/auditable và không đổi signed hash |
+| 27o | P2 | Funding dùng effective price, deposit giữ nominal | Funding fallback base hoặc dùng accepted `effectiveUnitPrice`, không settlement true-up; price tăng/giảm không recompute buyer/seller deposit từ nominal `totalContractValue` |
+| 28 | P2 | Listing partial-fill atomic và fail-closed legacy | Listing 100 reserve 40 + 40 → tồn 60 rồi 20; reserve 30 trả `409 INSUFFICIENT_LISTING_QUANTITY`; hai request tranh tồn cuối chỉ một thắng; legacy-null fail tới edit/republish |
+| 28b | P2 | Restore không vượt seller lifecycle choice | Withdraw/activation failure trả đúng lượng; listing seller-closed vẫn `CLOSED`, listing `PAUSED` vẫn `PAUSED`; explicit republish mới mở lại |
+| 28c | P2 | Orphan reservation reaper an toàn và bắt late-event race | Chỉ `RESERVED` quá grace và chưa có durable `contract.created` mới release; không đụng `SIGNED_RELEASABLE`/`COMMITTED`; CLOSED/PAUSED không tự mở; re-run không restore lần hai; `contract.created` đến sau release phải error log + alert Admin, không silent no-op, re-decrement hay đảo state |
+| 29 | P2 | Draft preview luôn vô hiệu rõ ràng | Mọi preview ở OFFERED/NEGOTIATING/PARTIALLY_SIGNED chứa `CHƯA CÓ HIỆU LỰC`; không endpoint nào trả preview như final READY document |
+| 29b | P2 | Receipt consent không waive quyền quality | Buyer receipt/confirm statement và persisted ConsentEvidence ghi đúng phạm vi; inspection/dispute còn hợp lệ theo signed terms vẫn mở được sau acknowledgement |
+| 29c | P2 | Duplicate document delivery chỉ tạo một final | Redeliver render job, `contract.document_generated` và notification command → một READY document, một audit record và mỗi recipient đúng một final email |
+| 29d | P2 | Document event commit tách hai hash | `contract.document_generated` có `sourceContentHash` khớp signed content và `documentFileHash` khớp PDF bytes; tráo một trong hai bị verify fail |
 
 ## **11.1 Cross-contract release checks**
 
@@ -478,11 +549,10 @@ Mỗi invariant P0/P1/P2 phải có test theo đúng boundary. P0 money/immutabi
 - Money/reputation chỉ từ final decision; no double-consume/seize; cọc về đúng owner.
 - Terminal zero-lock và expected legs complete.
 - API write idempotency + DB unique/append-only constraint đủ chứng minh invariant.
--
 
 # **12. Current Scope, migration và implementation plan**
 
-Current Scope của SDS là đặc tả triển khai cho 12 business services và `api-gateway`: common envelope, ownership, state machine, API/schema, domain/bank event, notification command, persistence invariant, idempotency, security boundary, verification gate và workstream migration. Các bảng contract mô tả giá trị/field hiện hành; chúng không khẳng định mọi adapter bên ngoài đã chạy production.
+Current Scope của SDS là đặc tả triển khai cho 12 business services và `api-gateway` trong giao dịch cà phê B2B nội địa Việt Nam: common envelope, ownership, state machine, template `VN_COFFEE_B2B`, consent/signature, immutable document lifecycle, API/schema, domain/bank event, notification command, persistence invariant, idempotency, security boundary, verification gate và workstream migration. Các bảng contract mô tả giá trị/field hiện hành; chúng không khẳng định mọi adapter bên ngoài đã chạy production.
 
 ## **12.1 Phase 1 retirement/migration**
 
@@ -496,12 +566,58 @@ Implementation plan chia theo golden-flow slices và service workstreams, không
 
 Các mốc T0–T13 phải bao phủ common contracts và event envelope; contract/signature/attribution; milestone/escrow/bank; inspection/evidence; reputation; product/file/pricing; user/governance; notification/analytics; API contract tests; security/DR; pilot validation và release gate. Mỗi mốc phải có producer–consumer contract test, idempotency test và acceptance evidence ở đúng boundary.
 
+## **12.3 Frozen design synchronization addendum**
+
+## **Signature, lifecycle và OTP**
+
+Terms chỉ sửa được trước bất kỳ chữ ký nào. Chữ ký đầu tiên đóng băng toàn bộ terms và `signedContentHash`; chữ ký thứ hai phải dùng cùng hash. Sau chữ ký đầu tiên, `PATCH /terms` bị từ chối. Normal completion dùng `milestone.settled` cho milestone cuối; `remedy.finalized` chỉ trả buyer/seller contract-level deposits. Hai event không đồng thời tạo money consequence cho cùng một quality resolution.
+
+OTP challenge binding là `(signerUserId, contractId, signedContentHash)`. Không có cross-user/cross-contract “latest OTP”; trong cùng tuple chỉ challenge mới nhất còn hạn mới verify. Resend vô hiệu challenge cũ, kể cả challenge cũ vẫn chưa hết hạn; đây là matrix item `21g`.
+
+Template profile `{contractTemplateCode = VN_COFFEE_B2B, contractTemplateVersion, contractTemplateHash, coffeeQualityProfileVersion}` nằm trong `ContractTermsSnapshot`; thay một version/hash làm đổi `signedContentHash`. Mọi action có checkbox dùng `ConsentEvidence` append-only gắn đúng action/subject/actor/statement/content hash. Ký hợp đồng cần checkbox + step-up + OTP; weigh/confirm/flag/respond/accept giá và quyết định quản trị cần statement + auth/role guard tương ứng. Checkbox không phải điểm chỉ/vân tay sinh trắc học hoặc chữ ký số CA.
+
+Preview render server-side và luôn có watermark `CHƯA CÓ HIỆU LỰC`. Final document đi `PENDING -> READY | FAILED` sau chữ ký thứ hai; worker retry idempotent theo `documentId`, không rollback Signature khi render/file storage lỗi. READY document và blob không overwrite. `sourceContentHash` commit signed legal content; `documentFileHash` commit PDF bytes; audit verify hai hash riêng và notification final chỉ chạy sau `contract.document_generated`.
+
+## **Inventory, reservation và listing concurrency**
+
+Product-service là owner duy nhất của `minOrderQuantity`, `quantityAvailable`, `reservedQuantity`, listing lifecycle và reservation records. Listing: `AVAILABLE -> PARTIALLY_COMMITTED -> CLOSED` (giữ `PAUSED`). Reservation: `RESERVED -> SIGNED_RELEASABLE -> COMMITTED | RELEASED`. Synchronous internal reserve chạy trước khi contract persist `OFFERED`; persistence failure gọi compensation release idempotent. `contract.activated` là hard commit inventory; `requestedQuantity = SUM(committedQuantity)` và F18 chặn `SIGNED` khi tổng khác `reservedQuantity`.
+
+`listingVersionToken` là opaque token từ canonical UTC `Listing.updatedAt`. `LISTING_VERSION_MISMATCH` ánh xạ `VERSION_MISMATCH` và buộc reload/retry; `INSUFFICIENT_LISTING_QUANTITY` ánh xạ `STATE_CONFLICT` và buộc refresh, không blind retry. Legacy `quantityAvailable = null` fail closed. Replay reserve/release dùng conditional transition, không decrement/restore lần hai.
+
+`OrphanReservationReaperJob` chạy cục bộ trong product-service, không gọi service khác và không tạo endpoint. Mặc định `orphanReservationGraceMinutes = 30`; chỉ release `RESERVED` quá grace khi durable store chưa có `contract.created`. Không đụng `SIGNED_RELEASABLE`/`COMMITTED`, không reopen `CLOSED`/`PAUSED`, và log + alert Admin mỗi release. Late `contract.created` sau `RELEASED` là inventory inconsistency cần error log + Admin alert, tuyệt đối không silent deduplication, reverse transition, re-decrement hay path thứ hai.
+
+## **Signed pricing và deposit rate**
+
+`priceBand` và `priceAdjustmentRule` là signed terms/hash. Propose/accept dùng JWT + `Idempotency-Key`, không OTP, chỉ hợp lệ trước funding. In-band adjustment thực thi rule đã ký, không amend terms/hash; `milestone.price_adjusted` chỉ là audit/lifecycle. Funding dùng `effectiveUnitPrice`, không settlement true-up; deposit luôn tính từ nominal `totalContractValue`, còn pricing-service advisory.
+
+`buyerDepositRate` band `[3%, 10%]`, default `5%`, lock một lần tại `SIGNED` trên nominal value. Signed legacy rates ngoài band vẫn read/operate nguyên trạng. `sellerDepositRate` optional giữ vocabulary hiện hành.
+
+## **Signed snapshots, delivery, inspection và metadata**
+
+CREATE server-derives `goodsTerms`, `deliveryTerms`, `inspectionTerms` và snapshot Listing/Product/Category/Plot. Source edit/delete không đổi snapshot/hash; đổi goods phải replacement. Đồ án bắt buộc `commodity = COFFEE` và `originSnapshot.plotRefs[]` không rỗng; commodity khác bị reject. Chỉ allocation rules của delivery được ký; warehouse, carrier, address, tracking và concrete instances là runtime data. `cropYear`/`harvestSeason` là required-but-nullable server-derived signed fields; `certifications` vẫn là seller-declared ListingResponse metadata, không phải verified compliance claim.
+
+`inspectionTerms` ký level/cost và bắt buộc `inspectionCostResponsibility = LOSER_PAYS`; `MANDATORY_BEFORE_SETTLEMENT` là settlement guard, không phải milestone state mới. Listing metadata nullable/read-only gồm `cropYear`, `harvestSeason`, `certifications`, `packagingDeclaration`, `warehouseLocation`, `estimatedAvailabilityDate`; certifications là seller-declared free text, warehouse location khác delivery point.
+
+## **Quality model và disposition**
+
+Quality layers là declared -> committed -> actual. Clean confirmation không đo quality nếu không có flag hoặc mandatory inspection. Mỗi metric có `deviationPolicy {direction, tolerance, penalty, reject, discountRate}`; tolerance/penalty/reject zones disjoint và boundary inclusive ở phía nghiêm hơn. Inspection report giữ raw actual metrics và hashes; contract-service tính disposition, inspector không tính money.
+
+`CONFORMING`: sau flag, allegation bị bác; milestone settle bình thường; Buyer chịu inspection cost theo `LOSER_PAYS`. `PARTIALLY_CONFORMING`: chỉ payment adjustment, **không phải breach**, không penalty, không attribution, không reputation; chỉ chọn `max(discountRate)` một lần, giảm `RELEASE_TO_SELLER`, phần chênh chuyển Buyer. `NON_CONFORMING`: Seller breach theo standard remedy, penalty base là affected milestone value, chỉ milestone đó fail, contract không auto-terminate. `INCONCLUSIVE`: route reinspection/Level 2, không tự tạo money/breach consequence. Các schema declared/committed/actual của đồ án chỉ nhận cà phê; exact-match reject áp cho coffee `type`. Complete quality resolution phát đúng một `remedy.finalized`.
+
+## **Conventions, money strings và guardrails**
+
+Canonical mass là `kg`; `unitOfMeasure = KG`. Timestamp lưu UTC; deadline display/calculate ở `Asia/Ho_Chi_Minh`; date deadline kết thúc ICT day end; working days là Monday-Friday trừ ngày lễ Việt Nam. Money dùng `DECIMAL(18,2)` + `HALF_UP`; chỉ contract-service round, bank-service không re-multiply/re-round. Schema money là decimal string đúng hai chữ số thập phân, có `pattern`, field-specific `maxLength` `11` hoặc `19`; không thay bằng numeric `maximum`. Guardrails: tối đa 100 milestones/contract, tối đa 1,000,000 kg/milestone, delivered `exclusiveMinimum: 0`, measured/accepted `minimum: 0`, cho phép `accepted = 0`.
+
+## **Lifecycle events và LegalProfile**
+
+Authoritative event catalog có 50 domain events. `contract.created`, `contract.activated`, `contract.withdrawn`, `contract.activation_failed` đều producer `contract-service`, consumer `product-service`; `contract.signed` payload có `listingId`, `reservedQuantity` và consumer thêm `product-service`; `contract.document_generated` chuyển hai hash của representation bất biến sang audit-service. LegalProfile dùng LTM Điều 301 cho cap phạt 8%, LTM Điều 266 cho ceiling phí giám định 10x, LTM Điều 302/307 cho damages/penalty interaction, BLDS Điều 328/330 cho deposit/security. Known Limitation không đổi: phân loại cọc theo BLDS 328 cần lawyer confirmation.
+
 # **13. Known Limitations**
 
 - Bank/custodian thật, CA signature, Level 2 production intake, provider pricing và OpenTimestamps production chưa hoàn tất; các adapter hiện tại không phải bằng chứng capability đã vận hành production.
 - Phân loại deposit/penalty/damages, licensing boundary, mẫu contract và dispute clause cần legal validation trước pilot có tiền thật; tách custody khỏi platform không tự chứng minh compliance. [28], [29], [45], [46]
 - Zero-trust-oriented controls không tạo thành mô hình Zero Trust toàn diện; collusion hoặc hạ tầng bị compromise đồng thời vẫn là giới hạn.
-- Full amendment, partial mutual termination, quality-indexed settlement, full cure workflow, automated insurance/credit và logistics tracking nằm ngoài Phase 2.
+- Full amendment, partial mutual termination, quality-indexed settlement, full cure workflow, automated insurance/credit và logistics tracking nằm ngoài đồ án.
 - Geo/EUDR, AML, yield và overlap là evidence/risk signals; traceability còn phụ thuộc chất lượng dữ liệu, chi phí và quy trình due diligence, nên không tự chứng minh compliance hay factual truth. [21], [22], [30]
 - Analytics/notification có eventual consistency; catch-up backlog không thay cho cold rebuild.
 
@@ -510,7 +626,7 @@ Các mốc T0–T13 phải bao phủ common contracts và event envelope; contra
 - Productionize custodian, CA/WebAuthn, inspection/accreditation, email/price adapters và OTS anchoring.
 - Bổ sung ContractVersion amendment, notice–cure–remedy đầy đủ, quality settlement theo chuẩn hàng hoá và payment/security package mở rộng.
 - Hoàn thiện mTLS/KMS/HSM, separation of duties, deployment attestation, DR/scale và cross-border/ND13 controls.
-- Tự động hoá giá cao su quốc tế sau khi chốt đơn vị/tỷ giá; tích hợp logistics/3PL khi có đối tác thật.
+- Nghiên cứu mở rộng commodity sau cà phê bằng template, quality profile, nguồn giá và verification matrix riêng; tích hợp logistics/3PL khi có đối tác thật.
 
 # **15. Danh mục nguồn tham khảo**
 

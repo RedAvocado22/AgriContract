@@ -6,7 +6,7 @@ const { Packer } = D;
 const body = [
   ...cover(
     "AGRICONTRACT",
-    "Kiến trúc hệ thống Phase 2",
+    "Kiến trúc hệ thống của đồ án",
     "Boundary, ownership, interaction, trust model, state choreography và quality attributes",
     ["Tài liệu kiến trúc đồ án", "Phiên bản final · Tháng 7/2026"]
   ),
@@ -16,7 +16,7 @@ const body = [
 ];
 
 const doc = buildDoc(body, {
-  title: "AgriContract — Kiến trúc hệ thống Phase 2 — Final",
+  title: "AgriContract — Kiến trúc hệ thống của đồ án — Final",
   headerText: "AgriContract · Architecture",
   footerText: "Final · Tháng 7/2026",
 });
