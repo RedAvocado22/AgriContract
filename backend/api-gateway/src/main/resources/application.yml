@@ -9,6 +9,14 @@ spring:
   cloud:
     gateway:
       routes:
+        # Internal APIs are never exposed externally; SecurityConfig permits /internal/** so this route can answer 404.
+        - id: internal-deny
+          uri: no://op
+          order: -1
+          predicates:
+            - Path=/internal/**
+          filters:
+            - SetStatus=404
         - id: user-service
           uri: ${USER_SERVICE_URL:http://localhost:8081}
           predicates:
@@ -16,7 +24,7 @@ spring:
         - id: product-service
           uri: ${PRODUCT_SERVICE_URL:http://localhost:8082}
           predicates:
-            - Path=/api/v1/products/**, /api/v1/listings/**
+            - Path=/api/v1/products/**, /api/v1/listings/**, /api/v1/categories/**
         - id: contract-service
           uri: ${CONTRACT_SERVICE_URL:http://localhost:8083}
           predicates:
@@ -25,10 +33,6 @@ spring:
           uri: ${ESCROW_SERVICE_URL:http://localhost:8084}
           predicates:
             - Path=/api/v1/escrows/**
-        - id: notification-service
-          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
-          predicates:
-            - Path=/api/v1/notifications/**
 
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
@@ -38,7 +42,7 @@ server:
 
 logging:
   level:
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
 
 management:
   endpoints:
