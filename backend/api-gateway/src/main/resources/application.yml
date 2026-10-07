@@ -20,7 +20,8 @@ spring:
         - id: user-service
           uri: ${USER_SERVICE_URL:http://localhost:8081}
           predicates:
-            - Path=/api/v1/users/**
+            # KYC admin API is owned by user-service; other /api/v1/admin/** prefixes belong to their own services.
+            - Path=/api/v1/users/**, /api/v1/admin/users/**
         - id: product-service
           uri: ${PRODUCT_SERVICE_URL:http://localhost:8082}
           predicates:
