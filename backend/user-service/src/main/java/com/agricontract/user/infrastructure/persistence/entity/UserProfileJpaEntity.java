@@ -7,6 +7,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -44,6 +45,18 @@ public class UserProfileJpaEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false, length = 20)
     private VerificationStatus verificationStatus;
+
+    @Column(name = "authorization_expires_at")
+    private Instant authorizationExpiresAt;
+
+    @Column(name = "verified_by_actor_id", length = 255)
+    private String verifiedByActorId;
+
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
+
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
