@@ -1,151 +1,89 @@
-# [P1][inspection] Scaffold inspection service and eligibility gate
+# [P1][inspection] Scaffold inspection service and inspector eligibility gate
 
 Closes #112
 
 ## Outcome
 
-Add the inspection-service foundation under the existing application/common/domain/
-infrastructure structure. An authenticated inspector must pass authoritative role,
-KYC and license checks and own the active Level 1.5 assignment. Inspector A cannot
-access Inspector B's commission; missing and ended assignments also deny access.
+Provide the approved inspection-service foundation: a persisted Level 1.5 assignment can authorize only its active, authenticated, eligible inspector. Eligibility alone never grants commission access. This is an application authorization boundary, not a report-submission endpoint or a complete inspection workflow.
 
-This implements the explicitly approved scope supplement: assignment persistence
-and authorization without assignment selection, creation transport or a complete
-inspection workflow. No business controller or event surface is introduced.
+## Summary
 
-## Changes
+- **Scaffold and module integration:** add `InspectionServiceApplication` on Java 21 / Spring Boot 3.3.5, with `application`, `common`, `domain` and `infrastructure` packages. Application ports separate authenticated identity, authoritative eligibility and assignment reads from Spring Security, HTTP and JPA adapters. The only change outside inspection-service is `<module>inspection-service</module>` in `backend/pom.xml`, enabling reactor build/test/package execution without changing another service's source or shared dependency versions.
+- **Assignment read model:** `InspectionAssignment` holds `commissionId`, `contractId`, `milestoneId`, `inspectorId`, `assignedAt`, `endedAt`, `assignedByService` and nullable `initiatedByActorId`. `isAssignedTo(actorId)` requires matching inspector identity and `endedAt == null`. An ended row remains readable as history but cannot authorize access. This record is not an assignment-creation validator or a lifecycle aggregate.
+- **Additive persistence:** Flyway `V1__create_level1_5_inspection_assignment.sql` creates only `level1_5_inspection_assignment` in `inspection_db`. UUID-shaped identifiers use `CHAR(36)` with `ascii_bin`; timestamps use microsecond precision. `commission_id` is the primary key. Stored generated `active_slot` is `1` when `ended_at IS NULL`, otherwise `NULL`; `uk_l15_active_milestone(contract_id, milestone_id, active_slot)` permits one active assignment per contract/milestone and multiple historical rows. `chk_l15_assignment_time` rejects an end time preceding assignment time. The unique index also supplies the contract/milestone lookup prefix; there are no additional listing indexes or foreign keys. These references do not validate remote contract, milestone or user existence, and no case/report relationship is introduced.
+- **Read-only persistence boundary:** `InspectionAssignmentEntity` is Hibernate `@Immutable`. `AssignmentJpaRepository` extends Spring Data `Repository` with two find methods only; `JpaInspectionAssignmentRepository` implements `findByCommissionId` and `findActive`. No production save/update/delete method, assignment seed or cross-service database access is added. Hibernate uses `ddl-auto: validate`, with UTC JDBC configuration and open-in-view disabled. Database constraints protect insert integrity; append-only history is not enforced by a database trigger against privileged direct updates.
+- **Gateway-authenticated identity:** `GatewayAuthenticationFilter` trusts forwarded headers only after comparing `X-Gateway-Secret` with the configured secret using `MessageDigest.isEqual`. Missing/incorrect secret, missing/blank actor, missing role header or repeated values of any identity header return HTTP `401` without invoking the chain. `X-Internal-Secret` does not authenticate an inspector. Known comma-separated roles become `ROLE_*` authorities; unknown roles confer no authority. The filter preserves an existing authenticated non-anonymous principal and clears the context it creates after the request. JWT validation remains the gateway's responsibility.
+- **Principal and eligibility gate:** `SecurityContextInspector.requireInspectorId()` reads the established security context, never an operation DTO. Missing, anonymous, unauthenticated or blank-name identity raises `AuthenticationCredentialsNotFoundException`; absence of `ROLE_INSPECTOR` raises `AccessDeniedException`. `InspectorEligibilityGate.requireEligibleInspector()` loads that actor's authoritative profile and rejects null/mismatched profiles with `EligibilityUnavailableException`. `InspectorEligibility.isEligibleAt(now)` requires exact `INSPECTOR` and `VERIFIED` values plus `authorizationExpiresAt == null` or strictly after the injected UTC clock instant. Expiry equal to now, expired licenses, other roles and unverified statuses raise `AccessDeniedException`. Buyer/seller reputation locks are deliberately excluded.
+- **Internal eligibility adapter:** `InternalUserEligibilityClient.load()` calls `GET /internal/v1/users/{userId}` with `X-Internal-Secret`, using configurable connect/read timeouts (2,000/3,000 ms defaults) and no redirect following. It requires a JSON object, matching nonblank textual `userId`, nonblank textual role/status and an explicitly present expiry field. JSON `null` means unlimited; missing expiry, malformed timestamps or invalid field types fail closed. Non-2xx responses and runtime parsing/transport failures become `EligibilityUnavailableException` with a fixed message and no original response/cause. Blank gateway or service secrets fail configuration with `IllegalArgumentException`.
+- **Ownership authorization:** read-only transactional `InspectionAuthorization.requireCommission(commissionId)` and `requireMilestone(contractId, milestoneId)` run eligibility before repository lookup. They return only an assignment accepted by `isAssignedTo`; missing, ended and other-inspector assignments all raise `AccessDeniedException("No authorized inspection assignment")`. The milestone lookup uses both identifiers without extending the frozen report DTO. Eligibility/dependency failure prevents assignment lookup; ownership cannot bypass either gate.
+- **Closed HTTP surface:** `InspectionConfiguration.inspectionSecurity()` configures stateless security, permits `/actuator/health` and denies every other request. There is no business controller. MockMvc observes `401` for forged gateway identity and `403` for an authenticated request to the deferred report route. Application ownership denial has the approved 403 semantics, but no report controller/error-envelope mapper or HTTP 503 mapping is implemented.
 
-- [x] Migration
-- [x] Domain/application authorization
-- [x] Adapter: persistence, gateway identity and internal-user client
-- [x] Unit tests
-- [x] Integration/contract boundary tests (local MySQL and HTTP stub; not cross-service E2E)
+## Notes for reviewers
 
-- Register the Spring Boot / Java 21 module in the backend reactor.
-- Add an additive Flyway migration in inspection_db for
-  level1_5_inspection_assignment, provenance, historical rows and a generated-column
-  unique index allowing at most one active assignment per contract/milestone.
-- Add immutable JPA mapping and read-only repository ports/adapters. No production
-  seed, save/update/delete entrypoint or cross-service database access.
-- Validate forwarded identity using the frozen gateway-secret trust boundary;
-  never override an established principal or accept client ownership fields.
-- Query the frozen internal user profile, fail closed on malformed/unavailable
-  information, and exclude buyer/seller reputation locks from inspector eligibility.
-- Add application-level commission and contract/milestone ownership checks.
-- Document deployment configuration, schema approval, error semantics and deferred work.
+- **Unfinished integration dependency:** the checked-out user-service does not implement the frozen internal eligibility/profile API. The inspection adapter already targets that contract and rejects dependency failures; HTTP client tests use a local JDK `HttpServer`, while database/application tests mock `InspectorEligibilityPort`. Neither proves interoperability with a live user-service. A dependency issue number could not be verified through the unauthenticated GitHub API (404); the design and API contract are linked below instead.
+- **Assignment authority remains undecided:** no role or service is granted the right to select an inspector. Contract-service owns the decision that a milestone needs inspection, not an assumed inspector-selection authority. Selection policy, candidate sourcing, creation transport, authenticated provenance and creation idempotency require separate design. `assignedByService` is stored metadata, not an authorization grant.
+- **Lifecycle and reports are deferred:** `ended_at` provides persistence/history support only. Termination, revocation and reassignment workflows are absent. Full Level 1.5 report submission, report/signature persistence, step-up freshness, hashes, idempotent writes and event publication are not implemented. Assignment-to-report/inspection-round binding is unresolved. This scaffold therefore cannot run an end-to-end inspection workflow.
+- **Frozen boundaries remain intact:** no API/event YAML changes; no use of `level2_inspection_commission` for Level 1.5; no change to the Level 2 meaning of `inspection_report.commission_id`. The assignment table is the explicitly approved supplement to the frozen design. Contract-service disposition, case, milestone, settlement and money logic is neither duplicated nor modified.
+- **Error-contract follow-up:** the shared catalog specifies `503` for eligibility dependency failure, but `submitInspectionReport` lists only `201/403/409`. The distinct application exception preserves fail-closed behavior without inventing a response mapper or expanding YAML. Reconcile the response/envelope contract before implementing submission.
+- **Operational and concurrency limits:** deployment must provision `inspection_db`, least-privilege database credentials and gateway/service secrets; shared Docker Compose topology is unchanged. MySQL >= 8.0.16 is required for enforced CHECK constraints. IDs are stored as strings, not validated UUID objects. An active row is defined by a null end time, without a scheduled-start check. Read-only authorization does not reserve permission for a later mutation; future write workflows must recheck assignment/state under their own concurrency strategy. No retry/circuit-breaker or dedicated delayed-response timeout test is added.
+- **Size accepted after review:** 1,034 nonblank, non-comment-only source/build/test lines: 453 production/build and 581 tests, excluding Markdown. All support the approved scaffold, persistence, eligibility and ownership scope. The 76 cases cover distinct identity, malformed dependency, ownership and real-database concurrency boundaries. Keeping those tests with the implementation preserves its verification evidence; the requester approved retaining coverage without splitting the issue solely to reduce test lines.
 
-## Verification
+## Tests
 
-Executed from backend:
+Counts below are executed cases, including parameterized invocations, from the inspected Surefire XML reports. There is no separate domain-test class or report-controller suite; domain predicates are exercised through the gate, authorization and database suites.
 
-```text
-mvn -pl inspection-service -am verify "-Dapi.version=1.44"
-```
-
-Passed on Java 21, Spring Boot 3.3.5, Docker Engine 29.6.1 and MySQL 8.0.42:
-
-| Suite | Tests | Result |
+| Test class | Cases | Verified coverage |
 |---|---:|---|
-| InspectorEligibilityGateTest | 21 | Passed |
-| InspectionAuthorizationTest | 8 | Passed |
-| GatewayAuthenticationFilterTest | 8 | Passed |
-| InternalUserEligibilityClientTest | 23 | Passed |
-| ScaffoldBoundaryTest | 16 | Passed |
-| Total | 76 | 0 failures, 0 errors, 0 skipped |
+| `InspectorEligibilityGateTest` | 21 | Valid/unlimited licenses; local and authoritative non-inspector roles; pending/rejected/unknown KYC; expiry at/before now; missing/mismatched profile; dependency failure; missing, unauthenticated and anonymous principals. Uses a fixed clock and the real `SecurityContextInspector`. |
+| `InspectionAuthorizationTest` | 8 | Assigned owner allowed; other inspector, missing commission and historical assignment denied; contract/milestone lookup and other-owner rejection; eligibility denial and dependency outage stop repository access. |
+| `GatewayAuthenticationFilterTest` | 8 | Valid identity and context cleanup; missing/forged gateway secret despite an internal secret; existing-principal preservation; duplicate user/role/secret headers; blank configured secret. |
+| `InternalUserEligibilityClientTest` | 23 | Exact internal path/header; ignored buyer/seller lock; expiry parsing; malformed/incomplete/mismatched JSON; missing required fields; malformed expiry; HTTP 302/401/403/404/500/503; connection failure; blank service secret. Real HTTP calls target a local stub. |
+| `ScaffoldBoundaryTest` | 16 | Spring context, Flyway and Hibernate validation against Testcontainers `mysql:8.0.42`; provenance/time round-trip; no database FKs; active uniqueness, duplicate PK, null inspector and temporal CHECK rejection; retained history; two simultaneous inserts produce exactly one winner; real persistence ownership and revoked KYC checks; MockMvc health/closed-route security and absence of business mappings. |
+| **Inspection total** | **76** | **0 failures, 0 errors, 0 skipped.** |
 
-The full backend reactor also passed `mvn verify "-Dapi.version=1.44" --no-transfer-progress`; all eight reactor projects succeeded. Local logs: `target/review-verify.log` and `target/review-reactor-verify.log` (ignored build artifacts, not GitHub CI evidence).
-
-The API-version flag supports the parent-managed docker-java client on Docker 29.
-Flyway migration and Hibernate schema validation run against disposable MySQL, not
-H2. Integration coverage includes actual CHECK/PK/unique constraints, two concurrent
-assignment inserts, historical ownership, gateway-to-application-to-repository
-authorization, and the closed HTTP surface. User-service HTTP behavior is stubbed;
-this is not a claim of cross-service end-to-end readiness. Packaging also passed.
-
-## Contract and scope boundaries
-
-- No frozen API/event YAML, Level 2 table or inspection_report.commission_id change.
-- AccessDeniedException represents the approved 403 authorization outcome.
-- Error catalog specifies 503 for eligibility dependency failure, while the frozen
-  inspection operation lists 201/403/409 only. The application retains a distinct
-  dependency exception; no new response mapper/code or YAML change is introduced.
-  Reconcile endpoint documentation when implementing report submission.
-- Selection authority, vetted inspector sourcing and assignment creation transport
-  remain undecided. No role or service is granted selection authority here.
-- End/revoke/reassign workflows remain deferred; ended_at is storage support only.
-- Unfinished integration dependency: user-service must implement its frozen
-  `GET /internal/v1/users/{userId}` eligibility/profile API. This change verifies
-  the inspection client against an HTTP stub only; cross-service integration
-  remains pending. No second service is implemented in this change.
-- Report submission, step-up freshness transport, signatures, result/report hashes,
-  idempotent writes, Level 2, money, dispute resolution and reputation are deferred.
+The database suite inserts JDBC fixtures into its disposable database only. Its filter-to-application-to-MySQL helper catches `AccessDeniedException` and sets a test response to 403; that is not evidence of a production report controller or exception mapper. MockMvc separately exercises the actual configured HTTP surface.
 
 ## References
 
-- Design: [Level 1.5 identity/KYC](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/inspection-phase2-design.md#L30), [inspection database ownership](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/inspection-phase2-design.md#L314), plus the user-approved assignment supplement recorded in [README on the proposed PR branch](https://github.com/RedAvocado22/AgriContract/blob/feat/112-inspection-foundation/backend/inspection-service/README.md#approved-schema-supplement).
-- API contract: [submitInspectionReport and its authorization response](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/contracts/events/supplementary-services-api.yaml#L271). This issue does not implement the report endpoint.
-- Event contracts: [inspectionReportConfirmed](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/contracts/events/golden-flow-events.yaml#L865), [inspectionLevel2Commissioned](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/contracts/events/golden-flow-events.yaml#L1268). Neither is changed or published by this scaffold.
-- Verification rows: [12 — ownership](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L63), [13 — injected identity](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L64), [19 — fail-closed eligibility](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L70), [21f — dependency failure](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L77).
-- Integration dependencies: [user-service internal eligibility API](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/user-service-phase2-design.md#L92), [inspector enforcement rules](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/user-service-phase2-design.md#L58), [gateway trust boundary](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/api-gateway-phase2-design.md#L25).
-- Error semantics: [role/ownership 403](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/contracts/error-catalog.md#L68), [eligibility dependency 503](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/contracts/error-catalog.md#L81).
+- Issue: [#112](https://github.com/RedAvocado22/AgriContract/issues/112).
+- Design: [Level 1.5 identity/KYC and submission obligations](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/inspection-phase2-design.md#L30), [inspection database ownership and Level 2 relationships](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/inspection-phase2-design.md#L314). The approved assignment supplement is in this branch's `backend/inspection-service/README.md`, under “Approved schema supplement”.
+- API: [submitInspectionReport](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/contracts/events/supplementary-services-api.yaml#L271); [getInternalUserInfo](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/contracts/openapi/golden-flow-api.yaml#L502).
+- Events: [inspection.report_confirmed](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/contracts/events/golden-flow-events.yaml#L865) and [inspection.level2_commissioned](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/contracts/events/golden-flow-events.yaml#L1268), both unchanged and not published here.
+- Verification: [row 12, ownership](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L63); [row 13, injected identity](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L64); [row 19, fail-closed signing](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L70); [row 21f, eligibility dependency failure](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L77). Coverage is analogous/partial: row 12 names contract/escrow, row 13 includes actual gateway stripping, and rows 19/21f concern signing/listing/offer. These tests do not close those system-wide rows.
+- Deferred inspection verification: [row 11f, hash commitments](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L41), [row 26i, pending inspection blocks auto-confirm](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L97), [row 27j, coffee-only result schema](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L107), [row 27m, inspection guard](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/verification-matrix-phase2.md#L110). No coverage claimed in #112.
+- Integration dependency: [user-service internal profile API](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/user-service-phase2-design.md#L92), [enforcement matrix](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/user-service-phase2-design.md#L58), [gateway header trust](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/phase_2/design/api-gateway-phase2-design.md#L25). Dependency issue links remain to be confirmed by their owners.
+- Errors: [403 role/ownership](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/contracts/error-catalog.md#L68), [503 eligibility dependency](https://github.com/RedAvocado22/AgriContract/blob/a545d9d05221c3bffb2a5f8104cd99dbafd7d9cc/docs/contracts/error-catalog.md#L81).
+- Workflow: [PHASE2_TEAM_WORKFLOW.md — intended repository location](https://github.com/RedAvocado22/AgriContract/blob/main/docs/PHASE2_TEAM_WORKFLOW.md). The reviewed local file is still untracked and excluded from #112; this link is pending publication in the separate repository prerequisite, not a currently verified remote document.
 
-Matrix coverage is deliberately partial: row 12 originally names contract/escrow;
-this issue verifies the analogous inspection ownership invariant. Row 13 is tested
-at the downstream trust boundary, not the actual gateway. Rows 19/21f originally
-refer to signing/listing/offer; only the inspection eligibility equivalent is
-covered here. These tests do not close those system-wide verification rows.
-User-service implementation and assignment transport dependency issue IDs still
-need to be linked by the owners; no dependency number is fabricated.
+## Changes
+
+- [x] Migration: additive Level 1.5 assignment table, primary/unique/CHECK constraints.
+- [x] Domain/application behavior: eligibility and active-assignment ownership checks.
+- [x] Adapters: read-only JPA, authenticated security context, gateway filter and internal-user HTTP client; no business API/consumer.
+- [x] Unit tests: identity, eligibility, ownership and failure boundaries.
+- [x] Integration/contract tests: real MySQL and local HTTP stub; cross-service E2E remains pending.
+
+## Verification
+
+- **Commands**, from `backend`:
+
+  ```text
+  mvn -pl inspection-service -am verify "-Dapi.version=1.44" --no-transfer-progress
+  mvn verify "-Dapi.version=1.44" --no-transfer-progress
+  ```
+
+- **Results:** existing local reports inspected again for this documentation rewrite. The full reactor run completed on 2026-10-08 at 10:24:41 +07:00 with all eight projects successful: **268 tests, 0 failures/errors/skips** (contract 76, escrow 65, inspection 76, notification 6, product 35, user 10). Inspection's 76 cases include real MySQL **8.0.42** integration; executable JAR packaging succeeded. These are retained run results, not a newly executed build or remote CI result.
+- **Evidence:** `backend/*/target/surefire-reports/TEST-*.xml`, `backend/inspection-service/target/review-verify.log` and `backend/inspection-service/target/review-reactor-verify.log`; ignored local artifacts, not committed. The Docker API option supports the parent-managed Testcontainers/docker-java client on Docker 29.
+- **Reviewed revision:** implementation commit `57b90b03a354d910a0bafe1c36604b5d05c2fc2c`, branch `feat/112-inspection-foundation`, base `main`; this rewrite changes documentation only.
 
 ## Boundaries
 
-- [x] One business service; backend/pom.xml changes only register this module.
-- [x] No unrelated refactor; unrelated workspace ZIP deletion and workflow document are excluded from the proposed commit.
-- [x] No frozen API/event changes; assignment schema follows the explicit approved supplement.
-- [x] Additive migration; no cross-service database reads/writes.
-- [x] Duplicate/concurrent persistence reviewed: PK and active-assignment unique constraint tested. No production write/message handler exists, so transport replay is deferred.
-- [x] Size review completed and accepted by the issue requester: 1,034 nonblank, non-comment-only source/build/test lines (453 production/build, 581 tests), excluding Markdown. All belong to the approved #112 scaffold, persistence, eligibility and ownership scope. The 76 tests cover distinct identity, dependency, authorization and real-MySQL constraint/concurrency boundaries. Keeping them with the implementation preserves evidence for the complete foundation; splitting solely to reduce test lines would separate that evidence from the behavior it verifies. No issue split or coverage reduction is required.
-- [ ] Repository workflow prerequisite: `.github/PULL_REQUEST_TEMPLATE.md`, `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/feature.yml` and `.github/ISSUE_TEMPLATE/bug.yml` are absent from the current base. Handle via the separate repository-enforcement issue required by workflow section 13; do not implement them in #112. Remote branch-protection settings have not been verified.
-- [ ] Dependency readiness and issue owner/milestone/service label must be confirmed before Ready for Review/merge.
-- [ ] Security review requires inspection owner plus the user/gateway boundary reviewer; remote CI/approvals are not yet available.
-
-Suggested commit: `feat(inspection): scaffold inspection service and eligibility gate`.
-Branch: `feat/112-inspection-foundation`. PR base: `main`.
-Staging is authorized for review. Commit, push, PR creation and merge still await explicit confirmation.
-
-## File inventory
-
-Modified: backend/pom.xml.
-
-Added beneath backend/inspection-service:
-
-```text
-pom.xml
-README.md
-PR_DESCRIPTION.md
-src/main/resources/application.yml
-src/main/resources/db/migration/V1__create_level1_5_inspection_assignment.sql
-src/main/java/com/agricontract/inspection/
-  InspectionServiceApplication.java
-  application/port/AuthenticatedInspectorPort.java
-  application/port/InspectionAssignmentRepository.java
-  application/port/InspectorEligibilityPort.java
-  application/service/InspectionAuthorization.java
-  application/service/InspectorEligibilityGate.java
-  common/exception/EligibilityUnavailableException.java
-  domain/model/InspectionAssignment.java
-  domain/model/InspectorEligibility.java
-  infrastructure/config/InspectionConfiguration.java
-  infrastructure/persistence/AssignmentJpaRepository.java
-  infrastructure/persistence/InspectionAssignmentEntity.java
-  infrastructure/persistence/JpaInspectionAssignmentRepository.java
-  infrastructure/security/GatewayAuthenticationFilter.java
-  infrastructure/security/SecurityContextInspector.java
-  infrastructure/user/InternalUserEligibilityClient.java
-src/test/java/com/agricontract/inspection/
-  ScaffoldBoundaryTest.java
-  application/service/InspectionAuthorizationTest.java
-  application/service/InspectorEligibilityGateTest.java
-  infrastructure/security/GatewayAuthenticationFilterTest.java
-  infrastructure/user/InternalUserEligibilityClientTest.java
-```
+- [x] One service: inspection-service; parent POM only registers its module.
+- [x] No unrelated refactor; deleted ZIP, untracked workflow document and `target` artifacts are excluded from the implementation commit.
+- [x] No frozen API/event changes or invented workflow states; assignment storage follows the approved supplement.
+- [x] Additive migration; no Level 2 changes or cross-service database writes.
+- [x] Duplicate/concurrent inserts reviewed through real PK/unique constraints; no production write/message handler exists, so transport replay remains deferred.
+- [x] Size review completed; implementation and test coverage retained with requester approval.
+- [ ] Repository prerequisite: `.github/PULL_REQUEST_TEMPLATE.md`, `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/feature.yml` and `.github/ISSUE_TEMPLATE/bug.yml` remain absent. Workflow section 13 requires the separate repository-enforcement issue to merge before implementation PRs. Workflow publication and remote branch protection still need confirmation; no prerequisite is implemented here.
+- [ ] Resolve/record dependency status and verify issue owner, milestone, service label and acceptance criteria before Ready for Review/merge.
+- [ ] Obtain inspection-owner and user/gateway-boundary security review, passing remote CI, resolved review threads and current-main verification. Local success does not mark the issue Done.
