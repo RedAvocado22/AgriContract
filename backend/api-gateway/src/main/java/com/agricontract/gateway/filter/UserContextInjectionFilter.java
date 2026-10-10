@@ -1,5 +1,6 @@
 package com.agricontract.gateway.filter;
 
+import com.agricontract.gateway.config.KeycloakRealmRoleConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -7,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
@@ -16,7 +18,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Strips client-supplied identity headers from every routed request and re-injects identity from the
@@ -49,14 +50,14 @@ public class UserContextInjectionFilter implements GlobalFilter {
                         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token: Missing email");
                     }
 
-                    Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-                    if (realmAccess == null || !realmAccess.containsKey("roles")) {
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid token: Missing roles claim");
-                    }
-
-                    List<String> roleList = (List<String>) realmAccess.get("roles");
-                    if (roleList == null || roleList.isEmpty()) {
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid token: Roles list is empty");
+                    // Authorities hold only application roles (KeycloakRealmRoleConverter); realm housekeeping roles are dropped.
+                    List<String> roleList = jwtAuth.getAuthorities().stream()
+                            .map(GrantedAuthority::getAuthority)
+                            .filter(authority -> authority.startsWith(KeycloakRealmRoleConverter.ROLE_PREFIX))
+                            .map(authority -> authority.substring(KeycloakRealmRoleConverter.ROLE_PREFIX.length()))
+                            .toList();
+                    if (roleList.isEmpty()) {
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid token: No application role");
                     }
 
                     String roles = String.join(",", roleList);

@@ -9,7 +9,8 @@ spring:
   cloud:
     gateway:
       routes:
-        # Internal APIs are never exposed externally; SecurityConfig permits /internal/** so this route can answer 404.
+        # Internal APIs are never exposed externally. SecurityConfig's internal chain already answers 404;
+        # this route is a second layer in case a request ever gets past it.
         - id: internal-deny
           uri: no://op
           order: -1

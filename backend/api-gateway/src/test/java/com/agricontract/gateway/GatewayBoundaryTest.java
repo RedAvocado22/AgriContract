@@ -7,14 +7,18 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -41,6 +45,11 @@ class GatewayBoundaryTest {
 
     private static final String SECRET = "it-gateway-secret";
     private static final String VALID_TOKEN = "valid-token";
+    private static final String SELLER_TOKEN = "seller-token";
+    private static final String ADMIN_TOKEN = "admin-token";
+    private static final String OPERATOR_TOKEN = "operator-token";
+    private static final String EXPIRED_TOKEN = "expired-token";
+    private static final String LISTING_ID = "3f2b8c1e-7a4d-4e9b-9c2f-1d5e6a7b8c9d";
 
     private static final MockWebServer downstream = startDownstream();
 
@@ -69,11 +78,20 @@ class GatewayBoundaryTest {
             // drain requests left over from a previous test
         }
         given(jwtDecoder.decode(anyString())).willReturn(Mono.error(new BadJwtException("invalid token")));
-        given(jwtDecoder.decode(VALID_TOKEN)).willReturn(Mono.just(Jwt.withTokenValue(VALID_TOKEN)
+        given(jwtDecoder.decode(EXPIRED_TOKEN)).willReturn(Mono.error(new JwtValidationException(
+                "Jwt expired", List.of(new OAuth2Error("invalid_token", "Jwt expired", null)))));
+        givenToken(VALID_TOKEN, "BUYER");
+        givenToken(SELLER_TOKEN, "SELLER");
+        givenToken(ADMIN_TOKEN, "ADMIN");
+        givenToken(OPERATOR_TOKEN, "OPERATOR");
+    }
+
+    private void givenToken(String token, String role) {
+        given(jwtDecoder.decode(token)).willReturn(Mono.just(Jwt.withTokenValue(token)
                 .header("alg", "RS256")
                 .subject("user-123")
                 .claim("email", "user@agri.test")
-                .claim("realm_access", Map.of("roles", List.of("BUYER")))
+                .claim("realm_access", Map.of("roles", List.of("default-roles-agricontract", role)))
                 .build()));
     }
 
@@ -151,12 +169,66 @@ class GatewayBoundaryTest {
         assertNotForwarded();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/listings/" + LISTING_ID, "/api/v1/products/" + LISTING_ID})
+    void publicDetailRoute_withUuid_isForwardedAnonymously(String path) throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+
+        client.get().uri(path)
+                .exchange()
+                .expectStatus().isOk();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getPath()).isEqualTo(path);
+        assertThat(received.getHeader("X-User-Id")).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/listings/seller", "/api/v1/products/mine", "/api/v1/listings/not-a-uuid"})
+    void reservedSiblingOfPublicDetailRoute_withoutToken_isRejected(String path) throws InterruptedException {
+        client.get().uri(path)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        assertNotForwarded();
+    }
+
+    @Test
+    void reservedSiblingOfPublicDetailRoute_withToken_isForwardedWithIdentity() throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+
+        client.get().uri("/api/v1/listings/seller")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + SELLER_TOKEN)
+                .exchange()
+                .expectStatus().isOk();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getHeaders().values("X-User-Role")).containsExactly("SELLER");
+    }
+
     // Matrix 14: internal routes are not public
 
     @ParameterizedTest
-    @ValueSource(strings = {"", VALID_TOKEN})
-    void internalRoute_isNotFoundAndNeverForwarded(String token) throws InterruptedException {
-        WebTestClient.RequestHeadersSpec<?> request = client.get().uri("/internal/v1/users/user-123");
+    @ValueSource(strings = {"", VALID_TOKEN, ADMIN_TOKEN, "bad-token", EXPIRED_TOKEN})
+    void internalRoute_isNotFoundAndNeverForwarded_regardlessOfBearer(String token) throws InterruptedException {
+        for (String path : List.of("/internal", "/internal/v1/users/user-123")) {
+            WebTestClient.RequestHeadersSpec<?> request = client.get().uri(path);
+            if (!token.isEmpty()) {
+                request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+            }
+
+            request.exchange().expectStatus().isNotFound();
+        }
+
+        assertNotForwarded();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "bad-token"})
+    void internalRoute_nonGetMethod_isNotFoundAndNeverForwarded(String token) throws InterruptedException {
+        WebTestClient.RequestHeadersSpec<?> request = client.post().uri("/internal/v1/users/user-123/verify");
         if (!token.isEmpty()) {
             request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         }
@@ -209,22 +281,52 @@ class GatewayBoundaryTest {
         assertThat(received.getPath()).isEqualTo("/api/v1/categories");
     }
 
+    // Role gate: KYC admin API needs ADMIN|OPERATOR at the gateway
+
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/admin/users?verificationStatus=PENDING", "/api/v1/admin/users/user-456/verify"})
-    void adminUserRoute_isForwardedToUserServiceWithJwtIdentity(String path) throws InterruptedException {
+    @CsvSource({
+            "ADMIN, GET, /api/v1/admin/users?verificationStatus=PENDING",
+            "ADMIN, POST, /api/v1/admin/users/user-456/verify",
+            "ADMIN, POST, /api/v1/admin/users/user-456/reject",
+            "OPERATOR, GET, /api/v1/admin/users?verificationStatus=PENDING",
+            "OPERATOR, POST, /api/v1/admin/users/user-456/verify",
+            "OPERATOR, POST, /api/v1/admin/users/user-456/reject"
+    })
+    void adminUserRoute_withStaffRole_isForwardedWithJwtIdentity(String role, String method, String path)
+            throws InterruptedException {
         downstream.enqueue(new MockResponse().setResponseCode(200));
 
-        client.get().uri(path)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
-                .header("X-User-Role", "ADMIN")
+        client.method(HttpMethod.valueOf(method)).uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(role))
                 .exchange()
                 .expectStatus().isOk();
 
         RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
         assertThat(received).isNotNull();
+        assertThat(received.getMethod()).isEqualTo(method);
         assertThat(received.getPath()).isEqualTo(path);
         assertThat(received.getHeaders().values("X-User-Id")).containsExactly("user-123");
-        assertThat(received.getHeaders().values("X-User-Role")).containsExactly("BUYER");
+        assertThat(received.getHeaders().values("X-User-Role")).containsExactly(role);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "BUYER, GET, /api/v1/admin/users?verificationStatus=PENDING",
+            "BUYER, POST, /api/v1/admin/users/user-456/verify",
+            "BUYER, POST, /api/v1/admin/users/user-456/reject",
+            "SELLER, GET, /api/v1/admin/users?verificationStatus=PENDING",
+            "SELLER, POST, /api/v1/admin/users/user-456/verify",
+            "SELLER, POST, /api/v1/admin/users/user-456/reject"
+    })
+    void adminUserRoute_withoutStaffRole_isForbiddenAndNeverForwarded(String role, String method, String path)
+            throws InterruptedException {
+        client.method(HttpMethod.valueOf(method)).uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(role))
+                .header("X-User-Role", "ADMIN")
+                .exchange()
+                .expectStatus().isForbidden();
+
+        assertNotForwarded();
     }
 
     @Test
@@ -234,6 +336,16 @@ class GatewayBoundaryTest {
                 .expectStatus().isUnauthorized();
 
         assertNotForwarded();
+    }
+
+    private static String tokenFor(String role) {
+        return switch (role) {
+            case "BUYER" -> VALID_TOKEN;
+            case "SELLER" -> SELLER_TOKEN;
+            case "ADMIN" -> ADMIN_TOKEN;
+            case "OPERATOR" -> OPERATOR_TOKEN;
+            default -> throw new IllegalArgumentException(role);
+        };
     }
 
     private static void assertNotForwarded() throws InterruptedException {
