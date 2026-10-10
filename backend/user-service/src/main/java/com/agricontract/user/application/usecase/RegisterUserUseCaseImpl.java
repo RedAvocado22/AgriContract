@@ -52,6 +52,7 @@ public class RegisterUserUseCaseImpl implements RegisterUserUseCase {
                 .phone(profile.getContactInfo().phone())
                 .address(profile.getContactInfo().address())
                 .verificationStatus(profile.getVerificationStatus())
+                .authorizationExpiresAt(profile.getAuthorizationExpiresAt())
                 .build();
     }
 

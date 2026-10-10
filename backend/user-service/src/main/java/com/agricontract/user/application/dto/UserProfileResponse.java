@@ -4,6 +4,8 @@ import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import lombok.Builder;
 
+import java.time.Instant;
+
 @Builder
 public record UserProfileResponse(
         String userId,
@@ -12,6 +14,7 @@ public record UserProfileResponse(
         String email,
         String phone,
         String address,
-        VerificationStatus verificationStatus
+        VerificationStatus verificationStatus,
+        Instant authorizationExpiresAt
 ) {
 }

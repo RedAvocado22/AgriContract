@@ -2,6 +2,7 @@ package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.common.exception.UserAlreadyExistsException;
+import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidVerificationTransitionException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidTransition(InvalidVerificationTransitionException ex) {
+        return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ConcurrentProfileUpdateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConcurrentUpdate(ConcurrentProfileUpdateException ex) {
         return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
     }
 

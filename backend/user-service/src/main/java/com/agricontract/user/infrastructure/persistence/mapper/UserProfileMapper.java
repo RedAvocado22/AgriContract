@@ -15,6 +15,7 @@ public interface UserProfileMapper {
     @Mapping(target = "email", source = "contactInfo.email")
     @Mapping(target = "phone", source = "contactInfo.phone")
     @Mapping(target = "address", source = "contactInfo.address")
+    @Mapping(target = "version", ignore = true)
     UserProfileJpaEntity toJpaEntity(UserProfile domain);
 
     // Copies mutable state onto an already-managed entity; identity and audit columns are never overwritten.
@@ -24,6 +25,7 @@ public interface UserProfileMapper {
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "version", ignore = true)
     @Mapping(target = "email", source = "contactInfo.email")
     @Mapping(target = "phone", source = "contactInfo.phone")
     @Mapping(target = "address", source = "contactInfo.address")
