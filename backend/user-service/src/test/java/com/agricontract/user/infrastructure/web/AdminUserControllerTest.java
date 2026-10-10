@@ -6,6 +6,7 @@ import com.agricontract.user.application.dto.VerifyUserCommand;
 import com.agricontract.user.application.usecase.ListUsersByVerificationStatusUseCase;
 import com.agricontract.user.application.usecase.RejectUserUseCase;
 import com.agricontract.user.application.usecase.VerifyUserUseCase;
+import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.model.vo.Role;
@@ -190,6 +191,15 @@ class AdminUserControllerTest {
 
         mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void reject_concurrentDecision_conflict() throws Exception {
+        when(rejectUserUseCase.execute(any())).thenThrow(new ConcurrentProfileUpdateException(TARGET_ID));
+
+        mockMvc.perform(viaGateway(post(REJECT_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Blurry ID scan\"}"))
                 .andExpect(status().isConflict());
     }
 

@@ -12,7 +12,8 @@ public interface UserProfileRepository {
     // Insert only: a duplicate userId raises UserAlreadyExistsException.
     UserProfile save(UserProfile userProfile);
 
-    // Existing profile only: never inserts.
+    // Existing profile only: never inserts. Must run in the transaction that loaded the profile;
+    // if another transaction changed it since that load, throws ConcurrentProfileUpdateException.
     UserProfile update(UserProfile userProfile);
 
     Optional<UserProfile> findById(UserId userId);

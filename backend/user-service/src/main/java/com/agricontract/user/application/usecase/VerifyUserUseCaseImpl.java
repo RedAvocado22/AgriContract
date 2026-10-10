@@ -29,7 +29,7 @@ public class VerifyUserUseCaseImpl implements VerifyUserUseCase {
         profile.verify(command.actorId(), Instant.now(clock).truncatedTo(ChronoUnit.MICROS), command.authorizationExpiresAt());
 
         UserProfile saved = userProfileRepository.update(profile);
-        // TODO: publish notification.user_kyc_result_requested via outbox once user-service has AMQP
+        // TODO(#154): publish notification.user_kyc_result_requested via outbox in this transaction
         return AdminUserResponse.from(saved);
     }
 }

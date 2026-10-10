@@ -29,6 +29,7 @@ public class GetUserProfileUseCaseImpl implements GetUserProfileUseCase {
                 .phone(profile.getContactInfo().phone())
                 .address(profile.getContactInfo().address())
                 .verificationStatus(profile.getVerificationStatus())
+                .authorizationExpiresAt(profile.getAuthorizationExpiresAt())
                 .build();
     }
 }

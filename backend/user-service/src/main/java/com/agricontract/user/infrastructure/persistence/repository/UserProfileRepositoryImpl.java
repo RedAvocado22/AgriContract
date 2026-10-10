@@ -1,6 +1,7 @@
 package com.agricontract.user.infrastructure.persistence.repository;
 
 import com.agricontract.user.common.exception.UserAlreadyExistsException;
+import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
@@ -9,10 +10,12 @@ import com.agricontract.user.infrastructure.persistence.entity.UserProfileJpaEnt
 import com.agricontract.user.infrastructure.persistence.mapper.UserProfileMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -39,13 +42,18 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public UserProfile update(UserProfile userProfile) {
         String userId = userProfile.getUserId().value();
+        // Same transaction as the caller's load, so this returns the managed entity with the version read then.
         UserProfileJpaEntity entity = jpaRepository.findByUserId(userId)
                 .orElseThrow(() -> new NoSuchElementException("User not found: " + userId));
         mapper.updateEntity(userProfile, entity);
-        return mapper.toDomain(entity);
+        try {
+            return mapper.toDomain(jpaRepository.saveAndFlush(entity));
+        } catch (OptimisticLockingFailureException e) {
+            throw new ConcurrentProfileUpdateException(userId);
+        }
     }
 
     @Override
