@@ -737,7 +737,7 @@ components:
         packageHash: {type: string, pattern: '^[a-f0-9]{64}$'}
     GoodsTermsCommon:
       type: object
-      required: [commodity, listingId, productId, categoryId, categoryName, productName, unitOfMeasure, originSnapshot]
+      required: [commodity, listingId, productId, categoryId, categoryName, productName, unitOfMeasure, cropYear, harvestSeason, originSnapshot]
       properties:
         commodity: {const: COFFEE}
         listingId: {type: string, format: uuid}
@@ -746,6 +746,8 @@ components:
         categoryName: {type: string, minLength: 1}
         productName: {type: string, minLength: 1}
         unitOfMeasure: {type: string, const: KG}
+        cropYear: {type: [integer, 'null'], readOnly: true, description: Server-derived Product crop year frozen into the signed goods snapshot.}
+        harvestSeason: {type: [string, 'null'], readOnly: true, description: Server-derived Product harvest season frozen into the signed goods snapshot.}
     CoffeeGoodsTerms:
       allOf:
         - {$ref: '#/components/schemas/GoodsTermsCommon'}

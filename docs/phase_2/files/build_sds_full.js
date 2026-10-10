@@ -14,7 +14,7 @@ setHeadingOffset(0);
 const body = [
   ...cover(
     "AGRICONTRACT",
-    "Software Design Specification — Phase 2",
+    "Đặc tả thiết kế phần mềm của đồ án",
     "State, API, event, schema, invariant, migration và implementation contract hợp nhất",
     ["Tài liệu thiết kế chi tiết hợp nhất", "Phiên bản final · Tháng 7/2026"]
   ),
@@ -33,8 +33,8 @@ const body = [
 ];
 
 const doc = buildDoc(body, {
-  title: "AgriContract — Software Design Specification Phase 2 — Final",
-  headerText: "AgriContract · SDS Phase 2",
+  title: "AgriContract — Đặc tả thiết kế phần mềm của đồ án — Final",
+  headerText: "AgriContract · Đặc tả thiết kế",
   footerText: "Final · Tháng 7/2026",
 });
 

@@ -443,7 +443,7 @@ Các thuộc tính sau là metadata bổ sung, đều nullable/không bắt bu�
 
 Ba field `Listing` được expose qua common create/response DTO. Ba field `Product` được expose trong `ListingResponse` common DTO dưới dạng read-only, nullable và derived từ Product; Product vẫn là owner duy nhất, không thêm Product DTO public riêng. `certifications` là list free-text do seller cam kết cho hàng tương lai, không typed và không có expiry.
 
-Lý do consistency: `goodsTerms` snapshot lúc ký đã mang `cropYear`/`harvestSeason`. Nếu buyer ký hợp đồng có các field này nhưng lúc xem Listing lại không thấy, buyer đang ký một phần thông tin mà họ chưa từng nhìn thấy. ListingResponse phải hiển thị cùng lớp thông tin với snapshot; đây là cùng lớp vấn đề với `listingVersionToken`/listing-version guard.
+Lý do consistency: `goodsTerms` snapshot lúc ký mang `cropYear`/`harvestSeason` dưới dạng required-but-nullable server-derived fields. Nếu buyer ký hợp đồng có các field này nhưng lúc xem Listing lại không thấy, buyer đang ký một phần thông tin mà họ chưa từng nhìn thấy. ListingResponse phải hiển thị cùng lớp thông tin với snapshot; đây là cùng lớp vấn đề với `listingVersionToken`/listing-version guard. `certifications` vẫn là metadata seller-declared read-only của ListingResponse trong Phase 2; chưa tự nâng thành chứng nhận đã verify hoặc signed compliance claim.
 
 ---
 

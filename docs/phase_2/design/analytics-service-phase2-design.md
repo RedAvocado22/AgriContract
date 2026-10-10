@@ -11,10 +11,12 @@ metadata:
 
 ## 1. Bối cảnh & Scope
 
+**Scope override chốt 06/10/2026:** projection cho write mới chỉ nhận hợp đồng nội địa Việt Nam có `commodity = COFFEE`. Cột `commodity` vẫn được giữ để đọc/rebuild dữ liệu legacy, nhưng API/dashboard Phase 2 không quảng bá `RICE`, `RUBBER`, `CASHEW` là scope đang hỗ trợ.
+
 **Analytics-service là event-driven projection kiêm derived-signal producer** (đổi cách gọi 18/07/2026 — "pure consumer" cũ hết đúng từ khi `AmlPatternScanJob` publish `analytics.structuring_pattern_detected`; 2 bất biến THẬT của thiết kế: **không nằm trên transaction critical path** và **không gọi đồng bộ (REST/Feign) ngược về core service**). Nó không sở hữu bất kỳ quy trình nghiệp vụ lõi nào. Mọi dữ liệu nó có đều phải đến từ việc "nghe" RabbitMQ events. Lý do thiết kế cứng này: analytics là non-critical path. Dù `analytics-service` có sập hay bị quá tải vì query báo cáo nặng, nó tuyệt đối không được tạo tải ngược (cascading failure) lên `contract-service` hay `bank-service` đang xử lý giao dịch.
 
 **Mục tiêu (B2B Agritech context):** Cung cấp các chỉ số đo lường sức khoẻ nền tảng có ý nghĩa thật cho Hiệp hội (VICOFA/VRA) và Admin nền tảng, để ra quyết định vĩ mô. Không vẽ dashboard vô thưởng vô phạt. Cụ thể:
-- **Tỷ lệ bẻ kèo (Cancellation/Default Rate):** Đo lường lòng tin vào hợp đồng forward.
+- **Tỷ lệ phá hợp đồng (Cancellation/Default Rate):** Đo lường lòng tin vào hợp đồng forward.
 - **Hiệu quả Milestone Escrow (Escrow Effectiveness):** Giải quyết câu hỏi "Mô hình chia nhỏ batch có thực sự giúp giảm tỷ lệ vốn bị giam (locked) vô ích so với thực nhận (actual) không?".
 - **Xu hướng Bất khả kháng (Force Majeure Trends):** Đo lường rủi ro đứt gãy chuỗi cung ứng do thiên tai theo mùa vụ/ngành hàng.
 
@@ -40,7 +42,7 @@ CREATE TABLE dim_contract (
     signed_at      TIMESTAMP NOT NULL
 );```
 
-**Đã giải quyết (06/07/2026, rà soát lại):** điểm treo trước đây về nguồn `commodity` được chốt bằng cách thêm event mới `contract.signed` vào Event Catalog cấp Contract (`milestone-escrow-phase2-design.md` §7.2), publish đúng 1 lần lúc `Contract.transitionTo(SIGNED)`, payload `{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}`. `dim_contract` được `INSERT` (upsert theo `contract_id`) ngay khi nhận event này — chi tiết ingest ở §3.1 bên dưới. **Cập nhật (08/07/2026):** `commodity` trong payload là enum cứng `COFFEE/RICE/RUBBER/CASHEW`, luôn non-null (analytics chỉ nhận và lưu, không tự map). Cơ chế `commodity` đến từ đâu (`Category.commodity`, admin gán lúc `approve()`, bỏ bảng mapping) chốt ở `product-phase2-design.md` §9 (owner) — không mô tả lại ở đây. Điểm treo mapping trước đây **đã đóng hoàn toàn**.
+**Đã giải quyết (06/07/2026, rà soát lại):** điểm treo trước đây về nguồn `commodity` được chốt bằng cách thêm event mới `contract.signed` vào Event Catalog cấp Contract (`milestone-escrow-phase2-design.md` §7.2), publish đúng 1 lần lúc `Contract.transitionTo(SIGNED)`, payload `{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}`. `dim_contract` được `INSERT` (upsert theo `contract_id`) ngay khi nhận event này — chi tiết ingest ở §3.1 bên dưới. **Cập nhật (06/10/2026):** write mới luôn mang `COFFEE`; enum legacy có thể còn xuất hiện khi rebuild lịch sử nhưng không mở lại write scope. Cơ chế `commodity` đến từ đâu (`Category.commodity`, admin gán lúc `approve()`, bỏ bảng mapping) chốt ở `product-phase2-design.md` §9 (owner) — không mô tả lại ở đây.
 
 ### 2.2 Sự đánh đổi: Real-time vs Pre-computed
 
@@ -183,7 +185,7 @@ Mỗi khi nhận event từ RabbitMQ, pipeline xử lý phải đi qua bước c
 
 **Chốt (06/07/2026):** Job `MonthlyAggregationJob` chạy lúc **1:00 AM mỗi ngày** (off-peak, trước giờ `VerifyChainJob` của audit-service 2:00 AM để tránh dẫm chân tài nguyên DB nội bộ nếu triển khai chung node).
 * *Cách chạy (**sửa 19/07 lần 3; hiệu chỉnh theo granularity bucket cùng ngày**):* bucket của `agg_monthly_commodity_stats` là **THÁNG** (`PRIMARY KEY (month_id, commodity)`) — không có bucket ngày để "recompute D-7..D-1". Job mỗi ngày: xác định cửa sổ trễ 7 ngày `[D-7, D-1]`, rồi **recompute NGUYÊN từng bucket tháng bị cửa sổ đó chạm** (thường là tháng hiện tại; những ngày đầu tháng thì thêm cả tháng trước) — quét **toàn bộ facts của tháng đó** (không chỉ facts trong cửa sổ) từ `fact_contract_settlement` + `fact_contract_termination` (JOIN `dim_contract` lấy `commodity`) và `fact_milestone_performance`, tính lại đủ mọi cột, rồi **SET ghi đè bucket, KHÔNG `+=`**. Lý do bỏ cách cũ: (a) event tới muộn sau khi job đã chạy → job quét-hôm-qua không bao giờ quay lại — "lần chạy kế tiếp tự vá" là lời hứa sai; (b) rerun kiểu increment-upsert → cộng hai lần. Recompute-cả-tháng + SET là idempotent tự nhiên: rerun bao nhiêu lần cũng ra cùng số, event trễ ≤7 ngày tự được vá ở lần chạy kế. Chi phí quét cả tháng chấp nhận được — nền B2B forward tần suất giao dịch thấp (§1). Event trễ >7 ngày: chấp nhận sai số (read model, không phải evidence ledger); cần thì trigger recompute tay theo `month_id`. Phân loại termination vào 4 cột theo `termination_type` + `final_breaching_role` (§2.2).
-* *Tính Rate (SỬA 19/07/2026 — tách rate theo attribution, không còn 1 cancellation_rate gộp):* `seller_breach_rate = total_seller_breaches / (total_contracts_settled + total_seller_breaches + total_buyer_breaches)`; `buyer_breach_rate` mirror. **Mutual exits và no-fault KHÔNG vào mẫu số breach rate như "vi phạm"** — gộp chung sẽ thổi phồng "tỷ lệ bẻ kèo" bằng cả những cặp chia tay thiện chí, đo sai đúng cái metric mà hiệp hội dựa vào để đánh giá lòng tin thị trường.
+* *Tính Rate (SỬA 19/07/2026 — tách rate theo attribution, không còn 1 cancellation_rate gộp):* `seller_breach_rate = total_seller_breaches / (total_contracts_settled + total_seller_breaches + total_buyer_breaches)`; `buyer_breach_rate` mirror. **Mutual exits và no-fault KHÔNG vào mẫu số breach rate như "vi phạm"** — gộp chung sẽ thổi phồng "tỷ lệ phá hợp đồng" bằng cả những cặp chia tay thiện chí, đo sai đúng cái metric mà hiệp hội dựa vào để đánh giá lòng tin thị trường.
 
 ### 3.5 Batch Job AML — `AmlPatternScanJob` (mới, 10/07/2026 — đóng gap structuring chậm §9 reputation-service)
 
@@ -225,8 +227,8 @@ HAVING COUNT(*) >= 5;                     -- min 5 hợp đồng near-threshold 
 
 Các API này phục vụ Dashboard của Admin/Hiệp hội, nên được Redis cache với TTL 1 giờ (dữ liệu phân tích vĩ mô không cần fresh tới từng giây).
 
-### 4.1. Báo cáo Termination theo Ngành hàng (SỬA 19/07/2026 — thay "Tỷ lệ bẻ kèo" gộp)
-Đo lường lòng tin vào hợp đồng forward — nhưng đo đúng: breach rate tách theo bên vi phạm (attribution), mutual/no-fault báo riêng, không gộp thành một "tỷ lệ bẻ kèo" vu cả những cặp chia tay thiện chí.
+### 4.1. Báo cáo Termination theo Ngành hàng (SỬA 19/07/2026 — thay "Tỷ lệ phá hợp đồng" gộp)
+Đo lường lòng tin vào hợp đồng forward — nhưng đo đúng: breach rate tách theo bên vi phạm (attribution), mutual/no-fault báo riêng, không gộp thành một "tỷ lệ phá hợp đồng" vu cả những cặp chia tay thiện chí.
 
 * `GET /api/v1/analytics/terminations?year={YYYY}`
 * **Response Shape:**
@@ -276,8 +278,7 @@ Rất quan trọng với VICOFA/VRA để báo cáo tình hình chuỗi cung ứ
       "year": "2026",
       "totalIncidents": 24,
       "byCommodity": {
-        "COFFEE": 18,
-        "RICE": 6
+        "COFFEE": 24
       },
       "peakMonths": ["2026-09", "2026-10"] // Các tháng có bão lũ
     }
@@ -307,12 +308,12 @@ Những điều này phải báo cáo thẳng thắn với hội đồng bảo v
 3. `dim_contract` chưa từng được wire vào ingest pipeline nào — thêm event mới `contract.signed` (`milestone-escrow-phase2-design.md` §7.2) + bước ingest §3.1.
 4. `has_force_majeure` gần như luôn `FALSE` do race condition (event `resolved` luôn tới trước khi fact row tồn tại) → thêm bảng staging `pending_force_majeure_flag` (§2.4), merge 2 chiều lúc `INSERT`.
 
-**Nguồn `commodity` đã đóng hoàn toàn (08/07/2026):** `commodity` non-null, đọc từ `Category.commodity`. Cơ chế chốt ở `product-phase2-design.md` §9 (owner).
+**Nguồn `commodity` đã đóng hoàn toàn (cập nhật scope 06/10/2026):** `commodity` non-null, đọc từ `Category.commodity`; write mới chỉ nhận `COFFEE`, giá trị khác chỉ có thể đến từ dữ liệu legacy. Cơ chế chốt ở `product-phase2-design.md` §9 (owner).
 
 **Chốt bổ sung (10/07/2026) — `AmlPatternScanJob` đóng gap structuring chậm (§3.5):** thêm job batch AML riêng (KHÔNG gộp `MonthlyAggregationJob`) quét cụm near-threshold `[475tr, 500tr)`, min 5 hợp đồng/cặp, lookback 90 ngày, JOIN `dim_contract` (đã có `total_amount`/`buyer_id`/`seller_id`) — **không** thêm cột vào `fact_contract_settlement`, tránh sửa payload `contract.settled`. Bắt cụm → publish `analytics.structuring_pattern_detected`; `analytics-service` chỉ phát hiện, không tự hold/flag/báo cáo (derived-signal producer — không critical path, không sync ngược). Consumer: `reputation-service` (ELEVATED_RISK) + `bank-service` (báo cáo cơ quan). Đóng đúng phần slow-drip có lặp mà 2 tầng realtime của `reputation-service` (§8) không bắt được; residual (vài mảnh đầu + one-shot nhỏ lẻ) ghi rõ ở `reputation-service-phase2-design.md` §9.
 
-Analytics-service — **ĐÓNG SESSION HOÀN TOÀN, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** Điểm treo mapping `commodity` đã đóng hoàn toàn (08/07/2026, §2.3) — `commodity` non-null đọc từ `Category.commodity`, cơ chế chốt ở `product-phase2-design.md` §9. Không còn điểm treo.
+Analytics-service — **ĐÓNG SESSION HOÀN TOÀN, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** Điểm treo mapping `commodity` đã đóng hoàn toàn (§2.3) — `commodity` non-null đọc từ `Category.commodity`; Phase 2 write mới chỉ dùng `COFFEE`, cơ chế chốt ở `product-phase2-design.md` §9.
 
 ---
 
-*Design session: 06/07/2026 · Rà soát + fix 4 bug: 06/07/2026 · Cập nhật 13/07/2026 (gỡ câu điều kiện thừa ở Status) · Cập nhật 19/07/2026 (đợt 6 — fact_contract_termination thay fact_contract_cancellation: tách terminationType/requestedBy/finalBreachingRole; agg tách seller/buyer breach rate khỏi mutual/no-fault; API /terminations thay /cancellations; consume contract.terminated — review lần 2: payload đủ field, bỏ consumer remedy.finalized; lần 3: MonthlyAggregationJob đổi sang rolling recompute + SET-ghi-đè, hiệu chỉnh cùng ngày theo granularity: recompute nguyên bucket THÁNG bị cửa sổ D-7..D-1 chạm — schema là monthly, không có bucket ngày) · Chưa code · **Đã đóng kiến trúc Phase 2 tổng thể — sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Design session: 06/07/2026 · Rà soát + fix 4 bug: 06/07/2026 · Cập nhật 13/07/2026 (gỡ câu điều kiện thừa ở Status) · Cập nhật 19/07/2026 (termination attribution và monthly recompute) · Cập nhật 06/10/2026 (write scope Việt Nam + COFFEE, legacy commodity chỉ read/rebuild) · Chưa code · **Đã đóng kiến trúc Phase 2 tổng thể — sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***

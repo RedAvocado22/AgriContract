@@ -92,8 +92,24 @@ def main() -> None:
     openapi = yaml.safe_load((ROOT / "contracts/openapi/golden-flow-api.yaml").read_text())
     paths = openapi["paths"]
     operations = sum(1 for item in paths.values() for method in item if method.lower() in {"get", "post", "put", "patch", "delete"})
-    if len(paths) != 41 or operations != 42:
+    if len(paths) != 46 or operations != 47:
         fail(f"OpenAPI count changed: {len(paths)} paths / {operations} operations")
+
+    supplementary = yaml.safe_load((ROOT / "contracts/events/supplementary-services-api.yaml").read_text())
+    supplementary_paths = supplementary["paths"]
+    supplementary_operations = sum(
+        1
+        for item in supplementary_paths.values()
+        for method in item
+        if method.lower() in {"get", "post", "put", "patch", "delete"}
+    )
+    if len(supplementary_paths) != 16 or supplementary_operations != 18:
+        fail(
+            "Supplementary OpenAPI count changed: "
+            f"{len(supplementary_paths)} paths / {supplementary_operations} operations"
+        )
+    if len(supplementary.get("components", {}).get("schemas", {})) != 15:
+        fail("Supplementary OpenAPI schema count is not 15")
     api_heading = "| Method | Path | Owner | operationId | Request, response and errors | Auth/role |"
     api_rows = list(markdown_table_rows(sds, api_heading))
     path_values = [row[1] for row in api_rows]
@@ -113,8 +129,8 @@ def main() -> None:
             schema = response.get("content", {}).get("application/json", {}).get("schema", {})
             if schema.get("$ref") and schema["$ref"].split("/")[-1] not in row[4]:
                 fail(f"SDS response schema mismatch for {op['operationId']} status {status}")
-    if len(openapi.get("components", {}).get("schemas", {})) != 38:
-        fail("OpenAPI schema count is not 38")
+    if len(openapi.get("components", {}).get("schemas", {})) != 62:
+        fail("OpenAPI schema count is not 62")
     schema_rows = list(markdown_table_rows(sds, "| Schema | Fields/type | Constraint |"))
     if [row[0] for row in schema_rows] != list(openapi["components"]["schemas"]):
         fail("SDS schema catalog order/content does not match frozen OpenAPI")
@@ -124,8 +140,8 @@ def main() -> None:
                 fail(f"SDS schema {name} is missing field {field}")
 
     events = yaml.safe_load((ROOT / "contracts/events/golden-flow-events.yaml").read_text())
-    if len(refs(events)) != 44:
-        fail(f"golden-flow event count is {len(refs(events))}, expected 44")
+    if len(refs(events)) != 50:
+        fail(f"golden-flow event count is {len(refs(events))}, expected 50")
     event_heading = "| Event | Producer | Consumers | Side-effect boundary |"
     event_rows = list(markdown_table_rows(architecture, event_heading))
     event_names = [row[0] for row in event_rows]
@@ -147,8 +163,8 @@ def main() -> None:
                 fail(f"SDS event {sds_row[0]} is missing payload field {field}")
 
     notifications = yaml.safe_load((ROOT / "contracts/events/notification-commands.yaml").read_text())
-    if len(refs(notifications)) != 16:
-        fail(f"notification command count is {len(refs(notifications))}, expected 16")
+    if len(refs(notifications)) != 17:
+        fail(f"notification command count is {len(refs(notifications))}, expected 17")
     command_heading = "| Command | Producer | Consumer | Required payload; optional payload |"
     command_rows = list(markdown_table_rows(sds, command_heading))
     command_names = [row[0] for row in command_rows]
@@ -166,8 +182,8 @@ def main() -> None:
                 fail(f"notification command {row[0]} is missing payload field {field}")
 
     matrix_rows = re.findall(r"^\|\s*[^|]+\s*\| P[012] \|", sds, flags=re.MULTILINE)
-    if len(matrix_rows) != 55:
-        fail(f"verification matrix has {len(matrix_rows)} rows, expected 55")
+    if len(matrix_rows) != 84:
+        fail(f"verification matrix has {len(matrix_rows)} rows, expected 84")
 
     forbidden = [
         "source of truth", "nguồn sự thật", "single source", "Architecture/SDS",
