@@ -1,5 +1,6 @@
 package com.agricontract.gateway.filter;
 
+import com.agricontract.gateway.config.KeycloakRealmRoleConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -129,6 +130,28 @@ class UserContextInjectionFilterTest {
         assertThat(forwarded.get()).isNull();
     }
 
+    @Test
+    void realmHousekeepingRoles_areNotForwarded() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/users/me").build();
+
+        filter.filter(withPrincipal(request, jwt("user-123", "user@agri.test",
+                List.of("default-roles-agricontract", "offline_access", "SELLER", "uma_authorization"))), chain).block();
+
+        assertThat(forwardedHeaders().get("X-User-Role")).containsExactly("SELLER");
+    }
+
+    @Test
+    void jwtWithOnlyHousekeepingRoles_isRejectedWithForbidden() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/users/me").build();
+
+        StepVerifier.create(filter.filter(withPrincipal(request,
+                        jwt("user-123", "user@agri.test", List.of("offline_access"))), chain))
+                .expectErrorSatisfies(error ->
+                        assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN))
+                .verify();
+        assertThat(forwarded.get()).isNull();
+    }
+
     private HttpHeaders forwardedHeaders() {
         assertThat(forwarded.get()).as("request was forwarded").isNotNull();
         return forwarded.get().getRequest().getHeaders();
@@ -136,7 +159,7 @@ class UserContextInjectionFilterTest {
 
     private static ServerWebExchange withPrincipal(MockServerHttpRequest request, Jwt jwt) {
         return MockServerWebExchange.from(request).mutate()
-                .principal(Mono.just(new JwtAuthenticationToken(jwt)))
+                .principal(Mono.just(new JwtAuthenticationToken(jwt, new KeycloakRealmRoleConverter().convert(jwt))))
                 .build();
     }
 
