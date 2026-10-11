@@ -1,0 +1,48 @@
+{
+  "name": "@agricontract/eventing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Node.js event envelope, transactional outbox and consumer dedupe for AgriContract Node services (analytics, pricing, notification, file).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "peerDependencies": {
+    "amqplib": ">=0.10.0",
+    "mysql2": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "amqplib": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0",
+    "@types/js-yaml": "^4.0.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
