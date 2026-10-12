@@ -1,0 +1,310 @@
+@startuml
+!define PK(x) <b><u>x</u></b>
+!define FK(x) <i>x</i>
+skinparam linetype polyline
+skinparam shadowing false
+skinparam monochrome true
+skinparam dpi 180
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 40
+skinparam ranksep 60
+hide circle
+hide empty methods
+
+entity USER {
+  PK(userId)
+  --
+  organizationName
+  role
+  kycStatus
+  authorizationExpiresAt
+}
+entity PLOT_REGISTRY_ENTRY {
+  PK(plotId)
+  --
+  FK(sellerId)
+  FK(cadastralFileId)
+  householdLabel
+  geometry
+  areaHectares
+  declaredProvince
+  verificationLevel
+  geoRiskLevel
+}
+entity PRODUCT_PLOT {
+  PK(productId) (FK)
+  PK(plotId) (FK)
+  --
+  plotSnapshot
+}
+entity CATEGORY {
+  PK(categoryId)
+  --
+  FK(parentCategoryId)
+  commodity
+  name
+}
+entity PRODUCT {
+  PK(productId)
+  --
+  FK(sellerId)
+  FK(categoryId)
+  productName
+  varietyName
+  cropYear
+}
+entity LISTING {
+  PK(listingId)
+  --
+  FK(productId)
+  offeredQuantity
+  quantityAvailable
+  minOrderQuantity
+  declaredQualitySpec
+  status
+}
+entity RESERVATION {
+  PK(reservationId)
+  --
+  FK(listingId)
+  FK(contractId)
+  quantity
+  status
+}
+entity REFERENCE_PRICE {
+  PK(priceId)
+  --
+  FK(categoryId)
+  province
+  price
+  source
+  quotedAt
+}
+entity CONTRACT {
+  PK(contractId)
+  --
+  FK(buyerId)
+  FK(sellerId)
+  FK(listingId)
+  FK(replacesContractId)
+  status
+  termsVersion
+  signedContentHash
+}
+entity CONTRACT_TERMS {
+  PK(termsId)
+  --
+  FK(contractId)
+  termsVersion
+  agreedPrice
+  priceBand
+  depositRates
+  qualityTerms
+  deliveryTerms
+  governingLaw
+  maxPenaltyRate
+  damagesPolicy
+}
+entity SIGNATURE {
+  PK(signatureId)
+  --
+  FK(termsId)
+  FK(signerId)
+  signerRole
+  termsHash
+  signedAt
+}
+entity MILESTONE {
+  PK(milestoneId)
+  --
+  FK(contractId)
+  milestoneIndex
+  committedQuantity
+  batchAmount
+  deliveryDeadline
+  deliveryStatus
+  fundingStatus
+}
+entity PRICE_ADJUSTMENT {
+  PK(adjustmentId)
+  --
+  FK(milestoneId)
+  FK(proposedBy)
+  proposedPrice
+  status
+}
+entity FORCE_MAJEURE_CLAIM {
+  PK(claimId)
+  --
+  FK(milestoneId)
+  FK(claimantId)
+  FK(decidedBy)
+  eventDescription
+  eventKnownAt
+  status
+}
+entity BREACH_CASE {
+  PK(caseId)
+  --
+  FK(contractId)
+  FK(milestoneId)
+  FK(reportedBy)
+  allegedBreachingRole
+  breachReasonCode
+  severity
+  status
+}
+entity ATTRIBUTION_DECISION {
+  PK(decisionId)
+  --
+  FK(caseId)
+  FK(decidedBy)
+  finalBreachingRole
+  decisionSource
+  qualityDisposition
+}
+entity REMEDY_DECISION {
+  PK(remedyId)
+  --
+  FK(decisionId)
+  penaltyEligible
+  reputationEligible
+  legalProfileSnapshot
+}
+entity REMEDY_LEG {
+  PK(legId)
+  --
+  FK(remedyId)
+  remedyType
+  fundType
+  partyRole
+  amount
+}
+entity ESCROW_ACCOUNT {
+  PK(escrowId)
+  --
+  FK(contractId)
+  buyerDepositState
+  sellerDepositState
+}
+entity LEDGER_ENTRY {
+  PK(entryId)
+  --
+  FK(escrowId)
+  FK(milestoneId)
+  FK(remedyLegId)
+  entryType
+  fundType
+  amount
+  recordedAt
+}
+entity INSPECTION_REQUEST {
+  PK(requestId)
+  --
+  FK(caseId)
+  FK(milestoneId)
+  tier
+  inspectionOrg
+  caseCode
+  status
+  requestedAt
+}
+entity INSPECTION_REPORT {
+  PK(reportId)
+  --
+  FK(requestId)
+  FK(inspectorId)
+  FK(fileId)
+  tier
+  normalizedResult
+  reportHash
+  status
+  submittedAt
+}
+entity FILE {
+  PK(fileId)
+  --
+  FK(uploadedBy)
+  ingestChannel
+  sha256
+  status
+  legalHold
+}
+entity REPUTATION_LOCK {
+  PK(lockId)
+  --
+  FK(userId)
+  FK(remedyId)
+  lockedUntil
+  reasonCode
+  status
+}
+entity REPUTATION_ACTION {
+  PK(actionId)
+  --
+  FK(lockId)
+  FK(proposedBy)
+  FK(approvedBy)
+  actionType
+  status
+}
+entity AUDIT_RECORD {
+  PK(seq)
+  --
+  FK(prevSeq)
+  FK(contractId)
+  sourceType
+  recordHash
+  prevHash
+}
+entity SECURITY_LOCK {
+  PK(securityLockId)
+  --
+  state
+  verifierOrg
+  activatedAt
+}
+
+USER ||--o{ PLOT_REGISTRY_ENTRY : registers
+USER ||--o{ PRODUCT : owns
+USER ||--o{ FILE : uploads
+PLOT_REGISTRY_ENTRY ||--o{ PRODUCT_PLOT : "is used in"
+PRODUCT ||--|{ PRODUCT_PLOT : "is grown on"
+FILE |o--o{ PLOT_REGISTRY_ENTRY : maps
+CATEGORY ||--o{ PRODUCT : classifies
+CATEGORY |o--o{ CATEGORY : groups
+CATEGORY ||--o{ REFERENCE_PRICE : "is quoted in"
+PRODUCT ||--o{ LISTING : "is offered via"
+LISTING ||--o{ RESERVATION : "is reserved by"
+LISTING ||--o{ CONTRACT : supplies
+CONTRACT ||--|| RESERVATION : holds
+USER ||--o{ CONTRACT : "buys under"
+USER ||--o{ CONTRACT : "sells under"
+CONTRACT |o--o| CONTRACT : replaces
+CONTRACT ||--|{ CONTRACT_TERMS : "is governed by"
+CONTRACT_TERMS ||--o{ SIGNATURE : "is signed with"
+USER ||--o{ SIGNATURE : provides
+CONTRACT ||--|{ MILESTONE : "is split into"
+MILESTONE ||--o{ PRICE_ADJUSTMENT : "is repriced by"
+MILESTONE ||--o{ FORCE_MAJEURE_CLAIM : "is excused by"
+CONTRACT ||--o{ BREACH_CASE : "is disputed in"
+MILESTONE |o--o{ BREACH_CASE : concerns
+BREACH_CASE ||--o| ATTRIBUTION_DECISION : "is resolved by"
+ATTRIBUTION_DECISION ||--o| REMEDY_DECISION : "leads to"
+REMEDY_DECISION ||--|{ REMEDY_LEG : "consists of"
+CONTRACT ||--|| ESCROW_ACCOUNT : "is secured by"
+ESCROW_ACCOUNT ||--o{ LEDGER_ENTRY : records
+MILESTONE |o--o{ LEDGER_ENTRY : "is funded by"
+REMEDY_LEG ||--o| LEDGER_ENTRY : "is executed as"
+BREACH_CASE ||--o{ INSPECTION_REQUEST : requests
+MILESTONE ||--o{ INSPECTION_REQUEST : "is inspected in"
+INSPECTION_REQUEST ||--o| INSPECTION_REPORT : "is answered by"
+USER |o--o{ INSPECTION_REPORT : submits
+FILE ||--o| INSPECTION_REPORT : evidences
+USER ||--o{ REPUTATION_LOCK : "is restricted by"
+REMEDY_DECISION |o--o{ REPUTATION_LOCK : imposes
+REPUTATION_LOCK ||--o{ REPUTATION_ACTION : "is reviewed in"
+CONTRACT |o--o{ AUDIT_RECORD : "is recorded in"
+AUDIT_RECORD |o--o| AUDIT_RECORD : "chains to"
+@enduml

@@ -121,15 +121,15 @@ Template được version trong code/resources để review cùng source; DB ch�
 | `notification.contract_terminated_requested` / contract-service (**SỬA 19/07/2026 — thay `contract_cancelled_requested`**) | Buyer + Seller | Canonical lifecycle fields (`contractId`, `terminationType`, `requestedBy`, nullable attribution/reason/decision/case fields, affected milestones and replacement pointers) plus `remedyLegs` and `payload.recipients`. Template PHẢI phân biệt: mutual/replacement/FM/technical (không ai vi phạm — giọng trung tính) vs breach (nêu bên vi phạm theo attribution). KHÔNG dùng chữ "huỷ do X" khi X chỉ là requestedBy |
 | `notification.breach_notice_requested` / contract-service (**mới 19/07/2026**) | Bên bị cáo buộc + bên cáo buộc | `breachCaseId`, `breachReasonCode`, severity, evidence refs — thông báo `BreachCase` mở (milestone-escrow §6.4); là notice chính thức có timestamp, đầu chuỗi bằng chứng wrongful-termination |
 | `notification.remedy_finalized_requested` / contract-service (**mới 19/07/2026; quality sync 23/07/2026**) | Buyer + Seller | Canonical remedy fields gồm `remedyDecisionId`, `attributionDecisionId`, nullable `breachCaseId`, `contractId`, `buyerId`, `sellerId`, `affectedMilestoneIds[]`, nullable final attribution/reason, nullable `qualityDisposition`, eligibility flags và exact `remedyLegs`; quality resolution bắt buộc disposition non-null và template hiển thị nó cùng final attribution, không suy blame từ `requestedBy`/`flaggedBy`; command chỉ bổ sung `payload.recipients` cho routing |
-| `notification.milestone_funding_status_requested` / contract-service (**mới 19/07/2026**) | Buyer (nhắc nạp) / Seller (báo tạm dừng đồng hồ) / cả 2 + Admin khi FUNDING_FAILED | statusType: `FUNDING_REMINDER` \| `FUNDING_FAILED` \| `FUNDING_CURE_DEADLINE` (mail actionable có deadline `fundingCureWindowDays`) — milestone-escrow §6b |
-| `notification.milestone_status_requested` / contract-service | Buyer/Seller/Admin theo status | weighed, confirmed, flagged, force-majeure, penalty hoặc provisional Level 2 |
+| `notification.milestone_funding_status_requested` / contract-service (**mới 19/07/2026**) | Buyer (nhắc nạp) / Seller (báo tạm dừng đồng hồ) / cả 2 + Operator khi FUNDING_FAILED | statusType: `FUNDING_REMINDER` \| `FUNDING_FAILED` \| `FUNDING_CURE_DEADLINE` (mail actionable có deadline `fundingCureWindowDays`) — milestone-escrow §6b |
+| `notification.milestone_status_requested` / contract-service | Buyer/Seller + Operator/Arbitrator theo status (FM claim, flag cần quyết định → Arbitrator) | weighed, confirmed, flagged, force-majeure, penalty hoặc provisional Level 2 |
 | `notification.milestone_anchor_requested` / audit-service | Buyer + Seller | Quyết toán + `recordHash` + `.ots` proof; chỉ publish sau khi audit record/OTS sẵn sàng |
 | `notification.level2_commission_requested` / inspection-service | Org + Buyer + Seller | commissionId, org, intake address, contract context |
 | `notification.audit_digest_requested` / audit-service | Software Buyer contacts | Weekly digest, chỉ sau WEEKLY_VERIFY_OK |
 | `notification.audit_failure_requested` / audit-service | Admin + **nhiều** Software Buyer contacts song song | Vị trí lỗi/anchored hash; không qua Admin approval |
 | `notification.verifier_key_anchor_requested` / bank-service | External Verifier contacts | Public-key fingerprint |
 | `notification.security_lock_changed_requested` / bank-service | Admin + External Verifier | LOCKED/UNLOCKED, reason/timestamp; không fan-out buyer/seller |
-| `notification.contract_activation_failed_requested` / contract-service (**mới 17/07/2026**) | Buyer + Seller + Admin | Hợp đồng đã ký nhưng khoá cọc fail sau retry (milestone-escrow §3.1) — không penalty, nêu bước tiếp theo (Admin retry / xác nhận không tiếp tục) |
+| `notification.contract_activation_failed_requested` / contract-service (**mới 17/07/2026**) | Buyer + Seller + Operator | Hợp đồng đã ký nhưng khoá cọc fail sau retry (milestone-escrow §3.1) — không penalty, nêu bước tiếp theo (Operator retry / xác nhận không tiếp tục) |
 | `notification.reconciliation_mismatch_requested` / bank-service (**mới 18/07/2026**) | Admin only | Ledger lệch số với audit record đã anchor (bank §5b.1) — vị trí lệch (contractId/milestoneId, chênh lệch); không fan-out buyer/seller, không auto-fix |
 
 Các domain event (`contract.signed`, `milestone.settled`...) vẫn giữ payload nghiệp vụ canonical ở owner design. Owner/audit consumer publish notification command tương ứng; notification-service không subscribe trực tiếp domain event nếu payload đó không đủ template/recipient. `contract.delivered` là dead event Phase 1 và phải xoá listener/template.
@@ -187,7 +187,9 @@ Khi migrate, cột Phase 1 `user_id` đổi semantics thành `recipient_user_id`
 | `notification.retry.maxAttempts` | 3 | Async events |
 | `notification.retry.initialDelaySeconds` | 5 | Exponential backoff |
 | `notification.softwareBuyerContacts` | ≥2 địa chỉ | Integrity alerts |
-| `notification.adminEmail` | deployment value | Không hardcode production |
+| `notification.adminEmail` | deployment value | Không hardcode production; chỉ nhận mail audit/security/reconciliation |
+| `notification.operatorEmail` | deployment value | Activation/funding fail, hàng đợi vận hành (12/10/2026) |
+| `notification.arbitratorEmail` | deployment value | Breach case/FM cần quyết định (12/10/2026) |
 | `notification.externalVerifierContacts` | deployment value | Key/lock confirmation |
 
 SMTP/SendGrid credential chỉ từ secret/env. MailHog dùng local development.
@@ -219,4 +221,4 @@ SMTP/SendGrid credential chỉ từ secret/env. MailHog dùng local development.
 
 ---
 
-*Design bổ sung: 16/07/2026 · Rà soát cross-service + sửa: 17/07/2026 · Cập nhật 19/07/2026 (đợt 6 — terminated/breach/remedy/funding commands) · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*
+*Design bổ sung: 16/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Rà soát cross-service + sửa: 17/07/2026 · Cập nhật 19/07/2026 (đợt 6 — terminated/breach/remedy/funding commands) · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*

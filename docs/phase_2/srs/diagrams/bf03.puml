@@ -1,0 +1,56 @@
+@startuml
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam SwimlaneBorderColor black
+skinparam ArrowColor black
+skinparam ActivityDiamondBackgroundColor white
+title BF-03 Contract Signing & Activation
+|Buyer|
+|Seller|
+|Operator|
+|System|
+|Buyer|
+start
+:1. Choose listing and\ncreate offer;
+|System|
+:2. Validate offer and\nreserve quantity;
+|Seller|
+:3. Review offer and\nnegotiate terms;
+if (Both agree on terms?) then (no)
+  |Buyer|
+  :4. Withdraw offer;
+  |System|
+  :5. Release reserved quantity;
+  :Offer withdrawn;
+  stop
+else (yes)
+  |Buyer|
+  :6. Sign terms with\ne-mail OTP;
+  note right: Either party may sign first
+  |Seller|
+  :7. Sign same terms with\ne-mail OTP;
+  |System|
+  :8. Verify both signatures\nmatch terms;
+  repeat :9. Ask bank to lock\nboth deposits;
+  if (All deposits locked?) then (yes)
+    :10. Activate contract and\nfund milestone 1;
+    :Contract active;
+    stop
+  else (no)
+    |System|
+    :11. Notify both parties\nand Operator;
+    |Operator|
+    :12. Retry the failed\ndeposit lock;
+  endif
+  repeat while (Locked before activation\ndeadline?) is (yes)
+  ->no;
+  |System|
+  :13. Refund locked deposits,\nrelease quantity;
+  :Activation failed;
+  stop
+endif
+@enduml

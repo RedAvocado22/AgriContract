@@ -64,8 +64,11 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 13 | Client không tự tiêm identity | Gửi kèm `X-User-Id`/`X-User-Role`/`X-Gateway-Secret` giả → bị strip/overwrite, downstream nhận identity từ JWT | gateway §2/§7 |
 | 14 | `/internal/**` không ra ngoài | Gọi từ external → `404/403` tại Gateway, không forward | gateway §3.5 |
 | 15 | File nhiễm virus không thành evidence | Upload EICAR qua `StoreOnBehalfOf` và qua email intake → `FAILED`, không có `file.ready`, không gắn được vào milestone/report | file-service §3-4 |
-| 16 | OPERATOR không chạm được đường ADMIN | OPERATOR gọi approve maker-checker / `RetryDepositLock` / `/admin/audit` → `403` | governance §5.4 |
-| 17 | ADMIN không tự approve đề xuất của chính mình | Cùng 1 account propose rồi approve → reject | governance §5.3 |
+| 16 | OPERATOR không chạm đường ARBITRATOR/ADMIN | OPERATOR gọi approve/reject reputation, resolve breach case, resolve FM, `InitiateLevel2Inspection`, `/admin/audit`, approve replay → `403`; OPERATOR gọi `RetryDepositLock`/`RetryMilestoneFunding`/`MarkActivationFailed` → pass (sửa 12/10/2026, SRS v1.6) | governance §5.4 |
+| 17 | Không ai tự approve đề xuất của chính mình | Cùng 1 account propose rồi approve → reject (`proposedBy != approvedBy`); gán đồng thời `OPERATOR`+`ARBITRATOR` cho 1 account → user-service reject | governance §5.2/§5.3 |
+| 17b | ARBITRATOR không chạm đường ADMIN và vận hành | ARBITRATOR gọi `/admin/audit`, `/admin/security`, KYC verify, `RetryDepositLock`, propose reputation → `403` | governance §5.4 (12/10/2026) |
+| 17c | ADMIN không có fallback nghiệp vụ | ADMIN gọi KYC verify, resolve breach/FM, approve reputation, `RetryDepositLock`, review external report → `403`; ADMIN approve replay DLQ nhóm tiền vẫn pass | governance §5.2/§8b (12/10/2026) |
+| 17d | `decisionSource` không còn `ADMIN` | Schema `remedy.finalized`/`BreachCase`/`AttributionDecision` reject `decisionSource = ADMIN`; Arbitrator resolve → `ARBITRATOR` | milestone-escrow §6.4/§6.4b (12/10/2026) |
 | 18 | Unlock sớm không mở khoá nhầm khi nhiều lock chồng | 2 lock (T+60, T+30), unlock sớm lock 1 → `lockedUntil` user-service = T+30, `sign()` vẫn bị chặn | reputation §7, user §2.2 |
 | 19 | `sign()` fail-closed khi user-service chết | Stop user-service → sign bị reject, không fallback anonymous | user §3/§7 |
 | 20 | OTP fail không gửi muộn | Provider trả lỗi → contract-service nhận 5xx; xác nhận không có mail nào được gửi sau đó với `requestId` cũ trừ khi caller tự retry | notification §2.2/§5 |
@@ -112,7 +115,7 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 | 27o | Funding dùng effective price, deposit giữ nominal | Funding fallback base hoặc dùng accepted `effectiveUnitPrice`, không settlement true-up; price tăng/giảm không recompute buyer/seller deposit từ nominal `totalContractValue` | milestone-escrow §2.1c/§6c/§8d |
 | 28 | Listing partial-fill atomic và fail-closed legacy | Listing 100 reserve 40 + 40 → tồn 60 rồi 20; reserve 30 trả `409 INSUFFICIENT_LISTING_QUANTITY`; hai request tranh tồn cuối chỉ một thắng; legacy-null fail tới edit/republish | product §8b.1-§8b.2; milestone-escrow §2.1d |
 | 28b | Restore không vượt seller lifecycle choice | Withdraw/activation failure trả đúng lượng; listing seller-closed vẫn `CLOSED`, listing `PAUSED` vẫn `PAUSED`; explicit republish mới mở lại | product §8b.1-§8b.2 |
-| 28c | Orphan reservation reaper an toàn và bắt late-event race | Chỉ `RESERVED` quá grace và chưa có durable `contract.created` mới release; không đụng `SIGNED_RELEASABLE`/`COMMITTED`; CLOSED/PAUSED không tự mở; re-run không restore lần hai; `contract.created` đến sau release phải error log + alert Admin, không silent no-op, re-decrement hay đảo state | product §8b.2 |
+| 28c | Orphan reservation reaper an toàn và bắt late-event race | Chỉ `RESERVED` quá grace và chưa có durable `contract.created` mới release; không đụng `SIGNED_RELEASABLE`/`COMMITTED`; CLOSED/PAUSED không tự mở; re-run không restore lần hai; `contract.created` đến sau release phải error log + alert Operator, không silent no-op, re-decrement hay đảo state | product §8b.2 |
 | 29 | Draft preview luôn vô hiệu rõ ràng | Mọi preview ở OFFERED/NEGOTIATING/PARTIALLY_SIGNED chứa `CHƯA CÓ HIỆU LỰC`; không endpoint nào trả preview như final READY document | contract-document-consent §5-6 |
 | 29b | Receipt consent không waive quyền quality | Buyer receipt/confirm statement và persisted ConsentEvidence ghi đúng phạm vi; inspection/dispute còn hợp lệ theo signed terms vẫn mở được sau acknowledgement | contract-document-consent §4; milestone-escrow §3.2 |
 | 29c | Duplicate document delivery chỉ tạo một final | Redeliver render job, `contract.document_generated` và notification command → một READY document, một audit record và mỗi recipient đúng một final email | contract-document-consent §5-7; notification §5; hash-chain §2.4 |
@@ -127,4 +130,4 @@ Mọi test có deadline/window dùng timestamp UTC và clock business `Asia/Ho_C
 
 ---
 
-*Design session: 18/07/2026 · Cập nhật 23/07/2026: bổ sung quality dispute resolution, listing partial-fill/reservation lifecycle, F18 quantity guard và OTP supersession. · Cập nhật 06/10/2026: Việt Nam + cà phê, consent evidence, template/profile hash và document lifecycle. · Chưa code · Test plan ưu tiên cao nhất trước khi implement.*
+*Design session: 18/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Cập nhật 23/07/2026: bổ sung quality dispute resolution, listing partial-fill/reservation lifecycle, F18 quantity guard và OTP supersession. · Cập nhật 06/10/2026: Việt Nam + cà phê, consent evidence, template/profile hash và document lifecycle. · Chưa code · Test plan ưu tiên cao nhất trước khi implement.*

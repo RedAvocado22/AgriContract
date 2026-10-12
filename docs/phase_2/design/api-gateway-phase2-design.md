@@ -72,19 +72,26 @@ Public policy match theo **method + exact path pattern**, không dùng prefix r�
 
 | Path | Role tại Gateway | Destination |
 |---|---|---|
-| `/api/v1/admin/users/**` | ADMIN | user-service |
-| `/api/v1/admin/categories/**`, `/api/v1/admin/products/**` | ADMIN | product-service |
-| `/api/v1/admin/inspections/**` | ADMIN | inspection-service |
-| `/api/v1/admin/reputation/**` | ADMIN | reputation-service |
-| `/api/v1/admin/prices/**` hoặc `POST /api/v1/prices/manual` | ADMIN | pricing-service |
+| `GET /api/v1/admin/users?verificationStatus=...`, `POST /api/v1/admin/users/{id}/verify\|reject` | OPERATOR | user-service (KYC) |
+| `/api/v1/admin/users/**` còn lại (account/role) | ADMIN | user-service |
+| `/api/v1/admin/categories/**`, `/api/v1/admin/products/**` | OPERATOR | product-service |
+| Route `InitiateLevel2Inspection` (exact path, đứng trước wildcard) | ARBITRATOR | inspection-service |
+| `/api/v1/admin/inspections/**` còn lại (case ID, review `PENDING_REVIEW`, upload thủ công) | OPERATOR | inspection-service |
+| `POST /api/v1/admin/reputation/actions/propose` | OPERATOR | reputation-service |
+| `POST /api/v1/admin/reputation/actions/{id}/approve\|reject` | ARBITRATOR | reputation-service |
+| `/api/v1/admin/reputation/**` còn lại (đọc hàng đợi) | OPERATOR, ARBITRATOR | reputation-service |
+| `POST /api/v1/contracts/{id}/breach-cases/{id}/review\|resolve`, `POST .../milestones/{id}/force-majeure/resolve` | ARBITRATOR | contract-service |
+| `POST /api/v1/contracts/{id}/activation/**`, retry funding milestone | OPERATOR | contract-service |
+| `/api/v1/admin/prices/**` hoặc `POST /api/v1/prices/manual` | OPERATOR | pricing-service |
 | `/api/v1/admin/analytics/**`, `/api/v1/analytics/**` | ADMIN | analytics-service |
 | `/api/v1/admin/security/**` | ADMIN | bank-service — đọc lịch sử `system_lock`/`used_nonce`, admin security workflow; **không** được emergency unlock |
 | `/api/v1/admin/audit/**` | ADMIN | audit-service — verify status, export bằng chứng per-contract (VIAC/toà), trigger EUDR report. **Mới 17/07/2026** — trước đây `AUDIT_SERVICE_URL` có trong config nhưng không route nào dùng tường minh |
+| Approve replay DLQ nhóm tiền/security/evidence | ADMIN (propose: OPERATOR) | theo service sở hữu queue — governance §8b |
 | `/api/v1/inspector/**` | INSPECTOR | inspection-service |
 
 Gateway role gate là lớp coarse-grained; service vẫn kiểm tra role + resource assignment.
 
-**Bổ sung 18/07/2026 — role `OPERATOR` (`data-governance-phase2-design.md` §5):** các path vận hành hằng ngày nhận `ADMIN|OPERATOR`: `/admin/users/**` (KYC), `/admin/categories/**`, `/admin/products/**`, `/admin/inspections/**`, `/admin/prices/**` + `POST /prices/manual`. Riêng reputation maker-checker (**sửa 18/07/2026** — bản cũ gate cả `/admin/reputation/**` = ADMIN thì chính OPERATOR không qua nổi Gateway để propose): `POST /api/v1/admin/reputation/actions/propose` → `ADMIN|OPERATOR`; `POST .../actions/{id}/approve|reject` → `ADMIN`; các path `/admin/reputation/**` còn lại → `ADMIN`. Route exact đứng trước wildcard theo rule §6. Giữ nguyên chỉ `ADMIN`: `/admin/security/**`, `/admin/audit/**`, `/admin/analytics/**`. Không đụng INSPECTOR/External Verifier.
+**Sync SRS v1.6 (12/10/2026, thay đoạn bổ sung OPERATOR ngày 18/07):** mỗi route nhận **đúng role staff của chức năng đó** — không còn dạng `ADMIN|OPERATOR`, không có Admin fallback (`data-governance-phase2-design.md` §5.4). OPERATOR: KYC, moderate, giá manual, intake/review inspection, retry activation/funding, propose reputation/replay. ARBITRATOR: breach case, force majeure, khởi tạo Level 2, approve/reject reputation. ADMIN: account/role, audit, security, analytics, approve replay. Route `/api/v1/contracts/**` cho Buyer/Seller vẫn là authenticated wildcard; các route ARBITRATOR/OPERATOR trong contract-service là exact path đứng trước wildcard đó (rule §6). Service vẫn re-check role — Gateway chỉ là lớp ngoài.
 
 ### 3.4 External Verifier
 
@@ -189,4 +196,4 @@ Route definitions phải có order rõ: exact public/role routes trước wildca
 
 ---
 
-*Design bổ sung: 16/07/2026 · Rà soát cross-service + sửa: 17/07/2026 · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*
+*Design bổ sung: 16/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Rà soát cross-service + sửa: 17/07/2026 · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*
