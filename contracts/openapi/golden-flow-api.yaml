@@ -268,7 +268,8 @@ paths:
         (inspection.level1_5_requested, reason DECISION_CONTESTED); the Level 1.5
         result creates a new AttributionDecision (decisionSource INSPECTOR_L1_5)
         that supersedes the Arbitrator decision. 409 when contestStatus is not OPEN
-        or the decision was based on an inspection report. Source milestone-escrow
+        or the decision was based on an inspection report. Contract-level cases
+        (milestoneId null) are never contestable on the platform. Source milestone-escrow
         design 6.4, SRS v1.6 GB-50.
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
