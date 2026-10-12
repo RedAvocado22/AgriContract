@@ -103,6 +103,30 @@ Thêm config riêng `inspectionAuthMaxAgeSeconds` (`application.yml`, cùng nhó
 
 ---
 
+### 2.5 Level 1.5 assignment — ai được nộp report cho milestone nào (bổ sung 12/10/2026)
+
+**Gap đã đóng:** §2.1–2.4 chốt identity, KYC và chữ ký của INSPECTOR nhưng không nói inspector nào được nộp report cho milestone nào. Thiếu mảnh này thì mọi INSPECTOR đã KYC đều nộp được report cho bất kỳ milestone `CONTESTED` nào — lỗ ownership. Phát hiện khi implement #112 (PR #152), bảng `level1_5_inspection_assignment` của PR đó được chấp nhận làm schema chính thức (§5).
+
+**Assignment là authorization record, không phải aggregate workflow:** submit report Level 1.5 chỉ hợp lệ khi actor (JWT `sub`, role `INSPECTOR`, eligibility §2.2 còn hiệu lực) khớp `inspector_id` của assignment **đang active** (`ended_at IS NULL`) cho đúng `(contract_id, milestone_id)`. Thiếu assignment, assignment đã kết thúc, hoặc assignment của inspector khác → 403, cùng một message (không phân biệt để tránh dò).
+
+**Ai quyết "cần Level 1.5", ai chọn inspector — tách 2 quyền:**
+
+- **contract-service** quyết milestone cần giám định Level 1.5 — đúng ownership đã có: `DisputeRoutingService` route `LEVEL_1_5` (milestone-escrow §3.2), `InspectionTerms.requirement = MANDATORY_BEFORE_SETTLEMENT` với `requiredTier = LEVEL_1_5`, FM contest (milestone-escrow §5), contest window sau quyết định (milestone-escrow §6.4, GB-50), provisional Level 1.5 khi hết `level2BufferWindowDays` (milestone-escrow §3.2). contract-service **không** chọn inspector.
+- **inspection-service** chọn inspector: **random đều** trong tập INSPECTOR eligible tại thời điểm chọn (`role = INSPECTOR`, KYC `VERIFIED`, `authorizationExpiresAt` NULL hoặc > now — cùng điều kiện §2.2). Không role nào (OPERATOR, ARBITRATOR, ADMIN) được chọn tay hay chỉ định inspector — đồng nhất với nguyên tắc "không tự chọn tổ chức inspect" ở `reputation-service-phase2-design.md` §8 và lý do KI-2 (§3.2): người chọn được là người thông đồng được. Tập eligible rỗng → không tạo assignment, alert OPERATOR; milestone giữ nguyên state, không tự rơi về Level 1.
+
+**Transport:** contract-service publish command event `inspection.level1_5_requested` (qua outbox) với payload `{contractId, milestoneId, reason, reportDueBusinessDays}`; inspection-service consume → chọn inspector → INSERT assignment với `assigned_by_service = 'contract-service'`, `initiated_by_actor_id` = actor gây ra yêu cầu nếu có (buyer flag, bên contest), NULL nếu system-triggered. *Event chưa có trong `contracts/events/*.yaml` — thêm ở đợt sync YAML v1.6.*
+
+**Idempotency:** dedup consumer theo `eventId` (`processed_event`, pattern chung). Thêm vào đó, `uk_l15_active_milestone` đảm bảo mỗi `(contract_id, milestone_id)` chỉ 1 assignment active — request trùng khi đã có assignment active là no-op, không chọn lại.
+
+**Kết thúc / đổi người:**
+
+- Report của assignment chuyển `CONFIRMED` → set `ended_at = confirmed_at` trong cùng transaction với việc confirm report.
+- Quá `reportDueBusinessDays` mà chưa có report → hệ thống set `ended_at` và random lại trong tập eligible **trừ** các inspector đã từng được giao cho milestone đó. Không có thao tác reassign bằng tay.
+- Inspector mất eligibility (KYC bị thu hồi, giấy phép hết hạn) giữa chừng → submit bị chặn ở eligibility gate §2.2; assignment kết thúc theo nhánh quá hạn ở trên, không cần trigger riêng.
+- `ended_at` là cột duy nhất được UPDATE và chỉ đi từ NULL sang có giá trị; mọi lần đổi người là row mới, lịch sử giữ nguyên.
+
+**Binding report ↔ assignment:** report `LEVEL_1_5` lưu `l15_commission_id` trỏ tới assignment đã cho phép nộp (§5) — trả lời được "report này nộp theo lần giao nào" khi 1 milestone bị giám định nhiều lần (FM contest rồi dispute số lượng). Không dùng chung cột `commission_id` của Level 2.
+
 ## 3. Level 2 — External Inspector (Admin-mediated → Auto-intake + Human-confirm)
 
 ### 3.1 Không Signature, không RBAC
@@ -348,6 +372,27 @@ CREATE TABLE level2_inspection_commission (
 -- UNIQUE(org, intake_case_id) — case ID do org tự phát hành, scope theo org tránh trùng
 
 -- inspection-service — 1 bảng, phân theo tier, schema cuối cùng sau khi merge auto-intake flow
+-- BỔ SUNG 12/10/2026 (§2.5) — schema lấy nguyên từ PR #152 (issue #112), chấp nhận làm chính thức.
+-- Authorization record: inspector nào được nộp report Level 1.5 cho milestone nào.
+CREATE TABLE level1_5_inspection_assignment (
+    commission_id           CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    contract_id             CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    milestone_id            CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    inspector_id            CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    assigned_at             TIMESTAMP(6) NOT NULL,
+    ended_at                TIMESTAMP(6) NULL,       -- cột duy nhất được UPDATE, chỉ NULL → giá trị (§2.5)
+    assigned_by_service     VARCHAR(64) NOT NULL,    -- metadata nguồn yêu cầu, KHÔNG phải quyền chọn inspector
+    initiated_by_actor_id   CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    active_slot             TINYINT GENERATED ALWAYS AS
+                            (CASE WHEN ended_at IS NULL THEN 1 ELSE NULL END) STORED,
+    PRIMARY KEY (commission_id),
+    UNIQUE KEY uk_l15_active_milestone (contract_id, milestone_id, active_slot),
+                                                 -- 1 assignment active / milestone, giữ được nhiều row lịch sử
+    CONSTRAINT chk_l15_assignment_time CHECK (ended_at IS NULL OR ended_at >= assigned_at)
+);
+-- Không FK sang contract/milestone/user (khác service). Không liên quan level2_inspection_commission.
+-- Cần MySQL >= 8.0.16 để CHECK được enforce.
+
 CREATE TABLE inspection_report (
     report_id                        CHAR(36) PRIMARY KEY,
     contract_id                      CHAR(36) NULL,     -- NOT NULL cho LEVEL_1_5 và LEVEL_2 OPERATOR_MANUAL;
@@ -364,6 +409,9 @@ CREATE TABLE inspection_report (
     report_hash                       VARCHAR(64) NULL,        -- bắt buộc khi CONFIRMED; commit resultHash + identity/file/timestamp/actor
     -- nhánh LEVEL_1_5 — bắt buộc:
     inspector_id                     CHAR(36) NULL,               -- = signerUserId, NOT NULL nếu tier = LEVEL_1_5
+    l15_commission_id                CHAR(36) NULL REFERENCES level1_5_inspection_assignment(commission_id),
+                                                                  -- NOT NULL nếu tier = LEVEL_1_5 (12/10/2026, §2.5):
+                                                                  -- assignment đã cho phép nộp report này
     -- nhánh LEVEL_2 — bắt buộc:
     external_org                     VARCHAR(255) NULL,       -- NOT NULL nếu tier = LEVEL_2
     confirmed_by_operator_id            CHAR(36) NULL,               -- NOT NULL nếu tier = LEVEL_2 và status = CONFIRMED.
@@ -403,6 +451,7 @@ CREATE TABLE inspection_report (
 - **SPF/DKIM chỉ raise bar domain gửi, không chứng minh thẩm quyền người gửi.** Admin vẫn là quyết định cuối cho tính hợp lệ của report.
 - **Endpoint duyệt (`ReviewPendingExternalReport`) không nhận file, và `reportFileHash` đóng băng trước khi Admin chạm vào**; `reportHash` cuối commit chính file hash đó cùng normalized result và attribution lúc CONFIRMED — ngăn Admin thay file hoặc sửa result ngoài hash.
 - **3-mail chỉ là passive backup**, không có active reconciliation tự động — không có bước nào chủ động so sánh bản buyer/seller nhận với bản platform xử lý, chỉ nằm đó dùng khi có tranh chấp thật cần lôi ra đối chiếu. Kế thừa đúng giới hạn "phải có người chủ động nhìn" từ `hash-chain-phase2-design.md` §6.
+- **Random đều trong tập INSPECTOR eligible không xử lý xung đột lợi ích (§2.5).** Hệ thống không biết inspector có quan hệ với buyer/seller hay không — không chọn tay giảm rủi ro thông đồng chủ động, nhưng không loại được trùng hợp. Inspector tự khai báo xung đột rồi từ chối là enhancement, không phải Phase 2.
 - **WebAuthn/passkey cho INSPECTOR** — cùng lý do đã ghi ở `signature-phase2-design.md` §8: không đổi tier pháp lý (vẫn thiếu chứng thư CA cấp phép, Điều 22 khoản 3(đ)), chỉ nâng chất lượng bằng chứng khi tranh chấp, không nâng presumption pháp lý mặc định. Để ngoài phạm vi, có chủ đích.
 
 ---
@@ -425,4 +474,4 @@ Inspection — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technic
 
 ---
 
-*Sync role SRS v1.6: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Sync role SRS v1.6: 12/10/2026 · Bổ sung Level 1.5 assignment §2.5/§5: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***

@@ -84,7 +84,7 @@ Reputation công khai không nhét vào DTO này; client gọi `GET /api/v1/repu
 | Method | Path | Ý nghĩa |
 |---|---|---|
 | `GET` | `/api/v1/admin/users?verificationStatus=PENDING` | Hàng đợi duyệt |
-| `POST` | `/api/v1/admin/users/{userId}/verify` | Body chứa `authorizationExpiresAt` nullable theo giấy thật |
+| `POST` | `/api/v1/admin/users/{userId}/verify` | Body **bắt buộc có key** `authorizationExpiresAt` — giá trị là instant theo giấy thật hoặc `null` tường minh (vô thời hạn). Thiếu key → 400 (**bổ sung 12/10/2026**, phát hiện ở PR #151: body `{}` từng được hiểu là vô thời hạn — Operator quên nhập thành cấp quyền vĩnh viễn) |
 | `POST` | `/api/v1/admin/users/{userId}/reject` | Body chứa `reason` bắt buộc |
 
 Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào hash chain là enhancement, không phải Phase 2 golden flow.
@@ -147,7 +147,7 @@ Không thêm credential, password hoặc Keycloak token vào `user_db`.
 - `/users/{userId}` không trả contact info. Chính chủ dùng `/me`; service dùng `/internal`.
 - `sign()` fail-closed nếu user-service unavailable hoặc response không xác định được verification/lock state.
 - Event lock/unlock xử lý idempotent; ordering theo `lockRevision` **persist trong `last_lock_revision`** (**sửa 18/07/2026** — `occurredAt` 17/07 chưa đủ: không persist thì restart xong không còn gì để so, và timestamp dính clock skew). Unlock không clear mù — set theo `effectiveLockedUntil` (§2.2).
-- Operator không được tự đặt `authorizationExpiresAt` theo hằng số platform; phải đọc từ giấy thật, `NULL` chỉ cho vô thời hạn.
+- Operator không được tự đặt `authorizationExpiresAt` theo hằng số platform; phải đọc từ giấy thật, `NULL` chỉ cho vô thời hạn. "Vô thời hạn" phải là lựa chọn chủ động (gửi `null`), không bao giờ là default khi thiếu field.
 
 ## 8. Known Limitations / Out of Scope
 

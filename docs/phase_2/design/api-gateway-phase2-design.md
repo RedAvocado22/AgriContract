@@ -61,6 +61,7 @@ Public policy match theo **method + exact path pattern**, không dùng prefix r�
 |---|---|---|
 | `/api/v1/users/**` | user-service | `/me`, register, safe public user DTO |
 | `/api/v1/products/**`, `/api/v1/listings/**`, `/api/v1/plots/**` | product-service | Write/owned reads authenticated |
+| `/api/v1/categories/**` | product-service | **Bổ sung 12/10/2026** (thiếu trong matrix, phát hiện ở PR #150): đọc danh mục + `POST` đề xuất category mới (BUYER/SELLER, role check ở service). Duyệt/từ chối category **không** nằm ở prefix này — canonical là `/api/v1/admin/categories/**` (OPERATOR, bảng dưới). Known debt: `CategoryController` Phase 1 còn `PUT /api/v1/categories/{id}/approve\|reject` với `hasRole('ADMIN')` — product-service phải dời sang admin prefix + OPERATOR; tới lúc đó gateway không thêm role gate cho 2 path legacy này. |
 | `/api/v1/contracts/**`, `/api/v1/milestones/**` | contract-service | Ownership/state ở contract-service |
 | `/api/v1/escrows/**` | escrow-service | Chỉ participant-owned read/commands đã expose |
 | `/api/v1/inspections/**` | inspection-service | Role/assignment ở service |
