@@ -13,7 +13,7 @@ metadata:
 
 **Scope override chốt 06/10/2026:** Phase 2 chỉ cho tạo mới Product/Listing/Contract thuộc `COFFEE` phục vụ giao dịch nội địa Việt Nam. Các phân tích lịch sử về bốn commodity bên dưới được giữ làm bối cảnh nghiên cứu nhưng không còn là executable scope. Public write schema và `Category.approve()` cho scope Phase 2 phải reject `RICE`, `RUBBER`, `CASHEW`; legacy data chỉ được đọc theo compatibility policy.
 
-> **Role vận hành (18/07/2026):** các use case Admin trong doc này (review/moderate/nhập liệu hằng ngày) nhận thêm role `OPERATOR` theo `data-governance-phase2-design.md` §5 — permission matrix ở đó là source of truth, doc này không lặp lại; flow/state/schema không đổi.
+> **Role vận hành — sync SRS v1.6 (12/10/2026, thay note 18/07):** mọi use case vận hành trong doc này (review/moderate/nhập liệu hằng ngày, theo dõi alert) thuộc **OPERATOR**; ADMIN không làm thay (không fallback). Permission matrix ở `data-governance-phase2-design.md` §5.4 là source of truth; flow/state/schema không đổi.
 
 
 EUDR (EU Deforestation Regulation) áp dụng từ **30/12/2026** cho large/medium operator (Regulation 2025/2650, dời deadline lần 2, đã chốt cuối cùng — không còn dời tiếp). Yêu cầu cốt lõi: mọi lô hàng đưa ra thị trường EU phải truy được về **toạ độ chính xác của (các) plot đất nơi hàng được trồng**, chứng minh không có phá rừng sau 31/12/2020.
@@ -387,7 +387,7 @@ WHERE listingId = :listingId
 
 Zero-row update được re-read để phân loại: legacy-null, dưới `minOrderQuantity` hoặc không đủ tồn đều trả `409 INSUFFICIENT_LISTING_QUANTITY`; token stale khi tồn vẫn đủ trả `409 LISTING_VERSION_MISMATCH`; state seller-paused/closed trả state conflict. Client phải reload listing, không blind retry. Hai transaction tranh phần tồn cuối chỉ một conditional update thắng.
 
-`contract.created` chỉ xác nhận reservation đã được gắn với contract persist thành công, tuyệt đối không decrement lần hai. Product-service consume lifecycle event theo `eventId` với dedup durable: `contract.withdrawn` release pre-sign; `contract.signed` chuyển `RESERVED -> SIGNED_RELEASABLE`; `contract.activation_failed` release cả reservation signed; `contract.activated` chuyển sang `COMMITTED`. Event replay và compensation release dùng cùng conditional transition nên không thể restore hai lần. Nếu `contract.created` tới sau khi reservation đã `RELEASED`, consumer phải phân loại đây là bất nhất tồn kho của một contract sống với reservation đã restore, ghi error log và alert Admin; không được silent no-op, decrement lại, đảo state hay tạo money/inventory path thứ hai.
+`contract.created` chỉ xác nhận reservation đã được gắn với contract persist thành công, tuyệt đối không decrement lần hai. Product-service consume lifecycle event theo `eventId` với dedup durable: `contract.withdrawn` release pre-sign; `contract.signed` chuyển `RESERVED -> SIGNED_RELEASABLE`; `contract.activation_failed` release cả reservation signed; `contract.activated` chuyển sang `COMMITTED`. Event replay và compensation release dùng cùng conditional transition nên không thể restore hai lần. Nếu `contract.created` tới sau khi reservation đã `RELEASED`, consumer phải phân loại đây là bất nhất tồn kho của một contract sống với reservation đã restore, ghi error log và alert Operator; không được silent no-op, decrement lại, đảo state hay tạo money/inventory path thứ hai.
 
 #### `OrphanReservationReaperJob`
 
@@ -399,9 +399,9 @@ Product-service chạy `OrphanReservationReaperJob` định kỳ để thu hồi
 
 `orphanReservationGraceMinutes` là config, mặc định **30 phút**: đủ dài để compensation/outbox retry hoàn tất trong điều kiện bình thường nhưng không để hàng treo quá lâu trong trạng thái không có contract đã persist. Không thêm bảng, marker hay cơ chế persistence mới cho job.
 
-Với mỗi orphan, job dùng đúng conditional transition `RESERVED -> RELEASED` của reservation aggregate. `SIGNED_RELEASABLE` và `COMMITTED` không bao giờ là ứng viên reaper. Conditional update bảo đảm duplicate run, restart hoặc concurrent worker chỉ restore một lần; seller-close và `PAUSED` chỉ được tăng lại counter, không tự mở listing. Mỗi lần release ghi operational log và phát alert cho Admin để theo dõi.
+Với mỗi orphan, job dùng đúng conditional transition `RESERVED -> RELEASED` của reservation aggregate. `SIGNED_RELEASABLE` và `COMMITTED` không bao giờ là ứng viên reaper. Conditional update bảo đảm duplicate run, restart hoặc concurrent worker chỉ restore một lần; seller-close và `PAUSED` chỉ được tăng lại counter, không tự mở listing. Mỗi lần release ghi operational log và phát alert cho Operator để theo dõi.
 
-Race delivery trễ được xử lý tường minh: nếu `contract.created` đến sau khi reaper đã release, consumer nhìn thấy reservation `RELEASED`, ghi error log kèm `contractId`/`eventId` và alert Admin. Consumer vẫn dedup event theo `eventId` sau khi ghi nhận bất nhất để retry không tạo nhiều cảnh báo, nhưng không tự decrement, không chuyển state ngược và không phát thêm money/inventory command. Vận hành phải xử lý contract sống và reservation đã restore như một incident tồn kho.
+Race delivery trễ được xử lý tường minh: nếu `contract.created` đến sau khi reaper đã release, consumer nhìn thấy reservation `RELEASED`, ghi error log kèm `contractId`/`eventId` và alert Operator. Consumer vẫn dedup event theo `eventId` sau khi ghi nhận bất nhất để retry không tạo nhiều cảnh báo, nhưng không tự decrement, không chuyển state ngược và không phát thêm money/inventory command. Vận hành phải xử lý contract sống và reservation đã restore như một incident tồn kho.
 
 `ListingResponse` bắt buộc expose `listingVersionToken` opaque. Trong Phase 2, product-service tạo token từ canonical UTC representation của `Listing.updatedAt`; buyer client giữ token đã xem và gửi lại khi `CreateContract`. Contract-service so exact token trước khi snapshot, mismatch trả `409 LISTING_VERSION_MISMATCH`. Token được đặt tên opaque để sau này có thể chuyển sang monotonic version mà không đổi public field; việc thêm numeric version chính thức nằm ngoài batch này.
 
@@ -449,9 +449,9 @@ Lý do consistency: `goodsTerms` snapshot lúc ký mang `cropYear`/`harvestSeaso
 
 ## 9. Cross-service Note — `Category` aggregate + quan hệ 2 tầng `commodity`/`category` (đồng bộ với Phase 1 Category redesign, 08/07/2026)
 
-**⟢ SOURCE OF TRUTH cho quan hệ `Category`/`commodity` (redesign Phase 1) là mục này.** `Category` thuộc `product-service`/Phase 1 nên quyết định `Category.commodity` (enum cứng, admin gán lúc `approve()`, bỏ bảng mapping) chốt ở đây. Các file khác chỉ *dùng* `commodity` để gate logic của riêng chúng và tham chiếu về mục này thay vì tự mô tả lại cơ chế map: `milestone-escrow` §7.2 (đọc để publish `contract.signed`), `analytics-service` §2.1 (populate `dim_contract`). Nếu 2 file lệch nhau về cách map → bản ở đây thắng.
+**⟢ SOURCE OF TRUTH cho quan hệ `Category`/`commodity` (redesign Phase 1) là mục này.** `Category` thuộc `product-service`/Phase 1 nên quyết định `Category.commodity` (enum cứng, Operator gán lúc `approve()`, bỏ bảng mapping) chốt ở đây. Các file khác chỉ *dùng* `commodity` để gate logic của riêng chúng và tham chiếu về mục này thay vì tự mô tả lại cơ chế map: `milestone-escrow` §7.2 (đọc để publish `contract.signed`), `analytics-service` §2.1 (populate `dim_contract`). Nếu 2 file lệch nhau về cách map → bản ở đây thắng.
 
-**Bối cảnh:** Phase 1 đang redesign `Product.category` từ String tự do thành `categoryId` (FK) trỏ tới aggregate `Category` mới (`PENDING → APPROVED | REJECTED`, admin duyệt/seller propose động). Điều này đụng tới nhiều service Phase 2 vốn dùng `commodity` để gate logic — cần làm rõ 2 tầng để không lẫn:
+**Bối cảnh:** Phase 1 đang redesign `Product.category` từ String tự do thành `categoryId` (FK) trỏ tới aggregate `Category` mới (`PENDING → APPROVED | REJECTED`, Operator duyệt/seller propose động). Điều này đụng tới nhiều service Phase 2 vốn dùng `commodity` để gate logic — cần làm rõ 2 tầng để không lẫn:
 
 **2 tầng khác mục đích, giữ cả hai:**
 - **`commodity`** — Phase 2 executable value duy nhất là `COFFEE`. Enum lịch sử có thể còn tồn tại khi migrate legacy data, nhưng mọi write path mới và contract/event schema phải dùng `COFFEE`; pricing/analytics không được quảng bá hỗ trợ ba commodity còn lại.
@@ -460,7 +460,7 @@ Lý do consistency: `goodsTerms` snapshot lúc ký mang `cropYear`/`harvestSeaso
 **Điểm nối 2 tầng — `Category.commodity`:** aggregate `Category` vẫn giữ field `commodity`, nhưng Phase 2 approval chỉ chấp nhận `COFFEE`. Đây là điểm map duy nhất, 1 lần, đúng người có thẩm quyền; mọi Product/Listing hợp lệ trong scope luôn truy ra `COFFEE` non-null khi snapshot hoặc publish `contract.signed`.
 
 **Việc cần làm (đồng bộ Phase 1 ↔ Phase 2):**
-- Phase 1 `Category` aggregate thêm field `commodity` (non-null; Phase 2 write validation chỉ nhận `COFFEE`) + admin gán lúc `approve()`. Migration `categories` thêm cột `commodity`.
+- Phase 1 `Category` aggregate thêm field `commodity` (non-null; Phase 2 write validation chỉ nhận `COFFEE`) + Operator gán lúc `approve()`. Migration `categories` thêm cột `commodity`.
 - Các service Phase 2 (`contract-service` publish `contract.signed`, `product-service` EUDR gate, `analytics-service` dimension) đọc `commodity` qua `Category.commodity` thay vì tự map từ enum cũ.
 - **Duplicate check của `Category` (Phase 1 §1.2) không đụng tầng `commodity`** — 2 category khác tên nhưng cùng `commodity` là hợp lệ ("Cà phê Robusta" và "Cà phê Arabica" đều `commodity = COFFEE`, không phải trùng). `commodity` là thuộc tính phân nhóm, không phải khoá unique.
 

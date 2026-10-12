@@ -1,0 +1,41 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam monochrome true
+skinparam dpi 180
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam usecase {
+  BorderColor black
+  ArrowColor black
+}
+skinparam actor {
+  BorderColor black
+}
+
+actor Arbitrator as Arbitrator
+actor "Level 2 Inspection\nOrganization" as L2Org
+
+rectangle AgriContract {
+  usecase "UC02 Log In and Log Out" as UC02
+  usecase "UC07 Approve Reputation\nAction" as UC07
+  usecase "UC41 Review and Resolve\nBreach Case" as UC41
+  usecase "UC42 Decide Force\nMajeure Claim" as UC42
+  usecase "UC54 Terminate Contract" as UC54
+}
+
+usecase "UC45 Commission External\nInspection" as UC45
+rectangle "«system»\nCustodian Bank" as Bank
+
+Arbitrator -- UC02
+Arbitrator -- UC07
+Arbitrator -- UC41
+Arbitrator -- UC42
+Arbitrator -- UC54
+
+UC45 ..> UC41 : <<extend>>
+
+UC41 -- Bank
+UC54 -- Bank
+UC45 -- L2Org
+@enduml

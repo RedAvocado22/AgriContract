@@ -1,13 +1,15 @@
 ---
 name: data-governance-phase2-design
-description: "Data Governance Phase 2 — ownership/system-of-record matrix, classification, role model thêm OPERATOR + maker-checker, immutability vs quyền xoá, AML tipping-off, retention và map ND13/2023."
-status: DESIGNED — chưa code.
+description: "Data Governance Phase 2 — ownership/system-of-record matrix, classification, role model ADMIN/OPERATOR/ARBITRATOR (không fallback) + maker-checker, immutability vs quyền xoá, AML tipping-off, retention và map ND13/2023."
+status: DESIGNED — chưa code. Role model sync theo SRS v1.6 (12/10/2026).
 metadata:
   type: design
   phase: 2
-  extends: "AgriContract Architecture v2; SDS security section"
-  related: "user-service-phase2-design.md §2/§3; api-gateway-phase2-design.md §3.3; reputation-service-phase2-design.md §7/§8; hash-chain-phase2-design.md §2-3; bank-service-phase2-design.md §3.4b; file-service-phase2-design.md §7"
+  extends: "AgriContract Architecture v2; SDS security section; SRS v1.6 (Admin tách Admin/Operator/Arbitrator)"
+  related: "user-service-phase2-design.md §2/§3; api-gateway-phase2-design.md §3.3; reputation-service-phase2-design.md §7/§8; milestone-escrow-phase2-design.md; inspection-phase2-design.md §3.4; hash-chain-phase2-design.md §2-3; bank-service-phase2-design.md §3.4b; file-service-phase2-design.md §7"
 ---
+
+> **Sync SRS v1.6 (12/10/2026):** thêm role `ARBITRATOR` (quyết định breach case / force majeure / remedy, khởi tạo Level 2, approve maker-checker reputation); **bỏ hoàn toàn ADMIN fallback**; `RetryDepositLock` / `RetryMilestoneFunding` / `MarkActivationFailed` chuyển sang `OPERATOR`. ADMIN chỉ còn account/role, audit, security, analytics, cấu hình và approve replay DLQ nhóm tiền/security/evidence (GB-48). Doc này vẫn là source of truth role model — các doc khác sync theo §10.
 
 ## 1. Bối cảnh & Scope
 
@@ -30,19 +32,20 @@ AgriContract xử lý nhiều nhóm dữ liệu nhạy cảm: hợp đồng + ch
 
 ## 3. Data Ownership Matrix
 
-Nguyên tắc map actor: platform vận hành thật chỉ có **ADMIN, OPERATOR (mới — §5), INSPECTOR, External Verifier, System**. Các chức danh tổ chức (Compliance Officer, Risk Owner, Finance, Platform Owner...) là **logical responsibilities trong mô hình vận hành mục tiêu**, không phải account role Keycloak: một người hoặc một tài khoản ADMIN có thể kiêm nhiều trách nhiệm trong phạm vi đồ án; khi triển khai thực tế, các trách nhiệm này cần được phân tách theo nguyên tắc separation of duties. **Contingency cuối kỳ (18/07/2026):** nếu thiếu thời gian implement OPERATOR, được phép giữ 1 role ADMIN + ghi rõ "prototype simplification, production cần tách permission" — đổi được vì enforcement thiết kế theo use case, không theo role label.
+Nguyên tắc map actor: platform vận hành thật chỉ có **ADMIN, OPERATOR, ARBITRATOR (§5), INSPECTOR, External Verifier, System**. Các chức danh tổ chức (Compliance Officer, Risk Owner, Finance, Platform Owner...) là **logical responsibilities trong mô hình vận hành mục tiêu**, không phải account role Keycloak. *(Sửa 12/10/2026: bỏ contingency "giữ 1 role ADMIN nếu thiếu thời gian" ghi ngày 18/07 — SRS v1.6 đã chốt 3 role staff tách biệt, không role nào đứng thay role nào. Đổi role label vẫn rẻ vì enforcement thiết kế theo use case, nhưng không còn phương án gộp.)*
 
 | Data domain | System of record | Update authority (Phase 2) | Bản sao/consumer được phép | Bản sao dùng để |
 |---|---|---|---|---|
 | User profile / KYC / thẩm quyền | user-service | OPERATOR duyệt/reject; user tự sửa profile của mình | Feign `InternalUserInfo` cho contract/product/escrow | Gate `sign()`/listing; **không** trả PII ra public DTO (KI-3) |
 | Hợp đồng, milestone, Signature | contract-service | Chỉ state machine; đã `SIGNED` → bất biến, không role nào sửa terms | analytics (`dim_contract`), audit (hash), escrow (số cọc qua event) | Báo cáo / verify / khoá tiền — không sửa ngược trạng thái |
-| Tiền / ledger / escrow | bank-service (ledger là nguồn thật duy nhất) | **Không sửa thủ công** — chỉ command events; sai → reversal entry | escrow-service (projection trạng thái, không giữ con số làm nguồn) | Điều phối luồng; đối soát luôn theo ledger |
-| Inspection report + inspector_signature | inspection-service | INSPECTOR submit; OPERATOR review PENDING_REVIEW; `reportHash` bất biến từ ingest | audit (hash qua `inspection.report_confirmed`) | Nối chain |
+| Breach case / force majeure / remedy decision | milestone-escrow-service | ARBITRATOR quyết định (attribution + remedy); System/INSPECTOR/MUTUAL theo `decisionSource` | audit (hash), reputation (qua `remedy.finalized`), notification | Thi hành hậu quả tiền/uy tín — không sửa ngược quyết định đã finalize |
+| Tiền / ledger / escrow | bank-service (ledger là nguồn thật duy nhất) | **Không sửa thủ công** — chỉ command events; sai → reversal entry. OPERATOR chỉ kích retry no-fault (`RetryDepositLock`/`RetryMilestoneFunding`) | escrow-service (projection trạng thái, không giữ con số làm nguồn) | Điều phối luồng; đối soát luôn theo ledger |
+| Inspection report + inspector_signature | inspection-service | INSPECTOR submit; OPERATOR review PENDING_REVIEW/intake; ARBITRATOR khởi tạo Level 2; `reportHash` bất biến từ ingest | audit (hash qua `inspection.report_confirmed`) | Nối chain |
 | Plot / geo / EUDR nguồn | product-service | SELLER khai; OPERATOR moderate; geo-eval System | audit-service (EUDR report generate + lưu 5 năm — **report thuộc audit**) | Bằng chứng compliance |
 | Reputation / lock / AML risk | reputation-service | System-generated theo công thức; **2 ngoại lệ thủ công đi maker-checker §5.3**: unlock sớm, clear `ELEVATED_RISK` | user-service (`lockedUntil` projection), analytics | Enforce nhanh; nguồn quyết định vẫn ở reputation |
 | Audit chain / OTS proof | audit-service (writer duy nhất — hash-chain §2.4) | **Không ai** — append-only, verify jobs là read | notification (đính proof), External Verifier (đối soát hash) | Bằng chứng độc lập |
 | Notification log | notification-service | System; template version trong code, Admin không sửa runtime | — | Bằng chứng "đã gửi gì, bản nào" |
-| Giá tham chiếu | pricing-service | System scrape; OPERATOR nhập manual có attribution | contract (chốt giá), analytics | Tham chiếu — hợp đồng lưu snapshot giá riêng |
+| Giá tham chiếu | pricing-service | System scrape; OPERATOR nhập manual có attribution (`OPERATOR_MANUAL`) | contract (chốt giá), analytics | Tham chiếu — hợp đồng lưu snapshot giá riêng |
 | Analytics warehouse | analytics-service | Không ai sửa tay — **catch-up từ queue backlog sau outage ngắn; cold rebuild toàn lịch sử CHƯA hỗ trợ** (sửa 18/07/2026 — RabbitMQ không phải event archive vô hạn, analytics tự ghi rõ không có backfill) | — | Read model + derived-signal producer (AML): không sửa ngược domain, không trên critical path |
 
 ## 4. Data Classification
@@ -51,23 +54,24 @@ Nguyên tắc map actor: platform vận hành thật chỉ có **ADMIN, OPERATOR
 |---|---|---|---|
 | **Public** | Ai cũng xem được, không cần auth | Giá tham chiếu, listing public, catalog | Không chứa PII/contact |
 | **Internal** | User đã đăng nhập / nội bộ platform | Public-summary reputation (authenticated từ 17/07), analytics tổng hợp, `PublicUserResponse` | Không email/phone/address |
-| **Confidential** | Đúng participant + role vận hành theo case | Hợp đồng + terms, offer, milestone evidence, profile đầy đủ | Ownership check ở service; đọc bởi OPERATOR/ADMIN phải theo case đang xử lý |
+| **Confidential** | Đúng participant + role vận hành theo case | Hợp đồng + terms, offer, milestone evidence, breach case, profile đầy đủ | Ownership check ở service; đọc bởi OPERATOR/ARBITRATOR/ADMIN phải theo case đang xử lý |
 | **Restricted** | Truy cập tối thiểu, mọi lần **đọc** đều log | Hồ sơ KYC + giấy tờ, số dư/ledger, OTP artifacts, `SuspiciousTransactionReport`, `ELEVATED_RISK`, private key material | §7 tipping-off; §8 read-audit; không bao giờ ra khỏi service qua public DTO |
 
-## 5. Role Model — thêm `OPERATOR` (Phase 2, làm thật)
+## 5. Role Model — `ADMIN` / `OPERATOR` / `ARBITRATOR` (Phase 2, làm thật)
 
 ### 5.1 Vấn đề
 
-Hiện ADMIN ôm toàn bộ vận hành: KYC, review report, moderate, giá manual, unlock, AML, security. Hệ quả: (1) blast radius 1 account ADMIN bị compromise = toàn hệ thống; (2) mọi ADMIN thấy mọi thứ; (3) cost mua chuộc = mua đúng 1 người. Attribution thì hệ đã có sẵn (`verifiedByActorId` — tên mới 18/07, các trường proposedBy/approvedBy... đều vào chain) — cái thiếu là **least privilege + separation of duties**.
+Bản đầu ADMIN ôm toàn bộ vận hành: KYC, review report, moderate, giá manual, unlock, AML, security, quyết định vi phạm. Hệ quả: (1) blast radius 1 account ADMIN bị compromise = toàn hệ thống; (2) mọi ADMIN thấy mọi thứ; (3) cost mua chuộc = mua đúng 1 người; (4) người quản trị kỹ thuật lại cầm quyền phán xử tiền giữa 2 bên — xung đột vai trò. Attribution thì hệ đã có sẵn (`verifiedByActorId` — tên mới 18/07, các trường proposedBy/approvedBy... đều vào chain) — cái thiếu là **least privilege + separation of duties**.
 
-### 5.2 Đường cắt: theo độ đảo ngược + độ dính tiền/security, không cắt theo service
+### 5.2 Đường cắt: theo bản chất quyết định, không cắt theo service
 
-- **OPERATOR** — nghiệp vụ hằng ngày, đảo ngược được, có hàng đợi: duyệt/reject KYC; review external report `PENDING_REVIEW`; moderate category/listing/product; nhập giá manual; xử lý Level 2 commission (case ID, gán report). Sai sửa được, mọi quyết định vẫn attributed như cũ.
-- **ADMIN** — không đảo ngược, dính tiền hoặc security: approve maker-checker (§5.3), `RetryDepositLock`, `MarkActivationFailed`, export bằng chứng `/admin/audit/**`, đọc `/admin/security/**`, quản lý role/account (Keycloak), cấu hình hệ thống.
+- **OPERATOR** — nghiệp vụ hằng ngày, đảo ngược được hoặc no-fault, có hàng đợi: duyệt/reject KYC; review external report `PENDING_REVIEW`, xác nhận case ID, upload report thủ công, xử lý email intake lỗi; moderate category/listing/product; nhập giá manual (`OPERATOR_MANUAL`); **`RetryDepositLock` / `RetryMilestoneFunding` / `MarkActivationFailed`** (sửa 12/10/2026 — trước là ADMIN; cả 3 đều no-fault, không phạt ai, không chuyển tiền giữa 2 bên, `MarkActivationFailed` vẫn cần 2 bên xác nhận — khớp UC29/UC39 SRS v1.6); propose unlock sớm / clear `ELEVATED_RISK`; propose replay DLQ.
+- **ARBITRATOR** (mới 12/10/2026) — phán xử có hậu quả tiền/uy tín giữa 2 bên: quyết định `BreachCase` (attribution + remedy), quyết định force majeure, khởi tạo Level 2 inspection (`InitiateLevel2Inspection`), approve/reject maker-checker reputation (§5.3).
+- **ADMIN** — quản trị hệ thống, không phán xử nghiệp vụ: quản lý role/account (Keycloak), export bằng chứng `/admin/audit/**`, đọc `/admin/security/**`, analytics, cấu hình hệ thống, approve replay DLQ nhóm tiền/security/evidence do OPERATOR đề xuất (§8b — GB-48, ngoại lệ tiền duy nhất của ADMIN và chỉ là replay kỹ thuật), quyết định mở traffic sau restore (§8c).
 - **Không role nào** sửa ledger, hợp đồng đã ký, `audit_record`, `Signature`, snapshot đã anchor.
 - INSPECTOR và External Verifier **giữ nguyên** như design hiện tại — không đụng.
 
-ADMIN được làm mọi việc của OPERATOR (fallback vận hành team nhỏ), nhưng **không được tự approve đề xuất do chính mình tạo** ở luồng maker-checker.
+**Không có fallback (sửa 12/10/2026 — bỏ câu "ADMIN được làm mọi việc của OPERATOR"):** mỗi role staff chỉ giữ action của chức năng mình; ADMIN không làm thay OPERATOR/ARBITRATOR và ngược lại. Một account **không** được gán đồng thời `OPERATOR` + `ARBITRATOR` (user-service chặn ở API gán role) — nếu không, một người tự propose rồi tự approve qua 2 role.
 
 ### 5.3 Maker-checker — đúng 2 điểm, không rải
 
@@ -75,39 +79,46 @@ Chỉ áp cho 2 hành động chí mạng của reputation (nơi duy nhất "sys
 
 ```text
 OPERATOR propose (reason bắt buộc) → trạng thái PROPOSED
-        → ADMIN approve → thực thi + publish event như hiện tại
-        → ADMIN reject  → đóng đề xuất, ghi lý do
+        → ARBITRATOR approve → thực thi + publish event như hiện tại
+        → ARBITRATOR reject  → đóng đề xuất, ghi lý do
 Cả propose lẫn approve/reject đều vào audit chain (payload event mang cả 2 ID).
 ```
 
-1. **Unlock sớm** (`UnlockEarlyUseCase` — reputation §7): propose/approve thay vì Admin đơn phương; payload `reputation.unlocked` thêm `proposedByOperatorId` + `approvedByAdminId`.
+1. **Unlock sớm** (`UnlockEarlyUseCase` — reputation §7): propose/approve thay vì 1 người đơn phương; payload `reputation.unlocked` mang `proposedByOperatorId` + `approvedByArbitratorId`.
 2. **Clear `ELEVATED_RISK`** (reputation §8 mục 6): tương tự; `reputation.elevated_risk_cleared` mang cả 2 ID — khớp luôn yêu cầu "defensible closure" chuẩn AML.
 
-Muốn gian phải mua **hai người khác nhau đúng cặp**, cả 2 để vết trên chain — đây mới là thứ tăng cost mua chuộc; role label một mình không tăng. **Chốt phương án (18/07/2026 — bỏ mơ hồ "2 người, 2 role"):** đây là **permission-based two-person rule**, KHÔNG phải strict role separation — ai có quyền PROPOSE (OPERATOR hoặc ADMIN) đều propose được, approve luôn cần ADMIN, ràng buộc cứng duy nhất là `proposedBy != approvedBy` (enforce ở service + persist trong `governance_action_request`, reputation §7). Team nhỏ vận hành được (2 ADMIN vẫn chạy maker-checker với nhau), separation vẫn giữ vì không ai tự duyệt việc mình đề xuất. KYC thường **không** maker-checker (1 OPERATOR đủ — bắt 2 chữ ký mọi hồ sơ là chết vận hành team 4-5 người); nâng lên maker-checker cho KYC tổ chức giá trị lớn là enhancement, ghi Known Limitation.
+Muốn gian phải mua **hai người khác nhau đúng cặp**, cả 2 để vết trên chain — đây mới là thứ tăng cost mua chuộc; role label một mình không tăng. **Chốt (sửa 12/10/2026, thay phương án "permission-based" 18/07):** đây là **strict role separation** — chỉ OPERATOR propose, chỉ ARBITRATOR approve/reject; ràng buộc `proposedBy != approvedBy` vẫn enforce ở service + persist trong `governance_action_request` (reputation §7) làm lưới thứ hai. ADMIN không tham gia luồng này. KYC thường **không** maker-checker (1 OPERATOR đủ — bắt 2 chữ ký mọi hồ sơ là chết vận hành team 4-5 người); nâng lên maker-checker cho KYC tổ chức giá trị lớn là enhancement, ghi Known Limitation. Quyết định breach case **không** maker-checker nội bộ (chốt 12/10/2026): 1 ARBITRATOR quyết, nhưng quyết định có lỗi + chế tài chỉ có hiệu lực sau contest window 2 ngày làm việc; bên bị phạt contest → Level 1.5 độc lập (GB-50, milestone-escrow §6.4). Lý do: breach có đối thủ tự kháng nên người kiểm thứ hai là bên ngoài platform; reputation unlock/clear AML không có ai thiệt trực tiếp để kháng nên cần người duyệt thứ hai nội bộ.
 
 ### 5.4 Permission matrix (theo use case thật)
 
-| Use case | Buyer/Seller | OPERATOR | ADMIN |
-|---|---|---|---|
-| Xem dữ liệu của chính mình (`/me`, contracts, escrow...) | ✅ | — | — |
-| Export statement bút toán của chính mình (bank §5b.2) | ✅ | ❌ | ❌ (không cần — đọc ledger trực tiếp theo case qua read-audit) |
-| Duyệt/reject KYC (`/admin/users`) | ❌ | ✅ | ✅ (fallback) |
-| Review report `PENDING_REVIEW`, Level 2 commission | ❌ | ✅ | ✅ (fallback) |
-| Moderate category/product/listing; giá manual | ❌ | ✅ | ✅ (fallback) |
-| Unlock sớm / clear `ELEVATED_RISK` | ❌ | Propose | Approve/Reject |
-| `RetryDepositLock` / `MarkActivationFailed` | ❌ | ❌ | ✅ |
-| Export bằng chứng (`/admin/audit/**`), đọc `/admin/security/**` | ❌ | ❌ | ✅ |
-| Quản lý role/account (Keycloak) | ❌ | ❌ | ✅ |
-| Sửa ledger / hợp đồng đã ký / `audit_record` / `Signature` | ❌ | ❌ | ❌ |
-| Emergency lock/unlock hệ thống | ❌ | ❌ | ❌ (chỉ External Verifier — bank §3.5) |
+| Use case | Buyer/Seller | OPERATOR | ARBITRATOR | ADMIN |
+|---|---|---|---|---|
+| Xem dữ liệu của chính mình (`/me`, contracts, escrow...) | ✅ | — | — | — |
+| Export statement bút toán của chính mình (bank §5b.2) | ✅ | ❌ | ❌ | ❌ |
+| Duyệt/reject KYC (`/admin/users` KYC actions) | ❌ | ✅ | ❌ | ❌ |
+| Review report `PENDING_REVIEW`, xác nhận case ID, upload thủ công, email intake lỗi | ❌ | ✅ | ❌ | ❌ |
+| Khởi tạo Level 2 inspection (`InitiateLevel2Inspection`) | ❌ | ❌ | ✅ | ❌ |
+| Moderate category/product/listing; giá manual | ❌ | ✅ | ❌ | ❌ |
+| `RetryDepositLock` / `RetryMilestoneFunding` / `MarkActivationFailed` | Xác nhận (MarkActivationFailed) | ✅ | ❌ | ❌ |
+| Báo vi phạm / claim force majeure | ✅ | ❌ | ❌ | ❌ |
+| Quyết định `BreachCase` (attribution + remedy), quyết định force majeure | ❌ | ❌ | ✅ | ❌ |
+| Unlock sớm / clear `ELEVATED_RISK` | ❌ | Propose | Approve/Reject | ❌ |
+| Replay DLQ nhóm tiền/security/evidence (§8b) | ❌ | Propose | ❌ | Approve |
+| Export bằng chứng (`/admin/audit/**`), đọc `/admin/security/**`, analytics | ❌ | ❌ | ❌ | ✅ |
+| Quản lý role/account (Keycloak) | ❌ | ❌ | ❌ | ✅ |
+| Sửa ledger / hợp đồng đã ký / `audit_record` / `Signature` | ❌ | ❌ | ❌ | ❌ |
+| Emergency lock/unlock hệ thống | ❌ | ❌ | ❌ | ❌ (chỉ External Verifier — bank §3.5) |
+
+Không có cột "fallback": ô ❌ là ❌ thật, kể cả với ADMIN.
 
 ### 5.5 Delta kỹ thuật (cost thật nằm ở đây)
 
-1. Keycloak: thêm realm role `OPERATOR`.
-2. user-service: enum role + migration (`user-service-phase2-design.md` §2/§6 — cập nhật 18/07/2026).
-3. Gateway §3.3: các path vận hành nhận `ADMIN|OPERATOR`; đường approve/security/audit giữ `ADMIN` (cập nhật 18/07/2026).
-4. Service enforce fine-grained: user-service (KYC), inspection (review/commission), product (moderate), pricing (manual) nhận thêm OPERATOR; reputation thêm trạng thái `PROPOSED` + 2 use case propose/approve.
-5. Không đụng luồng Buyer/Seller/INSPECTOR/External Verifier nào.
+1. Keycloak: realm role `OPERATOR` + `ARBITRATOR`.
+2. user-service: enum role `BUYER|SELLER|ADMIN|INSPECTOR|OPERATOR|ARBITRATOR` + migration; API gán role chặn tổ hợp `OPERATOR`+`ARBITRATOR` (`user-service-phase2-design.md` §2/§6).
+3. Gateway §3.3: mỗi nhóm path nhận **đúng 1 role staff** — không còn dạng `ADMIN|OPERATOR`.
+4. Service enforce fine-grained: user-service (KYC → OPERATOR), inspection (review/intake → OPERATOR, initiate Level 2 → ARBITRATOR), product (moderate → OPERATOR), pricing (manual → OPERATOR), milestone-escrow (breach/FM decision → ARBITRATOR; activation/funding retry → OPERATOR), reputation (`PROPOSED` + propose OPERATOR / approve ARBITRATOR).
+5. `decisionSource` enum toàn hệ: `SYSTEM|ARBITRATOR|INSPECTOR_L1_5|INSPECTOR_L2|MUTUAL` (bỏ giá trị `ADMIN`).
+6. Không đụng luồng Buyer/Seller/INSPECTOR/External Verifier nào.
 
 ## 6. Immutability vs Quyền xoá — cách 2 thứ sống chung
 
@@ -137,7 +148,7 @@ Hệ thống bảo toàn bằng chứng và nâng chất lượng bằng chứng
 
 - Mọi luồng "user xem/export dữ liệu về mình" (hiện tại: `/me`, credit export có consent; tương lai: data-subject access request theo ND13) **loại trừ tường minh** nhóm này.
 - `ELEVATED_RISK` không xuất hiện trong public-summary, credit export, hay bất kỳ DTO nào user chạm được; hành vi hệ thống với cặp bị cờ không khác biệt quan sát được từ phía user (đã đúng theo reputation §8 — ghi thành quy tắc governance).
-- Chỉ ADMIN + luồng maker-checker §5.3 chạm nhóm này; mọi lần đọc log theo §8.
+- Chỉ OPERATOR (propose) + ARBITRATOR (approve) trong luồng maker-checker §5.3 chạm nhóm này; ADMIN không đọc; mọi lần đọc log theo §8.
 
 ## 8. Retention Matrix + Read-audit
 
@@ -157,7 +168,7 @@ Hệ thống bảo toàn bằng chứng và nâng chất lượng bằng chứng
 | Message broker (chứa email routing) | TTL ≤ 14 ngày | PII trong broker là chấp nhận có chủ đích | Broker tự expire |
 | Analytics warehouse | Backup daily như MySQL khác (**sửa 18/07/2026** — catch-up queue chỉ bù outage ngắn, cold rebuild chưa hỗ trợ nên mất DB = mất lịch sử dashboard) | Read model | Ẩn danh hoá dimension theo nguồn |
 
-**Read-audit cho Restricted (bổ sung — control rẻ hơn compartment hoá):** mỗi lần OPERATOR/ADMIN **mở** hồ sơ KYC, ledger detail, hay AML record → ghi log `{actorId, role, resourceType, resourceId, timestamp, caseContext?}` tại service sở hữu. Không cần chain, log thường + retention 2 năm là đủ deterrence; "mọi admin biết hết" được trị bằng vết đọc, không phải bằng phân quyền đọc phức tạp.
+**Read-audit cho Restricted (bổ sung — control rẻ hơn compartment hoá):** mỗi lần OPERATOR/ARBITRATOR/ADMIN **mở** hồ sơ KYC, ledger detail, hay AML record → ghi log `{actorId, role, resourceType, resourceId, timestamp, caseContext?}` tại service sở hữu. Không cần chain, log thường + retention 2 năm là đủ deterrence; "mọi staff biết hết" được trị bằng vết đọc, không phải bằng phân quyền đọc phức tạp.
 
 ## 8b. DLQ & Event Replay Runbook (mới, 18/07/2026)
 
@@ -169,7 +180,7 @@ Hệ đã có retry + DLX + Outbox + idempotency ở từng service; mục này 
 |---|---|---|---|
 | **Transient hết retry** (consumer down, timeout, deadlock) | Lỗi hạ tầng, payload hợp lệ | OPERATOR | Replay `eventId` gốc sau khi nguyên nhân hết (alert/metric xác nhận); không cần approve |
 | **Permanent/validation** (schema lệch, dữ liệu tham chiếu không tồn tại) | Fail ngay không retry | Developer chẩn đoán → OPERATOR replay | KHÔNG replay nguyên trạng — fix code/data trước (deploy consumer sửa, hoặc hành động nghiệp vụ tạo dữ liệu thiếu), rồi replay `eventId` gốc |
-| **Tiền / security / evidence** (`bank.*`, `escrow.*`, **`remedy.*` + `breach.*` + `contract.terminated` — bổ sung 19/07/2026**, audit ingest, security lock, OTP/anchor mail) | Theo routing key | OPERATOR đề xuất → **ADMIN approve** (maker-checker §5.3, cùng pattern) | Trước replay: check trạng thái aggregate đích (đã lock/release chưa, notification đã `SENT` chưa) — idempotency là lưới, không phải lý do bỏ check. *Lý do bổ sung 19/07: `remedy.finalized` là nguồn kích DUY NHẤT cho mọi seize/forfeiture/reputation-lock (milestone-escrow §7.2) — event tiền nặng nhất hệ; `breach.reported`/`contract.terminated` là evidence vào hash chain. Bảng nhận diện theo routing key lập 18/07 trước khi các event này tồn tại nên không match nhóm nào → replay lọt xuống nhóm transient không cần approve.* |
+| **Tiền / security / evidence** (`bank.*`, `escrow.*`, **`remedy.*` + `breach.*` + `contract.terminated` — bổ sung 19/07/2026**, audit ingest, security lock, OTP/anchor mail) | Theo routing key | OPERATOR đề xuất → **ADMIN approve** (GB-48 SRS v1.6; two-person rule cùng tinh thần §5.3, `proposedBy != approvedBy`) | Trước replay: check trạng thái aggregate đích (đã lock/release chưa, notification đã `SENT` chưa) — idempotency là lưới, không phải lý do bỏ check. *Lý do bổ sung 19/07: `remedy.finalized` là nguồn kích DUY NHẤT cho mọi seize/forfeiture/reputation-lock (milestone-escrow §7.2) — event tiền nặng nhất hệ; `breach.reported`/`contract.terminated` là evidence vào hash chain. Bảng nhận diện theo routing key lập 18/07 trước khi các event này tồn tại nên không match nhóm nào → replay lọt xuống nhóm transient không cần approve.* Approve replay là duyệt **redelivery kỹ thuật**, không phải quyết định nghiệp vụ — ADMIN không đổi nội dung quyết định của ARBITRATOR. |
 
 **Sau replay, kiểm tra gì:** trạng thái aggregate đích khớp kỳ vọng (milestone/escrow/ledger entry tồn tại đúng 1 lần; notification `SENT`); với nhóm tiền, `LedgerAuditReconciliationJob` (bank §5b.1) là lưới sau cùng bắt lệch số. Replay và kết quả đều ghi log vận hành có attribution (ai, khi nào, eventId).
 
@@ -194,7 +205,7 @@ NFR đã có fault tolerance/observability nhưng chưa đặc tả backup/resto
 1. **Thứ tự ưu tiên:** `bank_db`/`audit_db` trước → user/contract/escrow → còn lại. Analytics restore từ backup như DB khác (**sửa 18/07/2026** — catch-up queue chỉ bù outage ngắn, không thay được backup; cold rebuild toàn lịch sử chưa hỗ trợ).
 2. **Không restore riêng lẻ `bank_db` hoặc `escrow_db`:** backup các DB không cùng point-in-time; restore 1 mình DB tiền tạo lệch cross-service im lặng. Sau BẤT KỲ restore nào đụng tiền/bằng chứng: hệ ở trạng thái maintenance **ở tầng deployment/gateway** (service chưa nhận traffic — KHÔNG dùng `system_lock`: theo bank §3.5.5 lock/unlock chỉ External Verifier ký được, không có đường Admin tự bật; nếu deployment có verifier phối hợp thì lock verifier là lớp cộng thêm, không phải điều kiện), chạy `VerifyChainJob` (chain integrity) + `LedgerAuditReconciliationJob` (bank §5b.1 — ledger ↔ chain) **pass rồi mới mở traffic**.
 3. **Restore test định kỳ:** mỗi tháng (tối thiểu 1 lần trước bảo vệ) restore backup mới nhất vào môi trường test + chạy 2 job verify — backup chưa từng restore thử là backup chưa tồn tại.
-4. Restore là thao tác Technical Custodian nhưng quyết định "mở lại traffic sau restore đụng tiền" là ADMIN (business authority — nguyên tắc 7), ghi log attribution.
+4. Restore là thao tác Technical Custodian nhưng quyết định "mở lại traffic sau restore đụng tiền" là ADMIN (quản trị hệ thống — nguyên tắc 7), ghi log attribution.
 
 
 ## 9. ND13/2023/NĐ-CP & Cross-border
@@ -204,29 +215,40 @@ NFR đã có fault tolerance/observability nhưng chưa đặc tả backup/resto
 - **Cross-border:** SendGrid outbound → email chứa PII + snapshot hợp đồng chảy qua hạ tầng US — ghi nhận là chuyển dữ liệu ra nước ngoài theo ND13; scope đồ án ghi Known Limitation + hướng production (đánh giá tác động chuyển giao / chọn region provider). OTS lên Bitcoin sạch — chỉ hash.
 - Hồ sơ đánh giá tác động xử lý dữ liệu chính thức: ngoài scope đồ án; doc này là bản map kỹ thuật để làm nhanh khi cần.
 
-## 10. Delta cần sync vào docs khác (18/07/2026)
+## 10. Delta cần sync vào docs khác
+
+**Đợt 12/10/2026 — sync SRS v1.6 (thay các dòng role của đợt 18/07):**
 
 | Doc | Delta |
 |---|---|
-| user-service §2/§4.2/§6 | Enum role thêm `OPERATOR`; §4.2 KYC API nhận `ADMIN\|OPERATOR`; migration MODIFY |
-| api-gateway §3.3 | Path vận hành nhận `ADMIN\|OPERATOR`; approve/security/audit giữ `ADMIN` |
-| reputation §7/§8 | Maker-checker: trạng thái `PROPOSED`, use case propose/approve, event payload thêm `proposedByOperatorId`/`approvedByAdminId` |
+| user-service §2/§4.2/§6 | Enum role thêm `ARBITRATOR`; KYC API chỉ `OPERATOR`; chặn gán `OPERATOR`+`ARBITRATOR` cùng account; migration MODIFY |
+| api-gateway §3.3 | Mỗi path 1 role staff; breach/FM/reputation-approve → `ARBITRATOR`; activation/funding retry → `OPERATOR`; audit/security/accounts/analytics/replay-approve → `ADMIN`; bỏ fallback |
+| reputation §7/§8 | Approver = `ARBITRATOR`; payload `approvedByArbitratorId` / `clearedByArbitratorId` |
+| milestone-escrow | BreachCase/FM decision → `ARBITRATOR`; `decisionSource` bỏ `ADMIN` thêm `ARBITRATOR`; activation recovery → `OPERATOR` |
+| inspection §3.4/§3.6 | `InitiateLevel2Inspection` → `ARBITRATOR`; review/intake/upload → `OPERATOR` |
+| verification-matrix | Case role mới: OPERATOR không vào route ARBITRATOR/ADMIN; ARBITRATOR không vào route ADMIN; ADMIN không vào route nghiệp vụ (không fallback) |
+| SDS / Architecture docx, contracts/*.yaml | Actor table, security column OpenAPI, enum role/`decisionSource` — sync ở lần regenerate kế tiếp |
+
+**Đợt 18/07/2026 (phần không đụng role, vẫn hiệu lực):**
+
+| Doc | Delta |
+|---|---|
 | hash-chain §3 | `audit_record.content` minimal hoá — không PII, chỉ ID/số liệu/hash |
-| inspection/product/pricing | Use case vận hành nhận thêm OPERATOR — sửa lúc implement, không đổi flow |
-| bank §5b / hash-chain §4.5 / notification §4 / milestone-escrow §8b (18/07) | LedgerAuditReconciliationJob (đối chiếu tiền ledger ↔ chain) + statement export + enhancement logistics |
-| Mọi service có consumer (18/07) | Áp DLQ/replay runbook §8b lúc implement — replay theo eventId gốc, nhóm tiền/security cần ADMIN approve; không đổi event contract nào |
+| product/pricing | Use case vận hành nhận OPERATOR — sửa lúc implement, không đổi flow |
+| bank §5b / hash-chain §4.5 / notification §4 / milestone-escrow §8b | LedgerAuditReconciliationJob (đối chiếu tiền ledger ↔ chain) + statement export + enhancement logistics |
+| Mọi service có consumer | Áp DLQ/replay runbook §8b lúc implement — replay theo eventId gốc, nhóm tiền/security cần ADMIN approve; không đổi event contract nào |
 
 ## 11. Known Limitations / Out of Scope
 
 - Maker-checker cho KYC tổ chức giá trị lớn — enhancement.
-- Compartment hoá quyền *đọc* theo case (OPERATOR chỉ thấy hồ sơ được gán) — enhancement; Phase 2 dùng read-audit §8.
+- Compartment hoá quyền *đọc* theo case (OPERATOR/ARBITRATOR chỉ thấy hồ sơ được gán) — enhancement; Phase 2 dùng read-audit §8.
 - DSAR endpoint tự phục vụ, hồ sơ ND13 chính thức, đánh giá cross-border chính thức — production.
 - Chức danh tổ chức (Compliance/Risk/Finance) — organizational evolution, không phải role hệ thống Phase 2.
 
 ## 12. Status — Data Governance Design
 
-**Chốt:** framework nhẹ trong docs, không service riêng. Ownership matrix map về actor thật; `OPERATOR` là **kết quả của governance analysis** và làm thật Phase 2 (cost thấp so với mức làm cứng hệ thống); maker-checker đúng 2 điểm reputation; `audit_record.content` minimal hoá để quyền xoá và immutability sống chung; AML tipping-off exemption tường minh; retention matrix có căn cứ + read-audit cho Restricted; map ND13 ở mức đồ án. Bổ sung cùng ngày: nguyên tắc Technical Custodian (quyền hạ tầng ≠ business authority) + trách nhiệm người tạo dữ liệu; contingency giữ 1 ADMIN nếu cuối kỳ thiếu thời gian.
+**Chốt:** framework nhẹ trong docs, không service riêng. Ownership matrix map về actor thật; `OPERATOR` + `ARBITRATOR` là **kết quả của governance analysis** và làm thật Phase 2; không có fallback giữa các role staff; maker-checker đúng 2 điểm reputation (OPERATOR → ARBITRATOR); `audit_record.content` minimal hoá để quyền xoá và immutability sống chung; AML tipping-off exemption tường minh; retention matrix có căn cứ + read-audit cho Restricted; map ND13 ở mức đồ án. Bổ sung 18/07: nguyên tắc Technical Custodian (quyền hạ tầng ≠ business authority) + trách nhiệm người tạo dữ liệu. Sửa 12/10: sync role model theo SRS v1.6, bỏ contingency gộp role.
 
 ---
 
-*Design session: 18/07/2026 · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*
+*Design session: 18/07/2026 · Sync SRS v1.6: 12/10/2026 · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*

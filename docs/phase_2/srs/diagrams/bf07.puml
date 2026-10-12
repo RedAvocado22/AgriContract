@@ -1,0 +1,39 @@
+@startuml
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam SwimlaneBorderColor black
+skinparam ArrowColor black
+skinparam ActivityDiamondBackgroundColor white
+title BF-07 Emergency Security Lock
+|External Verifier|
+|Admin|
+|System|
+|External Verifier|
+start
+:1. Detect a\nsuspected incident;
+:2. Send signed\nLOCK request;
+|System|
+:3. Verify key, signature,\ntime and nonce;
+if (Request valid?) then (no)
+  :4. Reject request with\nerror code;
+  :Lock not applied;
+  stop
+else (yes)
+  :5. Stop all\nmoney commands;
+  :6. Record lock, notify\nAdmin and verifier;
+  |Admin|
+  :7. Investigate and report\nto verifier;
+  note right: Admin cannot unlock
+  |External Verifier|
+  :8. Send signed\nUNLOCK request;
+  |System|
+  :9. Verify request and\nresume money commands;
+  :10. Record unlock\nand notify;
+  :Money flow resumed;
+  stop
+endif
+@enduml

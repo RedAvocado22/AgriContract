@@ -24,12 +24,12 @@ Phase 1 có `UserProfile` tối giản (`organizationName`, `role`, contact info
 |---|---|---|
 | `userId` | String/UUID | Keycloak `sub`, identity ổn định |
 | `organizationName` | VARCHAR | Tên pháp nhân/HTX |
-| `role` | `BUYER \| SELLER \| ADMIN \| INSPECTOR \| OPERATOR` | Role nguồn từ Keycloak; Phase 1 cần mở enum cho INSPECTOR; **OPERATOR mới 18/07/2026** — role vận hành hằng ngày (KYC, review, moderate), tách khỏi ADMIN theo `data-governance-phase2-design.md` §5 |
+| `role` | `BUYER \| SELLER \| ADMIN \| INSPECTOR \| OPERATOR \| ARBITRATOR` | Role nguồn từ Keycloak; Phase 1 cần mở enum cho INSPECTOR; **OPERATOR mới 18/07/2026** — vận hành hằng ngày (KYC, review, moderate, retry activation); **ARBITRATOR mới 12/10/2026** (SRS v1.6) — phán xử breach/FM, khởi tạo Level 2, approve maker-checker reputation. Matrix ở `data-governance-phase2-design.md` §5. API gán role **reject** tổ hợp `OPERATOR` + `ARBITRATOR` trên cùng account (chống tự propose rồi tự approve) |
 | `contactInfo` | VO | Email, phone, address; dữ liệu riêng tư |
 | `verificationStatus` | `PENDING \| VERIFIED \| REJECTED` | State KYC hiện tại |
 | `authorizationExpiresAt` | TIMESTAMP nullable | Instant UTC của hạn trên giấy uỷ quyền; giấy date-only hết hạn `23:59:59.999 ICT`, `NULL` chỉ khi giấy ghi vô thời hạn (time convention: milestone-escrow §1.1) |
 | `lockedUntil` | TIMESTAMP nullable | Projection/cache từ reputation events; không phải source of truth |
-| `verifiedByActorId` | UUID nullable | Người thực hiện quyết định KYC gần nhất — ADMIN hoặc OPERATOR (đổi tên 18/07/2026, tên cũ `verifiedByAdminId` sai từ khi OPERATOR duyệt được) |
+| `verifiedByActorId` | UUID nullable | Người thực hiện quyết định KYC gần nhất — OPERATOR (đổi tên 18/07/2026 từ `verifiedByAdminId`; từ 12/10/2026 ADMIN không duyệt KYC, giữ tên `actor` cho trung tính) |
 | `verifiedAt` | TIMESTAMP nullable | Thời điểm verify |
 | `rejectionReason` | TEXT nullable | Bắt buộc khi reject, xoá khi hồ sơ được nộp lại |
 
@@ -40,7 +40,7 @@ REGISTER → PENDING ──verify──▶ VERIFIED
                  └─reject───▶ REJECTED ──resubmit──▶ PENDING
 ```
 
-- `verify()` chỉ chạy từ `PENDING`; ghi Admin, thời điểm và `authorizationExpiresAt` đúng theo giấy tờ thật.
+- `verify()` chỉ chạy từ `PENDING`; ghi Operator, thời điểm và `authorizationExpiresAt` đúng theo giấy tờ thật.
 - `reject(reason)` chỉ chạy từ `PENDING`; `reason` không được rỗng.
 - `resubmit()` chạy từ `REJECTED`, đưa về `PENDING`; file hồ sơ nằm ở file-service, user-service chỉ giữ reference/metadata cần thiết khi implementation chốt form.
 - `authorizationExpiresAt <= now()` làm thẩm quyền **không còn hợp lệ** nhưng không tự đổi `verificationStatus`; giữ lịch sử quyết định KYC, còn gate runtime kiểm cả hai điều kiện.
@@ -63,7 +63,7 @@ REGISTER → PENDING ──verify──▶ VERIFIED
 | Tạo listing | `VERIFIED` và authorization còn hạn | Không cho nếu đang khoá | **Fail-closed (sửa 18/07/2026, round 2):** user-service down → 503, không tạo. Fail-open cũ tự mâu thuẫn — lúc dependency chết caller không biết CẢ 3 điều kiện mà vẫn cho qua, người chưa KYC/đang khoá tạo được listing đúng lúc đó. Listing không khẩn cấp tới mức hy sinh policy; giờ MỌI gate eligibility đều fail-closed, nhất quán với `sign()` |
 | Tạo offer | `VERIFIED` và authorization còn hạn | Không cho nếu đang khoá | Cùng chính sách create listing — fail-closed (18/07/2026) |
 | Ký hợp đồng | `VERIFIED` và authorization còn hạn | Không cho nếu đang khoá | **Fail-closed**; circuit breaker fallback phải reject |
-| Admin/Inspector workflow | Role + ownership riêng | Không dùng seller/buyer lock | Enforce ở service sở hữu use case |
+| Operator/Arbitrator/Admin/Inspector workflow | Role + ownership riêng | Không dùng seller/buyer lock | Enforce ở service sở hữu use case |
 
 Gate nằm tại use-case của `product-service`/`contract-service`, không nằm ở Gateway. Gateway chỉ xác thực JWT và truyền identity.
 
@@ -79,7 +79,7 @@ Gate nằm tại use-case của `product-service`/`contract-service`, không n�
 
 Reputation công khai không nhét vào DTO này; client gọi `GET /api/v1/reputation/{userId}/public-summary` ở service sở hữu.
 
-### 4.2 Admin KYC API — qua Gateway, role `ADMIN|OPERATOR` (sửa 18/07/2026 — OPERATOR duyệt/reject theo governance §5, ADMIN là fallback; matrix quyền ở `data-governance-phase2-design.md` §5.4)
+### 4.2 KYC API — qua Gateway, role `OPERATOR` (sửa 12/10/2026 theo SRS v1.6 — bỏ ADMIN fallback; matrix quyền ở `data-governance-phase2-design.md` §5.4)
 
 | Method | Path | Ý nghĩa |
 |---|---|---|
@@ -124,7 +124,7 @@ Migration additive trên `user_db`:
 
 ```sql
 ALTER TABLE user_profiles
-  MODIFY role ENUM('SELLER','BUYER','ADMIN','INSPECTOR','OPERATOR') NOT NULL,  -- OPERATOR: 18/07/2026, governance §5
+  MODIFY role ENUM('SELLER','BUYER','ADMIN','INSPECTOR','OPERATOR','ARBITRATOR') NOT NULL,  -- OPERATOR 18/07, ARBITRATOR 12/10/2026 (SRS v1.6)
   ADD COLUMN authorization_expires_at DATETIME(6) NULL,
   ADD COLUMN locked_until DATETIME(6) NULL,
   ADD COLUMN verified_by_actor_id VARCHAR(255) NULL,  -- SỬA 18/07/2026: đổi tên từ verified_by_admin_id —
@@ -147,12 +147,12 @@ Không thêm credential, password hoặc Keycloak token vào `user_db`.
 - `/users/{userId}` không trả contact info. Chính chủ dùng `/me`; service dùng `/internal`.
 - `sign()` fail-closed nếu user-service unavailable hoặc response không xác định được verification/lock state.
 - Event lock/unlock xử lý idempotent; ordering theo `lockRevision` **persist trong `last_lock_revision`** (**sửa 18/07/2026** — `occurredAt` 17/07 chưa đủ: không persist thì restart xong không còn gì để so, và timestamp dính clock skew). Unlock không clear mù — set theo `effectiveLockedUntil` (§2.2).
-- Admin không được tự đặt `authorizationExpiresAt` theo hằng số platform; phải đọc từ giấy thật, `NULL` chỉ cho vô thời hạn.
+- Operator không được tự đặt `authorizationExpiresAt` theo hằng số platform; phải đọc từ giấy thật, `NULL` chỉ cho vô thời hạn.
 
 ## 8. Known Limitations / Out of Scope
 
 - Checklist giấy tờ chi tiết theo từng loại hình pháp nhân cần legal review khi làm form thật.
-- Tự động đối soát giấy phép/đăng ký doanh nghiệp với cơ sở dữ liệu Nhà nước ngoài scope; Operator/Admin duyệt thủ công.
+- Tự động đối soát giấy phép/đăng ký doanh nghiệp với cơ sở dữ liệu Nhà nước ngoài scope; Operator duyệt thủ công.
 - `lockedUntil` là eventually consistent projection; cửa sổ trễ event nhỏ vẫn tồn tại. Hành động rủi ro cao `sign()` có sync check/fail-closed để thu hẹp.
 - mTLS là hướng production; scope đồ án có thể dùng internal secret trong network cô lập.
 
@@ -162,4 +162,4 @@ Không thêm credential, password hoặc Keycloak token vào `user_db`.
 
 ---
 
-*Design bổ sung: 16/07/2026 · Rà soát cross-service + sửa: 17/07/2026 · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*
+*Design bổ sung: 16/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Rà soát cross-service + sửa: 17/07/2026 · Chưa code · Sẵn sàng đồng bộ vào SDS/Architecture ở lần regenerate kế tiếp.*

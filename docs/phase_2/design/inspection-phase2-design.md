@@ -13,17 +13,17 @@ metadata:
 
 **Scope override chốt 06/10/2026:** Phase 2 inspection chỉ nhận contract có `commodity = COFFEE`. Mọi result schema public/canonical phải reject rice/rubber/cashew; các variant cũ bên dưới là lịch sử thiết kế, không phải executable contract.
 
-> **Role vận hành (18/07/2026):** các use case Admin trong doc này (review/moderate/nhập liệu hằng ngày) nhận thêm role `OPERATOR` theo `data-governance-phase2-design.md` §5 — permission matrix ở đó là source of truth, doc này không lặp lại; flow/state/schema không đổi.
+> **Role vận hành — sync SRS v1.6 (12/10/2026, thay note 18/07):** `InitiateLevel2Inspection` (kể cả duyệt tổ chức Level 2 nhóm "lạ" + nhập `verificationReference`) = **ARBITRATOR**. `ConfirmCommissionCaseId`, `ReviewPendingExternalReport`, upload thủ công (`OPERATOR_MANUAL`, đổi tên từ `OPERATOR_MANUAL`) và xử lý email intake lỗi = **OPERATOR**. Level 1 nội bộ = Arbitrator. Không có Admin fallback (`data-governance-phase2-design.md` §5). Field đổi tên: `confirmed_by_operator_id` → `confirmed_by_operator_id`, `verifiedByArbitratorId` → `verifiedByArbitratorId`, `ARBITRATOR_AD_HOC` → `ARBITRATOR_AD_HOC`. Prose lịch sử bên dưới còn chữ "Admin" — đọc theo mapping này.
 
 
-3-tier INSPECTOR (Level 1 Admin nội bộ / Level 1.5 Vinacontrol-Quatest / Level 2 SGS-Bureau Veritas) đã chốt khái niệm ở `milestone-escrow-phase2-design.md` (§3.2 routing trong state machine, §5 force majeure cap ở Level 1.5, §8 config ngưỡng escalation). `signature-phase2-design.md` §8 chủ động để ngoài phạm vi lúc đó: *"INSPECTOR là third-party actor, không qua cùng luồng KYC buyer/seller ở §5 — 'same treatment' không áp trực tiếp được, cần session riêng xác định lại từ đầu."* Doc này là session đó.
+3-tier INSPECTOR (Level 1 Arbitrator nội bộ / Level 1.5 Vinacontrol-Quatest / Level 2 SGS-Bureau Veritas) đã chốt khái niệm ở `milestone-escrow-phase2-design.md` (§3.2 routing trong state machine, §5 force majeure cap ở Level 1.5, §8 config ngưỡng escalation). `signature-phase2-design.md` §8 chủ động để ngoài phạm vi lúc đó: *"INSPECTOR là third-party actor, không qua cùng luồng KYC buyer/seller ở §5 — 'same treatment' không áp trực tiếp được, cần session riêng xác định lại từ đầu."* Doc này là session đó.
 
 **Insight gốc của session (03/07/2026):** Level 1.5 và Level 2 không phải 2 mức độ nghiêm trọng của cùng 1 vấn đề — chúng là 2 mô hình identity hoàn toàn khác nhau, không dùng chung được:
 
 - **Level 1.5** (Vinacontrol/Quatest): tổ chức kiểm định quy mô tỉnh, quan hệ hợp đồng dịch vụ trực tiếp với platform khả thi → trở thành 1 actor thật trên platform, dùng chung mô hình identity với Buyer/Seller (`Signature`).
 - **Level 2** (SGS/Bureau Veritas): tập đoàn quốc tế, quy trình bảo mật/IT riêng, không tích hợp login vào 1 platform agritech Việt Nam — và không cần, vì uy tín report của họ tự thân đã đủ (accreditation quốc tế, độc lập với platform). Platform chỉ cần bảo vệ integrity của file sau khi nhận, không cần chứng minh identity qua login flow.
 
-**Không detail lại:** routing logic `DisputeRoutingService` (đã chốt ở milestone-escrow doc), Level 1 (Admin nội bộ dùng account Admin sẵn có, không cần thiết kế riêng).
+**Không detail lại:** routing logic `DisputeRoutingService` (đã chốt ở milestone-escrow doc), Level 1 (Arbitrator nội bộ dùng account Arbitrator sẵn có, không cần thiết kế riêng).
 
 ---
 
@@ -91,7 +91,7 @@ reportHash = SHA256(RFC8785_canonical_json({
 }))
 ```
 
-`reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByAdminId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền, không quyết định disposition và không quyết định escrow transition. Reviewer ở contract workflow chỉ xác nhận phép tính tất định giữa committed terms trong `signedContentHash` và actual metrics trong `resultHash`; không được thêm tiêu chí chủ quan ngoài deviation policy đã ký.
+`reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByOperatorId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền, không quyết định disposition và không quyết định escrow transition. Reviewer ở contract workflow chỉ xác nhận phép tính tất định giữa committed terms trong `signedContentHash` và actual metrics trong `resultHash`; không được thêm tiêu chí chủ quan ngoài deviation policy đã ký.
 
 ### 2.4 Session freshness — tách config riêng khỏi Signature
 
@@ -141,12 +141,12 @@ SGS/Bureau Veritas không có account, không login, không role trên platform.
 
 | Field | Loại | Ghi chú |
 |---|---|---|
-| `orgVerificationType` | Enum (`HARDCODED_MAJOR`, `BOA_VERIFIED`, `ADMIN_AD_HOC`) | Nhóm nào trong 3 nhóm allowlist |
+| `orgVerificationType` | Enum (`HARDCODED_MAJOR`, `BOA_VERIFIED`, `ARBITRATOR_AD_HOC`) | Nhóm nào trong 3 nhóm allowlist |
 | `verificationReference` | String, nullable | Accreditation certificate number đã tra — `NULL` cho `HARDCODED_MAJOR` (đã verify 1 lần khi thêm vào bảng allowlist, không verify lại mỗi lần dùng) |
-| `verifiedByAdminId` | UUID, nullable | `NULL` cho `HARDCODED_MAJOR` cùng lý do trên |
+| `verifiedByArbitratorId` | UUID, nullable | `NULL` cho `HARDCODED_MAJOR` cùng lý do trên |
 | `verifiedAt` | Timestamp, nullable | |
 
-`InitiateLevel2Inspection` (§3.4) bước 2 mở rộng: nếu `org` thuộc nhóm `BOA_VERIFIED`/`ADMIN_AD_HOC`, bắt buộc Admin nhập `verificationReference` trước khi commission được tạo — không cho tạo commission mà thiếu căn cứ. Bước 5 (INSERT `audit_record`, `source_type = LEVEL2_INSPECTION_COMMISSIONED`) đã tồn tại sẵn — chỉ mở rộng `content` thêm 3 field trên, **không cần event/source_type mới**. Hash chain hiện có (`hash-chain-phase2-design.md`) tự động cho quyết định này tính bất biến — đúng cơ chế đã dùng cho mọi quyết định quan trọng khác trong hệ thống, không phải cơ chế riêng mới.
+`InitiateLevel2Inspection` (§3.4) bước 2 mở rộng: nếu `org` thuộc nhóm `BOA_VERIFIED`/`ARBITRATOR_AD_HOC`, bắt buộc Admin nhập `verificationReference` trước khi commission được tạo — không cho tạo commission mà thiếu căn cứ. Bước 5 (INSERT `audit_record`, `source_type = LEVEL2_INSPECTION_COMMISSIONED`) đã tồn tại sẵn — chỉ mở rộng `content` thêm 3 field trên, **không cần event/source_type mới**. Hash chain hiện có (`hash-chain-phase2-design.md`) tự động cho quyết định này tính bất biến — đúng cơ chế đã dùng cho mọi quyết định quan trọng khác trong hệ thống, không phải cơ chế riêng mới.
 
 **Đã thu hẹp (08/07/2026, L4) — từ "deferred, chưa biết tra ở đâu" sang "có nguồn tra online rõ ràng":** verify accreditation không còn là hộp đen. Ba nguồn tra online cụ thể:
 - **BoA-VIAS** (`boa.gov.vn`) — VIAS = scheme Inspection Bodies theo ISO/IEC 17020, đúng loại tổ chức cho Level 2 inspector. BoA (nay thuộc STAMEQ, Bộ KH&CN từ 01/01/2025) là signatory ILAC-MRA/IAF-MLA/APAC-MRA — tra thẳng cho tổ chức trong nước.
@@ -169,7 +169,7 @@ Admin tra tay trên 3 nguồn này (vài phút/lần, sự kiện tần suất t
 
 ```
 InitiateLevel2Inspection(contractId):
-  Role: ADMIN. Trigger: DisputeRoutingService route = LEVEL_2 (milestone-escrow §3.2)
+  Role: ARBITRATOR (12/10/2026). Trigger: DisputeRoutingService route = LEVEL_2 (milestone-escrow §3.2)
 
   1. Validate contract đang ở state cho phép escalate Level 2
   2. org = Contract.contractTerms.level2InspectorOrg
@@ -207,7 +207,7 @@ ParseCommissionAck(emailNotice):   // consumer của file.email_notice, system-t
   4. KHÔNG tự update level2_inspection_commission — chỉ hiển thị gợi ý
 
 ConfirmCommissionCaseId(commissionId, caseId):
-  Role: ADMIN
+  Role: OPERATOR
   1. UPDATE level2_inspection_commission
      SET intake_case_id = caseId, status = CASE_ID_CONFIRMED,
          case_id_confirmed_at = now()
@@ -246,7 +246,7 @@ IngestExternalInspectionReportEmail(fileReadyEvent):   // consumer file.ready
   6. KHÔNG publish audit-service ở bước này
 
 ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVerificationStatus):
-  Role: ADMIN. Endpoint KHÔNG nhận tham số file — về mặt kỹ thuật Admin không có
+  Role: OPERATOR. Endpoint KHÔNG nhận tham số file — về mặt kỹ thuật Admin không có
   khả năng thay file report qua đường này.
 
   0. Reload report, commission, milestone và report hiệu lực hiện có trong cùng
@@ -263,7 +263,7 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
   3. decision = REJECT → status = REJECTED, dừng
   4. decision = APPROVE:
      status = CONFIRMED
-     confirmed_by_admin_id = jwt.sub
+     confirmed_by_operator_id = jwt.sub
      external_verification_status = externalVerificationStatus (optional — Admin tự đi
        verify qua dịch vụ công khai của org, nếu có, rồi điền kết quả cùng lúc duyệt)
      Publish audit-service, source_type = EXTERNAL_INSPECTION_REPORT
@@ -273,7 +273,7 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
 
 `REJECTED` là terminal cho chính `inspection_report` đó. Nộp lại phải tạo commission/report mới; Phase 2 không thêm `rejectionReason`, resubmission state hoặc taxonomy lý do reject cho external report.
 
-**Fallback:** giữ nguyên use case ingest thủ công gốc (`SubmitExternalInspectionReport`, Admin tự tải và upload report, `role ADMIN`, không phải role `INSPECTOR`), đổi `ingestion_source = ADMIN_MANUAL` — dùng khi org gửi về địa chỉ liên hệ quen thuộc thay vì `intake@...`, hoặc webhook lỗi. `org` vẫn lấy từ `Contract.contractTerms.level2InspectorOrg` (không cho Admin tự gõ lại); `reportFileHash = SHA256(content)` được tính ngay khi store, còn `reportHash` cuối tính theo §2.3 sau normalized confirmation. `uploadedByAdminId`/`confirmed_by_admin_id` lấy từ JWT của Admin đang thao tác.
+**Fallback:** giữ nguyên use case ingest thủ công gốc (`SubmitExternalInspectionReport`, Admin tự tải và upload report, `role OPERATOR`, không phải role `INSPECTOR`), đổi `ingestion_source = OPERATOR_MANUAL` — dùng khi org gửi về địa chỉ liên hệ quen thuộc thay vì `intake@...`, hoặc webhook lỗi. `org` vẫn lấy từ `Contract.contractTerms.level2InspectorOrg` (không cho Admin tự gõ lại); `reportFileHash = SHA256(content)` được tính ngay khi store, còn `reportHash` cuối tính theo §2.3 sau normalized confirmation. `uploadedByOperatorId`/`confirmed_by_operator_id` lấy từ JWT của Admin đang thao tác.
 
 ---
 
@@ -284,14 +284,14 @@ ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVer
 | source_type | Actor đứng sau | Cơ chế xác thực |
 |---|---|---|
 | `INSPECTION_REPORT` (Level 1.5) | INSPECTOR đã KYC, đã login | `Signature` + RBAC |
-| `EXTERNAL_INSPECTION_REPORT` (Level 2, report cuối) | Không có actor login — chỉ Admin thao tác | Auto-intake (SPF/DKIM signal) + Admin `CONFIRMED` qua `ReviewPendingExternalReport` (§3.6), hoặc `ADMIN_MANUAL` fallback |
+| `EXTERNAL_INSPECTION_REPORT` (Level 2, report cuối) | Không có actor login — chỉ Admin thao tác | Auto-intake (SPF/DKIM signal) + Admin `CONFIRMED` qua `ReviewPendingExternalReport` (§3.6), hoặc `OPERATOR_MANUAL` fallback |
 | `LEVEL2_INSPECTION_COMMISSIONED` (Level 2, yêu cầu commission) | Admin | RBAC bình thường — ghi nhận platform đã yêu cầu gửi report đi đâu, không chứng minh org có tuân theo |
 
 **Không gộp chung** dù cùng mục đích nghiệp vụ tổng quát — vì sức nặng bằng chứng khác nhau thật sự. `INSPECTION_REPORT` đứng sau 1 actor đã KYC/login; `EXTERNAL_INSPECTION_REPORT` là *kết quả đã xác nhận* của 1 report không actor login; `LEVEL2_INSPECTION_COMMISSIONED` chỉ ghi lại *yêu cầu*, không phải kết quả. Gộp chung 1 nhãn là che giấu khác biệt evidentiary — đúng thứ hội đồng bảo vệ sẽ hỏi nếu phát hiện các loại report khác nhau về sức nặng pháp lý lại đứng chung 1 nhãn trong audit trail.
 
 **Bổ sung (17/07/2026) — transport vào chain, trước đây chưa đặt tên:** "publish audit-service"/"INSERT audit_record" ở §3.4/§3.6 chưa định nghĩa đi bằng đường nào — và inspection-service không được INSERT thẳng DB của audit-service. Chốt 2 domain event RabbitMQ, audit-service là consumer duy nhất ghi `audit_record` (cơ chế thống nhất toàn hệ thống — `hash-chain-phase2-design.md` §2.4):
 - `inspection.level2_commissioned` — publish ở bước 5 của `InitiateLevel2Inspection` (§3.4; "INSERT audit_record" ở đó đọc là *yêu cầu ghi*, thực thi qua event này), payload = content của audit record → `source_type = LEVEL2_INSPECTION_COMMISSIONED`.
-- `inspection.report_confirmed` — publish khi report thành `CONFIRMED` (Level 1.5 lúc submit hợp lệ; Level 2 lúc `ReviewPendingExternalReport` APPROVE hoặc nhánh `ADMIN_MANUAL`). Payload canonical: `{reportId, contractId, milestoneId, tier, normalizedResult: InspectionSettlementResultV1, resultHash, reportFileHash, reportHash, confirmedAt, inspectorId?, confirmedByAdminId?}`. `reportFileHash` is the minimum verification material implied by the approved requirement that contract-service recompute `reportHash`; it is a hash only, not raw file content. Audit-service map `tier` sang `INSPECTION_REPORT` / `EXTERNAL_INSPECTION_REPORT`; contract-service consume idempotently theo `eventId`/`reportId`, verify hashes và chỉ apply cho milestone `BUYER_RECEIVED` hoặc `CONTESTED` có cùng `contractId`/`milestoneId`.
+- `inspection.report_confirmed` — publish khi report thành `CONFIRMED` (Level 1.5 lúc submit hợp lệ; Level 2 lúc `ReviewPendingExternalReport` APPROVE hoặc nhánh `OPERATOR_MANUAL`). Payload canonical: `{reportId, contractId, milestoneId, tier, normalizedResult: InspectionSettlementResultV1, resultHash, reportFileHash, reportHash, confirmedAt, inspectorId?, confirmedByOperatorId?}`. `reportFileHash` is the minimum verification material implied by the approved requirement that contract-service recompute `reportHash`; it is a hash only, not raw file content. Audit-service map `tier` sang `INSPECTION_REPORT` / `EXTERNAL_INSPECTION_REPORT`; contract-service consume idempotently theo `eventId`/`reportId`, verify hashes và chỉ apply cho milestone `BUYER_RECEIVED` hoặc `CONTESTED` có cùng `contractId`/`milestoneId`.
 
 Contract-service giữ ownership tính tiền và transition:
 
@@ -350,7 +350,7 @@ CREATE TABLE level2_inspection_commission (
 -- inspection-service — 1 bảng, phân theo tier, schema cuối cùng sau khi merge auto-intake flow
 CREATE TABLE inspection_report (
     report_id                        CHAR(36) PRIMARY KEY,
-    contract_id                      CHAR(36) NULL,     -- NOT NULL cho LEVEL_1_5 và LEVEL_2 ADMIN_MANUAL;
+    contract_id                      CHAR(36) NULL,     -- NOT NULL cho LEVEL_1_5 và LEVEL_2 OPERATOR_MANUAL;
                                                        -- NULL tạm thời hợp lệ cho LEVEL_2 AUTO_EMAIL khi
                                                        -- status = PENDING_REVIEW (chưa match được commission)
                                                        -- Denormalized, tiện query — KHÔNG dùng làm join key
@@ -366,7 +366,7 @@ CREATE TABLE inspection_report (
     inspector_id                     CHAR(36) NULL,               -- = signerUserId, NOT NULL nếu tier = LEVEL_1_5
     -- nhánh LEVEL_2 — bắt buộc:
     external_org                     VARCHAR(255) NULL,       -- NOT NULL nếu tier = LEVEL_2
-    confirmed_by_admin_id            CHAR(36) NULL,               -- NOT NULL nếu tier = LEVEL_2 và status = CONFIRMED.
+    confirmed_by_operator_id            CHAR(36) NULL,               -- NOT NULL nếu tier = LEVEL_2 và status = CONFIRMED.
                                                                   -- Đổi tên từ uploaded_by_admin_id (04/07/2026) —
                                                                   -- semantics đổi từ "ai upload" sang "ai xác nhận",
                                                                   -- vì AUTO_EMAIL không còn ai "upload" theo nghĩa cũ.
@@ -374,8 +374,8 @@ CREATE TABLE inspection_report (
     status                           VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED',
                                                                   -- 'PENDING_REVIEW' | 'CONFIRMED' | 'REJECTED' —
                                                                   -- chỉ LEVEL_2 AUTO_EMAIL dùng hết 3 giá trị;
-                                                                  -- LEVEL_1_5 và LEVEL_2 ADMIN_MANUAL giữ default CONFIRMED
-    ingestion_source                 VARCHAR(20) NULL,        -- 'AUTO_EMAIL' | 'ADMIN_MANUAL' — chỉ LEVEL_2
+                                                                  -- LEVEL_1_5 và LEVEL_2 OPERATOR_MANUAL giữ default CONFIRMED
+    ingestion_source                 VARCHAR(20) NULL,        -- 'AUTO_EMAIL' | 'OPERATOR_MANUAL' — chỉ LEVEL_2
     spf_dkim_result                  VARCHAR(20) NULL,        -- chỉ AUTO_EMAIL
     commission_id                    CHAR(36) NULL REFERENCES level2_inspection_commission(commission_id),
                                                                   -- join key thật cho LEVEL_2 (cùng DB inspection-service,
@@ -387,7 +387,7 @@ CREATE TABLE inspection_report (
     confirmed_at                     TIMESTAMP NULL,
     created_at                       TIMESTAMP NOT NULL DEFAULT now()
 );
--- Invariant (inspector_id XOR (external_org AND (confirmed_by_admin_id nếu status=CONFIRMED)))
+-- Invariant (inspector_id XOR (external_org AND (confirmed_by_operator_id nếu status=CONFIRMED)))
 -- check ở use-case layer, không phải DB constraint — cùng pattern active-flag đã dùng ở product-service.
 ```
 
@@ -414,7 +414,7 @@ CREATE TABLE inspection_report (
 **Chốt bổ sung (06/10/2026):** `InspectionSettlementResultV1.actualQualityMetrics` chỉ còn `CoffeeActualMetrics`; non-coffee payload fail schema validation trước khi report được CONFIRMED. Bộ tiêu chuẩn/phương pháp thử cụ thể được resolve qua `coffeeQualityProfileVersion` đã ký, chưa tự claim ISO/TCVN khi chưa duyệt nguồn.
 
 **Chốt bổ sung (04/07/2026) — merge addendum + fix kiến trúc:**
-- **Level 2 ingestion chuyển từ thuần thủ công sang auto-intake + human-confirm:** hòm mail platform (`intake@...`, qua IMAP polling của file-service — sửa 17/07/2026, xem §3.3) thay thế vị trí Admin trong 3-mail song song gốc (buyer/seller không đổi, §3.3). Thêm use case `InitiateLevel2Inspection` ghi nhận platform đã yêu cầu commission org đi đâu, lúc nào (§3.4). Case ID của org dùng làm join key qua bảng `level2_inspection_commission`, match tự động chỉ ở mức gợi ý, Admin xác nhận thật (§3.5). Report cuối ingest tự động, hash đóng băng ngay khi nhận, publish audit chain dời sang lúc Admin `CONFIRMED` qua `ReviewPendingExternalReport` (§3.6). Giữ ingestion thủ công gốc làm fallback (`ingestion_source = ADMIN_MANUAL`).
+- **Level 2 ingestion chuyển từ thuần thủ công sang auto-intake + human-confirm:** hòm mail platform (`intake@...`, qua IMAP polling của file-service — sửa 17/07/2026, xem §3.3) thay thế vị trí Admin trong 3-mail song song gốc (buyer/seller không đổi, §3.3). Thêm use case `InitiateLevel2Inspection` ghi nhận platform đã yêu cầu commission org đi đâu, lúc nào (§3.4). Case ID của org dùng làm join key qua bảng `level2_inspection_commission`, match tự động chỉ ở mức gợi ý, Admin xác nhận thật (§3.5). Report cuối ingest tự động, hash đóng băng ngay khi nhận, publish audit chain dời sang lúc Admin `CONFIRMED` qua `ReviewPendingExternalReport` (§3.6). Giữ ingestion thủ công gốc làm fallback (`ingestion_source = OPERATOR_MANUAL`).
 - **`audit_record.source_type` có 3 giá trị mới:** `INSPECTION_REPORT`, `EXTERNAL_INSPECTION_REPORT`, `LEVEL2_INSPECTION_COMMISSIONED` — tách riêng vì sức nặng bằng chứng khác nhau (§4).
 - **Fix cross-service FK bug (phát hiện lúc rà kiến trúc 04/07/2026):** `signature.report_id` **không** dùng `REFERENCES inspection_report(report_id)` nữa — vi phạm database-per-service, vì `signature` (contract_db) và `inspection_report` (inspection-service DB) là 2 database khác nhau. Giữ integrity ở application layer, cùng pattern các cross-service reference khác trong hệ thống (§5).
 - **KI-2 đóng (§3.2):** allowlist 3 nhóm cho `level2InspectorOrg` — major quốc tế hardcode, trong nước verify qua BoA-VIAS, "lạ" thì Admin duyệt case-by-case và **không** lưu vào danh sách dùng chung (né bài toán dọn danh sách khi tổ chức phá sản/mất accreditation). Verify qua accreditation certificate number, tra đúng cơ quan công nhận quốc gia đã phát hành. **Nguồn tra cứu (thu hẹp 08/07/2026, L4):** BoA-VIAS (`boa.gov.vn`) + IAF CertSearch (`iafcertsearch.org`) + ILAC Signatory Search (`ilac.org/signatory-search`) — 3 nguồn online xác định, Admin tra tay; tự động hoá full qua API là enhancement, chưa xác nhận BoA có API JSON.
@@ -425,4 +425,4 @@ Inspection — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technic
 
 ---
 
-*Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Sync role SRS v1.6: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
