@@ -633,6 +633,7 @@ REPORTED ──▶ UNDER_REVIEW ──▶ RESOLVED
 - Quyết định chưa dựa trên report Level 1.5/Level 2 → route Level 1.5 (cùng cơ chế FM contest §5); kết quả Level 1.5 tạo `AttributionDecision` mới (`decisionSource = INSPECTOR_L1_5`), supersede quyết định Arbitrator, và là chung thẩm trên platform.
 - Quyết định đã dựa trên report inspection → contest bị reject (bằng chứng đã từ bên độc lập); đường còn lại là VIAC/toà ngoài platform.
 - Hết hạn không contest → publish `remedy.finalized` từ `AttributionDecision` hiện có.
+- `BreachCase` cấp contract (`milestoneId = NULL`) → **không contest trên platform** (chốt 12/10/2026): Level 1.5 giám định hàng của một milestone cụ thể, không có đối tượng để giám định cho vi phạm cấp hợp đồng. `contestStatus = NOT_APPLICABLE`, `contestDeadline = NULL`, publish `remedy.finalized` ngay (không có window vì không có gì để chờ); đường kháng còn lại là VIAC/toà ngoài platform.
 - Quyết định no-fault, hoặc remedy chỉ gồm refund/release → publish ngay, không chờ window.
 Pro-rata phần đã giao vẫn release độc lập như invariant dưới. **Lý do không dùng maker-checker nội bộ cho breach (khác reputation §5.3 governance):** breach có **đối thủ thật** — bên bị phạt sẽ tự kiểm tra quyết định, nên người kiểm thứ hai là inspector độc lập ngoài platform, mạnh hơn một nhân viên nội bộ thứ hai (2 staff cùng tổ chức có thể thông đồng). Unlock reputation/clear AML thì **không có ai thiệt trực tiếp để kháng** (người hưởng lợi là user được gỡ) — thiếu đối thủ nên phải bù bằng người duyệt thứ hai.
 
