@@ -1,0 +1,31 @@
+{
+  "name": "@agricontract/pricing-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pricing-service (Node): advisory coffee reference prices. This version provides the Admin/Operator manual fallback entry.",
+  "type": "module",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "migrate": "node dist/migrate.js",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0",
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
