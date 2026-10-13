@@ -15,12 +15,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     static final String FORBIDDEN_BODY = "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}";
+
+    private static final List<String> IDENTITY_HEADERS = List.of("X-User-Id", "X-User-Role", "X-User-Email");
 
     private final String gatewaySecret;
     private final String serviceInternalSecret;
@@ -57,6 +60,12 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // A repeated identity header is ambiguous: getHeader() sees the first value while @RequestHeader joins all of them.
+        if (IDENTITY_HEADERS.stream().anyMatch(name -> hasMultipleValues(request, name))) {
+            writeForbidden(response);
+            return;
+        }
+
         // Identity headers are trusted only here: the gateway strips client-sent X-User-* and re-injects them from the JWT.
         String userId = request.getHeader("X-User-Id");
         if (userId != null && !userId.isBlank()) {
@@ -73,6 +82,15 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType("application/json");
         response.getWriter().write(FORBIDDEN_BODY);
+    }
+
+    private static boolean hasMultipleValues(HttpServletRequest request, String name) {
+        Enumeration<String> values = request.getHeaders(name);
+        if (values == null || !values.hasMoreElements()) {
+            return false;
+        }
+        values.nextElement();
+        return values.hasMoreElements();
     }
 
     private static List<GrantedAuthority> toAuthorities(String rawRoles) {

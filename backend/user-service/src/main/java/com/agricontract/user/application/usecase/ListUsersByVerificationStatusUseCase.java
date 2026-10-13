@@ -1,10 +1,9 @@
 package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
-import com.agricontract.user.domain.model.vo.VerificationStatus;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.agricontract.user.application.dto.ListUsersByVerificationStatusCommand;
+import com.agricontract.user.application.dto.PageResult;
 
 public interface ListUsersByVerificationStatusUseCase {
-    Page<AdminUserResponse> execute(VerificationStatus status, Pageable pageable);
+    PageResult<AdminUserResponse> execute(ListUsersByVerificationStatusCommand command);
 }
