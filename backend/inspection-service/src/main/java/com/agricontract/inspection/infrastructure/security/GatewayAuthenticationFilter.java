@@ -19,7 +19,7 @@ import java.util.Set;
 
 /** Frozen gateway §2: forwarded JWT identity is trusted only after gateway authentication. */
 public class GatewayAuthenticationFilter extends OncePerRequestFilter {
-    private static final Set<String> ROLES = Set.of("BUYER", "SELLER", "ADMIN", "OPERATOR", "INSPECTOR");
+    private static final Set<String> ROLES = Set.of("BUYER", "SELLER", "ADMIN", "OPERATOR", "INSPECTOR", "ARBITRATOR");
     private final byte[] gatewaySecret;
 
     public GatewayAuthenticationFilter(String gatewaySecret) {
@@ -47,7 +47,7 @@ public class GatewayAuthenticationFilter extends OncePerRequestFilter {
         String actor = singleHeader(request, "X-User-Id");
         String roles = singleHeader(request, "X-User-Role");
         if (secret == null || !MessageDigest.isEqual(gatewaySecret, secret.getBytes(StandardCharsets.UTF_8))
-                || actor == null || actor.isBlank() || roles == null) {
+                || actor == null || actor.isBlank() || roles == null || roles.isBlank()) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }

@@ -1,12 +1,15 @@
 package com.agricontract.inspection;
 
-import com.agricontract.inspection.application.port.InspectionAssignmentRepository;
+import com.agricontract.inspection.application.exception.InspectionAssignmentAccessDeniedException;
+import com.agricontract.inspection.application.exception.InspectorNotEligibleException;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
-import com.agricontract.inspection.application.service.InspectionAuthorization;
+import com.agricontract.inspection.application.usecase.InspectionAuthorization;
 import com.agricontract.inspection.domain.model.InspectorEligibility;
+import com.agricontract.inspection.domain.repository.InspectionAssignmentRepository;
 import com.agricontract.inspection.infrastructure.security.GatewayAuthenticationFilter;
-import org.junit.jupiter.api.BeforeEach;
+
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -238,7 +241,7 @@ class ScaffoldBoundaryTest {
         new GatewayAuthenticationFilter("test-gateway-secret").doFilter(request, response, (req, res) -> {
             try {
                 authorization.requireCommission(commission);
-            } catch (AccessDeniedException denied) {
+            } catch (AccessDeniedException | InspectorNotEligibleException | InspectionAssignmentAccessDeniedException denied) {
                 response.setStatus(403);
             }
         });

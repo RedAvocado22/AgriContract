@@ -1,6 +1,6 @@
 package com.agricontract.inspection.infrastructure.persistence;
 
-import com.agricontract.inspection.application.port.InspectionAssignmentRepository;
+import com.agricontract.inspection.domain.repository.InspectionAssignmentRepository;
 import com.agricontract.inspection.domain.model.InspectionAssignment;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;

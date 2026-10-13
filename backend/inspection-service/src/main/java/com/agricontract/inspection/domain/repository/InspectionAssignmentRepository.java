@@ -1,4 +1,4 @@
-package com.agricontract.inspection.application.port;
+package com.agricontract.inspection.domain.repository;
 
 import com.agricontract.inspection.domain.model.InspectionAssignment;
 import java.util.Optional;
