@@ -1,0 +1,32 @@
+{
+  "name": "@agricontract/analytics-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Analytics-service (Node): non-critical CQRS projection fed only by canonical RabbitMQ events. This version scaffolds persistence and idempotent ingestion.",
+  "type": "module",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "npm --prefix ../shared/node-eventing install --no-audit --no-fund && npm --prefix ../shared/node-eventing run build",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "migrate": "node dist/migrate.js",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@agricontract/eventing": "file:../shared/node-eventing",
+    "amqplib": "^0.10.4",
+    "mysql2": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.5",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "js-yaml": "^4.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
