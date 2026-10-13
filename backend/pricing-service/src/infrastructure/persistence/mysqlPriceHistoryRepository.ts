@@ -1,36 +1,28 @@
-import type { PriceQuote } from './domain.js';
-
-/** A row to append to price_history together with its idempotency identity. */
-export interface NewPriceRow {
-  quote: PriceQuote;
-  idempotencyKey: string;
-  requestHash: string;
-}
-
-export interface StoredManualPrice {
-  quote: PriceQuote;
-  requestHash: string;
-}
-
-/**
- * price_history is append-only: this port deliberately has no update/delete.
- */
-export interface PriceHistoryRepository {
-  /** Inserts the row. Throws DuplicateIdempotencyKeyError if (recordedBy, idempotencyKey) already exists. */
-  append(row: NewPriceRow): Promise<void>;
-  findByIdempotencyKey(recordedBy: string, idempotencyKey: string): Promise<StoredManualPrice | undefined>;
-}
-
-export class DuplicateIdempotencyKeyError extends Error {
-  constructor() {
-    super('Idempotency-Key already used by this actor');
-    this.name = 'DuplicateIdempotencyKeyError';
-  }
-}
+import mysql from 'mysql2/promise';
+import {
+  DuplicateIdempotencyKeyError,
+  type NewPriceRow,
+  type PriceHistoryRepository,
+  type StoredManualPrice,
+} from '../../domain/priceHistoryRepository.js';
+import type { PriceQuote } from '../../domain/priceQuote.js';
 
 /** Subset of a mysql2/promise Pool (structural, so tests can fake it). */
 export interface MysqlPoolLike {
   query(sql: string, values?: unknown[]): Promise<[unknown, unknown]>;
+}
+
+/**
+ * The one place pool options are set, shared by main.ts and the MySQL integration test so the
+ * test exercises the same type mapping as production.
+ */
+export function createMysqlPool(options: mysql.PoolOptions): mysql.Pool {
+  return mysql.createPool({
+    connectionLimit: 10,
+    ...options,
+    dateStrings: true, // DATE/DATETIME come back exactly as stored (UTC), no local-time shifting
+    timezone: 'Z',
+  });
 }
 
 interface PriceRow {

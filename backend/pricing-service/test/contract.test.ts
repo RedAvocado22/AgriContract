@@ -12,8 +12,8 @@ import { fileURLToPath } from 'node:url';
 import Ajv2020Module from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
 import yaml from 'js-yaml';
-import { MANUAL_PRICE_ROLES } from '../src/auth.js';
-import { MANUAL_PRICE_PATH } from '../src/http.js';
+import { MANUAL_PRICE_PATH } from '../src/infrastructure/http/app.js';
+import { MANUAL_PRICE_ROLES } from '../src/infrastructure/http/auth.js';
 import { adminHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
 
 const here = dirname(fileURLToPath(import.meta.url));

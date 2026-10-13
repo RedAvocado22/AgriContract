@@ -3,16 +3,17 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { RedisPriceCache, type RedisClientLike } from '../src/cache.js';
-import { loadConfig } from '../src/config.js';
-import { businessToday, cacheKey, requestHash, slugify, validateManualPrice, type PriceQuote } from '../src/domain.js';
-import { migrationFiles } from '../src/migrate.js';
+import { businessToday, requestHash, validateManualPrice } from '../src/domain/manualPrice.js';
+import { DuplicateIdempotencyKeyError } from '../src/domain/priceHistoryRepository.js';
+import { slugify, type PriceQuote } from '../src/domain/priceQuote.js';
+import { RedisPriceCache, cacheKey, type RedisClientLike } from '../src/infrastructure/cache/redisPriceCache.js';
+import { loadConfig } from '../src/infrastructure/config.js';
+import { migrationFiles } from '../src/infrastructure/persistence/migrate.js';
 import {
-  DuplicateIdempotencyKeyError,
   MysqlPriceHistoryRepository,
   toMysqlDateTime,
   type MysqlPoolLike,
-} from '../src/repository.js';
+} from '../src/infrastructure/persistence/mysqlPriceHistoryRepository.js';
 import { validBody } from './fakes.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -86,13 +87,13 @@ describe('RedisPriceCache', () => {
 
   it('writes the quote under price:coffee:{province}:{item} without TTL', async () => {
     const redis = fakeRedis();
-    await new RedisPriceCache(redis).putLatest(quote('2026-10-10', '2026-10-12T05:00:00.000Z', '1.00'));
+    await new RedisPriceCache(redis, 1000).putLatest(quote('2026-10-10', '2026-10-12T05:00:00.000Z', '1.00'));
     assert.deepEqual([...redis.data.keys()], ['price:coffee:dak-lak:ca-phe-robusta-nhan-xo']);
   });
 
   it('a back-dated correction does not replace a price for a later date', async () => {
     const redis = fakeRedis();
-    const cache = new RedisPriceCache(redis);
+    const cache = new RedisPriceCache(redis, 1000);
     await cache.putLatest(quote('2026-10-10', '2026-10-12T05:00:00.000Z', 'newer'));
     await cache.putLatest(quote('2026-10-01', '2026-10-12T06:00:00.000Z', 'older'));
     assert.equal(JSON.parse(redis.data.values().next().value!).price, 'newer');
@@ -100,7 +101,7 @@ describe('RedisPriceCache', () => {
 
   it('a same-day correction entered later replaces the cached one', async () => {
     const redis = fakeRedis();
-    const cache = new RedisPriceCache(redis);
+    const cache = new RedisPriceCache(redis, 1000);
     await cache.putLatest(quote('2026-10-10', '2026-10-12T05:00:00.000Z', 'first'));
     await cache.putLatest(quote('2026-10-10', '2026-10-12T06:00:00.000Z', 'fixed'));
     assert.equal(JSON.parse(redis.data.values().next().value!).price, 'fixed');
@@ -169,7 +170,7 @@ describe('MysqlPriceHistoryRepository', () => {
   });
 
   it('is append-only: the repository source contains no UPDATE or DELETE', () => {
-    const src = readFileSync(resolve(here, '../src/repository.ts'), 'utf8');
+    const src = readFileSync(resolve(here, '../src/infrastructure/persistence/mysqlPriceHistoryRepository.ts'), 'utf8');
     assert.doesNotMatch(src, /\b(UPDATE|DELETE)\s/);
   });
 });
@@ -202,6 +203,15 @@ describe('config', () => {
     const c = loadConfig({ GATEWAY_INTERNAL_SECRET: 's' });
     assert.equal(c.port, 8091);
     assert.equal(c.db.database, 'pricing_db');
-    assert.equal(c.redisUrl, undefined);
+    assert.equal(c.redis.url, undefined);
+  });
+
+  it('Redis timeouts default to 2000 ms connect / 500 ms per update and must be positive integers', () => {
+    const c = loadConfig({ GATEWAY_INTERNAL_SECRET: 's' });
+    assert.equal(c.redis.connectTimeoutMs, 2000);
+    assert.equal(c.redis.commandTimeoutMs, 500);
+    assert.equal(loadConfig({ GATEWAY_INTERNAL_SECRET: 's', REDIS_COMMAND_TIMEOUT_MS: '250' }).redis.commandTimeoutMs, 250);
+    assert.throws(() => loadConfig({ GATEWAY_INTERNAL_SECRET: 's', REDIS_COMMAND_TIMEOUT_MS: '0' }), /REDIS_COMMAND_TIMEOUT_MS/);
+    assert.throws(() => loadConfig({ GATEWAY_INTERNAL_SECRET: 's', REDIS_CONNECT_TIMEOUT_MS: 'abc' }), /REDIS_CONNECT_TIMEOUT_MS/);
   });
 });
