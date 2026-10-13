@@ -99,6 +99,30 @@
       "clientRole" : false,
       "containerId" : "38ae912c-242d-4e88-929c-fe35d224a4f1",
       "attributes" : { }
+    }, {
+      "id" : "c431c513-823c-4ed0-a46b-8ad53333db2d",
+      "name" : "INSPECTOR",
+      "description" : "Independent quality inspector",
+      "composite" : false,
+      "clientRole" : false,
+      "containerId" : "38ae912c-242d-4e88-929c-fe35d224a4f1",
+      "attributes" : { }
+    }, {
+      "id" : "3f9b1f10-4adc-4a20-9451-9cb84255f146",
+      "name" : "OPERATOR",
+      "description" : "Day-to-day operations: KYC, review, moderation, retries. Never combined with ARBITRATOR.",
+      "composite" : false,
+      "clientRole" : false,
+      "containerId" : "38ae912c-242d-4e88-929c-fe35d224a4f1",
+      "attributes" : { }
+    }, {
+      "id" : "64c1cde4-476a-4f15-90ed-038007a71ecb",
+      "name" : "ARBITRATOR",
+      "description" : "Decides breach, force majeure and maker-checker approvals. Never combined with OPERATOR.",
+      "composite" : false,
+      "clientRole" : false,
+      "containerId" : "38ae912c-242d-4e88-929c-fe35d224a4f1",
+      "attributes" : { }
     } ],
     "client" : {
       "realm-management" : [ {
@@ -490,6 +514,63 @@
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
     "realmRoles" : [ "SELLER", "default-roles-agricontract" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  }, {
+    "id" : "64a24041-1596-4474-b972-3b016f1a194d",
+    "username" : "inspector1",
+    "firstName" : "Inspector",
+    "lastName" : "Test",
+    "email" : "inspector1@test.com",
+    "emailVerified" : true,
+    "enabled" : true,
+    "totp" : false,
+    "credentials" : [ {
+      "type" : "password",
+      "value" : "pass123",
+      "temporary" : false
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-agricontract", "INSPECTOR" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  }, {
+    "id" : "33eeb16a-f9e0-43ad-97fb-b350b1dfa942",
+    "username" : "operator1",
+    "firstName" : "Operator",
+    "lastName" : "Test",
+    "email" : "operator1@test.com",
+    "emailVerified" : true,
+    "enabled" : true,
+    "totp" : false,
+    "credentials" : [ {
+      "type" : "password",
+      "value" : "pass123",
+      "temporary" : false
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-agricontract", "OPERATOR" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  }, {
+    "id" : "42e7c3b5-3648-4b9d-829a-33bf68f7a555",
+    "username" : "arbitrator1",
+    "firstName" : "Arbitrator",
+    "lastName" : "Test",
+    "email" : "arbitrator1@test.com",
+    "emailVerified" : true,
+    "enabled" : true,
+    "totp" : false,
+    "credentials" : [ {
+      "type" : "password",
+      "value" : "pass123",
+      "temporary" : false
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-agricontract", "ARBITRATOR" ],
     "notBefore" : 0,
     "groups" : [ ]
   } ],
