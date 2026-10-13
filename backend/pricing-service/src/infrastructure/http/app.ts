@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { recordManualPrice, type ManualPriceDeps } from '../../application/usecase/recordManualPrice.js';
 import { MANUAL_PRICE_ROLES, authenticate, requireAnyRole } from './auth.js';
-import { HttpError, errorEnvelope } from './errors.js';
-import { recordManualPrice, type ManualPriceDeps } from './service.js';
+import { HttpError, errorEnvelope, toHttpError } from './errors.js';
 
 export const MANUAL_PRICE_PATH = '/api/v1/prices/manual';
 const MAX_BODY_BYTES = 64 * 1024;
@@ -44,8 +44,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, deps: AppDeps):
 
     throw new HttpError(404, 'NOT_FOUND', 'No route for this path');
   } catch (err) {
-    if (err instanceof HttpError) {
-      return sendJson(res, err.status, errorEnvelope(err.status, err.code, err.message, path, traceId));
+    const httpError = toHttpError(err);
+    if (httpError) {
+      return sendJson(res, httpError.status, errorEnvelope(httpError.status, httpError.code, httpError.message, path, traceId));
     }
     deps.logger.error('Unhandled error', {
       path,

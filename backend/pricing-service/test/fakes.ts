@@ -1,15 +1,14 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import type { PriceCache } from '../src/cache.js';
-import type { PriceQuote } from '../src/domain.js';
-import { createApp, type AppDeps } from '../src/http.js';
+import type { Logger, PriceCache } from '../src/application/port.js';
 import {
   DuplicateIdempotencyKeyError,
   type NewPriceRow,
   type PriceHistoryRepository,
   type StoredManualPrice,
-} from '../src/repository.js';
-import type { Logger } from '../src/service.js';
+} from '../src/domain/priceHistoryRepository.js';
+import type { PriceQuote } from '../src/domain/priceQuote.js';
+import { createApp, type AppDeps } from '../src/infrastructure/http/app.js';
 
 export const GATEWAY_SECRET = 'test-gateway-secret';
 

@@ -1,6 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
+import type { Actor } from '../../application/port.js';
 import { HttpError } from './errors.js';
+
+/** Roles allowed to record a manual price: data-governance §5.4 ("giá manual": OPERATOR, ADMIN fallback). */
+export const MANUAL_PRICE_ROLES = ['ADMIN', 'OPERATOR'] as const;
 
 /**
  * Identity comes from the API Gateway, same contract as the Java services:
@@ -9,14 +13,6 @@ import { HttpError } from './errors.js';
  * A request without the right gateway secret is rejected (403), like the Java
  * HeaderAuthenticationFilter.
  */
-export interface Actor {
-  userId: string;
-  roles: string[];
-}
-
-/** Roles allowed to record a manual price: data-governance §5.4 ("giá manual": OPERATOR, ADMIN fallback). */
-export const MANUAL_PRICE_ROLES = ['ADMIN', 'OPERATOR'] as const;
-
 export function authenticate(headers: IncomingHttpHeaders, gatewaySecret: string): Actor {
   const secret = single(headers['x-gateway-secret']);
   if (!secret || !safeEqual(secret, gatewaySecret)) {

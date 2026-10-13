@@ -128,6 +128,9 @@ describe('POST /api/v1/prices/manual', () => {
       ['zero price', { price: '0.00' }],
       ['negative price', { price: '-1.00' }],
       ['price above DECIMAL(10,2)', { price: '100000000.00' }],
+      ['price with leading zeros', { price: '00100.00' }],
+      ['price with a leading zero', { price: '0100.00' }],
+      ['price with one decimal', { price: '100.0' }],
       ['impossible date', { capturedAt: '2026-02-30' }],
       ['date-time instead of date', { capturedAt: '2026-10-10T00:00:00Z' }],
       ['future date', { capturedAt: '2026-10-13' }],
@@ -144,6 +147,12 @@ describe('POST /api/v1/prices/manual', () => {
         assert.equal(app.repo.rows.length, 0);
       });
     }
+
+    it('accepts a price below 1 VND written canonically ("0.50")', async () => {
+      const res = await postManual(app, validBody({ price: '0.50' }));
+      assert.equal(res.status, 201);
+      assert.equal(res.json.price, '0.50');
+    });
 
     it('accepts today (business date in Vietnam)', async () => {
       const res = await postManual(app, validBody({ capturedAt: '2026-10-12' }));
@@ -176,7 +185,8 @@ describe('POST /api/v1/prices/manual', () => {
       assert.deepEqual(second.json, first.json);
       assert.equal(second.headers.get('idempotent-replayed'), 'true');
       assert.equal(app.repo.rows.length, 1);
-      assert.equal(app.cache.stored.length, 1, 'replay must not touch the cache again');
+      // The replay refreshes the cache again (a failed first refresh would otherwise stay stale).
+      assert.deepEqual(app.cache.stored.map((q) => q.id), [first.json.id, first.json.id]);
     });
 
     it('reusing a key with a different body is a 409 state conflict', async () => {

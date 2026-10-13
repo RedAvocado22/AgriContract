@@ -1,15 +1,14 @@
 import { createHash } from 'node:crypto';
+import { COMMODITY, slugify, type Commodity } from './priceQuote.js';
 
-/** Phase 2 accepts COFFEE only (pricing-service-phase2-design.md §1, §2). */
-export const COMMODITY = 'COFFEE' as const;
-export type Commodity = typeof COMMODITY;
-
-export const PRICE_SOURCES = ['VNSAT_SCRAPE', 'ADMIN_MANUAL'] as const;
-export type PriceSource = (typeof PRICE_SOURCES)[number];
-
-/** Same money shape as the frozen API (askingUnitPrice): VND/kg with 2 decimals, max 99,999,999.99. */
-const MONEY_PATTERN = /^[0-9]+\.[0-9]{2}$/;
-const MONEY_MAX_LENGTH = 11;
+/**
+ * Same money shape as the frozen API (askingUnitPrice): VND/kg with 2 decimals, max 99,999,999.99.
+ * Canonical form only: no leading zeros ("0.50" is fine, "00100.00" is rejected). MySQL DECIMAL(10,2)
+ * always hands the value back in canonical form, so accepting "00100.00" would make an idempotent
+ * replay (read from MySQL) differ from the original response (error-catalog.md: a replay returns
+ * the original successful response).
+ */
+const MONEY_PATTERN = /^(0|[1-9][0-9]{0,7})\.[0-9]{2}$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 export const LIMITS = {
@@ -35,22 +34,6 @@ export interface ManualPriceInput {
 }
 
 const INPUT_FIELDS = ['commodity', 'itemName', 'province', 'price', 'capturedAt', 'referenceSource', 'reason'] as const;
-
-export interface PriceQuote {
-  id: string;
-  commodity: Commodity;
-  itemName: string;
-  itemSlug: string;
-  province: string;
-  provinceSlug: string;
-  price: string;
-  source: PriceSource;
-  capturedAt: string;
-  ingestedAt: string;
-  referenceSource: string | null;
-  reason: string | null;
-  recordedBy: string | null;
-}
 
 export type ValidationResult =
   | { ok: true; value: ManualPriceInput }
@@ -80,8 +63,8 @@ export function validateManualPrice(body: unknown, today: string): ValidationRes
   if (itemName !== undefined && slugify(itemName) === '') errors.push('itemName must contain letters or digits');
   if (province !== undefined && slugify(province) === '') errors.push('province must contain letters or digits');
 
-  if (typeof b.price !== 'string' || !MONEY_PATTERN.test(b.price) || b.price.length > MONEY_MAX_LENGTH) {
-    errors.push('price must be a string like "120500.00" (VND/kg, 2 decimals, max 99999999.99)');
+  if (typeof b.price !== 'string' || !MONEY_PATTERN.test(b.price)) {
+    errors.push('price must be a string like "120500.00" (VND/kg, 2 decimals, no leading zeros, max 99999999.99)');
   } else if (Number(b.price) <= 0) {
     errors.push('price must be greater than 0');
   }
@@ -105,26 +88,6 @@ export function validateManualPrice(body: unknown, today: string): ValidationRes
       reason: reason!,
     },
   };
-}
-
-/**
- * Design §2: itemSlug = itemName without diacritics, lowercase, spaces -> dashes.
- * "Cà phê Robusta nhân xô" -> "ca-phe-robusta-nhan-xo"; "Đắk Lắk" -> "dak-lak".
- */
-export function slugify(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-/** Redis key from design §2: price:coffee:{province}:{itemSlug}. */
-export function cacheKey(provinceSlug: string, itemSlug: string): string {
-  return `price:coffee:${provinceSlug}:${itemSlug}`;
 }
 
 /** Stable hash of the normalised request, used to detect Idempotency-Key reuse with a different body. */
