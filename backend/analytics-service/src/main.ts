@@ -1,4 +1,3 @@
-import { createServer } from 'node:http';
 import amqp from 'amqplib';
 import mysql from 'mysql2/promise';
 import {
@@ -7,10 +6,11 @@ import {
   type AmqpChannelLike,
   type Logger,
 } from '@agricontract/eventing';
-import { loadConfig } from './config.js';
-import { HANDLERS } from './handlers.js';
-import { startIngestion } from './ingestion.js';
-import { declareTopology } from './topology.js';
+import { loadConfig } from './infrastructure/config.js';
+import { createHealthServer } from './infrastructure/http/health.js';
+import { startIngestion } from './infrastructure/messaging/consumers.js';
+import { declareTopology } from './infrastructure/messaging/topology.js';
+import { HANDLERS } from './infrastructure/persistence/projections.js';
 
 const logger: Logger = {
   debug: () => {},
@@ -34,15 +34,14 @@ async function withRetry<T>(what: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Composition root: the only place that wires infrastructure adapters into the use case. */
 async function main(): Promise<void> {
   const config = loadConfig();
   let ready = false;
 
-  createServer((req, res) => {
-    const ok = req.url === '/health';
-    res.writeHead(ok ? (ready ? 200 : 503) : 404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(ok ? { status: ready ? 'UP' : 'STARTING' } : { status: 'NOT_FOUND' }));
-  }).listen(config.port, () => logger.info('analytics-service health endpoint listening', { port: config.port }));
+  createHealthServer(() => ready).listen(config.port, () =>
+    logger.info('analytics-service health endpoint listening', { port: config.port }),
+  );
 
   const pool = mysql.createPool({ ...config.db, connectionLimit: 10, dateStrings: true, timezone: 'Z' });
   await withRetry('MySQL', () => pool.query('SELECT 1'));

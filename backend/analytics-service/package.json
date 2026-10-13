@@ -13,7 +13,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "migrate": "node dist/migrate.js",
+    "migrate": "node dist/infrastructure/persistence/migrate.js",
     "start": "node dist/main.js"
   },
   "dependencies": {

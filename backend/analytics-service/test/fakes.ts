@@ -7,7 +7,7 @@ import type {
   TransactionRunner,
 } from '@agricontract/eventing';
 import { createEnvelope } from '@agricontract/eventing';
-import type { TopologyChannel } from '../src/topology.js';
+import type { TopologyChannel } from '../src/infrastructure/messaging/topology.js';
 
 /**
  * Minimal in-memory RabbitMQ: topic exchanges with exact routing keys, direct DLX,

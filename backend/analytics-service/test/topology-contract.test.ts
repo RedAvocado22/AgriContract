@@ -4,10 +4,10 @@ import { dirname, join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { loadConfig } from '../src/config.js';
-import { HANDLERS } from '../src/handlers.js';
-import { consumerName } from '../src/ingestion.js';
-import { migrationFiles } from '../src/migrate.js';
+import { consumerName } from '../src/application/usecase/ingestEvent.js';
+import { loadConfig } from '../src/infrastructure/config.js';
+import { migrationFiles } from '../src/infrastructure/persistence/migrate.js';
+import { HANDLERS } from '../src/infrastructure/persistence/projections.js';
 import {
   ANALYTICS_DLX,
   CONTRACTS_EXCHANGE,
@@ -16,7 +16,7 @@ import {
   declareTopology,
   queueArguments,
   queueName,
-} from '../src/topology.js';
+} from '../src/infrastructure/messaging/topology.js';
 import { FakeBroker } from './fakes.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
