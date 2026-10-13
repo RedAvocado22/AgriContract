@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import { startIngestion, type IngestionHandler } from '../src/ingestion.js';
-import { CONTRACTS_EXCHANGE, SUBSCRIPTIONS, deadLetterQueueName, declareTopology, queueName } from '../src/topology.js';
+import type { IngestionHandler } from '../src/application/port.js';
+import { startIngestion } from '../src/infrastructure/messaging/consumers.js';
+import { CONTRACTS_EXCHANGE, SUBSCRIPTIONS, deadLetterQueueName, declareTopology, queueName } from '../src/infrastructure/messaging/topology.js';
 import { FakeBroker, InMemoryDb, event, publishEvent, silentLogger, type FakeTx } from './fakes.js';
 
 const SIGNED = 'contract.signed';

@@ -27,10 +27,34 @@ contract-service --publish--> exchange agricontract.contracts
 Subscribed events (queues are declared from the first deploy, even before their handler exists, so events
 start buffering immediately instead of being lost): `contract.signed`, `milestone.settled`,
 `milestone.cancelled_with_penalty`, `milestone.force_majeure_resolved`, `milestone.price_adjusted`,
-`contract.settled`, `contract.terminated`. Adding a handler is one entry in `src/handlers.ts`.
+`contract.settled`, `contract.terminated` (`src/domain/ingestedEvents.ts`). Adding a handler is one entry in
+`src/infrastructure/persistence/projections.ts`.
 
 Invalid envelopes, events routed to the wrong queue and handlers throwing `NonRetryableError` go straight to the
 DLQ; other errors are retried 3 times (1s, 2s backoff) and then dead-lettered, like the Java services.
+
+## Layout
+
+Same canonical layout as the Java services (`domain` / `application` / `infrastructure`), checked by `test/architecture.test.ts`:
+
+```
+src/
+  domain/ingestedEvents.ts          canonical event types analytics ingests
+  application/
+    port.ts                         IngestionHandler (projection handler port)
+    usecase/ingestEvent.ts          idempotent ingest of one event (dedupe + projection in one transaction)
+  infrastructure/
+    config.ts
+    messaging/topology.ts           exchanges, durable queues, DLX/DLQ
+    messaging/consumers.ts          one RabbitMQ consumer per registered handler
+    persistence/projections.ts      MySQL projection handlers (#133, #148)
+    persistence/migrate.ts          migration runner
+    http/health.ts                  GET /health
+  main.ts                           composition root
+```
+
+Dependency rule: `domain` imports nothing else; `application` imports only `domain` and the framework-free
+`@agricontract/eventing`; drivers (`amqplib`, `mysql2`, `node:http`) stay in `infrastructure` and `main.ts`.
 
 ## Run
 
@@ -56,4 +80,10 @@ npm test
 ```
 
 Uses an in-memory broker and database to prove the three acceptance criteria, plus contract tests against
-`contracts/events/golden-flow-events.yaml` and `docs/contracts/integration-map.md`.
+`contracts/events/golden-flow-events.yaml` and `docs/contracts/integration-map.md`. `test/mysql.test.ts`
+runs the dedupe through a real MySQL (migration + shared MySQL adapters) when a database URL is given
+(the database must exist; the test applies the migrations):
+
+```bash
+ANALYTICS_TEST_MYSQL_URL=mysql://root:root@localhost:3306/analytics_test npm test
+```

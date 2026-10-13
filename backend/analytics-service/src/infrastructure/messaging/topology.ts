@@ -9,6 +9,8 @@
  *    producers; failed messages go to a per-queue DLQ (same pattern as the Java services).
  */
 
+import { INGESTED_EVENT_TYPES } from '../../domain/ingestedEvents.js';
+
 /** Exchange used by contract-service for contract.* and milestone.* events (see its OutboxPoller). */
 export const CONTRACTS_EXCHANGE = 'agricontract.contracts';
 export const ANALYTICS_DLX = 'agricontract.analytics.dlx';
@@ -19,21 +21,11 @@ export interface Subscription {
   exchange: string;
 }
 
-/**
- * Canonical events analytics ingests (analytics design §3, integration-map "analytics" consumer rows).
- * Queues are declared for all of them from the first deploy, so events start buffering immediately
- * even before their projection handler exists (handlers arrive with #133 / #148). This narrows the
- * "no historical backfill" gap in design §5.
- */
-export const SUBSCRIPTIONS: readonly Subscription[] = [
-  { eventType: 'contract.signed', exchange: CONTRACTS_EXCHANGE },
-  { eventType: 'milestone.settled', exchange: CONTRACTS_EXCHANGE },
-  { eventType: 'milestone.cancelled_with_penalty', exchange: CONTRACTS_EXCHANGE },
-  { eventType: 'milestone.force_majeure_resolved', exchange: CONTRACTS_EXCHANGE },
-  { eventType: 'milestone.price_adjusted', exchange: CONTRACTS_EXCHANGE },
-  { eventType: 'contract.settled', exchange: CONTRACTS_EXCHANGE },
-  { eventType: 'contract.terminated', exchange: CONTRACTS_EXCHANGE },
-];
+/** One durable queue per ingested event, bound to the exchange of the service that publishes it. */
+export const SUBSCRIPTIONS: readonly Subscription[] = INGESTED_EVENT_TYPES.map((eventType) => ({
+  eventType,
+  exchange: CONTRACTS_EXCHANGE,
+}));
 
 export function queueName(eventType: string): string {
   return `${QUEUE_PREFIX}.${eventType}`;
