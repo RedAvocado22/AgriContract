@@ -1,6 +1,8 @@
 package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.ListUsersByVerificationStatusCommand;
+import com.agricontract.user.application.dto.PageResult;
 import com.agricontract.user.application.dto.RejectUserCommand;
 import com.agricontract.user.application.dto.VerifyUserCommand;
 import com.agricontract.user.application.usecase.ListUsersByVerificationStatusUseCase;
@@ -18,8 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,7 +31,6 @@ import java.util.NoSuchElementException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -130,7 +129,7 @@ class AdminUserControllerTest {
     // --- happy paths ---
 
     @Test
-    void verify_asOperator_passesActorFromHeader() throws Exception {
+    void verify_asOperator_passesActorFromPrincipal() throws Exception {
         when(verifyUserUseCase.execute(any())).thenReturn(response(VerificationStatus.VERIFIED));
 
         mockMvc.perform(viaGateway(post(VERIFY_URL), "default-roles-agricontract,OPERATOR")
@@ -173,13 +172,63 @@ class AdminUserControllerTest {
 
     @Test
     void list_asOperator_returnsPage() throws Exception {
-        when(listUsersByVerificationStatusUseCase.execute(eq(VerificationStatus.PENDING), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(response(VerificationStatus.PENDING)), Pageable.ofSize(20), 1));
+        when(listUsersByVerificationStatusUseCase.execute(
+                new ListUsersByVerificationStatusCommand(VerificationStatus.PENDING, 1, 2)))
+                .thenReturn(new PageResult<>(List.of(response(VerificationStatus.PENDING)), 1, 2, 3));
 
-        mockMvc.perform(viaGateway(get("/api/v1/admin/users").param("verificationStatus", "PENDING"), "OPERATOR"))
+        mockMvc.perform(viaGateway(get("/api/v1/admin/users")
+                        .param("verificationStatus", "PENDING").param("page", "1").param("size", "2"), "OPERATOR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].userId").value(TARGET_ID))
-                .andExpect(jsonPath("$.data.totalElements").value(1));
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.size").value(2))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.first").value(false))
+                .andExpect(jsonPath("$.data.last").value(true));
+    }
+
+    @Test
+    void list_defaults_toFirstPageOfTwenty() throws Exception {
+        when(listUsersByVerificationStatusUseCase.execute(any()))
+                .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
+
+        mockMvc.perform(viaGateway(get("/api/v1/admin/users"), "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.empty").value(true));
+
+        verify(listUsersByVerificationStatusUseCase).execute(new ListUsersByVerificationStatusCommand(null, 0, 20));
+    }
+
+    @Test
+    void list_sizeAboveLimit_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(get("/api/v1/admin/users").param("size", "101"), "ADMIN"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(listUsersByVerificationStatusUseCase);
+    }
+
+    // --- actor identity ---
+
+    @Test
+    void verify_duplicateUserIdHeader_forbidden() throws Exception {
+        mockMvc.perform(post(VERIFY_URL)
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", ACTOR_ID, "admin-2")
+                        .header("X-User-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void reject_duplicateRoleHeader_forbidden() throws Exception {
+        mockMvc.perform(post(REJECT_URL)
+                        .header("X-Gateway-Secret", GATEWAY_SECRET)
+                        .header("X-User-Id", ACTOR_ID)
+                        .header("X-User-Role", "BUYER", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Thieu giay phep\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(rejectUserUseCase);
     }
 
     // --- error mapping ---
@@ -244,6 +293,54 @@ class AdminUserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"authorizationExpiresAt\":\"30/06/2027\"}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void verify_misspelledExpiryField_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"authorizationExpiryAt\":\"2027-06-30T16:59:59.999Z\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void verify_emptyStringExpiry_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"authorizationExpiresAt\":\"\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void verify_epochNumberExpiry_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"authorizationExpiresAt\":1814371199}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void verify_offsetExpiry_normalizedToUtc() throws Exception {
+        when(verifyUserUseCase.execute(any())).thenReturn(response(VerificationStatus.VERIFIED));
+
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"authorizationExpiresAt\":\"2027-06-30T23:59:59.999+07:00\"}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<VerifyUserCommand> captor = ArgumentCaptor.forClass(VerifyUserCommand.class);
+        verify(verifyUserUseCase).execute(captor.capture());
+        assertThat(captor.getValue().authorizationExpiresAt()).isEqualTo(Instant.parse("2027-06-30T16:59:59.999Z"));
+    }
+
+    @Test
+    void reject_unknownField_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(post(REJECT_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Thieu giay phep\",\"actorId\":\"someone-else\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(rejectUserUseCase);
     }
 
     @Test

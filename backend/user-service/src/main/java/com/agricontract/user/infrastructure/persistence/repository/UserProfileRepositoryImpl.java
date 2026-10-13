@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
@@ -68,10 +67,9 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     }
 
     @Override
-    public List<UserProfile> findByVerificationStatus(VerificationStatus status, Pageable pageable) {
-        // Queue order is fixed; client sort parameters are ignored so they cannot reference arbitrary columns.
-        Pageable oldestFirst = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
-                Sort.by(Sort.Direction.ASC, "createdAt", "id"));
+    public List<UserProfile> findByVerificationStatus(VerificationStatus status, int page, int size) {
+        // Queue order is fixed here, never taken from the client, so it cannot reference arbitrary columns.
+        PageRequest oldestFirst = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "createdAt", "id"));
         return jpaRepository.findByVerificationStatus(status, oldestFirst).stream()
                 .map(mapper::toDomain)
                 .toList();

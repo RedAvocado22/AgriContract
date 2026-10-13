@@ -1,12 +1,11 @@
 package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.ListUsersByVerificationStatusCommand;
+import com.agricontract.user.application.dto.PageResult;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import com.agricontract.user.domain.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,12 +17,13 @@ public class ListUsersByVerificationStatusUseCaseImpl implements ListUsersByVeri
 
     // No status given means the review queue, i.e. PENDING.
     @Override
-    public Page<AdminUserResponse> execute(VerificationStatus status, Pageable pageable) {
-        VerificationStatus effectiveStatus = status != null ? status : VerificationStatus.PENDING;
-        List<AdminUserResponse> content = userProfileRepository.findByVerificationStatus(effectiveStatus, pageable).stream()
+    public PageResult<AdminUserResponse> execute(ListUsersByVerificationStatusCommand command) {
+        VerificationStatus effectiveStatus = command.status() != null ? command.status() : VerificationStatus.PENDING;
+        List<AdminUserResponse> content = userProfileRepository
+                .findByVerificationStatus(effectiveStatus, command.page(), command.size()).stream()
                 .map(AdminUserResponse::from)
                 .toList();
         long total = userProfileRepository.countByVerificationStatus(effectiveStatus);
-        return new PageImpl<>(content, pageable, total);
+        return new PageResult<>(content, command.page(), command.size(), total);
     }
 }
