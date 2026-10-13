@@ -120,6 +120,13 @@ describe('event-envelope.yaml contract', () => {
     ['array payload', { ...good(), payload: [] }],
   ];
 
+  it('only deliberate deviation: a urn:uuid: prefixed eventId (ajv accepts it, but event_id is CHAR(36))', () => {
+    const prefixed = { ...good(), eventId: 'urn:uuid:3f2c9a1e-8b7d-4c6e-9f10-2a3b4c5d6e7f' };
+    assert.equal(contractValidate(prefixed), true, 'ajv-formats uuid accepts the URN form');
+    assert.equal(validateEnvelope(prefixed).valid, false, 'Node rejects it so it can never reach a CHAR(36) column');
+    assert.ok(prefixed.eventId.length > 36);
+  });
+
   for (const [name, fixture] of fixtures) {
     it(`agrees with the contract on: ${name}`, () => {
       const contractSays = contractValidate(fixture) as boolean;

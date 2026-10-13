@@ -82,6 +82,7 @@ describe('validateEnvelope', () => {
     ['missing aggregateId', (e) => delete e.aggregateId],
     ['missing payload', (e) => delete e.payload],
     ['non-uuid eventId', (e) => (e.eventId = '12345')],
+    ['urn:uuid: prefixed eventId (does not fit event_id CHAR(36))', (e) => (e.eventId = 'urn:uuid:3f2c9a1e-8b7d-4c6e-9f10-2a3b4c5d6e7f')],
     ['eventType without a dot', (e) => (e.eventType = 'signed')],
     ['eventType with upper case', (e) => (e.eventType = 'Contract.Signed')],
     ['string eventVersion', (e) => (e.eventVersion = '1')],
