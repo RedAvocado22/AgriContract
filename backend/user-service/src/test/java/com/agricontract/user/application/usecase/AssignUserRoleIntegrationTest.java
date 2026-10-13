@@ -1,0 +1,73 @@
+package com.agricontract.user.application.usecase;
+
+import com.agricontract.user.application.dto.AssignUserRoleCommand;
+import com.agricontract.user.domain.exception.RoleSeparationViolationException;
+import com.agricontract.user.domain.model.UserProfile;
+import com.agricontract.user.domain.model.vo.ContactInfo;
+import com.agricontract.user.domain.model.vo.Role;
+import com.agricontract.user.domain.model.vo.UserId;
+import com.agricontract.user.domain.repository.UserProfileRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/**
+ * Role assignment against real MySQL: V4 accepts ARBITRATOR in the role ENUM, the update path
+ * persists the new role, and a refused OPERATOR -> ARBITRATOR move leaves the row untouched.
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@Testcontainers(disabledWithoutDocker = true)
+class AssignUserRoleIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0");
+
+    @Autowired private AssignUserRoleUseCase assignUserRoleUseCase;
+    @Autowired private UserProfileRepository userProfileRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void setUp() {
+        jdbcTemplate.update("DELETE FROM user_profiles");
+    }
+
+    @Test
+    void assignArbitrator_persistsRole() {
+        register("staff-1", Role.BUYER);
+
+        assignUserRoleUseCase.execute(new AssignUserRoleCommand("staff-1", Role.ARBITRATOR));
+
+        assertThat(storedRole("staff-1")).isEqualTo("ARBITRATOR");
+        assertThat(userProfileRepository.findById(new UserId("staff-1")).orElseThrow().getRole())
+                .isEqualTo(Role.ARBITRATOR);
+    }
+
+    @Test
+    void operatorToArbitrator_refusedAndRowUnchanged() {
+        register("staff-2", Role.OPERATOR);
+
+        assertThatThrownBy(() -> assignUserRoleUseCase.execute(new AssignUserRoleCommand("staff-2", Role.ARBITRATOR)))
+                .isInstanceOf(RoleSeparationViolationException.class);
+
+        assertThat(storedRole("staff-2")).isEqualTo("OPERATOR");
+    }
+
+    private void register(String userId, Role role) {
+        userProfileRepository.save(UserProfile.create(new UserId(userId), "AgriContract Ops", role,
+                new ContactInfo(userId + "@agricontract.test", null, null)));
+    }
+
+    private String storedRole(String userId) {
+        return jdbcTemplate.queryForObject("SELECT role FROM user_profiles WHERE user_id = ?", String.class, userId);
+    }
+}

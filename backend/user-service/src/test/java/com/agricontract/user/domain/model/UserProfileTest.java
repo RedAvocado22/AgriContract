@@ -2,6 +2,7 @@ package com.agricontract.user.domain.model;
 
 import com.agricontract.user.domain.event.UserRegisteredEvent;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
+import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.model.vo.ContactInfo;
 import com.agricontract.user.domain.model.vo.Role;
@@ -242,6 +243,60 @@ class UserProfileTest {
         profile.updateContactInfo(null);
 
         assertEquals("test@example.com", profile.getContactInfo().email());
+    }
+
+    // --- role assignment ---
+
+    @Test
+    void assignRole_newRole_changesRole() {
+        UserProfile profile = withRole(Role.BUYER);
+
+        assertTrue(profile.assignRole(Role.OPERATOR));
+        assertEquals(Role.OPERATOR, profile.getRole());
+    }
+
+    @Test
+    void assignRole_sameRole_noOp() {
+        UserProfile profile = withRole(Role.ARBITRATOR);
+
+        assertFalse(profile.assignRole(Role.ARBITRATOR));
+        assertEquals(Role.ARBITRATOR, profile.getRole());
+    }
+
+    @Test
+    void assignRole_operatorToArbitrator_throwsAndKeepsRole() {
+        UserProfile profile = withRole(Role.OPERATOR);
+
+        assertThrows(RoleSeparationViolationException.class, () -> profile.assignRole(Role.ARBITRATOR));
+        assertEquals(Role.OPERATOR, profile.getRole());
+    }
+
+    @Test
+    void assignRole_arbitratorToOperator_throwsAndKeepsRole() {
+        UserProfile profile = withRole(Role.ARBITRATOR);
+
+        assertThrows(RoleSeparationViolationException.class, () -> profile.assignRole(Role.OPERATOR));
+        assertEquals(Role.ARBITRATOR, profile.getRole());
+    }
+
+    @Test
+    void assignRole_adminToArbitrator_allowed() {
+        UserProfile profile = withRole(Role.ADMIN);
+
+        assertTrue(profile.assignRole(Role.ARBITRATOR));
+        assertEquals(Role.ARBITRATOR, profile.getRole());
+    }
+
+    @Test
+    void assignRole_null_throws() {
+        UserProfile profile = withRole(Role.BUYER);
+
+        assertThrows(IllegalArgumentException.class, () -> profile.assignRole(null));
+        assertEquals(Role.BUYER, profile.getRole());
+    }
+
+    private UserProfile withRole(Role role) {
+        return UserProfile.create(userId, "Cong ty A", role, contactInfo);
     }
 
     private UserProfile pending() {

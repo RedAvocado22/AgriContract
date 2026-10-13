@@ -24,6 +24,8 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     static final String FORBIDDEN_BODY = "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}";
 
     private static final List<String> IDENTITY_HEADERS = List.of("X-User-Id", "X-User-Role", "X-User-Email");
+    private static final GrantedAuthority OPERATOR = new SimpleGrantedAuthority("ROLE_OPERATOR");
+    private static final GrantedAuthority ARBITRATOR = new SimpleGrantedAuthority("ROLE_ARBITRATOR");
 
     private final String gatewaySecret;
     private final String serviceInternalSecret;
@@ -69,9 +71,14 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         // Identity headers are trusted only here: the gateway strips client-sent X-User-* and re-injects them from the JWT.
         String userId = request.getHeader("X-User-Id");
         if (userId != null && !userId.isBlank()) {
+            List<GrantedAuthority> authorities = toAuthorities(request.getHeader("X-User-Role"));
+            // A token carrying both OPERATOR and ARBITRATOR could propose and approve the same action (governance §5.2).
+            if (authorities.contains(OPERATOR) && authorities.contains(ARBITRATOR)) {
+                writeForbidden(response);
+                return;
+            }
             SecurityContext context = SecurityContextHolder.createEmptyContext();
-            context.setAuthentication(new UsernamePasswordAuthenticationToken(
-                    userId, null, toAuthorities(request.getHeader("X-User-Role"))));
+            context.setAuthentication(new UsernamePasswordAuthenticationToken(userId, null, authorities));
             SecurityContextHolder.setContext(context);
         }
 
