@@ -1,22 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import type { Actor } from './auth.js';
-import type { PriceCache } from './cache.js';
+import { businessToday, requestHash, validateManualPrice } from '../../domain/manualPrice.js';
 import {
-  COMMODITY,
-  businessToday,
-  requestHash,
-  slugify,
-  validateManualPrice,
-  type PriceQuote,
-} from './domain.js';
-import { HttpError } from './errors.js';
-import { DuplicateIdempotencyKeyError, type PriceHistoryRepository } from './repository.js';
-
-export interface Logger {
-  info(message: string, meta?: Record<string, unknown>): void;
-  warn(message: string, meta?: Record<string, unknown>): void;
-  error(message: string, meta?: Record<string, unknown>): void;
-}
+  DuplicateIdempotencyKeyError,
+  type PriceHistoryRepository,
+  type StoredManualPrice,
+} from '../../domain/priceHistoryRepository.js';
+import { COMMODITY, slugify, type PriceQuote } from '../../domain/priceQuote.js';
+import { IdempotencyConflict, IdempotencyKeyRequired, ValidationFailed } from '../errors.js';
+import type { Actor, Logger, PriceCache } from '../port.js';
 
 export interface ManualPriceDeps {
   repository: PriceHistoryRepository;
@@ -46,19 +37,19 @@ export async function recordManualPrice(
   body: unknown,
 ): Promise<ManualPriceResult> {
   const key = idempotencyKey?.trim();
-  if (!key) throw new HttpError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Idempotency-Key header is required');
+  if (!key) throw new IdempotencyKeyRequired();
   if (key.length > MAX_IDEMPOTENCY_KEY) {
-    throw new HttpError(400, 'VALIDATION_FAILED', `Idempotency-Key must be at most ${MAX_IDEMPOTENCY_KEY} characters`);
+    throw new ValidationFailed([`Idempotency-Key must be at most ${MAX_IDEMPOTENCY_KEY} characters`]);
   }
 
   const now = deps.now?.() ?? new Date();
   const validation = validateManualPrice(body, businessToday(now));
-  if (!validation.ok) throw new HttpError(400, 'VALIDATION_FAILED', validation.errors.join('; '));
+  if (!validation.ok) throw new ValidationFailed(validation.errors);
   const input = validation.value;
   const hash = requestHash(input);
 
   const existing = await deps.repository.findByIdempotencyKey(actor.userId, key);
-  if (existing) return replayOrConflict(existing.quote, existing.requestHash, hash);
+  if (existing) return replay(deps, existing, hash);
 
   const quote: PriceQuote = {
     id: deps.newId?.() ?? randomUUID(),
@@ -82,7 +73,7 @@ export async function recordManualPrice(
     if (err instanceof DuplicateIdempotencyKeyError) {
       // Lost a race with a concurrent request using the same key.
       const winner = await deps.repository.findByIdempotencyKey(actor.userId, key);
-      if (winner) return replayOrConflict(winner.quote, winner.requestHash, hash);
+      if (winner) return replay(deps, winner, hash);
     }
     throw err;
   }
@@ -95,25 +86,33 @@ export async function recordManualPrice(
     recordedBy: actor.userId,
   });
 
-  // After the MySQL write. A cache failure must not fail the request: MySQL is the
-  // source of truth and the read path re-fills Redis on a miss (cache-aside).
+  await refreshCache(deps, quote);
+  return { quote, replayed: false };
+}
+
+/**
+ * Same key + same body: return the stored result, and refresh the cache again. The first attempt
+ * may have committed the row but failed to update Redis; without this, an older cached quote would
+ * stay a cache hit forever and never self-heal. putLatest never replaces a newer cached quote, so
+ * refreshing on every replay is safe.
+ */
+async function replay(deps: ManualPriceDeps, stored: StoredManualPrice, hash: string): Promise<ManualPriceResult> {
+  if (stored.requestHash !== hash) throw new IdempotencyConflict();
+  await refreshCache(deps, stored.quote);
+  return { quote: stored.quote, replayed: true };
+}
+
+/**
+ * After the MySQL write. A cache failure must not fail the request: MySQL is the source of truth.
+ * The cache adapter bounds every call with a timeout, so this never hangs the request.
+ */
+async function refreshCache(deps: ManualPriceDeps, quote: PriceQuote): Promise<void> {
   try {
     await deps.cache.putLatest(quote);
   } catch (err) {
-    deps.logger.warn('Redis update failed after manual price insert; cache will self-heal on read', {
+    deps.logger.warn('Redis update failed after manual price write; a retry with the same Idempotency-Key refreshes it', {
       priceId: quote.id,
       error: err instanceof Error ? err.message : String(err),
     });
   }
-
-  return { quote, replayed: false };
-}
-
-function replayOrConflict(quote: PriceQuote, storedHash: string, hash: string): ManualPriceResult {
-  if (storedHash === hash) return { quote, replayed: true };
-  throw new HttpError(
-    409,
-    'IDEMPOTENCY_KEY_STATE_CONFLICT',
-    'This Idempotency-Key was already used with a different request body',
-  );
 }
