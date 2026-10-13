@@ -38,18 +38,28 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Internal API is for service identity only; the gateway secret must not unlock it.
+        if (request.getRequestURI().startsWith("/internal/")) {
+            forbid(response);
+            return;
+        }
+
         String headerSecret = request.getHeader("X-Gateway-Secret");
 
         if (headerSecret == null || !MessageDigest.isEqual(
                 headerSecret.getBytes(StandardCharsets.UTF_8), gatewaySecret.getBytes(StandardCharsets.UTF_8))) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType("application/json");
-            response.getWriter().write(
-                    "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}"
-            );
+            forbid(response);
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void forbid(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json");
+        response.getWriter().write(
+                "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}"
+        );
     }
 }

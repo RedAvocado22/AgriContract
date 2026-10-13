@@ -29,7 +29,6 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserProfileResponse>> register(
             @RequestBody @Valid RegisterUserRequest req,
             @RequestHeader("X-User-Id") String userId,
-            @RequestHeader("X-User-Email") String email,
             @RequestHeader("X-User-Role") String rawRoles
     ) {
         Role role = Arrays.stream(rawRoles.split(","))
@@ -40,7 +39,7 @@ public class UserController {
                 .orElseThrow(() -> new IllegalArgumentException("No valid role found in X-User-Role: " + rawRoles));
 
         RegisterUserResult result = registerUserUseCase.execute(
-                new RegisterUserCommand(userId, req.organizationName(), role, email, req.phone(), req.address())
+                new RegisterUserCommand(userId, req.organizationName(), role, req.email(), req.phone(), req.address())
         );
 
         return result.isNew()
