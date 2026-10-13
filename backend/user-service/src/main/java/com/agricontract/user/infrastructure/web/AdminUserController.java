@@ -1,16 +1,19 @@
 package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.AssignUserRoleCommand;
 import com.agricontract.user.application.dto.ListUsersByVerificationStatusCommand;
 import com.agricontract.user.application.dto.PageResult;
 import com.agricontract.user.application.dto.RejectUserCommand;
 import com.agricontract.user.application.dto.VerifyUserCommand;
+import com.agricontract.user.application.usecase.AssignUserRoleUseCase;
 import com.agricontract.user.application.usecase.ListUsersByVerificationStatusUseCase;
 import com.agricontract.user.application.usecase.RejectUserUseCase;
 import com.agricontract.user.application.usecase.VerifyUserUseCase;
 import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.common.PaginatedResponse;
 import com.agricontract.user.infrastructure.web.dto.AdminUserQueryRequest;
+import com.agricontract.user.infrastructure.web.dto.AssignUserRoleRequest;
 import com.agricontract.user.infrastructure.web.dto.RejectUserRequest;
 import com.agricontract.user.infrastructure.web.dto.VerifyUserRequest;
 import jakarta.validation.Valid;
@@ -19,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-// Role check (ADMIN|OPERATOR) is enforced in SecurityConfig. The actor is the authenticated principal set by
+// Role checks (OPERATOR for KYC, ADMIN for role assignment) are enforced in SecurityConfig. The actor is the authenticated principal set by
 // HeaderAuthenticationFilter, never re-read from the raw header, so decision metadata always matches who was authorized.
 @RestController
 @RequestMapping("/api/v1/admin/users")
@@ -28,6 +31,7 @@ public class AdminUserController {
     private final ListUsersByVerificationStatusUseCase listUsersByVerificationStatusUseCase;
     private final VerifyUserUseCase verifyUserUseCase;
     private final RejectUserUseCase rejectUserUseCase;
+    private final AssignUserRoleUseCase assignUserRoleUseCase;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PaginatedResponse<AdminUserResponse>>> listUsers(
@@ -57,5 +61,14 @@ public class AdminUserController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(rejectUserUseCase.execute(
                 new RejectUserCommand(userId, actorId, req.reason()))));
+    }
+
+    @PutMapping("/{userId}/role")
+    public ResponseEntity<ApiResponse<AdminUserResponse>> assignRole(
+            @PathVariable String userId,
+            @RequestBody @Valid AssignUserRoleRequest req
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(assignUserRoleUseCase.execute(
+                new AssignUserRoleCommand(userId, req.role()))));
     }
 }

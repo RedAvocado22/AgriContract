@@ -2,6 +2,7 @@ package com.agricontract.user.domain.model;
 
 import com.agricontract.user.domain.event.UserRegisteredEvent;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
+import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.model.vo.ContactInfo;
 import com.agricontract.user.domain.model.vo.Role;
@@ -115,6 +116,22 @@ public class UserProfile {
         }
         this.verificationStatus = VerificationStatus.PENDING;
         this.rejectionReason = null;
+    }
+
+    // One role per account. A direct OPERATOR <-> ARBITRATOR move would let one person propose and then approve
+    // the same maker-checker action, so it is refused. Returns false when the role is already set (no-op).
+    public boolean assignRole(Role newRole) {
+        if (newRole == null) {
+            throw new IllegalArgumentException("Role must not be null");
+        }
+        if (newRole == this.role) {
+            return false;
+        }
+        if (newRole.isSeparatedFrom(this.role)) {
+            throw new RoleSeparationViolationException(this.userId.value(), this.role, newRole);
+        }
+        this.role = newRole;
+        return true;
     }
 
     public void updateContactInfo(ContactInfo newInfo) {

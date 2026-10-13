@@ -4,6 +4,7 @@ import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.common.exception.UserAlreadyExistsException;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
+import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -33,6 +34,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConcurrentProfileUpdateException.class)
     public ResponseEntity<ApiResponse<Void>> handleConcurrentUpdate(ConcurrentProfileUpdateException ex) {
+        return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(RoleSeparationViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRoleSeparation(RoleSeparationViolationException ex) {
         return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
     }
 
