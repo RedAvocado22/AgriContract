@@ -1,9 +1,11 @@
-package com.agricontract.inspection.application.service;
+package com.agricontract.inspection.application.usecase;
 
+import com.agricontract.inspection.application.exception.EligibilityUnavailableException;
+import com.agricontract.inspection.application.exception.InspectorNotEligibleException;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
-import com.agricontract.inspection.common.exception.EligibilityUnavailableException;
 import com.agricontract.inspection.domain.model.InspectorEligibility;
 import com.agricontract.inspection.infrastructure.security.SecurityContextInspector;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,7 +57,7 @@ class InspectorEligibilityGateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"BUYER", "SELLER", "ADMIN", "OPERATOR"})
+    @ValueSource(strings = {"BUYER", "SELLER", "ADMIN", "OPERATOR", "ARBITRATOR"})
     void otherAuthenticatedRolesCannotUseInspectorGate(String role) {
         authenticate(role);
         assertThatThrownBy(gate::requireEligibleInspector).isInstanceOf(AccessDeniedException.class);
@@ -63,24 +65,24 @@ class InspectorEligibilityGateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"BUYER", "SELLER", "ADMIN", "OPERATOR"})
+    @ValueSource(strings = {"BUYER", "SELLER", "ADMIN", "OPERATOR", "ARBITRATOR"})
     void authoritativeProfileMustAlsoHaveInspectorRole(String role) {
         when(users.load(ACTOR)).thenReturn(profile(role, "VERIFIED", null));
-        assertThatThrownBy(gate::requireEligibleInspector).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(gate::requireEligibleInspector).isInstanceOf(InspectorNotEligibleException.class);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"PENDING", "REJECTED", "UNKNOWN"})
     void unverifiedInspectorIsDenied(String status) {
         when(users.load(ACTOR)).thenReturn(profile("INSPECTOR", status, null));
-        assertThatThrownBy(gate::requireEligibleInspector).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(gate::requireEligibleInspector).isInstanceOf(InspectorNotEligibleException.class);
     }
 
     @ParameterizedTest
     @ValueSource(longs = {-1, 0})
     void expiryAtOrBeforeNowIsDenied(long offset) {
         when(users.load(ACTOR)).thenReturn(profile("INSPECTOR", "VERIFIED", NOW.plusSeconds(offset)));
-        assertThatThrownBy(gate::requireEligibleInspector).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(gate::requireEligibleInspector).isInstanceOf(InspectorNotEligibleException.class);
     }
 
     @Test

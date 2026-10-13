@@ -11,31 +11,43 @@ Only `/actuator/health` is public; business requests remain closed.
 frozen `(contractId, milestoneId)` report route. Both paths first require an
 eligible authenticated INSPECTOR, then load a persisted assignment and require
 matching inspector identity and `ended_at IS NULL`. Missing, ended and other-owner
-assignments all raise `AccessDeniedException` (403 semantics).
+assignments all raise `InspectionAssignmentAccessDeniedException` (403 semantics).
+Ineligible authoritative profiles raise `InspectorNotEligibleException`. Both are
+application exceptions; infrastructure authentication retains Spring Security errors.
 
 `SecurityContextInspector` reads the established authentication context, never a
 request DTO. Per frozen gateway design section 2, `GatewayAuthenticationFilter`
 accepts forwarded identity only with the configured gateway secret; it rejects
-ambiguous identity headers and cannot overwrite an existing authenticated
-principal. Internal service credentials do not grant inspector identity.
+ambiguous identity headers and missing/blank roles, and cannot overwrite an existing
+authenticated principal. ARBITRATOR is recognized as a platform role but does not
+grant INSPECTOR authorization. Internal service credentials do not grant inspector identity.
 
 The user adapter calls `GET /internal/v1/users/{userId}` with `X-Internal-Secret`.
 The profile must match the authenticated actor and have `INSPECTOR`, `VERIFIED`,
 and an unexpired license or explicit JSON null (unlimited license). Missing expiry
 is not unlimited. Buyer/seller reputation locks are intentionally not applied.
 HTTP errors, redirects, malformed/missing profiles and transport failures fail
-closed. Connect/read timeouts are bounded; sensitive responses are not included
-in exceptions.
+closed. Connect and response-header waits are bounded by the configured JDK
+transport timeouts. A stalled body after headers is not bounded by that transport
+in the current Spring version; a complete response-body deadline remains a
+follow-up hardening item. Sensitive responses are not included
+in exceptions. Each failed lookup emits exactly one sanitized warning with a fixed
+category: `transport`, `dependency_http`, `malformed_response`, or
+`identity_mismatch` (`unexpected` for unclassified client failures). Successful
+lookups emit none. Diagnostics carry no IDs, URLs, credentials, response bodies
+or exception details.
 
 Eligibility by itself is not commission authorization. Future write use cases
 must call the combined authorization boundary and perform state/concurrency
 checks within their mutation transaction; this read-only scaffold is not a
 reservation of permission for a later transaction.
 
-## Approved schema supplement
+## Authoritative Level 1.5 schema
 
-The frozen inspection design did not specify Level 1.5 assignment storage. The
-user approved the following supplement for issue 112 on 2026-10-08:
+[Inspection design sections 2.5 and 5](https://github.com/RedAvocado22/AgriContract/blob/d6be0e00b56cf434d68670af045755569c9e2cc6/docs/phase_2/design/inspection-phase2-design.md),
+merged in [PR #158](https://github.com/RedAvocado22/AgriContract/pull/158),
+now adopt the assignment schema in V1. These sources are pinned because this
+feature branch has not merged main. The implemented read-only foundation contains:
 
 - `level1_5_inspection_assignment` belongs exclusively to `inspection_db`.
 - Primary key: `commission_id`; cross-service references: `contract_id`,
@@ -64,28 +76,56 @@ MySQL references: [generated columns](https://dev.mysql.com/doc/refman/8.0/en/cr
 
 ## Error contract verification
 
-The frozen supplementary `submitInspectionReport` operation defines 403 for an
-unauthorized inspector and lists 201/403/409 responses. The shared error catalog
-separately specifies 503 for unavailable eligibility dependencies. Accordingly,
-this scaffold keeps `EligibilityUnavailableException` distinct from access denial
-and fails closed, but adds no business HTTP response mapper or YAML response.
-A future report endpoint must reconcile its 503 documentation and existing error
-envelope with the contract owner. No new error codes are invented here.
+The updated supplementary `submitInspectionReport` contract lists 201/400/403/409/503.
+Eligibility and assignment denials retain 403 semantics; unavailable authoritative
+information remains a separate `EligibilityUnavailableException` with the fixed
+message "Authoritative inspector eligibility could not be validated". A future
+report operation must map these application exceptions to its frozen responses
+and error envelope. This scaffold introduces no business endpoint or HTTP mapper.
 
-## Deferred decisions and integration dependencies
+## Approved design and deferred implementation
 
-- Who selects an inspector, the vetted candidate source and selection policy.
-  No selection authority is assigned to ADMIN, OPERATOR, INSPECTOR or either service.
-- Assignment creation transport, idempotent creation behavior and authenticated
-  provenance propagation; contract-service owns only the need-for-inspection decision.
-- End/revoke/reassign workflows. `ended_at` supports persistence/history only.
-- Report/file/signature/hash/idempotency/event workflows, Level 2, dispute routing,
-  settlement, reputation and assignment-to-report round binding.
-- The existing user-service does not yet expose the frozen Phase 2 internal user
-  profile. This module targets that contract without modifying the other service;
-  its HTTP adapter is tested against a stub. End-to-end operation awaits the owner.
-- Step-up `authTime` transport and the 1800-second report freshness check belong
-  to submission, not this scaffold. No client timestamp is trusted here.
+The following are defined in the authoritative design, but are **not implemented
+by #112**:
+
+- Contract-service decides that Level 1.5 is needed and publishes
+  `inspection.level1_5_requested` through its outbox. The command is now defined
+  as `inspectionLevel15Requested` in the pinned event YAML (the design's note
+  saying it awaits YAML synchronization is stale).
+- Inspection-service selects uniformly at random from eligible INSPECTORs.
+  No platform role selects an inspector manually. An empty candidate set alerts
+  OPERATOR without a fallback assignment.
+- Consumer deduplication uses `eventId`; an already-active milestone is a no-op.
+  Assignment provenance records the originating service and initiating actor.
+- Confirmation ends the assignment in the same transaction. An overdue assignment
+  ends and triggers random reselection excluding previously assigned inspectors.
+  History remains immutable except for setting `ended_at` once; a replacement
+  uses a new row, never overwrites the previous inspector.
+- Level 1.5 reports bind through `inspection_report.l15_commission_id`.
+  `inspection_report.commission_id` remains exclusively Level 2.
+
+Production creation/selection/termination/reassignment and report persistence are
+follow-up work under [#129](https://github.com/RedAvocado22/AgriContract/issues/129)
+and the owning contract-service producer work; they are not enabled by this
+read-only repository. Report submission/signing, file/hash/event workflows,
+Level 2 and the 1800-second step-up freshness check also remain outside #112.
+
+## Remaining integration dependencies
+
+- [User-service #107](https://github.com/RedAvocado22/AgriContract/issues/107)
+  must provide the internal profile and real provider integration verification.
+  The current client tests use an HTTP stub; they do not establish live compatibility.
+- The internal authentication discrepancy remains unresolved: the adapter sends
+  `X-Internal-Secret` using `SERVICE_INTERNAL_SECRET`, while frozen OpenAPI
+  `serviceAuth` names `X-Gateway-Secret`. The gateway design distinguishes
+  gateway-forwarded identity (`GATEWAY_INTERNAL_SECRET`) from internal service
+  credentials. User-service/gateway owners must settle the header and credential
+  semantics and verify success, invalid credentials, unavailable/malformed profile
+  and identity mismatch across services. This branch changes neither convention
+  nor any shared contract and does not accept both headers as a workaround.
+- Repository prerequisites tracked by [#87](https://github.com/RedAvocado22/AgriContract/issues/87)
+  remain a merge dependency under the team workflow; this service does not supply
+  shared repository configuration.
 
 ## Run and validate
 
@@ -118,4 +158,6 @@ controller endpoint. MockMvc verifies the actual health/closed HTTP surface.
 - `contracts/events/supplementary-services-api.yaml`: `submitInspectionReport`
 - `contracts/events/golden-flow-events.yaml`: `inspectionReportConfirmed`
 - `docs/contracts/error-catalog.md`
-- User-approved supplement in this issue conversation; no frozen YAML is changed.
+- Design and contract references above are read at `d6be0e00b56cf434d68670af045755569c9e2cc6`; no frozen YAML is changed.
+- `docs/phase_2/design/data-governance-phase2-design.md` section 5 (SRS v1.6 roles)
+- `docs/phase_2/design/verification-matrix-phase2.md` (inspection and eligibility checks)

@@ -1,9 +1,10 @@
-package com.agricontract.inspection.application.service;
+package com.agricontract.inspection.application.usecase;
 
+import com.agricontract.inspection.application.exception.EligibilityUnavailableException;
+import com.agricontract.inspection.application.exception.InspectorNotEligibleException;
 import com.agricontract.inspection.application.port.AuthenticatedInspectorPort;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
-import com.agricontract.inspection.common.exception.EligibilityUnavailableException;
-import org.springframework.security.access.AccessDeniedException;
+
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -29,7 +30,7 @@ public class InspectorEligibilityGate {
             throw new EligibilityUnavailableException();
         }
         if (!eligibility.isEligibleAt(clock.instant())) {
-            throw new AccessDeniedException("Inspector is not eligible");
+            throw new InspectorNotEligibleException();
         }
         return actorId;
     }

@@ -1,10 +1,12 @@
-package com.agricontract.inspection.application.service;
+package com.agricontract.inspection.application.usecase;
 
-import com.agricontract.inspection.application.port.InspectionAssignmentRepository;
+import com.agricontract.inspection.application.exception.InspectionAssignmentAccessDeniedException;
 import com.agricontract.inspection.domain.model.InspectionAssignment;
-import org.springframework.security.access.AccessDeniedException;
+import com.agricontract.inspection.domain.repository.InspectionAssignmentRepository;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.Optional;
 
 @Service
@@ -31,6 +33,6 @@ public class InspectionAuthorization {
 
     private InspectionAssignment requireOwner(Optional<InspectionAssignment> assignment, String actorId) {
         return assignment.filter(value -> value.isAssignedTo(actorId))
-                .orElseThrow(() -> new AccessDeniedException("No authorized inspection assignment"));
+                .orElseThrow(() -> new InspectionAssignmentAccessDeniedException());
     }
 }

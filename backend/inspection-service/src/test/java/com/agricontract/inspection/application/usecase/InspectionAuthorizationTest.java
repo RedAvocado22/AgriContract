@@ -1,10 +1,13 @@
-package com.agricontract.inspection.application.service;
+package com.agricontract.inspection.application.usecase;
 
-import com.agricontract.inspection.application.port.InspectionAssignmentRepository;
-import com.agricontract.inspection.common.exception.EligibilityUnavailableException;
+import com.agricontract.inspection.application.exception.EligibilityUnavailableException;
+import com.agricontract.inspection.application.exception.InspectionAssignmentAccessDeniedException;
+import com.agricontract.inspection.application.exception.InspectorNotEligibleException;
 import com.agricontract.inspection.domain.model.InspectionAssignment;
+import com.agricontract.inspection.domain.repository.InspectionAssignmentRepository;
+
 import org.junit.jupiter.api.Test;
-import org.springframework.security.access.AccessDeniedException;
+
 import java.time.Instant;
 import java.util.Optional;
 
@@ -30,14 +33,14 @@ class InspectionAuthorizationTest {
         when(assignments.findByCommissionId("commission"))
                 .thenReturn(Optional.of(assignment("inspector-b", null)));
         assertThatThrownBy(() -> authorization.requireCommission("commission"))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(InspectionAssignmentAccessDeniedException.class);
     }
 
     @Test
     void missingCommissionIsDeniedWithoutRevealingExistence() {
         when(eligibility.requireEligibleInspector()).thenReturn("inspector-a");
         assertThatThrownBy(() -> authorization.requireCommission("missing"))
-                .isInstanceOf(AccessDeniedException.class).hasMessage("No authorized inspection assignment");
+                .isInstanceOf(InspectionAssignmentAccessDeniedException.class).hasMessage("No authorized inspection assignment");
     }
 
     @Test
@@ -46,7 +49,7 @@ class InspectionAuthorizationTest {
         when(assignments.findByCommissionId("commission"))
                 .thenReturn(Optional.of(assignment("inspector-a", Instant.now())));
         assertThatThrownBy(() -> authorization.requireCommission("commission"))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(InspectionAssignmentAccessDeniedException.class);
     }
 
     @Test
@@ -56,7 +59,7 @@ class InspectionAuthorizationTest {
                 .thenReturn(Optional.of(assignment("inspector-a", null)));
         assertThat(authorization.requireMilestone("contract", "milestone").inspectorId()).isEqualTo("inspector-a");
         assertThatThrownBy(() -> authorization.requireMilestone("other-contract", "milestone"))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(InspectionAssignmentAccessDeniedException.class);
     }
 
     @Test
@@ -65,14 +68,14 @@ class InspectionAuthorizationTest {
         when(assignments.findActive("contract", "milestone"))
                 .thenReturn(Optional.of(assignment("inspector-b", null)));
         assertThatThrownBy(() -> authorization.requireMilestone("contract", "milestone"))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(InspectionAssignmentAccessDeniedException.class);
     }
 
     @Test
     void eligibilityFailureCannotBeBypassedByOwningAssignment() {
-        when(eligibility.requireEligibleInspector()).thenThrow(new AccessDeniedException("Not eligible"));
+        when(eligibility.requireEligibleInspector()).thenThrow(new InspectorNotEligibleException());
         assertThatThrownBy(() -> authorization.requireCommission("commission"))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(InspectorNotEligibleException.class);
         verifyNoInteractions(assignments);
     }
 
