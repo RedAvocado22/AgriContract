@@ -51,8 +51,10 @@ export const ENVELOPE_FIELDS = [
 ] as const;
 
 export const EVENT_TYPE_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
-// Same shape as the JSON Schema `uuid` format (RFC 4122 textual form, any version, case-insensitive).
-const UUID_PATTERN = /^(?:urn:uuid:)?[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+// RFC 4122 textual form only (36 chars, any version, case-insensitive). Deliberately stricter than
+// ajv-formats' `uuid`, which also accepts a "urn:uuid:" prefix: event_id columns are CHAR(36) and the
+// Java producers never send the prefix, so a prefixed id could validate here and then fail on insert.
+const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 // RFC 3339 date-time; time zone is mandatory ("Z" or +hh:mm). Java Instant serialises as ...Z.
 const DATE_TIME_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$/;
