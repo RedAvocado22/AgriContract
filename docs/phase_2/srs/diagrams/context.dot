@@ -1,0 +1,77 @@
+digraph Context {
+  rankdir=LR;
+  bgcolor="white";
+  nodesep=0.25;
+  ranksep=1.1;
+  fontname="Arial";
+  node [fontname="Arial", shape=box, style="rounded,filled", fontsize=13, margin="0.15,0.1"];
+  edge [fontname="Arial", fontsize=10, color="#333333", arrowsize=0.8];
+
+  subgraph cluster_users {
+    label="Users"; labeljust=l; style="filled"; fillcolor="#fafafa"; color="#999999"; fontsize=14; fontname="Arial Bold";
+    Guest [label="Guest", fillcolor="#f5f5f5", color="#888888"];
+    Buyer [label="Buyer", fillcolor="#d9ead3", color="#6aa84f"];
+    Seller [label="Seller", fillcolor="#d9ead3", color="#6aa84f"];
+    Inspector [label="Inspector\n(Level 1.5)", fillcolor="#fff2cc", color="#bf9000"];
+    Operator [label="Operator", fillcolor="#cfe2f3", color="#3d85c6"];
+    Arbitrator [label="Arbitrator", fillcolor="#E1D5E7", color="#9673A6"];
+    Admin [label="Admin", fillcolor="#f4cccc", color="#cc4125"];
+    ExternalVerifier [label="External\nVerifier", fillcolor="#f4cccc", color="#cc4125"];
+    {rank=same; Guest; Buyer; Seller; Inspector; Operator; Arbitrator; Admin; ExternalVerifier;}
+    Guest -> Buyer [style=invis];
+    Buyer -> Seller [style=invis];
+    Seller -> Inspector [style=invis];
+    Inspector -> Operator [style=invis];
+    Operator -> Arbitrator [style=invis];
+    Arbitrator -> Admin [style=invis];
+    Admin -> ExternalVerifier [style=invis];
+  }
+
+  AgriContract [label="AgriContract\nB2B Agricultural\nContract Platform", shape=circle, style=filled, fillcolor="#e6d9f0", color="#9673A6", fontsize=14, fixedsize=true, width=1.9, height=1.9];
+
+  subgraph cluster_ext {
+    label="External Systems"; labeljust=l; style="filled"; fillcolor="#fafafa"; color="#999999"; fontsize=14; fontname="Arial Bold";
+    Bank [label="Custodian Bank\n(mock bank-service)", fillcolor="#fce5cd", color="#b45f06"];
+    L2Org [label="Level 2\nInspection Org", fillcolor="#fce5cd", color="#b45f06"];
+    EmailSvc [label="Email Service\n(SMTP / intake\nmailbox)", fillcolor="#fce5cd", color="#b45f06"];
+    OTS [label="OpenTimestamps", fillcolor="#fce5cd", color="#b45f06"];
+    VNSAT [label="VNSAT Price\nSource", fillcolor="#fce5cd", color="#b45f06"];
+    GeoDatasets [label="Geo Datasets\n(province polygons,\nforest 2020)", fillcolor="#fce5cd", color="#b45f06"];
+    {rank=same; Bank; L2Org; EmailSvc; OTS; VNSAT; GeoDatasets;}
+    Bank -> L2Org [style=invis];
+    L2Org -> EmailSvc [style=invis];
+    EmailSvc -> OTS [style=invis];
+    OTS -> VNSAT [style=invis];
+    VNSAT -> GeoDatasets [style=invis];
+  }
+
+  // Users <-> AgriContract (solid = request, dashed = data back)
+  Guest -> AgriContract;
+  AgriContract -> Guest [style=dashed];
+  Buyer -> AgriContract;
+  AgriContract -> Buyer [style=dashed];
+  Seller -> AgriContract;
+  AgriContract -> Seller [style=dashed];
+  Inspector -> AgriContract;
+  AgriContract -> Inspector [style=dashed];
+  Operator -> AgriContract;
+  AgriContract -> Operator [style=dashed];
+  Arbitrator -> AgriContract;
+  AgriContract -> Arbitrator [style=dashed];
+  Admin -> AgriContract;
+  AgriContract -> Admin [style=dashed];
+  ExternalVerifier -> AgriContract;
+  AgriContract -> ExternalVerifier [style=dashed];
+
+  // AgriContract <-> External systems
+  AgriContract -> Bank;
+  Bank -> AgriContract [style=dashed];
+  AgriContract -> L2Org;
+  L2Org -> AgriContract [style=dashed];
+  AgriContract -> EmailSvc;
+  EmailSvc -> AgriContract [style=dashed];
+  AgriContract -> OTS;
+  OTS -> AgriContract [style=dashed];
+  VNSAT -> AgriContract [style=dashed];
+  GeoDatasets -> AgriContract [style=dashed];
+}

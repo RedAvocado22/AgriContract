@@ -1,0 +1,41 @@
+@startuml
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam SwimlaneBorderColor black
+skinparam ArrowColor black
+skinparam ActivityDiamondBackgroundColor white
+title BF-01 User Onboarding & KYC
+|Guest / User|
+|Operator|
+|System|
+|Guest / User|
+start
+:1. Register account as Buyer,\nSeller or Inspector;
+|System|
+:2. Create account awaiting KYC;
+|Guest / User|
+:3. Submit organization and\nrepresentative documents;
+|System|
+:4. Add profile to KYC review queue;
+|Operator|
+:5. Check documents and\nauthority to represent;
+if (Documents valid?) then (yes)
+  |Operator|
+  :6. Verify KYC and enter\nauthorization expiry;
+  |System|
+  :7. Enable trading functions\nand email result;
+  :Account verified;
+  stop
+else (no)
+  |Operator|
+  :8. Reject with a reason;
+  |System|
+  :9. Email the rejection reason;
+  :Account not verified;
+  stop
+endif
+@enduml

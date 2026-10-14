@@ -1,0 +1,55 @@
+@startuml
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam SwimlaneBorderColor black
+skinparam ArrowColor black
+skinparam ActivityDiamondBackgroundColor white
+title BF-05 Breach & Force Majeure Resolution
+|Buyer / Seller|
+|Arbitrator|
+|Inspector|
+|System|
+|Buyer / Seller|
+start
+:1. Report breach or claim\nforce majeure;
+note right: Or System detects a missed obligation,\ne.g. funding not cured
+|System|
+:2. Record case and notify\nother party;
+note right: No penalty on allegation
+|Arbitrator|
+:3. Review evidence against\nsigned terms;
+if (Inspection needed?) then (yes)
+  :4. Request inspection per\nsigned terms;
+  |Inspector|
+  :5. Inspect and\nsubmit report;
+else (no)
+endif
+|Arbitrator|
+|Arbitrator|
+:6. Record breaching party\nand evidence used;
+|System|
+:7. Notify parties, open\n2-business-day contest window;
+note right: Penalty, forfeiture and lock wait;\nno-fault refunds run at once
+if (Party at fault contests\nwithin window?) then (yes)
+  |Buyer / Seller|
+  :8. Submit contest\nwith evidence;
+  |Inspector|
+  :9. Level 1.5 reviews the case;\ndecision is final;
+  note right: Not available if the decision\nalready rests on an inspection
+else (no)
+endif
+|System|
+:10. Finalize decision and\nexecute remedy;
+if (Material breach and\ntermination requested?) then (yes)
+  :11. Settle remaining scope\nand close contract;
+  :Contract terminated;
+  stop
+else (no)
+  :Contract stays active;
+  stop
+endif
+@enduml

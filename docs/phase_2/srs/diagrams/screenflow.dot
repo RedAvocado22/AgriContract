@@ -1,0 +1,156 @@
+digraph ScreenFlow {
+  rankdir=TB;
+  bgcolor="white";
+  nodesep=0.3;
+  ranksep=0.35;
+  fontname="Arial";
+  node [fontname="Arial", shape=box, style="rounded,filled", fillcolor="white", color="black", fontsize=12, margin="0.15,0.08"];
+  edge [fontname="Arial", fontsize=10, color="#333333", arrowsize=0.8];
+
+  // global invisible rank spine: a0..a11, one per row across the whole diagram
+  a0 [style=invis, shape=point, width=0];
+  a1 [style=invis, shape=point, width=0];
+  a2 [style=invis, shape=point, width=0];
+  a3 [style=invis, shape=point, width=0];
+  a4 [style=invis, shape=point, width=0];
+  a5 [style=invis, shape=point, width=0];
+  a6 [style=invis, shape=point, width=0];
+  a7 [style=invis, shape=point, width=0];
+  a8 [style=invis, shape=point, width=0];
+  a9 [style=invis, shape=point, width=0];
+  a10 [style=invis, shape=point, width=0];
+  a11 [style=invis, shape=point, width=0];
+  a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a7 -> a8 -> a9 -> a10 -> a11 [style=invis];
+
+  // ============ PUBLIC LANE (row a0) ============
+  subgraph cluster_public {
+    label="Public"; labeljust=l; style="filled"; fillcolor="#f2f2f2"; color="#888888"; fontsize=13; fontname="Arial Bold";
+    RegisterAccount [label="Register Account", color="#888888"];
+    Login [label="Login", color="#888888"];
+    PublicProfile [label="Public User Profile\n(Buyer, Seller)", color="#888888"];
+    ListingDetail [label="Listing Detail", color="#888888"];
+    BrowseListings [label=<<B>Browse Listings</B>>, color="#444444", penwidth=2];
+    MarketPriceBoard [label=<<B>Market Price Board</B>>, color="#444444", penwidth=2];
+    {rank=same; a0; RegisterAccount; Login; PublicProfile; ListingDetail; BrowseListings; MarketPriceBoard;}
+    BrowseListings -> ListingDetail [dir=back];
+    ListingDetail -> PublicProfile [dir=back];
+    RegisterAccount -> Login;
+  }
+
+  // MainMenu (row a1)
+  MainMenu [label="Main menu (shown after Login; items depend on the role)", shape=box, style=filled, fillcolor="#e6d9f0", color="#9673A6", fontsize=12, width=9];
+  {rank=same; a1; MainMenu;}
+  Login -> MainMenu;
+
+  // ============ CONTRACT & MILESTONE LANE (rows a2-a5) ============
+  subgraph cluster_cm {
+    label="Contract & Milestone"; labeljust=l; style="filled"; fillcolor="#eaf5ea"; color="#4a9c4a"; fontsize=13; fontname="Arial Bold";
+    MyContracts [label=<<B>My Contracts</B>>, color="#2e7d32", penwidth=2];
+    CreateOffer [label="Create Offer (Buyer)", color="#4a9c4a"];
+    ContractDetail [label="Contract Detail", color="#4a9c4a"];
+    ReportBreachDialog [label="Report Breach Dialog", color="#4a9c4a", style="rounded,dashed,filled"];
+    {rank=same; a2; MyContracts; ContractDetail; CreateOffer; ReportBreachDialog;}
+
+    EditTerms [label="Edit Contract Terms", color="#4a9c4a"];
+    SignContract [label="Sign Contract", color="#4a9c4a"];
+    MilestoneDetail [label="Milestone Detail", color="#4a9c4a"];
+    ProposeReplacement [label="Propose Replacement\nContract", color="#4a9c4a"];
+    ExportEscrow [label="Export Escrow\nStatement", color="#4a9c4a"];
+    BreachCaseDetailParty [label=<Breach Case Detail<BR/>(Party View)<BR/><I>Terminate Contract</I>>, color="#4a9c4a"];
+    {rank=same; a3; EditTerms; SignContract; MilestoneDetail; ProposeReplacement; ExportEscrow; BreachCaseDetailParty;}
+
+    OTPVerification [label="OTP Verification", color="#4a9c4a"];
+    {rank=same; a4; OTPVerification;}
+
+    RecordWeighing [label="Record Weighing (Seller)", color="#4a9c4a"];
+    RecordReceipt [label="Record Receipt (Buyer)", color="#4a9c4a"];
+    RespondToFlag [label="Respond to Flag (Seller)", color="#4a9c4a"];
+    ClaimForceMajeure [label="Claim Force Majeure\n(Seller)", color="#4a9c4a"];
+    MilestonePriceAdj [label="Milestone Price\nAdjustment", color="#4a9c4a"];
+    {rank=same; a5; RecordWeighing; RecordReceipt; RespondToFlag; ClaimForceMajeure; MilestonePriceAdj;}
+
+    CreateOffer -> ContractDetail [dir=back];
+    MyContracts -> ContractDetail;
+    ContractDetail -> EditTerms;
+    ContractDetail -> SignContract;
+    ContractDetail -> MilestoneDetail;
+    ContractDetail -> ProposeReplacement;
+    ContractDetail -> ExportEscrow;
+    SignContract -> OTPVerification;
+    MilestoneDetail -> RecordWeighing;
+    MilestoneDetail -> RecordReceipt;
+    MilestoneDetail -> RespondToFlag;
+    MilestoneDetail -> ClaimForceMajeure;
+    MilestoneDetail -> MilestonePriceAdj;
+    ReportBreachDialog -> BreachCaseDetailParty;
+  }
+  MainMenu -> CreateOffer [label="Start an offer (Buyer)"];
+
+  // ============ PROFILE & CATALOG LANE (row a6) ============
+  subgraph cluster_pc {
+    label="Profile & Catalog"; labeljust=l; style="filled"; fillcolor="#eaf5ea"; color="#4a9c4a"; fontsize=13; fontname="Arial Bold";
+    MyProfile [label=<<B>My Profile (Buyer,<BR/>Seller, Inspector)</B>>, color="#2e7d32", penwidth=2];
+    MyPlots [label=<<B>My Plots (Seller)</B><BR/><I>Import KML &#183; Add Plot by GPS<BR/>Pin &#183; Upload Cadastral Extract<BR/>&#183; Request Geo Re-evaluation</I>>, color="#2e7d32", penwidth=2];
+    MyProducts [label=<<B>My Products (Seller)</B>>, color="#2e7d32", penwidth=2];
+    MyListings [label=<<B>My Listings (Seller)</B>>, color="#2e7d32", penwidth=2];
+    ListingForm [label="Listing Form (Seller)", color="#4a9c4a"];
+    {rank=same; a6; MyProfile; MyPlots; MyProducts; MyListings; ListingForm;}
+    MyListings -> ListingForm;
+  }
+
+  // ============ INSPECTOR LANE (row a7) ============
+  subgraph cluster_insp {
+    label="Inspector"; labeljust=l; style="filled"; fillcolor="#fff6de"; color="#c9971f"; fontsize=13; fontname="Arial Bold";
+    AssignedCases [label=<<B>Assigned Cases</B>>, color="#c9971f", penwidth=2];
+    SubmitInspectionResult [label="Submit Inspection Result", color="#c9971f"];
+    {rank=same; a7; AssignedCases; SubmitInspectionResult;}
+    AssignedCases -> SubmitInspectionResult;
+  }
+
+  // ============ OPERATOR LANE (rows a8-a9) ============
+  subgraph cluster_op {
+    label="Operator"; labeljust=l; style="filled"; fillcolor="#e4edfa"; color="#3063a8"; fontsize=13; fontname="Arial Bold";
+    KYCQueue [label=<<B>KYC Review Queue</B>>, color="#3063a8", penwidth=2];
+    KYCDetail [label=<KYC Detail<BR/><I>Verify KYC &#183; Reject KYC</I>>, color="#3063a8"];
+    PlotRiskQueue [label=<<B>Plot Risk Review<BR/>Queue</B>>, color="#3063a8", penwidth=2];
+    CategoryModeration [label=<<B>Category &amp; Listing<BR/>Moderation</B>>, color="#3063a8", penwidth=2];
+    ManualPriceEntry [label=<<B>Manual Price Entry</B>>, color="#3063a8", penwidth=2];
+    ReputationRequestsOp [label=<<B>Reputation Action<BR/>Requests (Operator,<BR/>Arbitrator)</B><BR/><I>Propose Reputation Action</I>>, color="#3063a8", penwidth=2];
+    {rank=same; a8; KYCQueue; KYCDetail; PlotRiskQueue; CategoryModeration; ManualPriceEntry; ReputationRequestsOp;}
+
+    Level2Commissions [label=<<B>Level 2 Commissions</B>>, color="#3063a8", penwidth=2];
+    PendingExtReview [label=<<B>Pending External<BR/>Report Review</B>>, color="#3063a8", penwidth=2];
+    ManualExtUpload [label=<<B>Manual External Report<BR/>Upload</B>>, color="#3063a8", penwidth=2];
+    EmailIntakeFailOp [label=<<B>Email Intake Failures</B>>, color="#3063a8", penwidth=2];
+    ActivationFailOp [label=<<B>Activation Failures</B>>, color="#3063a8", penwidth=2];
+    MilestoneFundFailOp [label=<<B>Milestone Funding<BR/>Failures</B>>, color="#3063a8", penwidth=2];
+    {rank=same; a9; Level2Commissions; PendingExtReview; ManualExtUpload; EmailIntakeFailOp; ActivationFailOp; MilestoneFundFailOp;}
+
+    KYCQueue -> KYCDetail;
+  }
+
+  // ============ ARBITRATOR LANE (row a10) ============
+  subgraph cluster_arb {
+    label="Arbitrator"; labeljust=l; style="filled"; fillcolor="#efe3f5"; color="#9673A6"; fontsize=13; fontname="Arial Bold";
+    BreachCaseQueue [label=<<B>Breach Case Queue</B>>, color="#9673A6", penwidth=2];
+    BreachCaseDetailArb [label=<Breach Case Detail<BR/>(Arbitrator)<BR/><I>Request Inspection &#183; Resolve<BR/>Breach Case &#183; Terminate<BR/>Contract</I>>, color="#9673A6"];
+    FMReviewQueue [label=<<B>Force Majeure Review<BR/>Queue</B>>, color="#9673A6", penwidth=2];
+    FMClaimDetail [label="Force Majeure Claim\nDetail", color="#9673A6"];
+    ReputationRequestsArb [label=<<B>Reputation Action<BR/>Requests</B><BR/><I>Approve / Reject</I>>, color="#9673A6", penwidth=2];
+    {rank=same; a10; BreachCaseQueue; BreachCaseDetailArb; FMReviewQueue; FMClaimDetail; ReputationRequestsArb;}
+    BreachCaseQueue -> BreachCaseDetailArb;
+    FMReviewQueue -> FMClaimDetail;
+  }
+
+  // ============ ADMIN LANE (row a11) ============
+  subgraph cluster_admin {
+    label="Admin"; labeljust=l; style="filled"; fillcolor="#fbe7e7"; color="#b33a3a"; fontsize=13; fontname="Arial Bold";
+    AuditChainStatus [label=<<B>Audit Chain<BR/>Verification Status</B>>, color="#b33a3a", penwidth=2];
+    ContractEvidenceExport [label=<<B>Contract Evidence<BR/>Export</B>>, color="#b33a3a", penwidth=2];
+    SecurityLockStatus [label=<<B>Security Lock Status</B>>, color="#b33a3a", penwidth=2];
+    TermReportCommodity [label=<<B>Termination Report by<BR/>Commodity</B>>, color="#b33a3a", penwidth=2];
+    EscrowEffReport [label=<<B>Escrow Effectiveness<BR/>Report</B>>, color="#b33a3a", penwidth=2];
+    FMTrends [label=<<B>Force Majeure Trends</B>>, color="#b33a3a", penwidth=2];
+    {rank=same; a11; AuditChainStatus; ContractEvidenceExport; SecurityLockStatus; TermReportCommodity; EscrowEffReport; FMTrends;}
+  }
+}
