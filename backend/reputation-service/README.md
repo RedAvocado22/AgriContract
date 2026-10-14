@@ -6,10 +6,10 @@ Java 21 / Spring Boot 3.3.5 service, port 8088. This foundation persists two imm
 
 - `domain/model`: immutable fact records and a strict public-summary property allowlist; UUID identities, UTC timestamps normalized to database microseconds.
 - `domain/repository`: append-only fact interface and read-only summary interface. There are no update/delete operations or public fact-write endpoints.
-- `application/usecase`: append facts and compute the public summary in a repeatable-read transaction. No user-service existence lookup, cross-service foreign keys or cross-service database access.
+- `application/dto` and `application/usecase`: immutable append Commands, summary Query and Results isolate use-case inputs/outputs from domain records. Use cases construct domain facts and compute the public summary in a repeatable-read transaction. No user-service existence lookup, cross-service foreign keys or cross-service database access.
 - `infrastructure/persistence`: JDBC inserts and reads. No JPA dirty checking, `REPLACE`, upsert, or broad `INSERT IGNORE`.
 - `infrastructure/messaging`: two service-owned adapters for canonical v1 `contract.settled` and `milestone.dispute_resolved`; no new shared event framework (#89).
-- `infrastructure/security` / `web`: gateway identity validation and PII-free GET projection. There is no need for a speculative client or external application port.
+- `infrastructure/security` / `web`: gateway identity validation and explicit application-Result-to-HTTP-response mapping. The frozen PII-free response allowlist is independent of domain records. There is no need for a speculative client or external application port.
 
 ## Database and append-only enforcement
 
@@ -37,9 +37,13 @@ No real credentials are included. The integration suite provisions these account
 
 Each append first attempts a plain INSERT in its own transaction. A primary-key or event-key collision is compared in a **fresh transaction** after rollback, so a concurrent winner is visible under MySQL repeatable read. Identical immutable content returns DUPLICATE, including an identical business fact with a different event ID. Conflicting fields, an event ID reused for a different business fact, or an event/business key pointing at two rows are rejected without mutation. The original event ID stays stored; ignored alternate IDs are not persisted as an additional alias ledger. MySQL constraints are the concurrency authority.
 
-Consumers map IDs directly from the frozen payload and fact time from envelope `occurredAt`. They reject unsupported versions, malformed/ambiguous JSON, unexpected fields, wrong producer/type and conflicting facts. The listener commits before returning for acknowledgment. Transient failures receive three bounded attempts; permanent failures and exhausted retries reject to the service's restricted DLQ. Replay must preserve the original event ID, timestamp and payload. Service-specific dead-letter routing avoids copying another consumer's failed delivery into these queues. No raw payload is included by the service's rejection handler.
+Consumers map IDs directly from the frozen payload and envelope `occurredAt` into application Commands; domain construction retains microsecond normalization. They reject unsupported versions, malformed/ambiguous JSON, unexpected fields, wrong producer/type and conflicting facts. The listener commits before returning for acknowledgment. Transient failures receive three bounded attempts; permanent failures and exhausted retries reject to the service's restricted DLQ. Replay must preserve the original event ID, timestamp and payload. A service-owned DLX isolates failed deliveries from other consumers while preserving canonical routing keys. No raw payload is included by the service's rejection handler.
 
-Queues: `reputation-svc.contract.settled` and `reputation-svc.milestone.dispute_resolved`, with matching `.dlq` queues; topic exchange `agricontract.contracts`, direct DLX `agricontract.contracts.dlx`. The consumer receives raw messages and validates the canonical envelope; it does not accept the legacy flat producer payload as equivalent. Broker credentials and permissions must restrict publishing to trusted producers.
+Queues: `reputation-svc.contract.settled` and `reputation-svc.milestone.dispute_resolved`, with matching `.dlq` queues; topic exchange `agricontract.contracts`, service-owned direct DLX `agricontract.reputation.dlx`. Each DLQ binds its original event key (`contract.settled` / `milestone.dispute_resolved`); there is no `x-dead-letter-routing-key` override. This follows the [final 14/10/2026 reviewer convention](https://github.com/RedAvocado22/AgriContract/pull/166#issuecomment-6165707457). The reviewer confirmed these queues have not been deployed, so no deployed-queue migration is required. The consumer validates the canonical envelope and does not accept legacy flat producer payloads. Broker permissions must restrict publishing to trusted producers.
+
+The DLQ monitor passively checks only those two owned DLQs every five minutes, starting after the first interval. It never reads message bodies or acknowledges/replays messages. Nonempty queues emit `event=reputation_dlq_nonempty queue=<owned-name> messageCount=<count>`; probe failures emit only `event=reputation_dlq_probe_failed queue=<owned-name>`. Empty queues produce no warning. Each probe uses a separate short-lived connection cloned from the configured broker/TLS settings, with bounded connect, handshake, RPC and shutdown timeouts, and no automatic recovery. Failures are contained per queue; consumer connections are never closed or reconfigured. Raw driver exception logging is suppressed only on these monitor connections.
+
+Optional settings: `REPUTATION_DLQ_MONITOR_ENABLED` (default true), `REPUTATION_DLQ_MONITOR_INTERVAL_MS` (default 300000; accepted 30000–3600000), `REPUTATION_DLQ_MONITOR_TIMEOUT_MS` (default 3000; accepted 1000–10000 per network phase). Invalid timing values fail startup rather than enabling unbounded timeouts or tight polling. The bounded two-queue pass runs with fixed delay, so slow probes cannot pile up overlapping scheduled checks.
 
 ## Public summary and security
 
@@ -80,7 +84,7 @@ Coverage includes immutable construction, replay and content conflicts, concurre
 
 - #87 remains a separate repository workflow gate; implementation approval does not waive PR publication/review/merge gates.
 - #89 owns the eventual shared event infrastructure; these two local adapters can adopt it when merged.
-- Gateway routing/JWT propagation and canonical contract-service event production require their owners' integration. No unmerged implementation is imported or modified.
+- #105 gateway routing/JWT propagation and canonical contract-service event production require their owners' integration. No unmerged implementation is imported or modified.
 - #144 owns negative-consequence ingestion and production lock creation. This service does not bind `remedy.finalized`, `breach.reported` or `contract.terminated`. Unresolved allegations have no reputation consequences here.
 - #145 owns dispute-derived scoring. Dispute facts are stored only.
 - No inspection-service (#112), maker-checker, early-unlock write API, event publication, AML, credit export or two-business-day contest timer is implemented. The contest policy belongs upstream to attribution finalization.

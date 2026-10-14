@@ -2,7 +2,8 @@ package com.agricontract.reputation.infrastructure.messaging;
 
 import com.agricontract.reputation.application.exception.ImmutableFactConflictException;
 import com.agricontract.reputation.application.usecase.AppendReputationFact;
-import com.agricontract.reputation.domain.model.*;
+import com.agricontract.reputation.application.dto.AppendCompletedContractCommand;
+import com.agricontract.reputation.application.dto.AppendDisputeOutcomeCommand;
 import java.io.IOException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,13 +59,13 @@ public class ReputationFactConsumer {
             JsonNode payload = event.path("payload");
             if (expectedType.equals("contract.settled")) {
                 fields(payload, Set.of("contractId", "buyerId", "sellerId"));
-                append.execute(new CompletedContractFact(id(payload, "contractId"), id(payload, "buyerId"),
+                append.execute(new AppendCompletedContractCommand(id(payload, "contractId"), id(payload, "buyerId"),
                         id(payload, "sellerId"), occurred, source));
             } else {
                 fields(payload, Set.of("contractId", "milestoneId", "flaggedBy", "flaggedByUserId", "resolutionFavors"));
                 if (!"BUYER".equals(text(payload, "flaggedBy"))) throw new IllegalArgumentException("Invalid flagger role");
-                append.execute(new DisputeOutcomeFact(id(payload, "milestoneId"), id(payload, "contractId"),
-                        id(payload, "flaggedByUserId"), ResolutionFavors.valueOf(text(payload, "resolutionFavors")),
+                append.execute(new AppendDisputeOutcomeCommand(id(payload, "milestoneId"), id(payload, "contractId"),
+                        id(payload, "flaggedByUserId"), text(payload, "resolutionFavors"),
                         occurred, source));
             }
         } catch (IOException | IllegalArgumentException | java.time.DateTimeException | ImmutableFactConflictException e) {
@@ -86,5 +87,10 @@ public class ReputationFactConsumer {
     private static void optionalText(JsonNode node, String name) {
         if (node.hasNonNull(name)) text(node, name);
     }
-    private static UUID id(JsonNode node, String name) { return FactValues.uuid(text(node, name)); }
+    private static UUID id(JsonNode node, String name) {
+        String value = text(node, name);
+        UUID id = UUID.fromString(value);
+        if (!id.toString().equalsIgnoreCase(value)) throw new IllegalArgumentException("Invalid UUID");
+        return id;
+    }
 }
