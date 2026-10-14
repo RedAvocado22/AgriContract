@@ -287,6 +287,15 @@ class AdminUserControllerTest {
         verifyNoInteractions(verifyUserUseCase);
     }
 
+    // Contract: a missing key must never become an implicit unlimited grant (explicit null is covered above).
+    @Test
+    void verify_missingExpiryKey_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
     @Test
     void verify_malformedExpiry_badRequest() throws Exception {
         mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
