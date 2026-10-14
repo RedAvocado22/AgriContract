@@ -25,6 +25,9 @@ gateway:
 service:
   internal-secret: ${SERVICE_INTERNAL_SECRET:changeme-internal}
 
+user-service:
+  url: ${USER_SERVICE_URL:http://localhost:8081}
+
 server:
   port: ${SERVER_PORT:8082}
 
