@@ -1,6 +1,6 @@
 package com.agricontract.gateway.filter;
 
-import com.agricontract.gateway.config.KeycloakRealmRoleConverter;
+import com.agricontract.gateway.infrastructure.security.KeycloakRealmRoleConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;

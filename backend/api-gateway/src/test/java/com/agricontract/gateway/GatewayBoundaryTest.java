@@ -7,7 +7,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,9 +30,11 @@ import reactor.core.publisher.Mono;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -48,6 +52,9 @@ class GatewayBoundaryTest {
     private static final String SELLER_TOKEN = "seller-token";
     private static final String ADMIN_TOKEN = "admin-token";
     private static final String OPERATOR_TOKEN = "operator-token";
+    private static final String ARBITRATOR_TOKEN = "arbitrator-token";
+    private static final String INSPECTOR_TOKEN = "inspector-token";
+    private static final String OPERATOR_ARBITRATOR_TOKEN = "operator-arbitrator-token";
     private static final String EXPIRED_TOKEN = "expired-token";
     private static final String LISTING_ID = "3f2b8c1e-7a4d-4e9b-9c2f-1d5e6a7b8c9d";
 
@@ -84,14 +91,19 @@ class GatewayBoundaryTest {
         givenToken(SELLER_TOKEN, "SELLER");
         givenToken(ADMIN_TOKEN, "ADMIN");
         givenToken(OPERATOR_TOKEN, "OPERATOR");
+        givenToken(ARBITRATOR_TOKEN, "ARBITRATOR");
+        givenToken(INSPECTOR_TOKEN, "INSPECTOR");
+        givenToken(OPERATOR_ARBITRATOR_TOKEN, "OPERATOR", "ARBITRATOR");
     }
 
-    private void givenToken(String token, String role) {
+    private void givenToken(String token, String... roles) {
+        List<String> realmRoles = new ArrayList<>(List.of("default-roles-agricontract", "offline_access"));
+        realmRoles.addAll(List.of(roles));
         given(jwtDecoder.decode(token)).willReturn(Mono.just(Jwt.withTokenValue(token)
                 .header("alg", "RS256")
                 .subject("user-123")
                 .claim("email", "user@agri.test")
-                .claim("realm_access", Map.of("roles", List.of("default-roles-agricontract", role)))
+                .claim("realm_access", Map.of("roles", realmRoles))
                 .build()));
     }
 
@@ -281,18 +293,77 @@ class GatewayBoundaryTest {
         assertThat(received.getPath()).isEqualTo("/api/v1/categories");
     }
 
-    // Role gate: KYC admin API needs ADMIN|OPERATOR at the gateway
+    // Identity: every canonical application role survives, alone or combined
 
     @ParameterizedTest
+    @ValueSource(strings = {"BUYER", "SELLER", "ADMIN", "OPERATOR", "ARBITRATOR", "INSPECTOR"})
+    void authenticatedRoute_eachApplicationRole_isForwardedWithThatRole(String role) throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+
+        client.get().uri("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(role))
+                .exchange()
+                .expectStatus().isOk();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getHeaders().values("X-User-Role")).containsExactly(role);
+    }
+
+    // user-service rejects OPERATOR+ARBITRATOR; the gateway must forward both so that guard can see the pair.
+    @ParameterizedTest
     @CsvSource({
-            "ADMIN, GET, /api/v1/admin/users?verificationStatus=PENDING",
-            "ADMIN, POST, /api/v1/admin/users/user-456/verify",
-            "ADMIN, POST, /api/v1/admin/users/user-456/reject",
-            "OPERATOR, GET, /api/v1/admin/users?verificationStatus=PENDING",
-            "OPERATOR, POST, /api/v1/admin/users/user-456/verify",
-            "OPERATOR, POST, /api/v1/admin/users/user-456/reject"
+            "GET, /api/v1/users/me",
+            "POST, /api/v1/admin/users/user-456/verify"
     })
-    void adminUserRoute_withStaffRole_isForwardedWithJwtIdentity(String role, String method, String path)
+    void multiRoleToken_forwardsFullRoleSet(String method, String path) throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+
+        client.method(HttpMethod.valueOf(method)).uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + OPERATOR_ARBITRATOR_TOKEN)
+                .exchange()
+                .expectStatus().isOk();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getHeaders().values("X-User-Role")).containsExactly("OPERATOR,ARBITRATOR");
+    }
+
+    // Staff gate (gateway design 3.3, SRS v1.6): each routed staff action takes exactly its own role
+
+    private static final List<String> ALL_ROLES = List.of("BUYER", "SELLER", "ADMIN", "OPERATOR", "ARBITRATOR", "INSPECTOR");
+    private static final String CONTRACT = "/api/v1/contracts/" + LISTING_ID;
+
+    private static final List<StaffAction> STAFF_ACTIONS = List.of(
+            new StaffAction("GET", "/api/v1/admin/users?verificationStatus=PENDING", "OPERATOR"),
+            new StaffAction("POST", "/api/v1/admin/users/user-456/verify", "OPERATOR"),
+            new StaffAction("POST", "/api/v1/admin/users/user-456/reject", "OPERATOR"),
+            new StaffAction("PUT", "/api/v1/admin/users/user-456/role", "ADMIN"),
+            new StaffAction("POST", CONTRACT + "/breach-cases/" + LISTING_ID + "/review", "ARBITRATOR", "INSPECTOR"),
+            new StaffAction("POST", CONTRACT + "/breach-cases/" + LISTING_ID + "/resolve", "ARBITRATOR", "INSPECTOR"),
+            new StaffAction("POST", CONTRACT + "/milestones/" + LISTING_ID + "/force-majeure/resolve", "ARBITRATOR"),
+            new StaffAction("POST", CONTRACT + "/activation/retry-deposit-lock", "OPERATOR"),
+            new StaffAction("POST", CONTRACT + "/activation/mark-failed", "OPERATOR"),
+            new StaffAction("POST", CONTRACT + "/milestones/" + LISTING_ID + "/funding/retry", "OPERATOR")
+    );
+
+    private record StaffAction(String method, String path, String... allowedRoles) {
+    }
+
+    static Stream<Arguments> allowedStaffRequests() {
+        return STAFF_ACTIONS.stream().flatMap(action -> Stream.of(action.allowedRoles())
+                .map(role -> Arguments.of(role, action.method(), action.path())));
+    }
+
+    static Stream<Arguments> wrongRoleStaffRequests() {
+        return STAFF_ACTIONS.stream().flatMap(action -> ALL_ROLES.stream()
+                .filter(role -> !List.of(action.allowedRoles()).contains(role))
+                .map(role -> Arguments.of(role, action.method(), action.path())));
+    }
+
+    @ParameterizedTest(name = "{0} {1} {2}")
+    @MethodSource("allowedStaffRequests")
+    void staffAction_withItsRole_isForwardedWithJwtIdentity(String role, String method, String path)
             throws InterruptedException {
         downstream.enqueue(new MockResponse().setResponseCode(200));
 
@@ -309,24 +380,30 @@ class GatewayBoundaryTest {
         assertThat(received.getHeaders().values("X-User-Role")).containsExactly(role);
     }
 
-    @ParameterizedTest
-    @CsvSource({
-            "BUYER, GET, /api/v1/admin/users?verificationStatus=PENDING",
-            "BUYER, POST, /api/v1/admin/users/user-456/verify",
-            "BUYER, POST, /api/v1/admin/users/user-456/reject",
-            "SELLER, GET, /api/v1/admin/users?verificationStatus=PENDING",
-            "SELLER, POST, /api/v1/admin/users/user-456/verify",
-            "SELLER, POST, /api/v1/admin/users/user-456/reject"
-    })
-    void adminUserRoute_withoutStaffRole_isForbiddenAndNeverForwarded(String role, String method, String path)
+    @ParameterizedTest(name = "{0} {1} {2}")
+    @MethodSource("wrongRoleStaffRequests")
+    void staffAction_withAnyOtherRole_isForbiddenAndNeverForwarded(String role, String method, String path)
             throws InterruptedException {
         client.method(HttpMethod.valueOf(method)).uri(path)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(role))
-                .header("X-User-Role", "ADMIN")
+                .header("X-User-Role", "ADMIN,OPERATOR,ARBITRATOR")
                 .exchange()
                 .expectStatus().isForbidden();
 
         assertNotForwarded();
+    }
+
+    // Exact staff matchers must not swallow the Buyer/Seller contract wildcard next to them.
+    @Test
+    void participantContractAction_nextToStaffActions_staysAuthenticatedOnly() throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+
+        client.post().uri(CONTRACT + "/breach-cases/" + LISTING_ID + "/contest")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
+                .exchange()
+                .expectStatus().isOk();
+
+        assertThat(downstream.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
     }
 
     @Test
@@ -344,6 +421,8 @@ class GatewayBoundaryTest {
             case "SELLER" -> SELLER_TOKEN;
             case "ADMIN" -> ADMIN_TOKEN;
             case "OPERATOR" -> OPERATOR_TOKEN;
+            case "ARBITRATOR" -> ARBITRATOR_TOKEN;
+            case "INSPECTOR" -> INSPECTOR_TOKEN;
             default -> throw new IllegalArgumentException(role);
         };
     }

@@ -1,4 +1,4 @@
-package com.agricontract.gateway.config;
+package com.agricontract.gateway.infrastructure.security;
 
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.core.GrantedAuthority;
@@ -14,12 +14,14 @@ import java.util.Set;
  * Maps Keycloak {@code realm_access.roles} to {@code ROLE_*} authorities, keeping only application roles.
  * Realm housekeeping roles (offline_access, uma_authorization, default-roles-*) never become authorities,
  * so neither the gateway role gate nor the X-User-Role header ever sees them.
+ * Every canonical role is kept, including combinations: user-service rejects OPERATOR+ARBITRATOR itself,
+ * so the gateway must forward the full set rather than hide one of them.
  */
 public class KeycloakRealmRoleConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
     public static final String ROLE_PREFIX = "ROLE_";
 
-    static final Set<String> APPLICATION_ROLES = Set.of("BUYER", "SELLER", "ADMIN", "OPERATOR", "INSPECTOR");
+    static final Set<String> APPLICATION_ROLES = Set.of("BUYER", "SELLER", "ADMIN", "OPERATOR", "ARBITRATOR", "INSPECTOR");
 
     @Override
     public Collection<GrantedAuthority> convert(Jwt jwt) {

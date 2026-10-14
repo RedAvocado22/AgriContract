@@ -1,6 +1,6 @@
 package com.agricontract.gateway.filter;
 
-import com.agricontract.gateway.config.KeycloakRealmRoleConverter;
+import com.agricontract.gateway.infrastructure.security.KeycloakRealmRoleConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -138,6 +138,17 @@ class UserContextInjectionFilterTest {
                 List.of("default-roles-agricontract", "offline_access", "SELLER", "uma_authorization"))), chain).block();
 
         assertThat(forwardedHeaders().get("X-User-Role")).containsExactly("SELLER");
+    }
+
+    @Test
+    void allCanonicalRoles_areForwardedTogether() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/users/me").build();
+
+        filter.filter(withPrincipal(request, jwt("user-123", "user@agri.test",
+                List.of("offline_access", "BUYER", "SELLER", "ADMIN", "OPERATOR", "ARBITRATOR", "INSPECTOR"))), chain).block();
+
+        assertThat(forwardedHeaders().get("X-User-Role"))
+                .containsExactly("BUYER,SELLER,ADMIN,OPERATOR,ARBITRATOR,INSPECTOR");
     }
 
     @Test
