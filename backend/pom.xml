@@ -24,6 +24,7 @@
         <module>contract-service</module>
         <module>escrow-service</module>
         <module>notification-service</module>
+        <module>reputation-service</module>
         <module>inspection-service</module>
     </modules>
 
