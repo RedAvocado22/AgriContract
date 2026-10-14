@@ -1,5 +1,6 @@
 package com.agricontract.gateway.config;
 
+import com.agricontract.gateway.infrastructure.security.KeycloakRealmRoleConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -54,8 +55,23 @@ public class SecurityConfig {
                                 "/api/v1/listings",
                                 "/api/v1/listings/{listingId:" + UUID + "}",
                                 "/api/v1/products/{productId:" + UUID + "}").permitAll()
-                        // Coarse role gate; user-service still authorizes each KYC action.
-                        .pathMatchers("/api/v1/admin/users/**").hasAnyRole("ADMIN", "OPERATOR")
+                        // Coarse staff gate (gateway design 3.3, SRS v1.6): each action takes exactly its own staff
+                        // role, no ADMIN fallback. Exact method+path matchers sit before the wildcards they narrow;
+                        // the owning service still re-checks role and resource.
+                        .pathMatchers(HttpMethod.GET, "/api/v1/admin/users").hasRole("OPERATOR")
+                        .pathMatchers(HttpMethod.POST,
+                                "/api/v1/admin/users/*/verify",
+                                "/api/v1/admin/users/*/reject").hasRole("OPERATOR")
+                        .pathMatchers("/api/v1/admin/users", "/api/v1/admin/users/**").hasRole("ADMIN")
+                        // INSPECTOR also decides breach cases (decisionSource INSPECTOR_L1_5/L2, OpenAPI x-roles).
+                        .pathMatchers(HttpMethod.POST,
+                                "/api/v1/contracts/*/breach-cases/*/review",
+                                "/api/v1/contracts/*/breach-cases/*/resolve").hasAnyRole("ARBITRATOR", "INSPECTOR")
+                        .pathMatchers(HttpMethod.POST,
+                                "/api/v1/contracts/*/milestones/*/force-majeure/resolve").hasRole("ARBITRATOR")
+                        .pathMatchers(HttpMethod.POST,
+                                "/api/v1/contracts/*/activation/**",
+                                "/api/v1/contracts/*/milestones/*/funding/retry").hasRole("OPERATOR")
                         .anyExchange().authenticated()
                 )
                 .oauth2ResourceServer(
