@@ -1,7 +1,7 @@
 package com.agricontract.reputation.infrastructure.messaging;
 import com.agricontract.reputation.application.exception.ImmutableFactConflictException;
 import com.agricontract.reputation.application.usecase.AppendReputationFact;
-import com.agricontract.reputation.domain.model.*;
+import com.agricontract.reputation.application.dto.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
@@ -44,18 +44,18 @@ public class ReputationFactConsumerTest {
     @Test void completionMapsCanonicalIdsAndUtcPrecision() {
         ObjectNode event = event("contract.settled");
         consumer.completed(message(event));
-        verify(append).execute(new CompletedContractFact(UUID.fromString(event.path("payload").path("contractId").asText()),
+        verify(append).execute(new AppendCompletedContractCommand(UUID.fromString(event.path("payload").path("contractId").asText()),
                 UUID.fromString(event.path("payload").path("buyerId").asText()),
                 UUID.fromString(event.path("payload").path("sellerId").asText()),
-                Instant.parse("2026-10-13T00:00:00.123456Z"), UUID.fromString(event.path("eventId").asText())));
+                Instant.parse("2026-10-13T00:00:00.123456789Z"), UUID.fromString(event.path("eventId").asText())));
     }
     @Test void disputeMapsDirectlyWithoutParticipantLookup() {
         ObjectNode event = event("milestone.dispute_resolved");
         consumer.dispute(message(event));
-        verify(append).execute(new DisputeOutcomeFact(UUID.fromString(event.path("payload").path("milestoneId").asText()),
+        verify(append).execute(new AppendDisputeOutcomeCommand(UUID.fromString(event.path("payload").path("milestoneId").asText()),
                 UUID.fromString(event.path("payload").path("contractId").asText()),
-                UUID.fromString(event.path("payload").path("flaggedByUserId").asText()), ResolutionFavors.SELLER,
-                Instant.parse("2026-10-13T00:00:00.123456Z"), UUID.fromString(event.path("eventId").asText())));
+                UUID.fromString(event.path("payload").path("flaggedByUserId").asText()), "SELLER",
+                Instant.parse("2026-10-13T00:00:00.123456789Z"), UUID.fromString(event.path("eventId").asText())));
     }
     static Stream<Consumer<ObjectNode>> invalidEnvelopes() {
         return Stream.of(e -> e.remove("eventId"), e -> e.put("eventId","1-1-1-1-1"),
@@ -81,10 +81,10 @@ public class ReputationFactConsumerTest {
         verifyNoInteractions(append);
     }
     @Test void conflictingContentIsPermanentButDatabaseOutageIsRetryable() {
-        when(append.execute(any(CompletedContractFact.class))).thenThrow(new ImmutableFactConflictException());
+        when(append.execute(any(AppendCompletedContractCommand.class))).thenThrow(new ImmutableFactConflictException());
         assertThatThrownBy(() -> consumer.completed(message(event("contract.settled"))))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
-        when(append.execute(any(CompletedContractFact.class))).thenThrow(new DataAccessResourceFailureException("offline"));
+        when(append.execute(any(AppendCompletedContractCommand.class))).thenThrow(new DataAccessResourceFailureException("offline"));
         assertThatThrownBy(() -> consumer.completed(message(event("contract.settled"))))
                 .isInstanceOf(DataAccessResourceFailureException.class);
     }

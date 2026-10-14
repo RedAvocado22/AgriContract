@@ -1,7 +1,6 @@
 package com.agricontract.reputation.infrastructure.web;
 import com.agricontract.reputation.application.usecase.GetPublicReputationSummary;
-import com.agricontract.reputation.domain.model.FactValues;
-import com.agricontract.reputation.domain.model.ReputationSummary;
+import com.agricontract.reputation.application.dto.PublicSummaryQuery;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -11,14 +10,15 @@ public class PublicSummaryController {
     private final GetPublicReputationSummary summary;
     public PublicSummaryController(GetPublicReputationSummary summary) { this.summary = summary; }
     @GetMapping("/api/v1/reputation/{userId}/public-summary")
-    public ReputationSummary get(@PathVariable String userId) {
+    public PublicSummaryResponse get(@PathVariable String userId) {
         UUID target;
         try {
-            target = FactValues.uuid(userId);
+            target = UUID.fromString(userId);
+            if (!target.toString().equalsIgnoreCase(userId)) throw new IllegalArgumentException();
         } catch (IllegalArgumentException invalidId) {
             throw new InvalidUserIdException();
         }
-        return summary.execute(target);
+        return PublicSummaryResponse.from(summary.execute(new PublicSummaryQuery(target)));
     }
     @ExceptionHandler(InvalidUserIdException.class)
     public ResponseEntity<ErrorResponse> invalidId(HttpServletRequest request) {

@@ -5,6 +5,7 @@ import com.agricontract.reputation.domain.model.DisputeOutcomeFact;
 import com.agricontract.reputation.infrastructure.contract.FrozenSchemas;
 import com.agricontract.reputation.infrastructure.messaging.ReputationFactConsumerTest;
 import com.agricontract.reputation.infrastructure.persistence.JdbcFactRepository;
+import com.agricontract.reputation.infrastructure.messaging.DlqMonitor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -66,6 +67,7 @@ class ReputationRabbitMySqlTest {
     @Autowired AmqpAdmin brokerAdmin;
     @Autowired JdbcTemplate runtime;
     @Autowired ObjectMapper json;
+    @Autowired DlqMonitor monitor;
     @SpyBean(proxyTargetAware = true) JdbcFactRepository facts;
     final HttpClient management = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
@@ -174,6 +176,44 @@ class ReputationRabbitMySqlTest {
         assertThat(runtime.queryForObject("SELECT source_event_id FROM completed_contract_fact", String.class))
                 .isEqualTo(event.get("eventId").asText());
     }
+    @Test void brokerUsesOwnedDlxAndCanonicalBindingsWithoutRoutingOverrides() throws Exception {
+        var exchange = managementGet("/api/exchanges/%2F/agricontract.reputation.dlx");
+        assertThat(exchange.path("type").asText()).isEqualTo("direct");
+        assertThat(exchange.path("durable").asBoolean()).isTrue();
+        var bindings = managementGet("/api/exchanges/%2F/agricontract.reputation.dlx/bindings/source");
+        assertThat(bindings.size()).isEqualTo(2);
+        for (String queue : List.of(COMPLETED, DISPUTE)) {
+            var arguments = queueStats(queue).path("arguments");
+            assertThat(arguments.path("x-dead-letter-exchange").asText()).isEqualTo("agricontract.reputation.dlx");
+            assertThat(arguments.has("x-dead-letter-routing-key")).isFalse();
+            assertThat(bindings).anySatisfy(binding -> {
+                assertThat(binding.path("destination").asText()).isEqualTo(queue + ".dlq");
+                assertThat(binding.path("routing_key").asText()).isEqualTo(queue.substring("reputation-svc.".length()));
+            });
+        }
+    }
+    @Test void malformedDisputePreservesItsOwnOriginalKeyAndDlq() throws Exception {
+        var invalid = ReputationFactConsumerTest.event("milestone.dispute_resolved");
+        ((ObjectNode)invalid.get("payload")).remove("milestoneId");
+        publish(invalid);
+        assertDeadLetter(DISPUTE, invalid);
+        verifyNoInteractions(facts);
+        assertThat(count("dispute_outcome_fact")).isZero();
+        assertThat(rabbit.receive(COMPLETED + ".dlq")).isNull();
+    }
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void monitorWarnsAboutRealDlqWithoutConsumingIt(org.springframework.boot.test.system.CapturedOutput output) {
+        var invalid = ReputationFactConsumerTest.event("contract.settled");
+        ((ObjectNode)invalid.get("payload")).remove("buyerId");
+        publish(invalid);
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+                assertThat(brokerAdmin.getQueueInfo(COMPLETED + ".dlq").getMessageCount()).isEqualTo(1));
+        monitor.checkDlqDepth();
+        assertThat(output.getOut()).contains(
+                "event=reputation_dlq_nonempty queue=reputation-svc.contract.settled.dlq messageCount=1");
+        assertThat(brokerAdmin.getQueueInfo(COMPLETED + ".dlq").getMessageCount()).isEqualTo(1);
+    }
     void publish(ObjectNode event) {
         rabbit.send("agricontract.contracts", event.path("eventType").asText(), ReputationFactConsumerTest.message(event));
     }
@@ -181,10 +221,13 @@ class ReputationRabbitMySqlTest {
         Message dead = rabbit.receive(queue + ".dlq", 15000);
         assertThat(dead).isNotNull();
         assertThat(dead.getBody()).isEqualTo(ReputationFactConsumerTest.message(event).getBody());
+        assertThat(dead.getMessageProperties().getReceivedExchange()).isEqualTo("agricontract.reputation.dlx");
+        assertThat(dead.getMessageProperties().getReceivedRoutingKey()).isEqualTo(event.path("eventType").asText());
         var deaths = dead.getMessageProperties().getXDeathHeader();
         assertThat(deaths).isNotEmpty();
         assertThat(deaths.getFirst().get("queue").toString()).isEqualTo(queue);
         assertThat(deaths.getFirst().get("reason").toString()).isEqualTo("rejected");
+        assertThat(deaths.getFirst().get("routing-keys").toString()).isEqualTo("[" + event.path("eventType").asText() + "]");
         return dead;
     }
     int count(String table) { return runtime.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class); }
@@ -204,9 +247,12 @@ class ReputationRabbitMySqlTest {
     }
     long acknowledgments(String queue) throws Exception { return queueStats(queue).path("message_stats").path("ack").asLong(); }
     JsonNode queueStats(String queue) throws Exception {
+        return managementGet("/api/queues/%2F/" + queue);
+    }
+    JsonNode managementGet(String path) throws Exception {
         String credentials = Base64.getEncoder().encodeToString((BROKER_USER + ":" + BROKER_PASSWORD).getBytes(StandardCharsets.UTF_8));
         var request = HttpRequest.newBuilder(URI.create("http://" + RABBIT.getHost() + ":" + RABBIT.getMappedPort(15672)
-                + "/api/queues/%2F/" + queue)).timeout(Duration.ofSeconds(5)).header("Authorization", "Basic " + credentials).build();
+                + path)).timeout(Duration.ofSeconds(5)).header("Authorization", "Basic " + credentials).build();
         var response = management.send(request, HttpResponse.BodyHandlers.ofString());
         assertThat(response.statusCode()).isEqualTo(200);
         return json.readTree(response.body());

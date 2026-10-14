@@ -24,6 +24,11 @@ gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET}
 server:
   port: ${SERVER_PORT:8088}
+reputation:
+  dlq-monitor:
+    enabled: ${REPUTATION_DLQ_MONITOR_ENABLED:true}
+    interval-ms: ${REPUTATION_DLQ_MONITOR_INTERVAL_MS:300000}
+    timeout-ms: ${REPUTATION_DLQ_MONITOR_TIMEOUT_MS:3000}
 management:
   endpoints:
     web:

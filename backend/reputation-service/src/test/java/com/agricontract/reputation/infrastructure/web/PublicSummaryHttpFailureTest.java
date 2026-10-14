@@ -1,7 +1,8 @@
 package com.agricontract.reputation.infrastructure.web;
 
 import com.agricontract.reputation.application.usecase.GetPublicReputationSummary;
-import com.agricontract.reputation.domain.model.ReputationSummary;
+import com.agricontract.reputation.application.dto.PublicSummaryResult;
+import com.agricontract.reputation.application.dto.PublicSummaryQuery;
 import com.agricontract.reputation.infrastructure.config.SecurityConfiguration;
 import com.agricontract.reputation.infrastructure.contract.FrozenSchemas;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,15 +40,15 @@ class PublicSummaryHttpFailureTest {
     @MockBean GetPublicReputationSummary summary;
 
     @Test void databaseFailureIsAContractCompliant500WithoutPrivateDetails() throws Exception {
-        when(summary.execute(USER)).thenThrow(new DataAccessResourceFailureException(PRIVATE_DETAILS));
+        when(summary.execute(new PublicSummaryQuery(USER))).thenThrow(new DataAccessResourceFailureException(PRIVATE_DETAILS));
         assertSafeServerError(auth(get(PATH)), PATH);
     }
     @Test void unexpectedApplicationFailureAlsoStaysA500() throws Exception {
-        when(summary.execute(USER)).thenThrow(new IllegalStateException(PRIVATE_DETAILS));
+        when(summary.execute(new PublicSummaryQuery(USER))).thenThrow(new IllegalStateException(PRIVATE_DETAILS));
         assertSafeServerError(auth(get(PATH)), PATH);
     }
     @Test void internalIllegalArgumentIsNotMisclassifiedAsAnInvalidPath() throws Exception {
-        when(summary.execute(USER)).thenThrow(new IllegalArgumentException(PRIVATE_DETAILS));
+        when(summary.execute(new PublicSummaryQuery(USER))).thenThrow(new IllegalArgumentException(PRIVATE_DETAILS));
         assertSafeServerError(auth(get(PATH)), PATH);
     }
     @Test void internalErrorDispatchKeeps500AfterAuthenticationContextWasCleared() throws Exception {
@@ -82,7 +83,7 @@ class PublicSummaryHttpFailureTest {
         verifyNoInteractions(summary);
     }
     @Test void successfulSummaryRemainsContractCompliant() throws Exception {
-        when(summary.execute(USER)).thenReturn(new ReputationSummary(USER, null, false, List.of()));
+        when(summary.execute(new PublicSummaryQuery(USER))).thenReturn(new PublicSummaryResult(USER, null, false, List.of()));
         var result = mvc.perform(auth(get(PATH))).andExpect(status().isOk()).andReturn();
         FrozenSchemas.assertResponse("ReputationPublicSummary", json.readTree(result.getResponse().getContentAsString()));
     }
