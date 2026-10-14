@@ -4,8 +4,9 @@
 
 - **Mockup màn hình (Part III) chưa đổi theo role mới.** Khoảng 30 ảnh vẫn ghi "Admin Portal / ADMIN | Platform Administrator". Nặng nhất là ảnh 7.2.2 có tiêu đề "Breach Case Detail (Admin)"; 2.2.2 "A different Admin must approve this proposal."; 7.4.1 "awaiting Admin decision"; 7.1.1 "notify counterparty/Admin (MSG80)". Một số màn Buyer/Seller (1.2.1 My Profile, 5.x, 6.x) cũng mang header ADMIN, lỗi này có từ bản gốc. Cần export lại: header đúng role (OPERATOR / ARBITRATOR / BUYER·SELLER), Admin chỉ còn ở 8.x và 9.x.
   - Thêm cho đợt này: màn Breach Case của Buyer/Seller cần nút **Contest** và hiển thị hạn contest (GB-50). Màn Breach Case Detail của Arbitrator cần hiện trạng thái "waiting for contest window".
+- **SRS chưa ghi ngoại lệ contest cho breach cấp contract** (chốt 12/10/2026, milestone-escrow §6.4). UC41 alt flow "Decision Contested" và GB-50 cần thêm: `BreachCase` có `milestoneId = NULL` không contest trên platform, `remedy.finalized` publish ngay; đường kháng còn lại là VIAC/toà.
 - **7.2.1 Breach Case Queue dùng chung ảnh với 7.2.2.** Lỗi có sẵn từ bản gốc; làm cùng đợt mockup.
-- **SDS / Architecture docx + contracts/*.yaml chưa sync role.** Gồm enum `decisionSource` còn ADMIN, `PublicUserResponse.role` chưa có ARBITRATOR, `reputation.elevated_risk_cleared` còn `approvedByAdminId`/`clearedByAdminId`, và chưa có contest window. YAML chờ cấp quyền repo.
+- **SDS / Architecture docx + contracts/*.yaml chưa sync role.** Gồm enum `decisionSource` còn ADMIN, `PublicUserResponse.role` chưa có ARBITRATOR, `reputation.elevated_risk_cleared` còn `approvedByAdminId`/`clearedByAdminId`, YAML (`contracts/*.yaml`) đã sync role + contest window ở commit `d6be0e0`; còn lại SDS/Architecture docx.
 
 ## Đã chốt (12/10/2026)
 
