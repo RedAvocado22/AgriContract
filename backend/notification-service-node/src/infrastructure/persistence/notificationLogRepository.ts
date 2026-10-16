@@ -1,4 +1,5 @@
 import type mysql from 'mysql2/promise';
+import { DatabaseDeadlineError, type DbCallOptions } from '../../application/ports.js';
 import {
   persistableBody,
   type NewNotificationLog,
@@ -70,6 +71,38 @@ function toNotificationLog(row: NotificationLogRow): NotificationLog {
   };
 }
 
+type SqlValue = string | number | null;
+
+/**
+ * Resolves with a pool connection, or rejects with DatabaseDeadlineError after timeoutMs.
+ * A connection that arrives after the timeout goes straight back to the pool.
+ */
+function acquire(pool: mysql.Pool, timeoutMs: number): Promise<mysql.PoolConnection> {
+  return new Promise((resolve, reject) => {
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      reject(new DatabaseDeadlineError('ACQUIRE'));
+    }, timeoutMs);
+    pool.getConnection().then(
+      (connection) => {
+        if (timedOut) {
+          connection.release();
+          return;
+        }
+        clearTimeout(timer);
+        resolve(connection);
+      },
+      (error: unknown) => {
+        if (!timedOut) {
+          clearTimeout(timer);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      },
+    );
+  });
+}
+
 export class NotificationLogRepository {
   constructor(
     private readonly pool: mysql.Pool,
@@ -77,13 +110,66 @@ export class NotificationLogRepository {
   ) {}
 
   /**
+   * Runs one statement. With options.timeoutMs, the wait for a connection plus PREPARE and
+   * EXECUTE are capped together; on timeout the connection is destroyed so the late result
+   * cannot reach the pool. That does not cancel the statement on the server: an INSERT or
+   * UPDATE may still commit after DatabaseDeadlineError was raised.
+   */
+  private async run<T extends mysql.QueryResult>(
+    sql: string,
+    values: SqlValue[],
+    options: DbCallOptions | undefined,
+  ): Promise<T> {
+    const timeoutMs = options?.timeoutMs;
+    if (timeoutMs === undefined) {
+      const [result] = await this.pool.execute<T>(sql, values);
+      return result;
+    }
+    if (timeoutMs <= 0) {
+      throw new DatabaseDeadlineError('ACQUIRE');
+    }
+
+    const startedAt = Date.now();
+    const connection = await acquire(this.pool, timeoutMs);
+    const left = timeoutMs - (Date.now() - startedAt);
+    if (left <= 0) {
+      connection.release();
+      throw new DatabaseDeadlineError('ACQUIRE');
+    }
+
+    const statement = connection.execute<T>(sql, values);
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(new DatabaseDeadlineError('QUERY'));
+      }, left);
+    });
+    try {
+      const [result] = await Promise.race([statement, timeout]);
+      connection.release();
+      return result;
+    } catch (error) {
+      if (error instanceof DatabaseDeadlineError) {
+        // The statement's own settlement no longer matters; keep it from going unhandled.
+        statement.catch(() => undefined);
+        connection.destroy();
+      } else {
+        connection.release();
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * Inserts a PENDING row. Returns false when a row with the same dedup key already exists,
    * meaning another caller owns this notification.
    */
-  async reserve(log: NewNotificationLog): Promise<boolean> {
+  async reserve(log: NewNotificationLog, options?: DbCallOptions): Promise<boolean> {
     const now = toUtcDatetime(this.now());
     try {
-      await this.pool.execute(
+      await this.run(
         `INSERT INTO notification_logs
            (notification_id, event_id, event_type, notification_type, user_id, recipient_email,
             channel, template_version, subject, body, status, retry_count, created_at, updated_at)
@@ -101,6 +187,7 @@ export class NotificationLogRepository {
           now,
           now,
         ],
+        options,
       );
       return true;
     } catch (error) {
@@ -116,13 +203,15 @@ export class NotificationLogRepository {
     notificationId: string,
     providerMessageId: string,
     sentAt: Date,
+    options?: DbCallOptions,
   ): Promise<boolean> {
-    const [result] = await this.pool.execute<mysql.ResultSetHeader>(
+    const result = await this.run<mysql.ResultSetHeader>(
       `UPDATE notification_logs
           SET status = 'SENT', provider_message_id = ?, sent_at = ?, failure_reason = NULL,
               updated_at = ?
         WHERE notification_id = ?`,
       [providerMessageId, toUtcDatetime(sentAt), toUtcDatetime(this.now()), notificationId],
+      options,
     );
     return result.affectedRows === 1;
   }
@@ -131,19 +220,24 @@ export class NotificationLogRepository {
    * Marks the attempt failed and counts it in retry_count. failureReason must not contain
    * secrets or OTP codes. Returns false when no row has this notificationId.
    */
-  async markFailed(notificationId: string, failureReason: string): Promise<boolean> {
-    const [result] = await this.pool.execute<mysql.ResultSetHeader>(
+  async markFailed(
+    notificationId: string,
+    failureReason: string,
+    options?: DbCallOptions,
+  ): Promise<boolean> {
+    const result = await this.run<mysql.ResultSetHeader>(
       `UPDATE notification_logs
           SET status = 'FAILED', failure_reason = ?, retry_count = retry_count + 1,
               updated_at = ?
         WHERE notification_id = ?`,
       [failureReason, toUtcDatetime(this.now()), notificationId],
+      options,
     );
     return result.affectedRows === 1;
   }
 
-  async findByKey(key: NotificationKey): Promise<NotificationLog | null> {
-    const [rows] = await this.pool.execute<NotificationLogRow[]>(
+  async findByKey(key: NotificationKey, options?: DbCallOptions): Promise<NotificationLog | null> {
+    const rows = await this.run<NotificationLogRow[]>(
       `SELECT notification_id, event_id, event_type, notification_type, user_id, recipient_email,
               channel, template_version, subject, body, status, retry_count, provider_message_id,
               failure_reason, ${utcColumn('sent_at')}, ${utcColumn('created_at')},
@@ -151,6 +245,7 @@ export class NotificationLogRepository {
          FROM notification_logs
         WHERE event_id = ? AND recipient_email = ? AND notification_type = ?`,
       [key.eventId, key.recipientEmail, key.notificationType],
+      options,
     );
     const row = rows[0];
     return row === undefined ? null : toNotificationLog(row);

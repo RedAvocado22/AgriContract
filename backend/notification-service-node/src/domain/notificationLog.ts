@@ -32,6 +32,11 @@ export interface NotificationLog extends NewNotificationLog {
 
 export const OTP_NOTIFICATION_TYPE = 'OTP_SIGN';
 
+/** Placeholder stored in place of a body that must not be persisted. */
+export function redactedBody(templateVersion: string): string {
+  return `[redacted:${templateVersion}]`;
+}
+
 /**
  * Body that may be persisted. OTP mail bodies contain the code, so only a placeholder
  * naming the template is stored (design §8).
@@ -40,6 +45,6 @@ export function persistableBody(
   log: Pick<NewNotificationLog, 'notificationType' | 'templateVersion' | 'body'>,
 ): string {
   return log.notificationType === OTP_NOTIFICATION_TYPE
-    ? `[redacted:${log.templateVersion}]`
+    ? redactedBody(log.templateVersion)
     : log.body;
 }

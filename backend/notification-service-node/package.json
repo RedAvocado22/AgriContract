@@ -14,7 +14,9 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "contracts:sync": "tsx scripts/sync-contracts.ts",
+    "contracts:check": "tsx scripts/sync-contracts.ts --check"
   },
   "dependencies": {
     "ajv": "^8.20.0",
@@ -38,6 +40,7 @@
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "yaml": "^2.9.1"
   }
 }
