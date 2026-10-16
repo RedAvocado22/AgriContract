@@ -9,14 +9,24 @@ spring:
   cloud:
     gateway:
       routes:
+        # Internal APIs are never exposed externally. SecurityConfig's internal chain already answers 404;
+        # this route is a second layer in case a request ever gets past it.
+        - id: internal-deny
+          uri: no://op
+          order: -1
+          predicates:
+            - Path=/internal/**
+          filters:
+            - SetStatus=404
         - id: user-service
           uri: ${USER_SERVICE_URL:http://localhost:8081}
           predicates:
-            - Path=/api/v1/users/**
+            # KYC admin API is owned by user-service; other /api/v1/admin/** prefixes belong to their own services.
+            - Path=/api/v1/users/**, /api/v1/admin/users/**
         - id: product-service
           uri: ${PRODUCT_SERVICE_URL:http://localhost:8082}
           predicates:
-            - Path=/api/v1/products/**, /api/v1/listings/**
+            - Path=/api/v1/products/**, /api/v1/listings/**, /api/v1/categories/**
         - id: contract-service
           uri: ${CONTRACT_SERVICE_URL:http://localhost:8083}
           predicates:
@@ -25,10 +35,6 @@ spring:
           uri: ${ESCROW_SERVICE_URL:http://localhost:8084}
           predicates:
             - Path=/api/v1/escrows/**
-        - id: notification-service
-          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
-          predicates:
-            - Path=/api/v1/notifications/**
 
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
@@ -38,7 +44,7 @@ server:
 
 logging:
   level:
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
 
 management:
   endpoints:
