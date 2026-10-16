@@ -1,0 +1,44 @@
+meta {
+  name: 22. OTP email: invalid payload is rejected with 400
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{notification_service_url}}/internal/v1/notifications/otp-email
+  body: json
+  auth: none
+}
+
+headers {
+  X-Internal-Secret: {{service_internal_secret}}
+}
+
+body:json {
+  {
+    "requestId": "otp-invalid-{{otp_invalid_stamp}}",
+    "recipientUserId": "{{buyer1_sub}}",
+    "recipientEmail": "{{buyer1_email}}",
+    "contractId": "otp-invalid-ctr-{{otp_invalid_stamp}}",
+    "otpCode": "12ab56",
+    "signedContentHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "expiresAt": "2099-01-01T00:00:00Z"
+  }
+}
+
+script:pre-request {
+  bru.setVar("otp_invalid_stamp", String(Date.now()));
+}
+
+tests {
+  test("returns 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("uses the ErrorEnvelope with VALIDATION_ERROR naming otpCode", function() {
+    const body = res.getBody();
+    expect(body.code).to.equal("VALIDATION_ERROR");
+    expect(body.message).to.contain("otpCode");
+    expect(body.path).to.equal("/internal/v1/notifications/otp-email");
+  });
+}

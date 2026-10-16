@@ -1,0 +1,51 @@
+meta {
+  name: 20. OTP email: send (Node service)
+  type: http
+  seq: 20
+}
+
+post {
+  url: {{notification_service_url}}/internal/v1/notifications/otp-email
+  body: json
+  auth: none
+}
+
+headers {
+  X-Internal-Secret: {{service_internal_secret}}
+}
+
+body:json {
+  {
+    "requestId": "{{otp_request_id}}",
+    "recipientUserId": "{{buyer1_sub}}",
+    "recipientEmail": "{{buyer1_email}}",
+    "contractId": "{{otp_contract_id}}",
+    "otpCode": "{{otp_code}}",
+    "signedContentHash": "{{otp_signed_content_hash}}",
+    "expiresAt": "{{otp_expires_at}}"
+  }
+}
+
+script:pre-request {
+  // Throwaway values for this run only, kept in runtime vars (not written to the environment).
+  const stamp = Date.now();
+  let hash = "";
+  while (hash.length < 64) hash += Math.floor(Math.random() * 16).toString(16);
+  bru.setVar("otp_request_id", "otp-" + stamp);
+  bru.setVar("otp_contract_id", "otp-ctr-" + stamp);
+  bru.setVar("otp_code", String(Math.floor(100000 + Math.random() * 900000)));
+  bru.setVar("otp_signed_content_hash", hash);
+  bru.setVar("otp_expires_at", new Date(stamp + 5 * 60 * 1000).toISOString());
+}
+
+tests {
+  test("provider accepted the OTP email (200, no body)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Runs against the Node notification-service (backend/notification-service-node), not the Java one.
+  Set the secret var `service_internal_secret` in the `local` environment to the value of
+  SERVICE_INTERNAL_SECRET in backend/.env. See the service README for how to start it.
+}

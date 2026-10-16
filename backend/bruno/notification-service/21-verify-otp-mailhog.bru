@@ -1,0 +1,35 @@
+meta {
+  name: 21. Verify MailHog received exactly one OTP email
+  type: http
+  seq: 21
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{otp_contract_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("exactly 1 email for this request", function() {
+    expect(res.getBody().count).to.equal(1);
+  });
+
+  test("sent to buyer1", function() {
+    expect(res.getBody().items[0].Content.Headers.To[0]).to.equal(bru.getEnvVar("buyer1_email"));
+  });
+
+  test("subject matches OTP_SIGN_V1 and does not carry the code", function() {
+    const subject = res.getBody().items[0].Content.Headers.Subject[0];
+    expect(subject).to.equal("[AgriContract] Your contract signing code");
+    expect(subject.includes(bru.getVar("otp_code"))).to.equal(false);
+  });
+
+  test("body carries the code and the shortened content hash", function() {
+    const body = res.getBody().items[0].Content.Body;
+    const hash = bru.getVar("otp_signed_content_hash");
+    // Boolean checks so a failure message does not print the mail body.
+    expect(body.includes(bru.getVar("otp_code"))).to.equal(true);
+    expect(body.includes(hash.slice(0, 8) + "..." + hash.slice(-8))).to.equal(true);
+  });
+}
