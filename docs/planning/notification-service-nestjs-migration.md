@@ -14,12 +14,12 @@ metadata:
 
 **Mục tiêu:** thay `backend/notification-service` (Spring Boot) bằng một service NestJS **hành vi tương đương 100%** với Phase 1. Sau đó toàn bộ việc Phase 2 (T2 OTP, T10 notification commands) được code thẳng trên Nest, không đụng Java nữa.
 
-| Trong phạm vi | Ngoài phạm vi (làm sau, trên Nest — §9) |
-|---|---|
-| Port 9 listener Phase 1, retry/DLQ, dedup, email, log | `notification.*_requested` commands, template versioning |
-| Giữ nguyên DB schema `notification_logs` (V1) | Migration V2 (unique key mới, cột mới — design §6) |
+| Trong phạm vi                                          | Ngoài phạm vi (làm sau, trên Nest — §9)                  |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| Port 9 listener Phase 1, retry/DLQ, dedup, email, log  | `notification.*_requested` commands, template versioning |
+| Giữ nguyên DB schema `notification_logs` (V1)          | Migration V2 (unique key mới, cột mới — design §6)       |
 | Giữ nguyên tên queue/exchange/DLX, env vars, port 8085 | Endpoint OTP `POST /internal/v1/notifications/otp-email` |
-| Docker, docker-compose, CI, xoá module Java | Attachment `.ots` / PDF |
+| Docker, docker-compose, CI, xoá module Java            | Attachment `.ots` / PDF                                  |
 
 **Nguyên tắc:** migration và thay đổi nghiệp vụ không đi chung một release. Parity xong, cutover xong, rồi mới thêm Phase 2. Nhờ vậy rollback về Java vẫn an toàn vì schema chưa đổi.
 
@@ -30,13 +30,14 @@ metadata:
 - Spring Boot 3, Java 21, là module trong `backend/pom.xml`. Port `8085`. Không có REST controller, chỉ có RabbitMQ consumer và actuator `health, info`.
 - **9 queue** (`RabbitMQConfig.java`):
 
-  | Exchange (topic) | Routing key → queue `notification-svc.<key>` | DLX (direct) |
-  |---|---|---|
+  | Exchange (topic)         | Routing key → queue `notification-svc.<key>`                                       | DLX (direct)                     |
+  | ------------------------ | ---------------------------------------------------------------------------------- | -------------------------------- |
   | `agricontract.contracts` | `contract.signed`, `contract.delivered`, `contract.cancelled`, `contract.disputed` | `notification-svc.contracts.dlx` |
-  | `agricontract.escrow` | `escrow.locked`, `escrow.released`, `escrow.penalized` | `notification-svc.escrow.dlx` |
-  | `agricontract.events` | `category.approved`, `category.rejected` | `notification-svc.events.dlx` |
+  | `agricontract.escrow`    | `escrow.locked`, `escrow.released`, `escrow.penalized`                             | `notification-svc.escrow.dlx`    |
+  | `agricontract.events`    | `category.approved`, `category.rejected`                                           | `notification-svc.events.dlx`    |
 
   Mỗi queue là durable, chỉ có argument `x-dead-letter-exchange`. DLQ là `<queue>.dlq`, bind vào DLX với cùng routing key.
+
 - **Retry:** tối đa 3 lần, backoff 1s → 2s (max 4s), sau đó reject không requeue (vào DLQ). `InvalidEventPayloadException` vào DLQ ngay.
 - **Payload:** các producer (`OutboxPoller` của contract, escrow và product) publish **JSON phẳng**: `eventId`, `eventType`, `occurredAt` cùng các field nghiệp vụ ở top-level, **không có envelope** `eventVersion/producer/aggregateId/payload`. Bruno dùng `eventId` dạng `evt-signed-<timestamp>`, **không phải UUID**.
 - **Dedup:** bảng `notification_logs`, unique `(event_id, user_id)`. Thực tế cột `user_id` đang chứa **email người nhận** (`findByEventIdAndUserId(eventId, recipientEmail)`).
@@ -47,22 +48,22 @@ metadata:
 
 ## 3. Quyết định kỹ thuật
 
-| # | Vấn đề | Chọn | Lý do |
-|---|---|---|---|
-| D1 | Runtime | Node 22 LTS, NestJS 11, TypeScript strict | node-eventing yêu cầu Node ≥ 20. Node 22 có `require(esm)` (xem D3) |
-| D2 | RabbitMQ | `amqplib` + `consumeEvents`/`handleDelivery` của `@agricontract/eventing`, đặt trong một Nest provider (`onModuleInit`/`onModuleDestroy`) | Retry 3 lần, backoff 1s/2s/4s, DLQ và xử lý channel đóng đã được viết và test, đúng semantics Java. **Không** dùng `@nestjs/microservices` RMQ transport: transport này đòi format `{pattern, data}` và không hợp với DLX/queue khai báo sẵn |
-| D3 | node-eventing là ESM-only, Nest CLI mặc định CJS | CJS project + Node ≥ 22.12 (`require(esm)`) cho runtime. Jest: `moduleNameMapper` trỏ package về **source TS** của node-eventing + `tsconfig.spec.json` (`module: commonjs`). **Không cần dual build** (spike M0, 16/10/2026) | Runtime chạy được ngay. Jest không dùng `require(esm)` của Node và coi mọi `.js` trong package `type: module` là ESM trước khi transform, nên không thể dùng `dist` trong test |
-| D4 | Dedup | **Không** dùng `IdempotentConsumer`. Dedup bằng `notification_logs` giống Java | `IdempotentConsumer` gói marker và handler trong một transaction. Email là side effect ngoài DB: nếu message gửi 2 mail, mail thứ 2 lỗi, transaction rollback làm mất luôn log `SENT` của mail đầu, và lần retry sẽ gửi trùng. README node-eventing cũng nói side effect ngoài DB phải dùng semantic key riêng |
-| D5 | Parse payload Phase 1 | Parser riêng cho payload phẳng, **không** dùng `parseEnvelope` | Producer chưa gửi envelope. `parseEnvelope` sẽ đẩy mọi message vào DLQ. Validate strict theo envelope chỉ áp dụng cho Phase 2 commands |
-| D6 | Kiểu trả về `MessageConsumer` | PR nhỏ vào node-eventing: thêm type `DeliveryOutcome` (envelope tuỳ chọn, chỉ `eventId?`/`eventType?` để log) làm kiểu trả về của `MessageConsumer`. **Giữ nguyên `HandleOutcome`** nên `IdempotentConsumer` và caller cũ không đổi | Hiện `HandleOutcome` bắt buộc có `EventEnvelope`. **Đã đồng ý** (16/10/2026), diff soạn ở M0 |
-| D7 | DB access | `mysql2/promise` + repository viết SQL tay, không ORM | Bảng chỉ có 1. node-eventing cũng dùng `mysql2`. Tránh thêm TypeORM/Prisma chỉ cho 3 câu SQL |
-| D8 | Migration | Giữ Flyway: chạy one-shot container `flyway/flyway` trong compose, đọc `db/migration` của service | DB đang chạy đã có `flyway_schema_history`. Đổi tool thì phải baseline lại. Flyway không phụ thuộc ngôn ngữ app |
-| D9 | Email | `nodemailer` (SMTP), adapter sau port `EmailPort` | Tương đương `JavaMailSender` |
-| D10 | Config | `@nestjs/config` + validate env lúc khởi động (fail fast) | **Giữ nguyên tên env** để compose chỉ đổi phần build |
-| D11 | Health | `@nestjs/terminus`, route `GET /actuator/health` (kiểm tra DB + AMQP) | Giữ path cũ, không phải sửa chỗ nào đang gọi |
-| D12 | Log | Nest `Logger` mặc định, bọc thành adapter truyền vào `logger` của node-eventing | Đủ cho Phase 1. `Logger` interface của node-eventing có `info/warn/error` (adapter map `info` → `log`) |
-| D13 | Test | Jest (mặc định của Nest) cho unit test. Bruno cho parity/e2e | — |
-| D14 | Kiến trúc | Giữ layout hexagonal như Java: `domain` / `application` / `infrastructure` | Người review đọc song song 2 bản dễ hơn. Phase 2 cũng thêm vào đúng chỗ |
+| #   | Vấn đề                                           | Chọn                                                                                                                                                                                                                                | Lý do                                                                                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Runtime                                          | Node 22 LTS, NestJS 11, TypeScript strict                                                                                                                                                                                           | node-eventing yêu cầu Node ≥ 20. Node 22 có `require(esm)` (xem D3)                                                                                                                                                                                                                                            |
+| D2  | RabbitMQ                                         | `amqplib` + `consumeEvents`/`handleDelivery` của `@agricontract/eventing`, đặt trong một Nest provider (`onModuleInit`/`onModuleDestroy`)                                                                                           | Retry 3 lần, backoff 1s/2s/4s, DLQ và xử lý channel đóng đã được viết và test, đúng semantics Java. **Không** dùng `@nestjs/microservices` RMQ transport: transport này đòi format `{pattern, data}` và không hợp với DLX/queue khai báo sẵn                                                                   |
+| D3  | node-eventing là ESM-only, Nest CLI mặc định CJS | CJS project + Node ≥ 22.12 (`require(esm)`) cho runtime. Jest: `moduleNameMapper` trỏ package về **source TS** của node-eventing + `tsconfig.spec.json` (`module: commonjs`). **Không cần dual build** (spike M0, 16/10/2026)       | Runtime chạy được ngay. Jest không dùng `require(esm)` của Node và coi mọi `.js` trong package `type: module` là ESM trước khi transform, nên không thể dùng `dist` trong test                                                                                                                                 |
+| D4  | Dedup                                            | **Không** dùng `IdempotentConsumer`. Dedup bằng `notification_logs` giống Java                                                                                                                                                      | `IdempotentConsumer` gói marker và handler trong một transaction. Email là side effect ngoài DB: nếu message gửi 2 mail, mail thứ 2 lỗi, transaction rollback làm mất luôn log `SENT` của mail đầu, và lần retry sẽ gửi trùng. README node-eventing cũng nói side effect ngoài DB phải dùng semantic key riêng |
+| D5  | Parse payload Phase 1                            | Parser riêng cho payload phẳng, **không** dùng `parseEnvelope`                                                                                                                                                                      | Producer chưa gửi envelope. `parseEnvelope` sẽ đẩy mọi message vào DLQ. Validate strict theo envelope chỉ áp dụng cho Phase 2 commands                                                                                                                                                                         |
+| D6  | Kiểu trả về `MessageConsumer`                    | PR nhỏ vào node-eventing: thêm type `DeliveryOutcome` (envelope tuỳ chọn, chỉ `eventId?`/`eventType?` để log) làm kiểu trả về của `MessageConsumer`. **Giữ nguyên `HandleOutcome`** nên `IdempotentConsumer` và caller cũ không đổi | Hiện `HandleOutcome` bắt buộc có `EventEnvelope`. **Đã đồng ý** (16/10/2026), diff soạn ở M0                                                                                                                                                                                                                   |
+| D7  | DB access                                        | `mysql2/promise` + repository viết SQL tay, không ORM                                                                                                                                                                               | Bảng chỉ có 1. node-eventing cũng dùng `mysql2`. Tránh thêm TypeORM/Prisma chỉ cho 3 câu SQL                                                                                                                                                                                                                   |
+| D8  | Migration                                        | Giữ Flyway: chạy one-shot container `flyway/flyway` trong compose, đọc `db/migration` của service                                                                                                                                   | DB đang chạy đã có `flyway_schema_history`. Đổi tool thì phải baseline lại. Flyway không phụ thuộc ngôn ngữ app                                                                                                                                                                                                |
+| D9  | Email                                            | `nodemailer` (SMTP), adapter sau port `EmailPort`                                                                                                                                                                                   | Tương đương `JavaMailSender`                                                                                                                                                                                                                                                                                   |
+| D10 | Config                                           | `@nestjs/config` + validate env lúc khởi động (fail fast)                                                                                                                                                                           | **Giữ nguyên tên env** để compose chỉ đổi phần build                                                                                                                                                                                                                                                           |
+| D11 | Health                                           | `@nestjs/terminus`, route `GET /actuator/health` (kiểm tra DB + AMQP)                                                                                                                                                               | Giữ path cũ, không phải sửa chỗ nào đang gọi                                                                                                                                                                                                                                                                   |
+| D12 | Log                                              | Nest `Logger` mặc định, bọc thành adapter truyền vào `logger` của node-eventing                                                                                                                                                     | Đủ cho Phase 1. `Logger` interface của node-eventing có `info/warn/error` (adapter map `info` → `log`)                                                                                                                                                                                                         |
+| D13 | Test                                             | Jest (mặc định của Nest) cho unit test. Bruno cho parity/e2e                                                                                                                                                                        | —                                                                                                                                                                                                                                                                                                              |
+| D14 | Kiến trúc                                        | Giữ layout hexagonal như Java: `domain` / `application` / `infrastructure`                                                                                                                                                          | Người review đọc song song 2 bản dễ hơn. Phase 2 cũng thêm vào đúng chỗ                                                                                                                                                                                                                                        |
 
 ## 4. Hành vi phải giữ nguyên (parity checklist)
 
@@ -121,16 +122,16 @@ backend/notification-service-nest/
 
 **Env** (giữ tên cũ, thêm 2 biến tuỳ chọn):
 
-| Env | Default | Ghi chú |
-|---|---|---|
-| `DB_HOST` / `DB_PORT` / `DB_NAME` | `localhost` / `3311` / `notification_db` | |
-| `DB_USERNAME` / `DB_PASSWORD` | `root` / `password` | |
-| `RABBITMQ_HOST` / `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | `localhost` / `guest` / `guest` | |
-| `RABBITMQ_PORT` | `5672` | mới (Java hardcode) |
-| `MAIL_HOST` / `MAIL_PORT` | `localhost` / `1025` | |
-| `MAIL_FROM` | `noreply@agricontract.com` | mới (Java: `spring.mail.from`) |
-| `ADMIN_EMAIL` | `admin@agricontract.com` | |
-| `SERVER_PORT` | `8085` | |
+| Env                                                         | Default                                  | Ghi chú                        |
+| ----------------------------------------------------------- | ---------------------------------------- | ------------------------------ |
+| `DB_HOST` / `DB_PORT` / `DB_NAME`                           | `localhost` / `3311` / `notification_db` |                                |
+| `DB_USERNAME` / `DB_PASSWORD`                               | `root` / `password`                      |                                |
+| `RABBITMQ_HOST` / `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | `localhost` / `guest` / `guest`          |                                |
+| `RABBITMQ_PORT`                                             | `5672`                                   | mới (Java hardcode)            |
+| `MAIL_HOST` / `MAIL_PORT`                                   | `localhost` / `1025`                     |                                |
+| `MAIL_FROM`                                                 | `noreply@agricontract.com`               | mới (Java: `spring.mail.from`) |
+| `ADMIN_EMAIL`                                               | `admin@agricontract.com`                 |                                |
+| `SERVER_PORT`                                               | `8085`                                   |                                |
 
 ## 6. Các mốc & task
 
@@ -139,33 +140,40 @@ backend/notification-service-nest/
 ### M0 — Spike & chốt nền tảng (1 ngày)
 
 - [x] Tạo Nest project, thêm `@agricontract/eventing` qua `file:`, build node-eventing, rồi chứng minh `import { consumeEvents } from '@agricontract/eventing'` chạy được cả trong `nest start` **và** Jest (D3). Nếu Jest không chạy được thì làm phương án dự phòng (dual build cho node-eventing).
-- [ ] Mở PR vào node-eventing cho D6 (`DeliveryOutcome`), có review của người giữ package. *Diff đã soạn và test; chờ tạo PR.*
+- [ ] Mở PR vào node-eventing cho D6 (`DeliveryOutcome`), có review của người giữ package. _Diff đã soạn và test; chờ tạo PR._
 - [x] Team chốt các câu hỏi mở ở §10 (16/10/2026).
 
 **Xong khi:** một consumer demo nhận được 1 message từ queue tạm, ack, và test Jest import được package.
 
 **Kết quả spike (16/10/2026):**
 
-| Kiểm tra | Node 22.23 | Node 24.14 |
-|---|---|---|
-| `tsc` / `nest build` (strict, `module: nodenext`, output CJS) | — | OK |
-| App chạy, import package qua `require(esm)` | OK (`node dist/main.js`) | OK (`nest start`) |
-| Consumer `notification-svc.m0-spike` nhận message phẳng, ack (0 ready / 0 unacked) | OK | OK |
-| Jest 2/2 (load package thật + `handleDelivery` ack message không envelope) | OK | OK |
-| ESLint | — | sạch |
+| Kiểm tra                                                                           | Node 22.23               | Node 24.14        |
+| ---------------------------------------------------------------------------------- | ------------------------ | ----------------- |
+| `tsc` / `nest build` (strict, `module: nodenext`, output CJS)                      | —                        | OK                |
+| App chạy, import package qua `require(esm)`                                        | OK (`node dist/main.js`) | OK (`nest start`) |
+| Consumer `notification-svc.m0-spike` nhận message phẳng, ack (0 ready / 0 unacked) | OK                       | OK                |
+| Jest 2/2 (load package thật + `handleDelivery` ack message không envelope)         | OK                       | OK                |
+| ESLint                                                                             | —                        | sạch              |
 
 - Jest với cấu hình Nest mặc định **fail** (`Must use import to load ES Module`). Transform `dist` cũng không cứu được, vì Jest phân loại ESM theo `"type": "module"` trước khi transform. Cách đã chạy: map package sang `src/index.ts` của node-eventing + `tsconfig.spec.json` compile CJS. Vì vậy **không cần dual build**. Đổi lại, test chạy trên source TS của node-eventing, còn app chạy trên `dist` của nó.
 - Trên Windows, dừng tiến trình chạy qua `npx` có thể để lại tiến trình `node` con (consumer mồ côi vẫn giữ queue). Khi test tay M4 phải kiểm tra số consumer trên queue.
 
 ### M1 — Scaffold & hạ tầng trong app (1–2 ngày)
 
-- [ ] Config module + validate env (D10).
-- [ ] MySQL pool provider, AMQP provider (connection, channel, prefetch, shutdown).
-- [ ] `topology.ts`: khai báo đủ 9 queue, 9 DLQ, 3 exchange, 3 DLX, viết dưới dạng **bảng data** để Phase 2 chỉ cần thêm dòng.
-- [ ] Health endpoint `/actuator/health`.
-- [ ] ESLint + Prettier theo mặc định Nest.
+- [x] Config module + validate env (D10).
+- [x] MySQL pool provider, AMQP provider (connection, channel, prefetch, shutdown).
+- [x] `topology.ts`: khai báo đủ 9 queue, 9 DLQ, 3 exchange, 3 DLX, viết dưới dạng **bảng data** để Phase 2 chỉ cần thêm dòng.
+- [x] Health endpoint `/actuator/health`.
+- [x] ESLint + Prettier theo mặc định Nest.
 
 **Xong khi:** `docker compose up` bản Nest khởi động được trên RabbitMQ **đang có sẵn queue do Java tạo** mà không bị `PRECONDITION_FAILED`.
+
+**Kết quả M1 (16/10/2026):** Nest chạy bằng `npm run start`, chưa qua compose vì Dockerfile thuộc M3. Hạ tầng lấy từ compose.
+
+- Trên broker đã có queue do Java tạo: không có `PRECONDITION_FAILED`, health trả 200. Output `rabbitmqctl list_queues` và `list_exchanges` giống hệt trước khi chạy Nest.
+- Chiều ngược lại: trên broker trống, Nest tạo topology trùng khớp snapshot của Java. Sau đó Java khởi động không lỗi và gắn đủ 9 consumer.
+- Broker tắt: app vẫn lên và retry với backoff 1s → 30s, health trả 503. Bật broker lại thì app tự kết nối, health về 200. DB không kết nối được, hoặc env sai, thì app thoát với exit code 1.
+- Image Java trên `main` không build được: `backend/pom.xml` có module `inspection-service`, nhưng Dockerfile không `COPY inspection-service/pom.xml`. Lúc kiểm chứng phải dùng `docker-compose.override.yml` local. Cần sửa riêng, ngoài M1.
 
 ### M2 — Port nghiệp vụ (3–4 ngày)
 
@@ -221,14 +229,14 @@ backend/notification-service-nest/
 
 ## 8. Rủi ro
 
-| Rủi ro | Ảnh hưởng | Giảm thiểu |
-|---|---|---|
-| ESM/CJS giữa node-eventing và Nest/Jest | Chặn từ ngày đầu | Spike M0, có sẵn phương án dual build |
-| Khai báo queue lệch argument so với Java | Channel bị đóng, không consume được | Topology copy từ bảng §2. Test M1 trên broker có sẵn queue |
-| Lỡ dùng `parseEnvelope`/`IdempotentConsumer` cho payload Phase 1 | Toàn bộ mail vào DLQ / gửi trùng khi retry | D4, D5. Bruno M4 bắt được ngay |
-| Sót Dockerfile của service khác khi xoá module | Build compose fail | Checklist M5, CI build image |
-| Subject/body lệch chữ | Bruno verify (so subject) fail | Copy nguyên văn. Snapshot test cho 9 handler |
-| Phase 2 bị trễ vì migration | T2/T10 trễ | Migration nhỏ (~2 tuần). Freeze Java để không làm 2 lần |
+| Rủi ro                                                           | Ảnh hưởng                                  | Giảm thiểu                                                 |
+| ---------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------- |
+| ESM/CJS giữa node-eventing và Nest/Jest                          | Chặn từ ngày đầu                           | Spike M0, có sẵn phương án dual build                      |
+| Khai báo queue lệch argument so với Java                         | Channel bị đóng, không consume được        | Topology copy từ bảng §2. Test M1 trên broker có sẵn queue |
+| Lỡ dùng `parseEnvelope`/`IdempotentConsumer` cho payload Phase 1 | Toàn bộ mail vào DLQ / gửi trùng khi retry | D4, D5. Bruno M4 bắt được ngay                             |
+| Sót Dockerfile của service khác khi xoá module                   | Build compose fail                         | Checklist M5, CI build image                               |
+| Subject/body lệch chữ                                            | Bruno verify (so subject) fail             | Copy nguyên văn. Snapshot test cho 9 handler               |
+| Phase 2 bị trễ vì migration                                      | T2/T10 trễ                                 | Migration nhỏ (~2 tuần). Freeze Java để không làm 2 lần    |
 
 ## 9. Sau cutover: Phase 2 trên Nest
 
@@ -244,10 +252,12 @@ Làm theo `phase_2/design/notification-service-phase2-design.md`. Thứ tự đ�
 
 ## 10. Quyết định đã chốt (16/10/2026)
 
-| # | Câu hỏi | Chốt |
-|---|---|---|
-| 1 | Runtime cho Docker/CI | **Node 22 LTS** (máy dev Node 24 vẫn chạy được) |
-| 2 | Payload thiếu field bắt buộc | **Vào DLQ ngay** — cải thiện so với Java (gửi mail tới `null`) |
-| 3 | node-eventing | **Làm PR nới `HandleOutcome`** (D6). Dual build CJS **chỉ khi** spike M0 thất bại (D3) |
-| 4 | Logger | **Nest `Logger` mặc định**, đủ cho Phase 1 (D12) |
-| 5 | Health path | **Giữ `/actuator/health`** (D11) |
+| #   | Câu hỏi                      | Chốt                                                                                   |
+| --- | ---------------------------- | -------------------------------------------------------------------------------------- |
+| 1   | Runtime cho Docker/CI        | **Node 22 LTS** (máy dev Node 24 vẫn chạy được)                                        |
+| 2   | Payload thiếu field bắt buộc | **Vào DLQ ngay** — cải thiện so với Java (gửi mail tới `null`)                         |
+| 3   | node-eventing                | **Làm PR nới `HandleOutcome`** (D6). Dual build CJS **chỉ khi** spike M0 thất bại (D3) |
+| 4   | Logger                       | **Nest `Logger` mặc định**, đủ cho Phase 1 (D12)                                       |
+| 5   | Health path                  | **Giữ `/actuator/health`** (D11)                                                       |
+
+“Fastify (#168) bị bỏ, chuyển sang NestJS (16/10/2026).”
