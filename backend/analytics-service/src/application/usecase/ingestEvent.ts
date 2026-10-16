@@ -1,38 +1,35 @@
-import {
-  IdempotentConsumer,
-  NonRetryableError,
-  type ProcessedEventStore,
-  type TransactionRunner,
-} from '@agricontract/eventing';
-import type { IngestionHandler } from '../port.js';
+import { INGESTED_EVENT_TYPES } from '../../domain/ingestedEvents.js';
+import type { IngestEventCommand, IngestedEventStore, ProjectionHandler } from '../port.js';
 
-/** Dedupe identity of a projection: one idempotency-log namespace per ingested event type. */
+/** Dedupe identity of an ingest consumer: one idempotency-log namespace per ingested event type. */
 export function consumerName(eventType: string): string {
   return `analytics.${eventType}`;
 }
 
 /**
- * Use case "ingest one canonical event": dedupe by eventId in analytics_idempotency_log and run the
- * projection in the same transaction. An event of another type than the handler's is never guessed:
- * it is rejected as non-retryable so the messaging layer parks it in the DLQ.
+ * Use case "ingest one canonical event". Runs inside the caller's DB transaction, which the messaging
+ * adapter opens together with the idempotency-log row:
+ *  1. persist the validated event in the durable landing table (so nothing that was acked is lost);
+ *  2. run the projection handlers registered for that event type, if any (#133 / #148).
+ * A failure in either step rolls back the idempotency row too, so the message is retried or dead-lettered.
  */
-export function buildConsumer<Tx>(
-  handler: IngestionHandler<Tx>,
-  transactions: TransactionRunner<Tx>,
-  processedEvents: ProcessedEventStore<Tx>,
-): IdempotentConsumer<Tx> {
-  return new IdempotentConsumer<Tx>({
-    consumerName: consumerName(handler.eventType),
-    transactions,
-    processedEvents,
-    handler: async (envelope, tx) => {
-      if (envelope.eventType !== handler.eventType) {
-        // Wrong routing: never guess, park it in the DLQ for a developer.
-        throw new NonRetryableError(
-          `Queue for ${handler.eventType} received ${envelope.eventType} (eventId ${envelope.eventId})`,
-        );
+export class IngestEvent<Tx> {
+  constructor(
+    private readonly store: IngestedEventStore<Tx>,
+    private readonly projections: readonly ProjectionHandler<Tx>[] = [],
+  ) {
+    const known = new Set<string>(INGESTED_EVENT_TYPES);
+    for (const p of projections) {
+      if (!known.has(p.eventType)) {
+        throw new Error(`No queue is declared for ${p.eventType}; add it to INGESTED_EVENT_TYPES`);
       }
-      await handler.handle(envelope, tx);
-    },
-  });
+    }
+  }
+
+  async execute(command: IngestEventCommand, tx: Tx): Promise<void> {
+    await this.store.record(tx, command);
+    for (const projection of this.projections) {
+      if (projection.eventType === command.eventType) await projection.apply(command, tx);
+    }
+  }
 }

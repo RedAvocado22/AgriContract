@@ -12,7 +12,9 @@ import {
   MysqlTransactionRunner,
   type MysqlConnectionLike,
 } from '@agricontract/eventing';
-import { buildConsumer } from '../src/application/usecase/ingestEvent.js';
+import { IngestEvent } from '../src/application/usecase/ingestEvent.js';
+import { buildConsumer } from '../src/infrastructure/messaging/consumers.js';
+import { MysqlIngestedEventStore } from '../src/infrastructure/persistence/ingestedEventStore.js';
 import { applyMigrations } from '../src/infrastructure/persistence/migrate.js';
 import { event } from './fakes.js';
 
@@ -42,50 +44,68 @@ describe('real MySQL (ANALYTICS_TEST_MYSQL_URL)', { skip: URL ? false : 'ANALYTI
     return Number((rows as Array<{ c: number }>)[0]!.c);
   };
 
-  function consumer(fail = 0) {
-    let failures = fail;
-    return buildConsumer<MysqlConnectionLike>(
+  /** The production consumer (validation, dedupe, landing table) plus a probe projection in the same transaction. */
+  function consumer(failProjection = 0) {
+    let failures = failProjection;
+    const ingest = new IngestEvent<MysqlConnectionLike>(new MysqlIngestedEventStore(), [
       {
         eventType: 'milestone.settled',
-        async handle(envelope, tx) {
-          await tx.query(`INSERT INTO ${PROBE} (event_id) VALUES (?)`, [envelope.eventId]);
+        async apply(command, tx) {
+          await tx.query(`INSERT INTO ${PROBE} (event_id) VALUES (?)`, [command.eventId]);
           if (failures > 0) {
             failures -= 1;
             throw new Error('projection failed');
           }
         },
       },
+    ]);
+    return buildConsumer<MysqlConnectionLike>(
+      'milestone.settled',
+      ingest,
       new MysqlTransactionRunner(pool),
       new MysqlProcessedEventStore({ table: 'analytics_idempotency_log' }),
     );
   }
 
-  it('the same eventId twice: processed once, then skipped; one log row, one projection row', async () => {
+  const body = (env: unknown) => Buffer.from(JSON.stringify(env));
+
+  it('the same eventId twice: processed once, then skipped; one log row, one stored event, one projection row', async () => {
     const env = event('milestone.settled', 'm-it-1');
     const c = consumer();
-    assert.equal((await c.handle(env)).status, 'PROCESSED');
-    assert.equal((await c.handle(env)).status, 'DUPLICATE');
+    assert.equal((await c.handleMessage(body(env))).status, 'PROCESSED');
+    assert.equal((await c.handleMessage(body(env))).status, 'DUPLICATE');
     assert.equal(await count('SELECT COUNT(*) AS c FROM analytics_idempotency_log WHERE event_id = ?', [env.eventId]), 1);
+    assert.equal(await count('SELECT COUNT(*) AS c FROM analytics_ingested_event WHERE event_id = ?', [env.eventId]), 1);
     assert.equal(await count(`SELECT COUNT(*) AS c FROM ${PROBE} WHERE event_id = ?`, [env.eventId]), 1);
   });
 
-  it('a failing projection rolls back both the log row and its writes; the retry applies it once', async () => {
+  it('a failing projection rolls back the log row, the stored event and its writes; the retry applies it once', async () => {
     const env = event('milestone.settled', 'm-it-2');
     const c = consumer(1);
-    await assert.rejects(c.handle(env), /projection failed/);
+    await assert.rejects(c.handleMessage(body(env)), /projection failed/);
     assert.equal(await count('SELECT COUNT(*) AS c FROM analytics_idempotency_log WHERE event_id = ?', [env.eventId]), 0);
+    assert.equal(await count('SELECT COUNT(*) AS c FROM analytics_ingested_event WHERE event_id = ?', [env.eventId]), 0);
     assert.equal(await count(`SELECT COUNT(*) AS c FROM ${PROBE} WHERE event_id = ?`, [env.eventId]), 0);
-    assert.equal((await c.handle(env)).status, 'PROCESSED');
-    assert.equal(await count(`SELECT COUNT(*) AS c FROM ${PROBE} WHERE event_id = ?`, [env.eventId]), 1);
+    assert.equal((await c.handleMessage(body(env))).status, 'PROCESSED');
+    assert.equal(await count('SELECT COUNT(*) AS c FROM analytics_ingested_event WHERE event_id = ?', [env.eventId]), 1);
   });
 
-  it('the log row records consumer and event type', async () => {
+  it('the log row records consumer and event type; the stored event has no e-mail address', async () => {
     const env = event('milestone.settled', 'm-it-3');
-    await consumer().handle(env);
+    await consumer().handleMessage(body(env));
     const [rows] = await pool.query(
       'SELECT consumer_name, event_type FROM analytics_idempotency_log WHERE event_id = ?',
       [env.eventId],
     );
     assert.deepEqual(rows, [{ consumer_name: 'analytics.milestone.settled', event_type: 'milestone.settled' }]);
+    const [stored] = await pool.query('SELECT payload FROM analytics_ingested_event WHERE event_id = ?', [env.eventId]);
+    assert.doesNotMatch(JSON.stringify(stored), /email|@example\.com/);
+  });
+
+  it('an invalid payload never reaches the database', async () => {
+    const env = event('milestone.settled', 'm-it-4', { lockedAmount: 'not-money' });
+    await assert.rejects(consumer().handleMessage(body(env)), /Invalid milestone\.settled event/);
+    assert.equal(await count('SELECT COUNT(*) AS c FROM analytics_idempotency_log WHERE event_id = ?', [env.eventId]), 0);
+    assert.equal(await count('SELECT COUNT(*) AS c FROM analytics_ingested_event WHERE event_id = ?', [env.eventId]), 0);
   });
 });

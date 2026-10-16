@@ -6,8 +6,9 @@ import type {
   ProcessedEventStore,
   TransactionRunner,
 } from '@agricontract/eventing';
-import { createEnvelope } from '@agricontract/eventing';
+import type { IngestEventCommand, IngestedEventStore } from '../src/application/port.js';
 import type { TopologyChannel } from '../src/infrastructure/messaging/topology.js';
+import { validEvent } from './fixtures.js';
 
 /**
  * Minimal in-memory RabbitMQ: topic exchanges with exact routing keys, direct DLX,
@@ -18,7 +19,7 @@ export class FakeBroker implements TopologyChannel, AmqpChannelLike {
   exchanges = new Map<string, { type: string; options: unknown }>();
   queues = new Map<string, { options: { durable?: boolean; arguments?: Record<string, unknown> }; messages: AmqpMessageLike[] }>();
   bindings: Array<{ queue: string; exchange: string; key: string }> = [];
-  private consumers = new Map<string, { onMessage: (m: AmqpMessageLike | null) => void; unacked: number }>();
+  private consumers = new Map<string, { tag: string; onMessage: (m: AmqpMessageLike | null) => void; unacked: number }>();
   private inflight = new Map<AmqpMessageLike, string>();
   private tagSeq = 0;
 
@@ -51,9 +52,28 @@ export class FakeBroker implements TopologyChannel, AmqpChannelLike {
 
   async consume(queue: string, onMessage: (m: AmqpMessageLike | null) => void) {
     const tag = `ctag-${++this.tagSeq}`;
-    this.consumers.set(queue, { onMessage, unacked: 0 });
+    this.consumers.set(queue, { tag, onMessage, unacked: 0 });
     this.dispatch(queue);
     return { consumerTag: tag };
+  }
+
+  /** Cancels a consumer: no new deliveries; messages it already holds stay unacked until settled. */
+  async cancel(consumerTag: string) {
+    for (const [queue, c] of this.consumers) if (c.tag === consumerTag) this.consumers.delete(queue);
+    return {};
+  }
+
+  /** Like amqplib checkQueue: depth of a queue that exists. */
+  checkCalls = 0;
+  async checkQueue(queue: string) {
+    this.checkCalls += 1;
+    if (!this.queues.has(queue)) throw new Error(`NOT_FOUND - no queue '${queue}'`);
+    return { queue, messageCount: this.depth(queue), consumerCount: this.consumers.has(queue) ? 1 : 0 };
+  }
+
+  /** Number of messages delivered to a consumer and not yet acked or nacked. */
+  unackedCount(): number {
+    return this.inflight.size;
   }
 
   ack(message: AmqpMessageLike): void {
@@ -117,12 +137,12 @@ export class FakeBroker implements TopologyChannel, AmqpChannelLike {
 /** In-memory DB with real commit/rollback and serialized transactions. */
 export interface DbState {
   processed: Array<{ consumerName: string; eventId: string; eventType: string }>;
-  facts: string[];
+  ingested: Array<{ eventId: string; eventType: string; aggregateId: string; payload: Record<string, unknown> }>;
 }
 export type FakeTx = { state: DbState };
 
 export class InMemoryDb implements TransactionRunner<FakeTx>, ProcessedEventStore<FakeTx> {
-  committed: DbState = { processed: [], facts: [] };
+  committed: DbState = { processed: [], ingested: [] };
   private lock: Promise<void> = Promise.resolve();
 
   async inTransaction<T>(work: (tx: FakeTx) => Promise<T>): Promise<T> {
@@ -147,16 +167,46 @@ export class InMemoryDb implements TransactionRunner<FakeTx>, ProcessedEventStor
   }
 }
 
+/** Landing-table fake: a duplicate event_id is a primary key violation, like the real table. */
+export class InMemoryIngestedEventStore implements IngestedEventStore<FakeTx> {
+  calls = 0;
+  constructor(private failTimes = 0) {}
+
+  async record(tx: FakeTx, command: IngestEventCommand): Promise<void> {
+    this.calls += 1;
+    if (tx.state.ingested.some((e) => e.eventId === command.eventId)) throw new Error('Duplicate entry for PRIMARY');
+    tx.state.ingested.push({
+      eventId: command.eventId,
+      eventType: command.eventType,
+      aggregateId: command.aggregateId,
+      payload: command.payload as Record<string, unknown>,
+    });
+    if (this.failTimes > 0) {
+      this.failTimes -= 1;
+      throw new Error('deadlock');
+    }
+  }
+}
+
+/** Logger that keeps what it was asked to log, for assertions. */
+export interface LogEntry {
+  level: 'debug' | 'info' | 'warn' | 'error';
+  msg: string;
+  meta?: Record<string, unknown> | undefined;
+}
+export function recordingLogger(): Logger & { entries: LogEntry[] } {
+  const entries: LogEntry[] = [];
+  const make = (level: LogEntry['level']) => (msg: string, meta?: Record<string, unknown>) => {
+    entries.push({ level, msg, meta });
+  };
+  return { entries, debug: make('debug'), info: make('info'), warn: make('warn'), error: make('error') };
+}
+
 export const silentLogger: Logger = { debug() {}, info() {}, warn() {}, error() {} };
 
+/** A schema-valid canonical event of `eventType` (contract-service producer); payload fields can be overridden. */
 export function event(eventType: string, aggregateId: string, payload: Record<string, unknown> = {}): EventEnvelope {
-  return createEnvelope({
-    eventType,
-    producer: 'contract-service',
-    aggregateId,
-    correlationId: `saga-${aggregateId}`,
-    payload: { contractId: aggregateId, ...payload },
-  });
+  return validEvent(eventType, aggregateId, { payload: { ...(validEvent(eventType).payload), ...payload } });
 }
 
 export function publishEvent(broker: FakeBroker, exchange: string, env: EventEnvelope): boolean {
