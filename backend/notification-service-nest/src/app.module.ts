@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validate } from './config/env.validation';
+import { MessagingModule } from './infrastructure/messaging/messaging.module';
 import { PersistenceModule } from './infrastructure/persistence/persistence.module';
 
 @Module({
@@ -8,6 +9,7 @@ import { PersistenceModule } from './infrastructure/persistence/persistence.modu
     // Environment variables only, like the Java service: no .env file.
     ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true, validate }),
     PersistenceModule,
+    MessagingModule,
   ],
 })
 export class AppModule {}
