@@ -3,8 +3,8 @@ import type { IncomingHttpHeaders } from 'node:http';
 import type { Actor } from '../../application/port.js';
 import { HttpError } from './errors.js';
 
-/** Roles allowed to record a manual price: data-governance §5.4 ("giá manual": OPERATOR, ADMIN fallback). */
-export const MANUAL_PRICE_ROLES = ['ADMIN', 'OPERATOR'] as const;
+/** Roles allowed to record a manual price: OPERATOR only (design change of 12/10, PR #158). ADMIN is not allowed. */
+export const MANUAL_PRICE_ROLES = ['OPERATOR'] as const;
 
 /**
  * Identity comes from the API Gateway, same contract as the Java services:
