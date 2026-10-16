@@ -12,10 +12,10 @@ Pricing is **advisory only** (design §4.1). contract-service and escrow-service
 
 | Item | Rule |
 |---|---|
-| Auth | Through the API gateway only (`X-Gateway-Secret`, `X-User-Id`, `X-User-Role`), same as the Java services. Roles `ADMIN` or `OPERATOR` (data-governance §5.4). Others get `403 PRICE_MANUAL_FORBIDDEN`. |
+| Auth | Through the API gateway only (`X-Gateway-Secret`, `X-User-Id`, `X-User-Role`), same as the Java services. Role `OPERATOR` only (`ADMIN` is rejected). Others get `403 PRICE_MANUAL_FORBIDDEN`. |
 | `Idempotency-Key` | Required. Same key + same body returns the original `201` (header `Idempotent-Replayed: true`). Same key + different body returns `409 IDEMPOTENCY_KEY_STATE_CONFLICT`. Keys are scoped per user. |
 | Body | `commodity` (`COFFEE` only), `itemName`, `province`, `price` (VND/kg, string with 2 decimals and no leading zeros, e.g. `"120500.00"` or `"0.50"`; `"00100.00"` is rejected because MySQL would return it as `"100.00"` and a replay would differ), `capturedAt` (date the price applies, `YYYY-MM-DD`, not in the future, Vietnam time), `referenceSource`, `reason`. Unknown fields are rejected. |
-| Storage | One new row in `price_history` with `source = ADMIN_MANUAL`, `captured_at`, `ingested_at` (UTC), `reference_source`, `reason`, `recorded_by`. Append-only: older prices are never updated or deleted. |
+| Storage | One new row in `price_history` with `source = OPERATOR_MANUAL`, `captured_at`, `ingested_at` (UTC), `reference_source`, `reason`, `recorded_by`. Append-only: older prices are never updated or deleted. |
 | Cache | After the MySQL insert, Redis key `price:coffee:{province}:{itemSlug}` is refreshed (no TTL) unless it already holds a price for a later date. A replay refreshes it again, so a cache write that failed on the first attempt is repaired by the retry. A Redis failure does not fail the request. |
 | Redis down | Redis is optional: startup never waits for it (background connect + reconnect), commands fail at once while it is disconnected (no offline queue), and each cache update gives up after `REDIS_COMMAND_TIMEOUT_MS`. The request still returns `201` from MySQL. |
 | Errors | Shared error envelope (`timestamp, status, error, code, message, path, traceId`). |

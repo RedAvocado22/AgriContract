@@ -22,12 +22,12 @@ const quote: PriceQuote = {
   province: 'Đắk Lắk',
   provinceSlug: 'dak-lak',
   price: '120500.00',
-  source: 'ADMIN_MANUAL',
+  source: 'OPERATOR_MANUAL',
   capturedAt: '2026-10-10',
   ingestedAt: '2026-10-12T05:00:00.000Z',
   referenceSource: 'ref',
   reason: 'why',
-  recordedBy: 'admin-1',
+  recordedBy: 'op-1',
 };
 
 /** A port nobody listens on: connections are refused, like a stopped Redis. */

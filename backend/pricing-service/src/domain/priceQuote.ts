@@ -2,7 +2,7 @@
 export const COMMODITY = 'COFFEE' as const;
 export type Commodity = typeof COMMODITY;
 
-export const PRICE_SOURCES = ['VNSAT_SCRAPE', 'ADMIN_MANUAL'] as const;
+export const PRICE_SOURCES = ['VNSAT_SCRAPE', 'OPERATOR_MANUAL'] as const;
 export type PriceSource = (typeof PRICE_SOURCES)[number];
 
 /** A reference price (design §2). price_history in MySQL is the source of truth. */

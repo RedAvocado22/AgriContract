@@ -23,7 +23,7 @@ function deps(): ManualPriceDeps {
   };
 }
 
-const admin = { userId: 'admin-1', roles: ['ADMIN'] };
+const operator = { userId: 'op-1', roles: ['OPERATOR'] };
 
 /** Asserts the use case threw `type`, and that it is an application error with no HTTP status. */
 function applicationError(type: new (...args: never[]) => ApplicationError) {
@@ -37,26 +37,26 @@ function applicationError(type: new (...args: never[]) => ApplicationError) {
 
 describe('recordManualPrice throws application errors, not HTTP errors', () => {
   it('missing Idempotency-Key -> IdempotencyKeyRequired', async () => {
-    await assert.rejects(recordManualPrice(deps(), admin, undefined, validBody()), applicationError(IdempotencyKeyRequired));
-    await assert.rejects(recordManualPrice(deps(), admin, '   ', validBody()), applicationError(IdempotencyKeyRequired));
+    await assert.rejects(recordManualPrice(deps(), operator, undefined, validBody()), applicationError(IdempotencyKeyRequired));
+    await assert.rejects(recordManualPrice(deps(), operator, '   ', validBody()), applicationError(IdempotencyKeyRequired));
   });
 
   it('invalid body or over-long key -> ValidationFailed (with every message)', async () => {
     await assert.rejects(
-      recordManualPrice(deps(), admin, 'k', validBody({ price: '00100.00', province: '' })),
+      recordManualPrice(deps(), operator, 'k', validBody({ price: '00100.00', province: '' })),
       (err: unknown) => {
         applicationError(ValidationFailed)(err);
         assert.equal((err as ValidationFailed).errors.length, 2);
         return true;
       },
     );
-    await assert.rejects(recordManualPrice(deps(), admin, 'k'.repeat(256), validBody()), applicationError(ValidationFailed));
+    await assert.rejects(recordManualPrice(deps(), operator, 'k'.repeat(256), validBody()), applicationError(ValidationFailed));
   });
 
   it('same key, different body -> IdempotencyConflict', async () => {
     const d = deps();
-    await recordManualPrice(d, admin, 'k', validBody());
-    await assert.rejects(recordManualPrice(d, admin, 'k', validBody({ price: '1.00' })), applicationError(IdempotencyConflict));
+    await recordManualPrice(d, operator, 'k', validBody());
+    await assert.rejects(recordManualPrice(d, operator, 'k', validBody({ price: '1.00' })), applicationError(IdempotencyConflict));
   });
 });
 

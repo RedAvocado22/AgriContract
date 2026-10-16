@@ -21,10 +21,10 @@ CREATE TABLE IF NOT EXISTS price_history (
     request_hash      CHAR(64)      NULL,
     PRIMARY KEY (id),
     CONSTRAINT chk_price_history_commodity CHECK (commodity = 'COFFEE'),
-    CONSTRAINT chk_price_history_source CHECK (source IN ('VNSAT_SCRAPE', 'ADMIN_MANUAL')),
+    CONSTRAINT chk_price_history_source CHECK (source IN ('VNSAT_SCRAPE', 'OPERATOR_MANUAL')),
     CONSTRAINT chk_price_history_price CHECK (price > 0),
     CONSTRAINT chk_price_history_manual_attribution CHECK (
-        source <> 'ADMIN_MANUAL'
+        source <> 'OPERATOR_MANUAL'
         OR (reference_source IS NOT NULL AND reason IS NOT NULL AND recorded_by IS NOT NULL)
     ),
     UNIQUE KEY uk_price_history_idempotency (recorded_by, idempotency_key),

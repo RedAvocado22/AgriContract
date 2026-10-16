@@ -17,7 +17,7 @@ import {
   createMysqlPool,
   type MysqlPoolLike,
 } from '../src/infrastructure/persistence/mysqlPriceHistoryRepository.js';
-import { adminHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
+import { operatorHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
 
 /**
  * Stand-in for MySQL that converts values the way price_history's column types do and hands them
@@ -110,16 +110,16 @@ describe('a replay heals a cache update that failed on the first attempt', () =>
     const redis = flakyRedis();
     app = await startApp({ cache: new RedisPriceCache(redis, 1000) });
 
-    const a = await postManual(app, validBody({ price: '118000.00', capturedAt: '2026-10-01' }), adminHeaders({ 'Idempotency-Key': 'a' }));
+    const a = await postManual(app, validBody({ price: '118000.00', capturedAt: '2026-10-01' }), operatorHeaders({ 'Idempotency-Key': 'a' }));
     assert.equal(cached(redis).id, a.json.id);
 
     redis.setFails = true;
-    const b = await postManual(app, validBody({ price: '121000.00', capturedAt: '2026-10-10' }), adminHeaders({ 'Idempotency-Key': 'b' }));
+    const b = await postManual(app, validBody({ price: '121000.00', capturedAt: '2026-10-10' }), operatorHeaders({ 'Idempotency-Key': 'b' }));
     assert.equal(b.status, 201, 'a cache failure must not fail the request');
     assert.equal(cached(redis).id, a.json.id, 'Redis still holds the older quote A');
 
     redis.setFails = false;
-    const retry = await postManual(app, validBody({ price: '121000.00', capturedAt: '2026-10-10' }), adminHeaders({ 'Idempotency-Key': 'b' }));
+    const retry = await postManual(app, validBody({ price: '121000.00', capturedAt: '2026-10-10' }), operatorHeaders({ 'Idempotency-Key': 'b' }));
     assert.equal(retry.status, 201);
     assert.equal(retry.headers.get('idempotent-replayed'), 'true');
     assert.deepEqual(retry.json, b.json);
@@ -131,9 +131,9 @@ describe('a replay heals a cache update that failed on the first attempt', () =>
     const redis = flakyRedis();
     app = await startApp({ cache: new RedisPriceCache(redis, 1000) });
     const older = validBody({ price: '118000.00', capturedAt: '2026-10-01' });
-    await postManual(app, older, adminHeaders({ 'Idempotency-Key': 'old' }));
-    const newer = await postManual(app, validBody({ price: '121000.00', capturedAt: '2026-10-10' }), adminHeaders({ 'Idempotency-Key': 'new' }));
-    await postManual(app, older, adminHeaders({ 'Idempotency-Key': 'old' }));
+    await postManual(app, older, operatorHeaders({ 'Idempotency-Key': 'old' }));
+    const newer = await postManual(app, validBody({ price: '121000.00', capturedAt: '2026-10-10' }), operatorHeaders({ 'Idempotency-Key': 'new' }));
+    await postManual(app, older, operatorHeaders({ 'Idempotency-Key': 'old' }));
     assert.equal(cached(redis).id, newer.json.id);
   });
 });
@@ -175,7 +175,7 @@ describe('real MySQL (PRICING_TEST_MYSQL_URL)', { skip: MYSQL_URL ? false : 'PRI
 
   for (const price of CANONICAL_PRICES) {
     it(`price "${price}": replay read from MySQL equals the first 201`, async () => {
-      const headers = adminHeaders({ 'Idempotency-Key': `it-${randomUUID()}` });
+      const headers = operatorHeaders({ 'Idempotency-Key': `it-${randomUUID()}` });
       const first = await postManual(app, validBody({ price }), headers);
       const replay = await postManual(app, validBody({ price }), headers);
       assert.equal(first.status, 201, JSON.stringify(first.json));

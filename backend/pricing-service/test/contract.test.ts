@@ -14,7 +14,7 @@ import addFormatsModule from 'ajv-formats';
 import yaml from 'js-yaml';
 import { MANUAL_PRICE_PATH } from '../src/infrastructure/http/app.js';
 import { MANUAL_PRICE_ROLES } from '../src/infrastructure/http/auth.js';
-import { adminHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
+import { operatorHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../..');
@@ -48,10 +48,9 @@ describe('supplementary-services-api.yaml: recordManualPrice', () => {
     assert.equal(header?.required, true);
   });
 
-  it('contract auth is ADMIN; OPERATOR is the governance-approved delegate', () => {
-    // x-auth: ADMIN in the catalog; data-governance §5.4 and api-gateway design (18/07) add OPERATOR for "giá manual".
-    assert.equal(op['x-auth'], 'ADMIN');
-    assert.deepEqual([...MANUAL_PRICE_ROLES], ['ADMIN', 'OPERATOR']);
+  it('contract auth is OPERATOR and the service allows exactly that role (ADMIN is not allowed)', () => {
+    assert.equal(op['x-auth'], 'OPERATOR');
+    assert.deepEqual([...MANUAL_PRICE_ROLES], ['OPERATOR']);
   });
 
   it('contract responses 201 and 403 are the ones the service returns', () => {
@@ -77,13 +76,13 @@ describe('golden-flow ErrorEnvelope', () => {
 
   const cases: Array<[string, () => Promise<{ status: number; json: unknown }>]> = [
     ['400 validation', () => postManual(app, validBody({ commodity: 'RICE' }))],
-    ['403 role', () => postManual(app, validBody(), adminHeaders({ 'X-User-Role': 'SELLER' }))],
-    ['403 gateway', () => postManual(app, validBody(), adminHeaders({ 'X-Gateway-Secret': 'x' }))],
+    ['403 role', () => postManual(app, validBody(), operatorHeaders({ 'X-User-Role': 'SELLER' }))],
+    ['403 gateway', () => postManual(app, validBody(), operatorHeaders({ 'X-Gateway-Secret': 'x' }))],
     [
       '409 key reuse',
       async () => {
-        await postManual(app, validBody(), adminHeaders({ 'Idempotency-Key': 'env-409' }));
-        return postManual(app, validBody({ price: '1.00' }), adminHeaders({ 'Idempotency-Key': 'env-409' }));
+        await postManual(app, validBody(), operatorHeaders({ 'Idempotency-Key': 'env-409' }));
+        return postManual(app, validBody({ price: '1.00' }), operatorHeaders({ 'Idempotency-Key': 'env-409' }));
       },
     ],
   ];
