@@ -29,6 +29,7 @@ export type {
   AmqpConfirmChannelLike,
   AmqpMessageLike,
   ConsumeOptions,
+  DeliveryOutcome,
   DeliveryResult,
   MessageConsumer,
 } from './amqp.js';
