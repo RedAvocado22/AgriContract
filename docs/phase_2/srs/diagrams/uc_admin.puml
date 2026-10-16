@@ -1,0 +1,33 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam monochrome true
+skinparam dpi 180
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam usecase {
+  BorderColor black
+  ArrowColor black
+}
+skinparam actor {
+  BorderColor black
+}
+
+actor Admin as Admin
+
+rectangle AgriContract {
+  usecase "UC02 Log In and Log Out" as UC02
+  usecase "UC08 Manage Accounts\nand Roles" as UC08
+  usecase "UC48 Export Contract\nEvidence" as UC48
+  usecase "UC49 Monitor Audit\nIntegrity" as UC49
+  usecase "UC50 View Security\nLock Status" as UC50
+  usecase "UC53 View Analytics\nReports" as UC53
+}
+
+Admin -- UC02
+Admin -- UC08
+Admin -- UC48
+Admin -- UC49
+Admin -- UC50
+Admin -- UC53
+@enduml

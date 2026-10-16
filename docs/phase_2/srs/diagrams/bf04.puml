@@ -1,0 +1,53 @@
+@startuml
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam SwimlaneBorderColor black
+skinparam ArrowColor black
+skinparam ActivityDiamondBackgroundColor white
+title BF-04 Milestone Delivery & Settlement
+|Buyer|
+|Seller|
+|Inspector|
+|Arbitrator|
+|System|
+|System|
+start
+repeat :1. Ask bank to lock\nBuyer's milestone payment;
+if (Payment locked?) then (no)
+  :2. Notify parties of\nfunding failure;
+  :Continues in BF-05;
+  stop
+endif
+|Seller|
+:3. Deliver goods and record\nweighed quantity;
+|Buyer|
+:4. Record received quantity\nwith evidence;
+if (Buyer accepts delivery?) then (yes)
+  :5. Confirm delivery;
+  note right: No response before window = confirmed
+else (no)
+  :6. Flag quantity or\nquality issue;
+  |Seller|
+  if (Seller accepts Buyer's\nfigures?) then (yes)
+  else (no)
+    :7. Contest the flag;
+    |Arbitrator|
+    :8. Request inspection\nof the goods;
+    |Inspector|
+    :9. Inspect goods and\nsubmit report;
+    |Arbitrator|
+    :10. Decide amounts from\ninspection result;
+  endif
+endif
+|System|
+:11. Release payment and\nrefund difference;
+repeat while (More milestones?) is (yes)
+->no;
+:12. Return both deposits;
+:Contract settled;
+stop
+@enduml

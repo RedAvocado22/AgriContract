@@ -688,7 +688,7 @@ $defs:
               finalBreachingRole: {$ref: "#/$defs/breachingRole"}
               breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
               qualityDisposition: {$ref: "#/$defs/finalQualityDisposition"}
-              decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
+              decisionSource: {enum: [SYSTEM, ARBITRATOR, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
               penaltyEligible: {type: boolean}
               reputationEligible: {type: boolean}
               remedyLegs:
@@ -883,7 +883,7 @@ $defs:
               reportHash: {type: string, pattern: "^[a-f0-9]{64}$"}
               confirmedAt: {type: string, format: date-time}
               inspectorId: {$ref: "#/$defs/uuid"}
-              confirmedByAdminId: {$ref: "#/$defs/uuid"}
+              confirmedByOperatorId: {$ref: "#/$defs/uuid"}
             additionalProperties: false
         x-publisher: inspection-service
         x-consumers: [audit-service, contract-service]
@@ -1253,18 +1253,44 @@ $defs:
           producer: {const: reputation-service}
           payload:
             type: object
-            required: [buyerId, sellerId, clearedByAdminId, reason, proposedByOperatorId, approvedByAdminId]
+            required: [buyerId, sellerId, clearedByArbitratorId, reason, proposedByOperatorId, approvedByArbitratorId]
             additionalProperties: false
             properties:
               buyerId: {$ref: "#/$defs/uuid"}
               sellerId: {$ref: "#/$defs/uuid"}
-              clearedByAdminId: {$ref: "#/$defs/uuid"}
+              clearedByArbitratorId: {$ref: "#/$defs/uuid"}
               reason: {type: string}
               proposedByOperatorId: {$ref: "#/$defs/uuid"}
-              approvedByAdminId: {$ref: "#/$defs/uuid"}
+              approvedByArbitratorId: {$ref: "#/$defs/uuid"}
         x-publisher: reputation-service
         x-consumers: [audit-service]
         x-source: reputation-service-phase2-design.md section 8
+  inspectionLevel15Requested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: inspection.level1_5_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, reason, reportDueBusinessDays, initiatedByActorId, requestedAt]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              reason: {enum: [DISPUTE_ROUTED, MANDATORY_INSPECTION, FORCE_MAJEURE_CONTEST, DECISION_CONTESTED, LEVEL2_BUFFER_EXPIRED]}
+              reportDueBusinessDays: {type: integer, minimum: 1, maximum: 30}
+              initiatedByActorId: {$ref: "#/$defs/nullableUuid"}
+              requestedAt: {type: string, format: date-time}
+        x-publisher: contract-service
+        x-consumers: [inspection-service]
+        x-source: inspection-phase2-design.md section 2.5; milestone-escrow-phase2-design.md sections 3.2, 5 and 6.4
+        x-contract-note: >-
+          Command event via outbox. contract-service decides that Level 1.5 is
+          needed and never selects the inspector; inspection-service picks one
+          uniformly at random from currently eligible INSPECTOR accounts. A request
+          for a milestone that already has an active assignment is a no-op.
   inspectionLevel2Commissioned:
     allOf:
       - $ref: "./event-envelope.yaml"

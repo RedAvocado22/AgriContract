@@ -1,0 +1,46 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam monochrome true
+skinparam dpi 180
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam usecase {
+  BorderColor black
+  ArrowColor black
+}
+skinparam actor {
+  BorderColor black
+}
+
+actor Operator as Operator
+actor "Level 2 Inspection\nOrganization" as L2Org
+
+rectangle AgriContract {
+  usecase "UC02 Log In and Log Out" as UC02
+  usecase "UC05 Review KYC\nApplication" as UC05
+  usecase "UC12 Review Plot Risk" as UC12
+  usecase "UC17 Moderate Categories\nand Listings" as UC17
+  usecase "UC19 Enter Manual Prices" as UC19
+  usecase "UC06 Propose Reputation\nAction" as UC06
+  usecase "UC29 Handle Activation\nFailure" as UC29
+  usecase "UC39 Retry Milestone\nFunding" as UC39
+  usecase "UC47 Review External\nInspection Report" as UC47
+}
+
+rectangle "«system»\nCustodian Bank" as Bank
+
+Operator -- UC02
+Operator -- UC05
+Operator -- UC12
+Operator -- UC17
+Operator -- UC19
+Operator -- UC06
+Operator -- UC29
+Operator -- UC39
+Operator -- UC47
+
+UC29 -- Bank
+UC39 -- Bank
+UC47 -- L2Org
+@enduml

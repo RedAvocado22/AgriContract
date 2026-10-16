@@ -219,15 +219,15 @@ paths:
   /api/v1/prices/manual:
     post:
       operationId: recordManualPrice
-      summary: Admin records a fallback coffee reference price
+      summary: Operator records a fallback coffee reference price
       description: Source pricing-service design §3.2. Phase 2 accepts COFFEE only and records an explicit source/province when automated ingestion needs an operator fallback.
       x-owner: pricing-service
-      x-auth: ADMIN
+      x-auth: OPERATOR
       parameters:
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
       responses:
         "201": { description: Manual price recorded }
-        "403": { description: Not ADMIN }
+        "403": { description: Not OPERATOR (no ADMIN fallback, data-governance 5.4) }
 
   # ---------- analytics-service (dashboard reads, Admin/Association) ----------
   /api/v1/analytics/terminations:
@@ -276,7 +276,7 @@ paths:
         Source inspection-service design §2-3. Report body hashed; INSPECTOR
         signature persisted in inspector_signature (inspection DB) with
         UNIQUE(report_id) and step-up/session-freshness identity. Level 2
-        commissioning is Admin/system-triggered (InitiateLevel2Inspection) via
+        commissioning is ARBITRATOR-triggered (InitiateLevel2Inspection) via
         the contract/milestone dispute flow, not a public route.
       x-owner: inspection-service
       x-auth: INSPECTOR
@@ -291,8 +291,10 @@ paths:
             schema: { $ref: '#/components/schemas/InspectionReportSubmission' }
       responses:
         "201": { description: Report recorded and signed }
-        "403": { description: Not an authorized INSPECTOR for this commission }
+        "400": { description: Malformed report submission }
+        "403": { description: Not the INSPECTOR of the active Level 1.5 assignment for this milestone, or eligibility (KYC/license expiry) failed (inspection design 2.5) }
         "409": { description: Report already signed (UNIQUE report_id) }
+        "503": { description: Eligibility dependency (user-service) unavailable; fail closed per error catalog }
 
   # ---------- file-service (INTERNAL ONLY — gateway does not expose) ----------
   /internal/v1/files:

@@ -12,6 +12,8 @@ docker-compose.override.yml
 *.iml
 .vscode/
 *.swp
+node_modules/
+.~lock.*#
 
 # AI
 memory/
