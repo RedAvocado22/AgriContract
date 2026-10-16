@@ -536,8 +536,29 @@ paths:
       x-internal: true
       operationId: sendOtpEmail
       security: [{serviceAuth: []}]
+      description: >-
+        Synchronous OTP mail. Idempotent per (requestId, recipientEmail): a SENT key answers 200
+        without sending again; a FAILED or PENDING key answers 502 and never sends. The caller's
+        read timeout must be at least 5000 ms, because the service bounds the whole call to
+        4500 ms so that no mail is sent after the caller has given up.
+      x-validation: expiresAt must be strictly later than the service clock when the request is received; otherwise 400.
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/OtpEmailRequest'}}}}
-      responses: {'200': {description: Provider accepted request}, '5XX': {description: Provider failure}}
+      responses:
+        '200': {description: The mail provider accepted the message, now or for an earlier request with the same key. No body.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500':
+          description: Internal error before any mail was sent. Treat like 502.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+        '502':
+          description: >-
+            The mail was not confirmed as sent. The caller must report failure and create a new
+            OTP with a new requestId; retrying the same requestId never sends. code is one of
+            OTP_EMAIL_PREVIOUSLY_FAILED, OTP_EMAIL_IN_PROGRESS, OTP_EMAIL_DEADLINE_EXCEEDED,
+            OTP_EMAIL_PROVIDER_FAILED, OTP_EMAIL_DELIVERY_UNKNOWN or OTP_EMAIL_RESULT_NOT_RECORDED.
+            With OTP_EMAIL_DELIVERY_UNKNOWN and OTP_EMAIL_RESULT_NOT_RECORDED the mail may still
+            arrive, so the superseded OTP must already be invalid on the caller's side.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
   /internal/v1/audit/records:
     x-service-owner: audit-service
     get:
@@ -637,7 +658,7 @@ paths:
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
-    serviceAuth: {type: apiKey, in: header, name: X-Gateway-Secret, description: Internal deployment secret; never accepted from an external client.}
+    serviceAuth: {type: apiKey, in: header, name: X-Internal-Secret, description: "Service-to-service secret (SERVICE_INTERNAL_SECRET), compared in constant time; never accepted from an external client. Distinct from X-Gateway-Secret, which only the API Gateway sets on routed requests; x-internal endpoints are never routed through the Gateway."}
     apiKeyAuth: {type: apiKey, in: header, name: X-Api-Key}
   schemas:
     CreateContractRequest:
@@ -1180,9 +1201,9 @@ components:
       type: object
       required: [requestId, recipientUserId, recipientEmail, contractId, otpCode, signedContentHash, expiresAt]
       properties:
-        requestId: {type: string}
-        recipientUserId: {type: string}
-        recipientEmail: {type: string, format: email}
+        requestId: {type: string, minLength: 1, maxLength: 36, description: contract-service otpId.}
+        recipientUserId: {type: string, minLength: 1, maxLength: 255}
+        recipientEmail: {type: string, format: email, maxLength: 255}
         contractId: {type: string}
         otpCode: {type: string, pattern: '^[0-9]{6}$'}
         signedContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
