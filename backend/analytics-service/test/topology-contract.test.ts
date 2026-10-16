@@ -7,7 +7,7 @@ import yaml from 'js-yaml';
 import { consumerName } from '../src/application/usecase/ingestEvent.js';
 import { loadConfig } from '../src/infrastructure/config.js';
 import { migrationFiles } from '../src/infrastructure/persistence/migrate.js';
-import { HANDLERS } from '../src/infrastructure/persistence/projections.js';
+import { PROJECTIONS } from '../src/infrastructure/persistence/projections.js';
 import {
   ANALYTICS_DLX,
   CONTRACTS_EXCHANGE,
@@ -95,8 +95,8 @@ describe('frozen event contract', () => {
     }
   });
 
-  it('this scaffold registers no projection handler yet (facts arrive in #133/#148)', () => {
-    assert.equal(HANDLERS.length, 0);
+  it('no projection is registered yet (facts arrive in #133/#148); events are still ingested and stored', () => {
+    assert.equal(PROJECTIONS.length, 0);
   });
 });
 
@@ -130,26 +130,64 @@ describe('analytics is not on the transaction critical path (Matrix 23)', () => 
 });
 
 describe('persistence and config', () => {
-  const sql = readFileSync(resolve(here, '../migrations/V1__create_analytics_idempotency_log.sql'), 'utf8');
-  const statements = sql.replace(/--.*$/gm, '');
+  const strip = (file: string) => readFileSync(resolve(here, '../migrations', file), 'utf8').replace(/--.*$/gm, '');
 
-  it('migration is additive and creates the idempotency log used by the dedupe store', () => {
+  it('V1 is additive and creates the idempotency log used by the dedupe store', () => {
+    const statements = strip('V1__create_analytics_idempotency_log.sql');
     assert.match(statements, /CREATE TABLE IF NOT EXISTS analytics_idempotency_log/);
     assert.match(statements, /PRIMARY KEY \(consumer_name, event_id\)/);
     assert.doesNotMatch(statements, /\b(ALTER|DROP|TRUNCATE|DELETE|UPDATE)\b/i);
     assert.match(readFileSync(resolve(here, '../src/main.ts'), 'utf8'), /table: 'analytics_idempotency_log'/);
   });
 
-  it('migration runner finds the migration', () => {
-    assert.deepEqual(migrationFiles(resolve(here, '../migrations')), ['V1__create_analytics_idempotency_log.sql']);
+  it('V2 is additive and creates the landing table written by the ingest use case', () => {
+    const statements = strip('V2__create_analytics_ingested_event.sql');
+    assert.match(statements, /CREATE TABLE IF NOT EXISTS analytics_ingested_event/);
+    assert.match(statements, /PRIMARY KEY \(event_id\)/);
+    assert.match(statements, /payload\s+JSON\s+NOT NULL/);
+    assert.doesNotMatch(statements, /\b(ALTER|DROP|TRUNCATE|DELETE|UPDATE)\b/i);
+    assert.doesNotMatch(statements, /email/i, 'no contact PII column');
   });
 
-  it('defaults: port 8093, analytics_db, bounded prefetch, RabbitMQ from the shared env names', () => {
+  it('migration runner finds both migrations in order', () => {
+    assert.deepEqual(migrationFiles(resolve(here, '../migrations')), [
+      'V1__create_analytics_idempotency_log.sql',
+      'V2__create_analytics_ingested_event.sql',
+    ]);
+  });
+
+  it('defaults: port 8093, analytics_db, bounded prefetch, monitor and shutdown timing, RabbitMQ from the shared env names', () => {
     const c = loadConfig({});
     assert.equal(c.port, 8093);
     assert.equal(c.db.database, 'analytics_db');
     assert.equal(c.prefetch, 20);
+    assert.equal(c.dlqMonitorIntervalMs, 30_000);
+    assert.equal(c.shutdownTimeoutMs, 25_000);
     assert.equal(c.amqpUrl, 'amqp://guest:guest@localhost:5672');
     assert.equal(loadConfig({ RABBITMQ_HOST: 'rabbitmq', RABBITMQ_PASSWORD: 'p@ss' }).amqpUrl, 'amqp://guest:p%40ss@rabbitmq:5672');
+    assert.equal(loadConfig({ DLQ_MONITOR_INTERVAL_MS: '5000', SHUTDOWN_TIMEOUT_MS: '9000' }).shutdownTimeoutMs, 9000);
+  });
+});
+
+describe('composition root (src/main.ts)', () => {
+  const main = readFileSync(resolve(here, '../src/main.ts'), 'utf8');
+
+  it('starts the shared production wiring and registers the projections list', () => {
+    assert.match(main, /startAnalytics\(/);
+    assert.match(main, /projections: PROJECTIONS/);
+    assert.match(main, /new MysqlIngestedEventStore\(\)/);
+  });
+
+  it('handles SIGTERM and SIGINT with the graceful shutdown, and ignores the expected connection close', () => {
+    assert.match(main, /process\.once\('SIGTERM'/);
+    assert.match(main, /process\.once\('SIGINT'/);
+    assert.match(main, /gracefulShutdown\(/);
+    assert.match(main, /if \(shuttingDown\) return;/);
+  });
+
+  it('keeps the handles shutdown needs: HTTP server, pool, connection and channels', () => {
+    for (const handle of ['server = createHealthServer', 'pool = mysql.createPool', 'connection = conn', 'channels = [consumeChannel, monitorChannel]']) {
+      assert.ok(main.includes(handle), handle);
+    }
   });
 });

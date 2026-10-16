@@ -2,7 +2,7 @@
   "name": "@agricontract/analytics-service",
   "version": "0.1.0",
   "private": true,
-  "description": "Analytics-service (Node): non-critical CQRS projection fed only by canonical RabbitMQ events. This version scaffolds persistence and idempotent ingestion.",
+  "description": "Analytics-service (Node): non-critical CQRS projection fed only by canonical RabbitMQ events. This version delivers persistence and validated, idempotent ingestion; projections follow in #133/#148.",
   "type": "module",
   "main": "dist/main.js",
   "engines": {

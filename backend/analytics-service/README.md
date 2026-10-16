@@ -2,9 +2,28 @@
 
 Non-critical CQRS projection for AgriContract Phase 2 (`docs/phase_2/design/analytics-service-phase2-design.md`).
 It only listens to canonical RabbitMQ events and never calls core services. This increment (issue #118)
-scaffolds **persistence and idempotent ingestion**; projection handlers come with #133 and #148.
+delivers **persistence and a working, idempotent ingestion path**; projection handlers (fact and dimension
+tables) come with #133 and #148.
 
 Built on the shared `@agricontract/eventing` library (`backend/shared/node-eventing`, issue #90).
+
+## Layout
+
+```
+src/
+  domain/                       ingested event types
+  application/
+    port.ts                     IngestEventCommand, IngestedEventStore, ProjectionHandler
+    usecase/ingestEvent.ts      persist the event, then run the projections registered for its type
+  infrastructure/
+    messaging/                  topology, validation (eventContracts), mapping to the command, consumers, DLQ monitor
+    persistence/                MySQL: landing table store, migrations, projection registry (empty for now)
+    http/health.ts              GET /health
+    runtime.ts                  production wiring of the messaging side (also used by the tests)
+    lifecycle.ts                graceful shutdown
+    config.ts
+  main.ts                       composition root: creates the resources, wires them, handles signals
+```
 
 ## How it works
 
@@ -14,47 +33,50 @@ contract-service --publish--> exchange agricontract.contracts
                                    v
                     durable queue analytics-svc.<eventType>  --nack--> agricontract.analytics.dlx --> analytics-svc.<eventType>.dlq
                                    |
-                                   v  prefetch 20, manual ack
-     validate envelope -> dedupe by eventId in analytics_idempotency_log -> projection handler (same DB transaction)
+                                   v  prefetch 20, manual ack, one consumer per subscribed event type
+     1. parse envelope        invalid  -> DLQ, no retry
+     2. validate producer, eventVersion, payload against the frozen contract   invalid -> DLQ, no retry, nothing written
+     3. ONE DB transaction:   analytics_idempotency_log row (dedupe by eventId)
+                              + analytics_ingested_event row (the validated event)
+                              + projection handlers for that type (none yet)
+     4. ack                   (a transient failure rolls everything back and is retried 3 times: 1s, 2s)
 ```
+
+A consumer exists for **every** subscribed event type from the first deploy, so a restart always drains the
+backlog: events are validated, stored and acked even before their projection exists. The stored events are the
+input for the #133/#148 projections. Recipient e-mail addresses (`milestone.settled`) are removed before
+anything is written; analytics never stores contact data.
 
 | Acceptance criterion | How it is met | Test |
 |---|---|---|
-| Consumer dedupes events | Every event goes through `IdempotentConsumer`: the `analytics_idempotency_log` row and the projection write commit in one transaction; a redelivery or DLQ replay of the same `eventId` is skipped. | `test/ingestion.test.ts` "consumer dedupes events" |
-| Outage does not block producers | Producers publish to their own exchange and never wait for analytics. Queues are durable with no length limit / overflow / TTL, so nothing pushes back on producers. contract-service and escrow-service have no client or URL for analytics. | "outage does not block producers", "queues cannot push back", "not on the transaction critical path" |
-| Queue backlog can catch up | While analytics is down, events wait in the durable queues; on restart the backlog is consumed in order with bounded prefetch, each event applied exactly once (Verification Matrix #23). | "queue backlog can catch up" |
+| Consumer dedupes events | `IdempotentConsumer` marks the `eventId` in `analytics_idempotency_log` in the same transaction as the write; a redelivery or DLQ replay of the same `eventId` is skipped. | `ingestion.test.ts` "consumer dedupes events"; `mysql.test.ts` (real MySQL) |
+| Outage does not block producers | Producers publish to their own exchange and never wait for analytics. Queues are durable with no length limit / overflow / TTL. contract-service and escrow-service have no client or URL for analytics. | "outage does not block producers", "queues cannot push back", "not on the transaction critical path" |
+| Queue backlog can catch up | Production wiring test: stop analytics, publish, restart, everything is stored exactly once (duplicates and DLQ replays are no-ops). | `runtime.test.ts`, `ingestion.test.ts` "queue backlog can catch up" |
 
-Subscribed events (queues are declared from the first deploy, even before their handler exists, so events
-start buffering immediately instead of being lost): `contract.signed`, `milestone.settled`,
-`milestone.cancelled_with_penalty`, `milestone.force_majeure_resolved`, `milestone.price_adjusted`,
-`contract.settled`, `contract.terminated` (`src/domain/ingestedEvents.ts`). Adding a handler is one entry in
-`src/infrastructure/persistence/projections.ts`.
+Subscribed events: `contract.signed`, `milestone.settled`, `milestone.cancelled_with_penalty`,
+`milestone.force_majeure_resolved`, `milestone.price_adjusted`, `contract.settled`, `contract.terminated`.
+To add a projection, implement `ProjectionHandler` and add it to `PROJECTIONS` in
+`infrastructure/persistence/projections.ts`.
 
-Invalid envelopes, events routed to the wrong queue and handlers throwing `NonRetryableError` go straight to the
-DLQ; other errors are retried 3 times (1s, 2s backoff) and then dead-lettered, like the Java services.
+## Validation
 
-## Layout
+`infrastructure/messaging/eventContracts.ts` mirrors `contracts/events/golden-flow-events.yaml`: producer,
+supported `eventVersion`, every payload field (required, format, enum) and no unknown fields. Error messages name
+the field and the rule, never the value. `test/event-contracts.test.ts` compares the rules with the YAML and runs
+the same valid and mutated payloads through a JSON Schema evaluator of the YAML and through the service; they
+must agree.
 
-Same canonical layout as the Java services (`domain` / `application` / `infrastructure`), checked by `test/architecture.test.ts`:
+## Dead-letter queues
 
-```
-src/
-  domain/ingestedEvents.ts          canonical event types analytics ingests
-  application/
-    port.ts                         IngestionHandler (projection handler port)
-    usecase/ingestEvent.ts          idempotent ingest of one event (dedupe + projection in one transaction)
-  infrastructure/
-    config.ts
-    messaging/topology.ts           exchanges, durable queues, DLX/DLQ
-    messaging/consumers.ts          one RabbitMQ consumer per registered handler
-    persistence/projections.ts      MySQL projection handlers (#133, #148)
-    persistence/migrate.ts          migration runner
-    http/health.ts                  GET /health
-  main.ts                           composition root
-```
+Each queue has a DLQ. A monitor checks the depth of every DLQ every `DLQ_MONITOR_INTERVAL_MS` (30 s) on its own
+channel and logs a warning with the queue name and depth while it is not empty (no message content).
 
-Dependency rule: `domain` imports nothing else; `application` imports only `domain` and the framework-free
-`@agricontract/eventing`; drivers (`amqplib`, `mysql2`, `node:http`) stay in `infrastructure` and `main.ts`.
+## Shutdown
+
+On SIGTERM/SIGINT: readiness goes false, the DLQ monitor and consumers stop, the HTTP server closes, in-flight
+deliveries (handler, retries and ack) get up to `SHUTDOWN_TIMEOUT_MS` (25 s) to finish, then the MySQL pool and
+the RabbitMQ channels and connection are closed. Messages that did not finish stay unacked, are redelivered and
+are deduplicated by `eventId`. Exit code 0 when everything drained, 1 after a timeout.
 
 ## Run
 
@@ -63,14 +85,15 @@ Requires MySQL 8 and RabbitMQ (same as `backend/docker-compose.yml`).
 ```bash
 npm install          # also installs and builds ../shared/node-eventing
 npm run build
-npm run migrate      # creates analytics_idempotency_log (additive)
+npm run migrate      # creates analytics_idempotency_log and analytics_ingested_event (additive)
 npm start            # health: GET http://localhost:8093/health
 ```
 
 Environment: `SERVER_PORT` (8093), `DB_HOST`, `DB_PORT`, `DB_NAME` (`analytics_db`), `DB_USERNAME`, `DB_PASSWORD`,
-`RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD` (or `AMQP_URL`), `ANALYTICS_PREFETCH` (20).
-If MySQL or RabbitMQ is down at startup the service keeps retrying; if the broker connection drops it exits so the
-orchestrator restarts it (unacked messages are redelivered and deduped).
+`RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD` (or `AMQP_URL`), `ANALYTICS_PREFETCH` (20),
+`DLQ_MONITOR_INTERVAL_MS` (30000), `SHUTDOWN_TIMEOUT_MS` (25000).
+If MySQL or RabbitMQ is down at startup the service keeps retrying; if the broker connection or the consume channel
+drops it exits so the orchestrator restarts it (unacked messages are redelivered and deduped).
 
 ## Test
 
@@ -79,11 +102,8 @@ npm run typecheck
 npm test
 ```
 
-Uses an in-memory broker and database to prove the three acceptance criteria, plus contract tests against
-`contracts/events/golden-flow-events.yaml` and `docs/contracts/integration-map.md`. `test/mysql.test.ts`
-runs the dedupe through a real MySQL (migration + shared MySQL adapters) when a database URL is given
-(the database must exist; the test applies the migrations):
-
-```bash
-ANALYTICS_TEST_MYSQL_URL=mysql://root:root@localhost:3306/analytics_test npm test
-```
+In-memory broker and database cover the wiring, validation, DLQ monitor and shutdown (including a handler that
+never finishes). `test/mysql.test.ts` runs the real transaction, dedupe and landing table against MySQL when
+`ANALYTICS_TEST_MYSQL_URL` is set, e.g. `mysql://root:root@localhost:3306/analytics_test`.
+Not covered by an automated test: a live RabbitMQ broker (the in-memory broker follows its ack/nack/DLX behavior).
+CI does not run the Node tests yet; that is tracked in #87.

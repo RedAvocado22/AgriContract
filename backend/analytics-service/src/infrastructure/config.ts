@@ -3,6 +3,10 @@ export interface Config {
   db: { host: string; port: number; database: string; user: string; password: string };
   amqpUrl: string;
   prefetch: number;
+  /** How often the dead-letter queues are checked for stuck events. */
+  dlqMonitorIntervalMs: number;
+  /** Time given to in-flight deliveries on SIGTERM/SIGINT (keep below the orchestrator's kill grace period). */
+  shutdownTimeoutMs: number;
 }
 
 /** Same environment variable names as the other services / docker-compose. */
@@ -24,5 +28,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Bounded in-flight messages per consumer: the backlog drains steadily after an outage
     // instead of flooding the DB with every buffered message at once.
     prefetch: Number(env.ANALYTICS_PREFETCH ?? 20),
+    dlqMonitorIntervalMs: Number(env.DLQ_MONITOR_INTERVAL_MS ?? 30_000),
+    shutdownTimeoutMs: Number(env.SHUTDOWN_TIMEOUT_MS ?? 25_000),
   };
 }
