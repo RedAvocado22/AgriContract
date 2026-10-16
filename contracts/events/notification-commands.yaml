@@ -52,7 +52,7 @@ $defs:
       properties:
         userId: {$ref: "#/$defs/nullableUuid"}
         email: {type: string, format: email}
-        role: {enum: [BUYER, SELLER, ADMIN, OPERATOR, INSPECTOR, SOFTWARE_BUYER]}
+        role: {enum: [BUYER, SELLER, ADMIN, OPERATOR, ARBITRATOR, INSPECTOR, SOFTWARE_BUYER]}
   money:
     type: string
     pattern: "^[0-9]+\\.[0-9]{2}$"
@@ -249,7 +249,7 @@ $defs:
                 oneOf: [{enum: [BUYER, SELLER]}, {type: "null"}]
               breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
               qualityDisposition: {$ref: "#/$defs/finalQualityDisposition"}
-              decisionSource: {enum: [SYSTEM, ADMIN, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
+              decisionSource: {enum: [SYSTEM, ARBITRATOR, INSPECTOR_L1_5, INSPECTOR_L2, MUTUAL]}
               penaltyEligible: {type: boolean}
               reputationEligible: {type: boolean}
               remedyLegs: {type: array, items: {$ref: "#/$defs/remedyLeg"}}

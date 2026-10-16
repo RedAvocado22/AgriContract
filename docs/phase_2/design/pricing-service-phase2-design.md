@@ -11,7 +11,7 @@ metadata:
 
 ## 1. Bối cảnh & Scope
 
-> **Role vận hành (18/07/2026):** các use case Admin trong doc này (review/moderate/nhập liệu hằng ngày) nhận thêm role `OPERATOR` theo `data-governance-phase2-design.md` §5 — permission matrix ở đó là source of truth, doc này không lặp lại; flow/state/schema không đổi.
+> **Role vận hành — sync SRS v1.6 (12/10/2026, thay note 18/07):** mọi use case vận hành trong doc này (review/moderate/nhập liệu hằng ngày, theo dõi alert) thuộc **OPERATOR**; ADMIN không làm thay (không fallback). Permission matrix ở `data-governance-phase2-design.md` §5.4 là source of truth; flow/state/schema không đổi.
 
 > **Scope Phase 2 (07/10/2026):** chỉ hỗ trợ giao dịch nội địa Việt Nam cho `COFFEE`. Mọi ghi mới, job ingest, API và màn hình vận hành trong tài liệu này phải từ chối commodity khác. Các ghi chú về gạo, cao su và điều chỉ là lịch sử phân tích/roadmap, không phải capability thực thi Phase 2.
 
@@ -41,7 +41,7 @@ metadata:
 | `itemName` | VARCHAR(255) | Tên mặt hàng cà phê theo đúng string nguồn, ví dụ "Cà phê Robusta nhân xô" |
 | `province` | VARCHAR | VNSAT tách giá cà phê theo tỉnh (Đắk Lắk, Gia Lai, Lâm Đồng...) |
 | `price` | DECIMAL | VNĐ/kg |
-| `source` | Enum (`VNSAT_SCRAPE`, `ADMIN_MANUAL`) | |
+| `source` | Enum (`VNSAT_SCRAPE`, `OPERATOR_MANUAL`) | Đổi tên từ `ADMIN_MANUAL` (12/10/2026, SRS v1.6). Code đã có `ADMIN_MANUAL` thì đổi enum + migration `UPDATE price_history SET source='OPERATOR_MANUAL' WHERE source='ADMIN_MANUAL'` — chỉ đổi nhãn nguồn, không đổi giá, attribution người nhập vẫn giữ nguyên |
 | `capturedAt` | DATE | Ngày giá **thật sự áp dụng** theo nguồn (cột "Ngày" trong bảng VNSAT) |
 | `ingestedAt` | TIMESTAMP | Lúc hệ thống lấy được — có thể trễ hơn `capturedAt` do VNSAT publish không đều |
 
@@ -82,9 +82,9 @@ VNSAT publish theo batch không đều, không phải daily thật dù giao di�
 
 **Bug đã fix trong quá trình debug (05/07/2026):** POST ban đầu chỉ gửi field `Ngành_hàng`, bỏ qua `tu_ngay`/`den_ngay` → 500 (ASP.NET WebForms coi form là 1 khối phải gửi đủ, không tự điền default cho field thiếu). Cà phê/Rau quả từng chạy "được" chỉ vì tình cờ không đụng đúng code path lỗi — không phải vì code đúng.
 
-### 3.2 Admin manual fallback (`COFFEE`)
+### 3.2 Operator manual fallback (`COFFEE`)
 
-`POST /api/v1/prices/manual` (role ADMIN/OPERATOR) chỉ nhận `commodity = COFFEE`, dùng khi nguồn VNSAT gián đoạn hoặc cần hiệu chỉnh có kiểm soát. Request bắt buộc tỉnh, ngày áp dụng, nguồn tham chiếu và lý do; ghi append-only vào `price_history` với `source = ADMIN_MANUAL`, rồi update Redis sau commit. Không sửa/xoá bản giá cũ.
+`POST /api/v1/prices/manual` (role OPERATOR) chỉ nhận `commodity = COFFEE`, dùng khi nguồn VNSAT gián đoạn hoặc cần hiệu chỉnh có kiểm soát. Request bắt buộc tỉnh, ngày áp dụng, nguồn tham chiếu và lý do; ghi append-only vào `price_history` với `source = OPERATOR_MANUAL`, rồi update Redis sau commit. Không sửa/xoá bản giá cũ.
 
 ### 3.3 Scheduled job
 
@@ -141,4 +141,4 @@ Pricing-service — **đóng session, sẵn sàng đưa vào Architecture/SDS/Te
 
 ---
 
-_Design session: 05/07/2026 · Cập nhật 07/10/2026: khóa scope Phase 2 ở Việt Nam + cà phê; gạo/cao su/điều chuyển thành roadmap, không còn là executable scope · Chưa code._
+_Design session: 05/07/2026 · Sync role SRS v1.6: 12/10/2026 · Cập nhật 07/10/2026: khóa scope Phase 2 ở Việt Nam + cà phê; gạo/cao su/điều chuyển thành roadmap, không còn là executable scope · Chưa code._

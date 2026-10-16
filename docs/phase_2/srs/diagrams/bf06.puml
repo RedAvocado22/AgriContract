@@ -1,0 +1,61 @@
+@startuml
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam SwimlaneBorderColor black
+skinparam ArrowColor black
+skinparam ActivityDiamondBackgroundColor white
+title BF-06 Mutual Termination & Replacement
+|Proposing party|
+|Other party|
+|System|
+|Proposing party|
+start
+:1. Choose termination\nor replacement;
+if (Terminate?) then (yes)
+  :2. Propose mutual\ntermination;
+  |Other party|
+  if (Other party agrees?) then (no)
+    :Contract stays active;
+    stop
+  else (yes)
+    |System|
+    :3. Settle entitlements\nwithout penalty;
+    :4. Refund remaining\nlocked funds;
+    :Contract terminated;
+    stop
+  endif
+else (replace)
+  |System|
+  :5. Check no open delivery,\ndispute or claim;
+  if (Eligible?) then (no)
+    :6. Reject proposal\nwith a reason;
+    :Contract stays active;
+    stop
+  else (yes)
+    |Proposing party|
+    :7. Propose replacement terms;
+    |Other party|
+    :8. Review and agree\non terms;
+    |Proposing party|
+    :9. Sign replacement with\ne-mail OTP;
+    |Other party|
+    :10. Sign replacement with\ne-mail OTP;
+    |System|
+    :11. Re-check eligibility;
+    if (Still eligible?) then (no)
+      :Replacement cancelled,\ncontract stays active;
+      stop
+    else (yes)
+      :12. Freeze old contract,\nrefund its funds;
+      :13. Mark old contract\nsuperseded;
+      :14. Activate replacement\nas in BF-03;
+      :Replacement contract activated;
+      stop
+    endif
+  endif
+endif
+@enduml

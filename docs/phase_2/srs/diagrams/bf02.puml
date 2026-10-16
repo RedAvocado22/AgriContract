@@ -1,0 +1,45 @@
+@startuml
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ActivityBackgroundColor white
+skinparam ActivityBorderColor black
+skinparam SwimlaneBorderColor black
+skinparam ArrowColor black
+skinparam ActivityDiamondBackgroundColor white
+title BF-02 Plot & Listing Publication
+|Seller|
+|Operator|
+|System|
+|Seller|
+start
+repeat :1. Import plots from KML or\nGPS pin;
+|System|
+:2. Check file and plot geometry;
+backward:3. Show errors per plot;
+|Seller|
+:4. Fix and re-import plots;
+repeat while (Plots valid?) is (no)
+->yes;
+|System|
+:5. Save plots and run\nforest-risk check;
+if (Risk flagged?) then (yes)
+  |Operator|
+  :6. Review flagged plot risk;
+endif
+|Seller|
+:7. Create product with category\nand plots;
+:8. Create listing with quantity\nand quality;
+|System|
+:9. Check seller eligibility and\nplot checks;
+if (Eligible?) then (yes)
+  :10. Publish listing on\nmarketplace;
+  :Listing available;
+  stop
+else (no)
+  :11. Reject listing with a reason;
+  :Listing not published;
+  stop
+endif
+@enduml
