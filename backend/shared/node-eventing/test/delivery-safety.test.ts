@@ -139,3 +139,45 @@ describe('a closed channel never crashes the consumer (review #156)', () => {
     assert.ok(logger.errors.some((m) => /Delivery handling failed/.test(m)));
   });
 });
+
+describe('consumers of payloads without an envelope', () => {
+  /** A channel that records ack/nack instead of throwing. */
+  function recordingChannel(): AmqpChannelLike & { acks: number; nacks: number } {
+    const ch = {
+      acks: 0,
+      nacks: 0,
+      async consume() {
+        return { consumerTag: 'ctag' };
+      },
+      ack: () => void (ch.acks += 1),
+      nack: () => void (ch.nacks += 1),
+    };
+    return ch;
+  }
+
+  const flatMessage: AmqpMessageLike = { content: Buffer.from('{"eventId":"evt-1"}'), fields: {} };
+
+  it('acks PROCESSED and DUPLICATE outcomes that carry no envelope', async () => {
+    for (const status of ['PROCESSED', 'DUPLICATE'] as const) {
+      const channel = recordingChannel();
+      const consumer: MessageConsumer = {
+        consumerName: 'test.flat',
+        handleMessage: async () => ({ status }),
+      };
+      const result = await handleDelivery(flatMessage, { channel, queue: 'q', consumer, logger: recordingLogger() });
+      assert.equal(result, status === 'PROCESSED' ? 'ACK_PROCESSED' : 'ACK_DUPLICATE');
+      assert.equal(channel.acks, 1);
+      assert.equal(channel.nacks, 0);
+    }
+  });
+
+  it('accepts a partial envelope with only the ids used for logging', async () => {
+    const channel = recordingChannel();
+    const consumer: MessageConsumer = {
+      consumerName: 'test.flat',
+      handleMessage: async () => ({ status: 'DUPLICATE', envelope: { eventId: 'evt-1' } }),
+    };
+    assert.equal(await handleDelivery(flatMessage, { channel, queue: 'q', consumer }), 'ACK_DUPLICATE');
+    assert.equal(channel.acks, 1);
+  });
+});

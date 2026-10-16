@@ -76,9 +76,19 @@ export class AmqpConfirmPublisher implements EventPublisher {
   }
 }
 
+/**
+ * What `handleDelivery` needs back from a consumer. `envelope` is only read for logging, so a
+ * consumer of payloads that are not (yet) on the envelope contract — e.g. the flat Phase 1 events
+ * notification-service consumes — may omit it or pass just the ids it has. `HandleOutcome` from
+ * `IdempotentConsumer` is assignable to this type unchanged.
+ */
+export type DeliveryOutcome =
+  | HandleOutcome
+  | { status: 'PROCESSED' | 'DUPLICATE'; envelope?: { eventId?: string; eventType?: string } };
+
 export interface MessageConsumer {
   readonly consumerName: string;
-  handleMessage(body: Buffer): Promise<HandleOutcome>;
+  handleMessage(body: Buffer): Promise<DeliveryOutcome>;
 }
 
 export interface ConsumeOptions {
@@ -122,7 +132,7 @@ export async function handleDelivery(msg: AmqpMessageLike, options: ConsumeOptio
   let backoff = options.initialBackoffMs ?? 1000;
 
   for (let attempt = 1; ; attempt += 1) {
-    let outcome: HandleOutcome;
+    let outcome: DeliveryOutcome;
     try {
       outcome = await options.consumer.handleMessage(msg.content);
     } catch (err) {
@@ -157,8 +167,8 @@ export async function handleDelivery(msg: AmqpMessageLike, options: ConsumeOptio
     if (outcome.status === 'DUPLICATE') {
       logger.info('Duplicate event skipped', {
         consumer: options.consumer.consumerName,
-        eventId: outcome.envelope.eventId,
-        eventType: outcome.envelope.eventType,
+        eventId: outcome.envelope?.eventId,
+        eventType: outcome.envelope?.eventType,
       });
       return 'ACK_DUPLICATE';
     }
