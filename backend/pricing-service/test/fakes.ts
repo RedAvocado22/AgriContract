@@ -106,12 +106,12 @@ export function validBody(overrides: Record<string, unknown> = {}): Record<strin
   };
 }
 
-export function adminHeaders(overrides: Record<string, string> = {}): Record<string, string> {
+export function operatorHeaders(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     'X-Gateway-Secret': GATEWAY_SECRET,
-    'X-User-Id': 'admin-1',
-    'X-User-Role': 'ADMIN',
+    'X-User-Id': 'op-1',
+    'X-User-Role': 'OPERATOR',
     'Idempotency-Key': 'key-1',
     ...overrides,
   };
@@ -120,7 +120,7 @@ export function adminHeaders(overrides: Record<string, string> = {}): Record<str
 export async function postManual(
   app: TestApp,
   body: unknown,
-  headers: Record<string, string | undefined> = adminHeaders(),
+  headers: Record<string, string | undefined> = operatorHeaders(),
 ): Promise<{ status: number; json: any; headers: Headers }> {
   const clean = Object.fromEntries(Object.entries(headers).filter(([, v]) => v !== undefined)) as Record<string, string>;
   const res = await fetch(`${app.baseUrl}/api/v1/prices/manual`, {

@@ -68,7 +68,7 @@ describe('RedisPriceCache', () => {
     province: 'Đắk Lắk',
     provinceSlug: 'dak-lak',
     price,
-    source: 'ADMIN_MANUAL',
+    source: 'OPERATOR_MANUAL',
     capturedAt,
     ingestedAt,
     referenceSource: 'x',
@@ -127,12 +127,12 @@ describe('MysqlPriceHistoryRepository', () => {
     province: 'Đắk Lắk',
     provinceSlug: 'dak-lak',
     price: '120500.00',
-    source: 'ADMIN_MANUAL',
+    source: 'OPERATOR_MANUAL',
     capturedAt: '2026-10-10',
     ingestedAt: '2026-10-12T05:00:00.123Z',
     referenceSource: 'ref',
     reason: 'why',
-    recordedBy: 'admin-1',
+    recordedBy: 'op-1',
   };
 
   it('INSERTs every attribution column, ingested_at as UTC DATETIME(3)', async () => {
@@ -142,7 +142,7 @@ describe('MysqlPriceHistoryRepository', () => {
     assert.match(call.sql, /^INSERT INTO price_history/);
     assert.deepEqual(call.values, [
       'id-1', 'COFFEE', 'Cà phê Robusta nhân xô', 'ca-phe-robusta-nhan-xo', 'Đắk Lắk', 'dak-lak',
-      '120500.00', 'ADMIN_MANUAL', '2026-10-10', '2026-10-12 05:00:00.123', 'ref', 'why', 'admin-1', 'k', 'h',
+      '120500.00', 'OPERATOR_MANUAL', '2026-10-10', '2026-10-12 05:00:00.123', 'ref', 'why', 'op-1', 'k', 'h',
     ]);
     assert.equal(toMysqlDateTime('2026-10-12T05:00:00.123Z'), '2026-10-12 05:00:00.123');
   });
@@ -160,13 +160,13 @@ describe('MysqlPriceHistoryRepository', () => {
     const pool = new RecordingPool();
     pool.rows = [{
       id: 'id-1', commodity: 'COFFEE', item_name: q.itemName, item_slug: q.itemSlug, province: q.province,
-      province_slug: q.provinceSlug, price: '120500.00', source: 'ADMIN_MANUAL', captured_at: '2026-10-10',
-      ingested_at: '2026-10-12 05:00:00.123', reference_source: 'ref', reason: 'why', recorded_by: 'admin-1',
+      province_slug: q.provinceSlug, price: '120500.00', source: 'OPERATOR_MANUAL', captured_at: '2026-10-10',
+      ingested_at: '2026-10-12 05:00:00.123', reference_source: 'ref', reason: 'why', recorded_by: 'op-1',
       request_hash: 'h',
     }];
-    const found = await new MysqlPriceHistoryRepository(pool).findByIdempotencyKey('admin-1', 'k');
+    const found = await new MysqlPriceHistoryRepository(pool).findByIdempotencyKey('op-1', 'k');
     assert.deepEqual(found, { quote: q, requestHash: 'h' });
-    assert.deepEqual(pool.calls[0]!.values, ['admin-1', 'k']);
+    assert.deepEqual(pool.calls[0]!.values, ['op-1', 'k']);
   });
 
   it('is append-only: the repository source contains no UPDATE or DELETE', () => {
@@ -189,7 +189,7 @@ describe('migration (additive)', () => {
       assert.match(sql, new RegExp(`\\b${col}\\b`));
     }
     assert.match(sql, /CHECK \(commodity = 'COFFEE'\)/);
-    assert.match(sql, /'VNSAT_SCRAPE', 'ADMIN_MANUAL'/);
+    assert.match(sql, /'VNSAT_SCRAPE', 'OPERATOR_MANUAL'/);
   });
 
   it('runner picks migration files in version order', () => {

@@ -27,7 +27,7 @@ const MAX_IDEMPOTENCY_KEY = 255;
 
 /**
  * Admin/Operator manual fallback (design §3.2): validate, append ONE row to
- * price_history with source = ADMIN_MANUAL, then refresh Redis after the write.
+ * price_history with source = OPERATOR_MANUAL, then refresh Redis after the write.
  * Never updates or deletes an older price.
  */
 export async function recordManualPrice(
@@ -59,7 +59,7 @@ export async function recordManualPrice(
     province: input.province,
     provinceSlug: slugify(input.province),
     price: input.price,
-    source: 'ADMIN_MANUAL',
+    source: 'OPERATOR_MANUAL',
     capturedAt: input.capturedAt,
     ingestedAt: now.toISOString(),
     referenceSource: input.referenceSource,
