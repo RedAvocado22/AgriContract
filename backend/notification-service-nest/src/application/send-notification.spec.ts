@@ -1,7 +1,9 @@
+import { ConfigService } from '@nestjs/config';
 import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
 } from '../../test/support/fakes';
+import { validate, type AppConfig } from '../config/env.validation';
 import { NotificationStatus } from '../domain/notification-log';
 import { ProcessNotificationService } from './process-notification.service';
 
@@ -13,7 +15,11 @@ describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
   beforeEach(() => {
     logs = new InMemoryNotificationLogRepository();
     email = new FakeEmailPort();
-    service = new ProcessNotificationService(logs, email);
+    service = new ProcessNotificationService(
+      logs,
+      email,
+      new ConfigService<AppConfig, true>(validate({})),
+    );
   });
 
   it('sends and records SENT with the recipient email as user', async () => {
