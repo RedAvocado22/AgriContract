@@ -6,6 +6,7 @@ import {
   NodemailerEmailAdapter,
   mailTransportFactory,
 } from './infrastructure/email/nodemailer-email.adapter';
+import { DlqMonitor } from './infrastructure/messaging/dlq-monitor';
 import { MessagingModule } from './infrastructure/messaging/messaging.module';
 import { NotificationEventConsumer } from './infrastructure/messaging/notification-event.consumer';
 import { MysqlNotificationLogRepository } from './infrastructure/persistence/notification-log.mysql-repository';
@@ -23,6 +24,7 @@ import { PersistenceModule } from './infrastructure/persistence/persistence.modu
     { provide: EMAIL_PORT, useClass: NodemailerEmailAdapter },
     mailTransportFactory,
     NotificationEventConsumer,
+    DlqMonitor,
   ],
 })
 export class NotificationModule {}
