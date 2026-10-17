@@ -1,0 +1,146 @@
+{
+  "handleContractSigned": {
+    "subject": "[AgriContract] Contract has been signed",
+    "body": [
+      {
+        "text": "Contract "
+      },
+      {
+        "field": "contractId"
+      },
+      {
+        "text": " has been successfully signed."
+      }
+    ],
+    "recipients": ["buyerEmail", "sellerEmail"]
+  },
+  "handleContractCancelled": {
+    "subject": "[AgriContract] Contract has been cancelled",
+    "body": [
+      {
+        "text": "Contract "
+      },
+      {
+        "field": "contractId"
+      },
+      {
+        "text": " has been cancelled. Reason: "
+      },
+      {
+        "field": "reason"
+      }
+    ],
+    "recipients": ["buyerEmail", "sellerEmail"]
+  },
+  "handleContractDelivered": {
+    "subject": "[AgriContract] Buyer confirmed receipt of goods",
+    "body": [
+      {
+        "text": "Contract "
+      },
+      {
+        "field": "contractId"
+      },
+      {
+        "text": " has been successfully delivered."
+      }
+    ],
+    "recipients": ["sellerEmail"]
+  },
+  "handleContractDisputed": {
+    "subject": "[AgriContract] [ADMIN] New dispute requires resolution",
+    "body": [
+      {
+        "text": "Contract "
+      },
+      {
+        "field": "contractId"
+      },
+      {
+        "text": " has been disputed. Reason: "
+      },
+      {
+        "field": "reason"
+      }
+    ],
+    "recipients": ["adminEmail", "sellerEmail", "buyerEmail"]
+  },
+  "handleEscrowLocked": {
+    "subject": "[AgriContract] Escrow locked — proceed with delivery",
+    "body": [
+      {
+        "text": "Escrow "
+      },
+      {
+        "field": "escrowId"
+      },
+      {
+        "text": " has been successfully locked."
+      }
+    ],
+    "recipients": ["sellerEmail"]
+  },
+  "handleEscrowReleased": {
+    "subject": "[AgriContract] Payment has been released",
+    "body": [
+      {
+        "text": "Escrow "
+      },
+      {
+        "field": "escrowId"
+      },
+      {
+        "text": " has been successfully released."
+      }
+    ],
+    "recipients": ["sellerEmail", "buyerEmail"]
+  },
+  "handleEscrowPenalized": {
+    "subject": "[AgriContract] Contract penalty notification",
+    "body": [
+      {
+        "text": "Escrow "
+      },
+      {
+        "field": "escrowId"
+      },
+      {
+        "text": " has been successfully penalized."
+      }
+    ],
+    "recipients": ["penalizedPartyEmail"]
+  },
+  "handleCategoryApproved": {
+    "subject": "[AgriContract] Category proposal approved",
+    "body": [
+      {
+        "text": "Your proposed category \""
+      },
+      {
+        "field": "name"
+      },
+      {
+        "text": "\" has been approved."
+      }
+    ],
+    "recipients": ["proposedByEmail"]
+  },
+  "handleCategoryRejected": {
+    "subject": "[AgriContract] Category proposal rejected",
+    "body": [
+      {
+        "text": "Your proposed category \""
+      },
+      {
+        "field": "name"
+      },
+      {
+        "text": "\" has been rejected. Reason: "
+      },
+      {
+        "field": "rejectionReason"
+      }
+    ],
+    "recipients": ["proposedByEmail"]
+  }
+}
