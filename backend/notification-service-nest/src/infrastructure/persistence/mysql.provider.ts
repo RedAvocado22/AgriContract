@@ -3,7 +3,7 @@ import {
   Injectable,
   Logger,
   type FactoryProvider,
-  type OnModuleDestroy,
+  type OnApplicationShutdown,
   type OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -37,7 +37,7 @@ export const mysqlPoolProvider: FactoryProvider<Pool> = {
  * as the Java service does (Flyway runs before it accepts traffic).
  */
 @Injectable()
-export class MysqlService implements OnModuleInit, OnModuleDestroy {
+export class MysqlService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(MysqlService.name);
 
   constructor(
@@ -62,7 +62,11 @@ export class MysqlService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`Connected to MySQL at ${target}`);
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /**
+   * Last shutdown step, after in-flight messages were drained
+   * (NotificationEventConsumer.beforeApplicationShutdown) and still need the pool.
+   */
+  async onApplicationShutdown(): Promise<void> {
     await this.pool.end();
   }
 }

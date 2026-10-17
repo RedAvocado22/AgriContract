@@ -49,7 +49,7 @@ describe('MysqlService', () => {
   it('ends the pool on shutdown', async () => {
     const { pool, end } = fakePool(jest.fn());
 
-    await new MysqlService(pool, config).onModuleDestroy();
+    await new MysqlService(pool, config).onApplicationShutdown();
 
     expect(end).toHaveBeenCalledTimes(1);
   });

@@ -95,7 +95,7 @@ describe('AmqpService', () => {
       password: 'guest',
     });
 
-    await service.onModuleDestroy();
+    await service.onApplicationShutdown();
   });
 
   it('sets prefetch, declares the topology and runs callbacks on every (re)connect', async () => {
@@ -125,7 +125,7 @@ describe('AmqpService', () => {
     expect(ready).toHaveBeenLastCalledWith(second.channel);
     expect(first.close).toHaveBeenCalled(); // the old connection is not leaked
 
-    await service.onModuleDestroy();
+    await service.onApplicationShutdown();
   });
 
   it('runs a callback registered after the channel is ready right away', async () => {
@@ -138,7 +138,7 @@ describe('AmqpService', () => {
     await service.onChannelReady(ready);
 
     expect(ready).toHaveBeenCalledWith(conn.channel);
-    await service.onModuleDestroy();
+    await service.onApplicationShutdown();
   });
 
   it('logs an error and retries when the topology declaration fails', async () => {
@@ -159,7 +159,7 @@ describe('AmqpService', () => {
 
     await jest.advanceTimersByTimeAsync(1000);
     expect(service.isHealthy()).toBe(true);
-    await service.onModuleDestroy();
+    await service.onApplicationShutdown();
   });
 
   it('caps the backoff at 30s', async () => {
@@ -179,7 +179,7 @@ describe('AmqpService', () => {
     await jest.advanceTimersByTimeAsync(1);
     expect(connect).toHaveBeenCalledTimes(calls + 1);
 
-    await service.onModuleDestroy();
+    await service.onApplicationShutdown();
   });
 
   it('stops retrying once destroyed', async () => {
@@ -188,20 +188,35 @@ describe('AmqpService', () => {
 
     service.onModuleInit();
     await jest.advanceTimersByTimeAsync(0);
-    await service.onModuleDestroy();
+    service.onModuleDestroy();
     await jest.advanceTimersByTimeAsync(120_000);
 
     expect(connect).toHaveBeenCalledTimes(1);
   });
 
-  it('closes channel then connection on destroy and swallows "already closed"', async () => {
+  it('keeps the channel open on module destroy so consumers can drain', async () => {
+    const conn = new FakeConnection();
+    const service = new AmqpService(config, fakeConnect(conn));
+    service.onModuleInit();
+    await jest.advanceTimersByTimeAsync(0);
+
+    service.onModuleDestroy();
+
+    expect(service.isHealthy()).toBe(true);
+    expect(service.getChannel()).toBe(conn.channel);
+    expect(conn.channel.close).not.toHaveBeenCalled();
+    await service.onApplicationShutdown();
+  });
+
+  it('closes channel then connection on application shutdown and swallows "already closed"', async () => {
     const conn = new FakeConnection();
     conn.channel.close.mockRejectedValueOnce(new Error('Channel closed'));
     const service = new AmqpService(config, fakeConnect(conn));
     service.onModuleInit();
     await jest.advanceTimersByTimeAsync(0);
 
-    await expect(service.onModuleDestroy()).resolves.toBeUndefined();
+    service.onModuleDestroy();
+    await expect(service.onApplicationShutdown()).resolves.toBeUndefined();
 
     expect(conn.channel.close).toHaveBeenCalledTimes(1);
     expect(conn.close).toHaveBeenCalledTimes(1);
