@@ -1,0 +1,399 @@
+import { Logger } from '@nestjs/common';
+import {
+  NonRetryableError,
+  handleDelivery,
+  type AmqpChannelLike,
+  type AmqpMessageLike,
+} from '@agricontract/eventing';
+import type { Channel } from 'amqplib';
+import type { ProcessNotificationService } from '../../application/process-notification.service';
+import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
+import {
+  DRAIN_TIMEOUT_MS,
+  NotificationEventConsumer,
+  QueueConsumer,
+} from './notification-event.consumer';
+import { queueNames } from './topology';
+
+type OnMessage = (msg: AmqpMessageLike | null) => void;
+
+/** amqplib channel stand-in: records consumers, acks, nacks and cancels. */
+class FakeChannel {
+  readonly consumers = new Map<string, OnMessage>();
+  readonly acked: AmqpMessageLike[] = [];
+  readonly nacked: Array<{ msg: AmqpMessageLike; requeue?: boolean }> = [];
+  consume = jest.fn((queue: string, onMessage: OnMessage) => {
+    this.consumers.set(queue, onMessage);
+    return Promise.resolve({ consumerTag: `tag:${queue}` });
+  });
+  ack = jest.fn((msg: AmqpMessageLike) => void this.acked.push(msg));
+  nack = jest.fn(
+    (msg: AmqpMessageLike, _all?: boolean, requeue?: boolean) =>
+      void this.nacked.push({ msg, requeue }),
+  );
+  cancel = jest.fn(() => Promise.resolve({}));
+
+  deliver(queue: string, payload: unknown): AmqpMessageLike {
+    const msg: AmqpMessageLike = {
+      content: Buffer.from(
+        typeof payload === 'string' ? payload : JSON.stringify(payload),
+      ),
+      fields: { routingKey: queue.replace('notification-svc.', '') },
+    };
+    const onMessage = this.consumers.get(queue);
+    if (!onMessage) throw new Error(`no consumer on ${queue}`);
+    onMessage(msg);
+    return msg;
+  }
+}
+
+const HANDLERS = [
+  'handleContractSigned',
+  'handleContractCancelled',
+  'handleContractDelivered',
+  'handleContractDisputed',
+  'handleEscrowLocked',
+  'handleEscrowReleased',
+  'handleEscrowPenalized',
+  'handleCategoryApproved',
+  'handleCategoryRejected',
+] as const;
+
+function setup() {
+  const readyCallbacks: ChannelReadyCallback[] = [];
+  const amqp = {
+    onChannelReady: jest.fn((cb: ChannelReadyCallback) => {
+      readyCallbacks.push(cb);
+      return Promise.resolve();
+    }),
+  } as unknown as AmqpService;
+  const service = Object.fromEntries(
+    HANDLERS.map((h) => [
+      h,
+      jest.fn<Promise<void>, [Record<string, unknown>]>(() =>
+        Promise.resolve(),
+      ),
+    ]),
+  ) as Record<
+    (typeof HANDLERS)[number],
+    jest.Mock<Promise<void>, [Record<string, unknown>]>
+  >;
+  const consumer = new NotificationEventConsumer(
+    amqp,
+    service as unknown as ProcessNotificationService,
+  );
+  const open = async (channel: FakeChannel) => {
+    for (const cb of readyCallbacks) await cb(channel as unknown as Channel);
+  };
+  return { consumer, service, open };
+}
+
+/** Lets the delivery promises chained by consumeEvents run. */
+const flush = async () => {
+  for (let i = 0; i < 10; i += 1) await new Promise((r) => setImmediate(r));
+};
+
+const PAYLOADS: Record<
+  string,
+  { handler: (typeof HANDLERS)[number]; payload: Record<string, unknown> }
+> = {
+  'notification-svc.contract.signed': {
+    handler: 'handleContractSigned',
+    payload: {
+      eventId: 'e1',
+      contractId: 'c',
+      buyerEmail: 'b@x.test',
+      sellerEmail: 's@x.test',
+    },
+  },
+  'notification-svc.contract.cancelled': {
+    handler: 'handleContractCancelled',
+    payload: {
+      eventId: 'e2',
+      contractId: 'c',
+      buyerEmail: 'b@x.test',
+      sellerEmail: 's@x.test',
+      reason: 'r',
+    },
+  },
+  'notification-svc.contract.delivered': {
+    handler: 'handleContractDelivered',
+    payload: { eventId: 'e3', contractId: 'c', sellerEmail: 's@x.test' },
+  },
+  'notification-svc.contract.disputed': {
+    handler: 'handleContractDisputed',
+    payload: {
+      eventId: 'e4',
+      contractId: 'c',
+      buyerEmail: 'b@x.test',
+      sellerEmail: 's@x.test',
+    },
+  },
+  'notification-svc.escrow.locked': {
+    handler: 'handleEscrowLocked',
+    payload: { eventId: 'e5', escrowId: 'x', sellerEmail: 's@x.test' },
+  },
+  'notification-svc.escrow.released': {
+    handler: 'handleEscrowReleased',
+    payload: {
+      eventId: 'e6',
+      escrowId: 'x',
+      buyerEmail: 'b@x.test',
+      sellerEmail: 's@x.test',
+    },
+  },
+  'notification-svc.escrow.penalized': {
+    handler: 'handleEscrowPenalized',
+    payload: {
+      eventId: 'e7',
+      escrowId: 'x',
+      penalizedParty: 'SELLER',
+      buyerEmail: 'b@x.test',
+      sellerEmail: 's@x.test',
+    },
+  },
+  'notification-svc.category.approved': {
+    handler: 'handleCategoryApproved',
+    payload: { eventId: 'e8', name: 'n', proposedByEmail: 'p@x.test' },
+  },
+  'notification-svc.category.rejected': {
+    handler: 'handleCategoryRejected',
+    payload: {
+      eventId: 'e9',
+      name: 'n',
+      proposedByEmail: 'p@x.test',
+      rejectionReason: 'dup',
+    },
+  },
+};
+
+describe('NotificationEventConsumer', () => {
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    for (const level of ['log', 'error', 'debug'] as const) {
+      jest.spyOn(Logger.prototype, level).mockImplementation(() => undefined);
+    }
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('registers through AmqpService.onChannelReady at startup', async () => {
+    const { consumer } = setup();
+    await consumer.onModuleInit();
+    // consumers are attached only when a channel is ready
+    expect(consumer.inFlightCount).toBe(0);
+  });
+
+  it('consumes the 9 queues on every channel, again after a reconnect', async () => {
+    const { consumer, open } = setup();
+    await consumer.onModuleInit();
+    const first = new FakeChannel();
+    const second = new FakeChannel();
+
+    await open(first);
+    await open(second);
+
+    for (const channel of [first, second]) {
+      expect(channel.consume).toHaveBeenCalledTimes(9);
+      expect([...channel.consumers.keys()].sort()).toEqual(queueNames().sort());
+      for (const call of channel.consume.mock.calls as unknown[][]) {
+        expect(call[2]).toEqual({ noAck: false });
+      }
+    }
+  });
+
+  it.each(Object.entries(PAYLOADS))(
+    '%s runs its handler with the parsed command and acks',
+    async (queue, { handler, payload }) => {
+      const { consumer, service, open } = setup();
+      await consumer.onModuleInit();
+      const channel = new FakeChannel();
+      await open(channel);
+
+      const msg = channel.deliver(queue, { ...payload, eventType: 'ignored' });
+      await flush();
+
+      expect(service[handler]).toHaveBeenCalledTimes(1);
+      expect(service[handler].mock.calls[0][0]).toMatchObject({
+        eventId: payload.eventId,
+      });
+      for (const other of HANDLERS.filter((h) => h !== handler)) {
+        expect(service[other]).not.toHaveBeenCalled();
+      }
+      expect(channel.acked).toEqual([msg]);
+      expect(channel.nacked).toEqual([]);
+      expect(consumer.inFlightCount).toBe(0);
+    },
+  );
+
+  it('dead-letters a malformed payload at once, without calling the handler', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver('notification-svc.contract.signed', '{oops');
+    await flush();
+
+    expect(service.handleContractSigned).not.toHaveBeenCalled();
+    expect(channel.nacked).toEqual([{ msg, requeue: false }]);
+    expect(channel.acked).toEqual([]);
+  });
+
+  it('on shutdown cancels every consumer, then waits for in-flight messages', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+    let finish!: () => void;
+    service.handleEscrowLocked.mockImplementation(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+
+    const msg = channel.deliver(
+      'notification-svc.escrow.locked',
+      PAYLOADS['notification-svc.escrow.locked'].payload,
+    );
+    await flush();
+    expect(consumer.inFlightCount).toBe(1);
+
+    let drained = false;
+    const shutdown = consumer
+      .beforeApplicationShutdown()
+      .then(() => (drained = true));
+    await flush();
+
+    expect(channel.cancel).toHaveBeenCalledTimes(9);
+    expect(channel.cancel).toHaveBeenCalledWith(
+      'tag:notification-svc.escrow.locked',
+    );
+    expect(drained).toBe(false); // still waiting for the message
+    expect(channel.acked).toEqual([]);
+
+    finish();
+    await shutdown;
+
+    expect(channel.acked).toEqual([msg]);
+    expect(consumer.inFlightCount).toBe(0);
+  });
+
+  it('stops waiting after the drain timeout and leaves the message unacked', async () => {
+    jest.useFakeTimers();
+    try {
+      const { consumer, service, open } = setup();
+      await consumer.onModuleInit();
+      const channel = new FakeChannel();
+      await open(channel);
+      service.handleEscrowLocked.mockImplementation(
+        () => new Promise<void>(() => undefined),
+      );
+      channel.deliver(
+        'notification-svc.escrow.locked',
+        PAYLOADS['notification-svc.escrow.locked'].payload,
+      );
+      await jest.advanceTimersByTimeAsync(0);
+
+      const shutdown = consumer.beforeApplicationShutdown();
+      await jest.advanceTimersByTimeAsync(DRAIN_TIMEOUT_MS);
+      await shutdown;
+
+      expect(channel.acked).toEqual([]);
+      expect(consumer.inFlightCount).toBe(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('still in flight'),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not attach to a channel that opens during shutdown', async () => {
+    const { consumer, open } = setup();
+    await consumer.onModuleInit();
+    await consumer.beforeApplicationShutdown();
+
+    const late = new FakeChannel();
+    await open(late);
+
+    expect(late.consume).not.toHaveBeenCalled();
+  });
+});
+
+describe('delivery handling of a QueueConsumer (eventing handleDelivery)', () => {
+  function recordingChannel() {
+    const calls = { acks: 0, nacks: [] as Array<boolean | undefined> };
+    const channel: AmqpChannelLike = {
+      consume: () => Promise.resolve({ consumerTag: 't' }),
+      ack: () => void (calls.acks += 1),
+      nack: (_msg, _all, requeue) => void calls.nacks.push(requeue),
+    };
+    return { channel, calls };
+  }
+  const msg: AmqpMessageLike = { content: Buffer.from('{}'), fields: {} };
+  const silent = { debug() {}, info() {}, warn() {}, error() {} };
+
+  it('retries a transient error 3 times with 1s/2s backoff, then nacks without requeue', async () => {
+    const { channel, calls } = recordingChannel();
+    const handle = jest.fn(() => Promise.reject(new Error('SMTP down')));
+    const sleeps: number[] = [];
+
+    const result = await handleDelivery(msg, {
+      channel,
+      queue: 'q',
+      consumer: new QueueConsumer('notification.test', handle),
+      logger: silent,
+      sleep: (ms) => {
+        sleeps.push(ms);
+        return Promise.resolve();
+      },
+    });
+
+    expect(result).toBe('DEAD_LETTERED');
+    expect(handle).toHaveBeenCalledTimes(3);
+    expect(sleeps).toEqual([1000, 2000]);
+    expect(calls).toEqual({ acks: 0, nacks: [false] });
+  });
+
+  it('nacks a NonRetryableError at once, without retrying', async () => {
+    const { channel, calls } = recordingChannel();
+    const handle = jest.fn(() =>
+      Promise.reject(new NonRetryableError('Malformed payload')),
+    );
+    const sleep = jest.fn(() => Promise.resolve());
+
+    const result = await handleDelivery(msg, {
+      channel,
+      queue: 'q',
+      consumer: new QueueConsumer('notification.test', handle),
+      logger: silent,
+      sleep,
+    });
+
+    expect(result).toBe('DEAD_LETTERED');
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(calls).toEqual({ acks: 0, nacks: [false] });
+  });
+
+  it('acks after a transient error that succeeds on retry', async () => {
+    const { channel, calls } = recordingChannel();
+    const handle = jest
+      .fn<Promise<void>, [Buffer]>()
+      .mockRejectedValueOnce(new Error('deadlock'))
+      .mockResolvedValueOnce(undefined);
+
+    const result = await handleDelivery(msg, {
+      channel,
+      queue: 'q',
+      consumer: new QueueConsumer('notification.test', handle),
+      logger: silent,
+      sleep: () => Promise.resolve(),
+    });
+
+    expect(result).toBe('ACK_PROCESSED');
+    expect(calls).toEqual({ acks: 1, nacks: [] });
+  });
+});

@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  type OnApplicationShutdown,
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
@@ -36,7 +37,9 @@ const CONNECT_TIMEOUT_MS = 10_000;
  * (M2 attaches the consumers there). M1 consumes nothing.
  */
 @Injectable()
-export class AmqpService implements OnModuleInit, OnModuleDestroy {
+export class AmqpService
+  implements OnModuleInit, OnModuleDestroy, OnApplicationShutdown
+{
   private readonly logger = new Logger(AmqpService.name);
   private readonly readyCallbacks: ChannelReadyCallback[] = [];
   private connection?: ChannelModel;
@@ -70,14 +73,23 @@ export class AmqpService implements OnModuleInit, OnModuleDestroy {
     if (this.channel) await callback(this.channel);
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /**
+   * Shutdown, step 1: stop reconnecting but keep the channel open, so the
+   * consumers can be cancelled and in-flight messages finish and get acked
+   * (NotificationEventConsumer.beforeApplicationShutdown, step 2).
+   */
+  onModuleDestroy(): void {
     this.stopped = true;
     clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
+  }
+
+  /** Shutdown, step 3: close the channel, then the connection. */
+  async onApplicationShutdown(): Promise<void> {
+    this.onModuleDestroy();
     const { channel, connection } = this;
     this.channel = undefined;
     this.connection = undefined;
-    // M2: cancel the consumers and wait for in-flight messages here, before closing the channel.
     await this.closeQuietly(channel);
     await this.closeQuietly(connection);
   }
