@@ -3,9 +3,29 @@
 NestJS port of the Spring Boot `notification-service`. Plan and status:
 `docs/planning/notification-service-nestjs-migration.md`.
 
-**Status: M1 (infrastructure).** The service validates its environment, connects to MySQL and RabbitMQ, declares
-the same RabbitMQ topology as the Java service and exposes `GET /actuator/health`. It does **not** consume any
-message or send any email yet (M2).
+**Status: M2 (Phase 1 behaviour ported).** The service consumes the 9 Phase 1 queues, sends the same emails as the
+Java service and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient
+deduplication. Not done yet: Dockerfile, compose and CI (M3), parity run against Java with Bruno (M4).
+
+| Queue (`notification-svc.<key>`) | Recipients, in order |
+| --- | --- |
+| `contract.signed`, `contract.cancelled` | buyer, seller |
+| `contract.delivered` | seller |
+| `contract.disputed` | `ADMIN_EMAIL`, seller, buyer |
+| `escrow.locked` | seller |
+| `escrow.released` | seller, buyer |
+| `escrow.penalized` | buyer if `penalizedParty` is `BUYER`, otherwise seller |
+| `category.approved`, `category.rejected` | proposer |
+
+- A payload that is not JSON, or misses a required field, goes to the DLQ at once (see
+  `src/infrastructure/messaging/legacy-payload.parsers.ts` for the required fields).
+- A failed send is retried 3 times (1s, 2s), then dead-lettered; the log row is `FAILED` with `retry_count`.
+- Every 5 minutes a warning is logged for each DLQ that holds messages.
+- On shutdown the consumers are cancelled and in-flight messages finish (up to 8s) before the channel and the
+  database pool close.
+
+The table `notification_logs` comes from `db/migration` of the Java service (Flyway V1); running Flyway for this
+service is M3.
 
 > **Never run this service and the Java `notification-service` at the same time.** They use the same queues and the
 > same database; two consumers on one queue split the messages between them. Stop the Java container first.
@@ -66,6 +86,14 @@ Unlike Spring Boot's actuator, health does not check SMTP.
 | `npm test` | Unit tests (Jest) |
 | `npm run lint` | ESLint + Prettier, fixing what it can |
 | `npm run lint:check` | Same without `--fix`, for CI |
+| `npm run fixtures:java` | Regenerate `test/fixtures/java-templates.json` from the Java `ProcessNotificationUseCaseImpl` |
+
+## Golden email fixtures
+
+Subjects, bodies and recipient order must stay identical to the Java service. `test/fixtures/java-templates.json`
+is extracted from the Java source by `npm run fixtures:java`; `src/application/handlers.spec.ts` checks every
+handler against it, and, while the Java service is still in the repo, checks that the fixture matches the Java
+source.
 
 ## Why Jest has its own tsconfig
 

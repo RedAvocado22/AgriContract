@@ -177,18 +177,33 @@ backend/notification-service-nest/
 
 ### M2 — Port nghiệp vụ (3–4 ngày)
 
-- [ ] `NotificationLog` domain, repository MySQL (`findByEventIdAndRecipient`, `insert` bắt `ER_DUP_ENTRY`, `update`).
-- [ ] `ProcessNotificationService`: 9 handler, thuật toán §4.3, subject/body copy nguyên văn.
-- [ ] `legacy-payload.parsers.ts`: 9 parser, kể cả logic `penalizedParty`.
-- [ ] `NotificationEventConsumer`: mỗi queue nối parser → service, đăng ký bằng `consumeEvents`.
-- [ ] Nodemailer adapter.
-- [ ] DLQ monitor.
-- [ ] Unit test (Jest):
+- [x] `NotificationLog` domain, repository MySQL (`findByEventIdAndRecipient`, `insert` bắt `ER_DUP_ENTRY`, `update`).
+- [x] `ProcessNotificationService`: 9 handler, thuật toán §4.3, subject/body copy nguyên văn.
+- [x] `legacy-payload.parsers.ts`: 9 parser, kể cả logic `penalizedParty`.
+- [x] `NotificationEventConsumer`: mỗi queue nối parser → service, đăng ký bằng `consumeEvents`.
+- [x] Nodemailer adapter.
+- [x] DLQ monitor.
+- [x] Unit test (Jest):
   - Port 6 case JUnit hiện có.
   - Thêm: đủ 9 handler (đúng người nhận, subject, body), `SENT` thì skip, `ER_DUP_ENTRY` thì không gửi, mail lỗi thì `FAILED` + throw, recipient thứ 2 lỗi rồi retry thì không gửi lại recipient 1, payload thiếu hoặc sai kiểu thì `NonRetryableError`, `penalizedParty` BUYER/SELLER.
   - Test `handleDelivery` với channel giả: retry 3 lần rồi nack(requeue=false).
 
 **Xong khi:** coverage của `application/` và `messaging/` tương đương hoặc hơn Java, mọi dòng §4 có test.
+
+**Kết quả M2 (17/10/2026):**
+
+- **Test:** 350 test pass trên clone sạch, Node 22, Linux.
+- **Coverage (lines):** `application/` 100%, `infrastructure/messaging/` 96%. Không đo được coverage của Java vì repo không cấu hình JaCoCo.
+- **Golden fixtures:** `test/fixtures/java-templates.json` được trích xuất từ `ProcessNotificationUseCaseImpl.java`.
+- **Smoke test** (hạ tầng local, Java không chạy):
+  - 3 event (contract, escrow, category) cho đúng 4 mail và 4 dòng `SENT`, với `user_id` là email. Publish lại cùng `eventId` không gửi thêm mail nào.
+  - JSON hỏng vào DLQ sau 1 lần thử.
+  - Khi MailHog tắt: 3 lần thử, rồi vào DLQ, log `FAILED` với `retry_count = 3`. DLQ monitor cảnh báo đúng 5 phút sau khi khởi động.
+  - SIGINT lúc đang retry: cancel 9 consumer, đợi message xong, rồi đóng kết nối sạch.
+- **Quyết định trong M2:**
+  - `reason` của `contract.cancelled` / `contract.disputed` là **tuỳ chọn**, vì contract-service cho cancel/dispute không kèm lý do. Body khi đó là `Reason: null`, giống Java.
+  - `categoryId` là tuỳ chọn, vì không template nào dùng.
+  - Thứ tự tắt: `onModuleDestroy` ngừng reconnect, `beforeApplicationShutdown` drain consumer, `onApplicationShutdown` đóng channel và pool.
 
 ### M3 — Đóng gói, compose, CI (1–2 ngày)
 
