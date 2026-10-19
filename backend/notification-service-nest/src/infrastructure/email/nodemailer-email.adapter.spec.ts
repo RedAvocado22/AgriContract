@@ -1,7 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { validate, type AppConfig } from '../../config/env.validation';
+import { EmailDeliveryError } from '../../application/ports/email.port';
 import {
   NodemailerEmailAdapter,
+  smtpFailureCode,
   type CreateMailTransport,
 } from './nodemailer-email.adapter';
 
@@ -67,40 +69,77 @@ describe('NodemailerEmailAdapter', () => {
     });
   });
 
-  it('propagates send errors so the log is marked FAILED', async () => {
-    const { adapter } = adapterWith(
-      jest
-        .fn()
-        .mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:1025')),
-    );
+  describe('errors carry a code only, never an address (review #172)', () => {
+    async function rejectionOf(error: unknown): Promise<unknown> {
+      const { adapter } = adapterWith(jest.fn().mockRejectedValue(error));
+      try {
+        await adapter.send({
+          to: 'buyer.nguyen@example.test',
+          subject: 's',
+          body: 'b',
+        });
+      } catch (err) {
+        return err;
+      }
+      throw new Error('send() did not reject');
+    }
 
-    await expect(
-      adapter.send({ to: 'a@x.test', subject: 's', body: 'b' }),
-    ).rejects.toThrow(
-      'SMTP localhost:1025: connect ECONNREFUSED 127.0.0.1:1025',
-    );
-  });
-
-  it('names the inner errors of an AggregateError, whose own message is empty', async () => {
-    const refused = (address: string) =>
-      Object.assign(new Error(`connect ECONNREFUSED ${address}`), {
-        code: 'ECONNREFUSED',
-      });
-    const { adapter } = adapterWith(
-      jest
-        .fn()
-        .mockRejectedValue(
-          new AggregateError(
-            [refused('::1:1025'), refused('127.0.0.1:1025')],
-            '',
-          ),
+    it('turns an SMTP rejection into EmailDeliveryError(EENVELOPE/550)', async () => {
+      const smtp = Object.assign(
+        new Error(
+          "Can't send mail - all recipients were rejected: 550 5.1.1 <buyer.nguyen@example.test>: Recipient address rejected",
         ),
-    );
+        {
+          code: 'EENVELOPE',
+          responseCode: 550,
+          rejected: ['buyer.nguyen@example.test'],
+        },
+      );
 
-    await expect(
-      adapter.send({ to: 'a@x.test', subject: 's', body: 'b' }),
-    ).rejects.toThrow(
-      'SMTP localhost:1025: connect ECONNREFUSED ::1:1025; connect ECONNREFUSED 127.0.0.1:1025',
-    );
+      const err = await rejectionOf(smtp);
+
+      expect(err).toBeInstanceOf(EmailDeliveryError);
+      expect((err as EmailDeliveryError).code).toBe('EENVELOPE/550');
+      expect((err as Error).message).toBe(
+        'email delivery failed (EENVELOPE/550)',
+      );
+      expect((err as Error).cause).toBeUndefined();
+      expect(JSON.stringify(err)).not.toContain('@');
+    });
+
+    it('uses the first inner code of an AggregateError (localhost on ::1 and 127.0.0.1)', async () => {
+      const refused = (address: string) =>
+        Object.assign(new Error(`connect ECONNREFUSED ${address}`), {
+          code: 'ECONNREFUSED',
+        });
+
+      const err = await rejectionOf(
+        new AggregateError(
+          [refused('::1:1025'), refused('127.0.0.1:1025')],
+          '',
+        ),
+      );
+
+      expect((err as Error).message).toBe(
+        'email delivery failed (ECONNREFUSED)',
+      );
+    });
+
+    it('falls back to the error class name when there is no code', async () => {
+      const err = await rejectionOf(
+        new TypeError('<buyer.nguyen@example.test>'),
+      );
+
+      expect((err as Error).message).toBe('email delivery failed (TypeError)');
+    });
+  });
+});
+
+describe('smtpFailureCode', () => {
+  it('ignores codes that do not look like codes', () => {
+    expect(
+      smtpFailureCode(Object.assign(new Error('x'), { code: 'a b <c@d>' })),
+    ).toBe('Error');
+    expect(smtpFailureCode('oops')).toBe('UNKNOWN');
   });
 });

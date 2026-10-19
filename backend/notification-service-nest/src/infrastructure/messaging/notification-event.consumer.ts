@@ -6,6 +6,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import {
+  NonRetryableError,
   consumeEvents,
   type AmqpChannelLike,
   type AmqpMessageLike,
@@ -13,6 +14,10 @@ import {
   type MessageConsumer,
 } from '@agricontract/eventing';
 import type { Channel, ConsumeMessage } from 'amqplib';
+import {
+  NotificationError,
+  failureCode,
+} from '../../application/notification-errors';
 import { eventingLogger } from '../logging/eventing-logger';
 import { AmqpService } from './amqp.provider';
 import { LEGACY_ROUTES, type LegacyRoutes } from './legacy-routes';
@@ -32,8 +37,24 @@ export class QueueConsumer implements MessageConsumer {
     private readonly handle: (body: Buffer) => Promise<void>,
   ) {}
 
+  /**
+   * handleDelivery logs err.message on every retry and dead-letter, so only
+   * errors with vetted messages pass through: the parsers' NonRetryableError
+   * (field names and types) and NotificationError (event id and code). Any
+   * other error is replaced by its code, keeping it retryable.
+   */
   async handleMessage(body: Buffer): Promise<DeliveryOutcome> {
-    await this.handle(body);
+    try {
+      await this.handle(body);
+    } catch (err) {
+      if (
+        err instanceof NonRetryableError ||
+        err instanceof NotificationError
+      ) {
+        throw err;
+      }
+      throw new Error(`Unexpected failure (${failureCode(err)})`);
+    }
     return { status: 'PROCESSED' };
   }
 }

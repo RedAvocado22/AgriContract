@@ -1,6 +1,7 @@
-import type {
-  EmailMessage,
-  EmailPort,
+import {
+  EmailDeliveryError,
+  type EmailMessage,
+  type EmailPort,
 } from '../../src/application/ports/email.port';
 import type {
   ClaimResult,
@@ -125,7 +126,7 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
 
 /**
  * Records sent mail. Recipients listed in `failFor` make send() reject the way
- * like an SMTP rejection.
+ * as the SMTP adapter does: with an EmailDeliveryError carrying only a code.
  * `hold()` makes the next send wait until the returned function is called.
  */
 export class FakeEmailPort implements EmailPort {
@@ -144,7 +145,7 @@ export class FakeEmailPort implements EmailPort {
     this.held = undefined;
     if (held) await held;
     if (this.failFor.has(message.to)) {
-      throw new Error(`SMTP refused ${message.to}`);
+      throw new EmailDeliveryError('EENVELOPE/550');
     }
     this.sent.push(message);
   }

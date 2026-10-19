@@ -2,7 +2,12 @@ import {
   NotificationChannel,
   NotificationLog,
 } from '../domain/notification-log';
-import type { EmailPort } from './ports/email.port';
+import {
+  NotificationDeliveryError,
+  SendInProgressError,
+  failureCode,
+} from './notification-errors';
+import { EmailDeliveryError, type EmailPort } from './ports/email.port';
 import type { NotificationLogRepository } from './ports/notification-log.repository';
 
 /**
@@ -33,6 +38,10 @@ export class NotificationSender {
    * 3. Send outside any transaction, then record SENT, or FAILED with
    *    retry_count + 1 and rethrow so the whole message is retried
    *    (recipients already SENT are skipped then).
+   *
+   * Every error thrown is a NotificationError whose message holds only the
+   * event id and a failure code: it is logged on each retry, so it must not
+   * quote the recipient address or provider/database texts (review #172).
    */
   async send(
     eventId: string,
@@ -40,34 +49,45 @@ export class NotificationSender {
     subject: string,
     body: string,
   ): Promise<void> {
-    const claim = await this.logs.claim(
-      NotificationLog.create(
-        eventId,
-        recipientEmail,
-        NotificationChannel.EMAIL,
-        subject,
-        body,
+    const claim = await this.logStep(eventId, () =>
+      this.logs.claim(
+        NotificationLog.create(
+          eventId,
+          recipientEmail,
+          NotificationChannel.EMAIL,
+          subject,
+          body,
+        ),
+        CLAIM_LEASE_MS,
       ),
-      CLAIM_LEASE_MS,
     );
     if (claim === 'ALREADY_SENT') return;
-    if (claim === 'IN_PROGRESS') {
-      throw new Error(
-        `Event ${eventId}: another delivery is sending this email; retrying later`,
-      );
-    }
+    if (claim === 'IN_PROGRESS') throw new SendInProgressError(eventId);
 
     try {
       await this.email.send({ to: recipientEmail, subject, body });
     } catch (err) {
-      await this.logs.markFailed(eventId, recipientEmail);
-      throw new Error(
-        `Sending "${subject}" to ${recipientEmail} for event ${eventId} failed: ${
-          err instanceof Error ? err.message : JSON.stringify(err)
-        }`,
-        { cause: err },
+      await this.logStep(eventId, () =>
+        this.logs.markFailed(eventId, recipientEmail),
       );
+      const code =
+        err instanceof EmailDeliveryError ? err.code : failureCode(err);
+      throw new NotificationDeliveryError(eventId, 'email', code);
     }
-    await this.logs.markSent(eventId, recipientEmail);
+    await this.logStep(eventId, () =>
+      this.logs.markSent(eventId, recipientEmail),
+    );
+  }
+
+  /** Runs a repository call; a failure becomes a code-only error (driver texts may quote values). */
+  private async logStep<T>(
+    eventId: string,
+    step: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await step();
+    } catch (err) {
+      throw new NotificationDeliveryError(eventId, 'log', failureCode(err));
+    }
   }
 }
