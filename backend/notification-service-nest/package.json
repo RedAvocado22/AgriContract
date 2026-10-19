@@ -19,6 +19,7 @@
     "lint:check": "eslint \"{src,apps,libs,test,scripts}/**/*.ts\"",
     "fixtures:java": "ts-node --transpile-only -P tsconfig.spec.json scripts/extract-java-templates.ts",
     "test": "jest",
+    "test:int": "jest --testRegex \"\\.int-spec\\.ts$\" --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand"

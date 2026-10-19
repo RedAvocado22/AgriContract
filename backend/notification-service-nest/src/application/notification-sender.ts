@@ -1,10 +1,17 @@
 import {
   NotificationChannel,
   NotificationLog,
-  NotificationStatus,
 } from '../domain/notification-log';
 import type { EmailPort } from './ports/email.port';
 import type { NotificationLogRepository } from './ports/notification-log.repository';
+
+/**
+ * How long a PENDING claim protects a send in progress. Well above the
+ * longest possible SMTP attempt (10s connect + 10s greeting + 30s socket), so
+ * a live claim is never taken over; after it, the claim of a delivery that
+ * died mid-send can be taken again.
+ */
+export const CLAIM_LEASE_MS = 120_000;
 
 /**
  * Sends one email for one event to one recipient, at most once (plan §4.3).
@@ -17,13 +24,15 @@ export class NotificationSender {
   ) {}
 
   /**
-   * Same steps as the Java sendNotification:
-   * 1. a log already SENT for (eventId, recipient) means done;
-   * 2. otherwise insert a PENDING log; losing that insert to another delivery
-   *    of the same event means that delivery owns the send, so stop;
-   *    an existing PENDING or FAILED log is sent again;
-   * 3. send, then save SENT, or FAILED with retry_count + 1 and rethrow so the
-   *    whole message is retried (recipients already SENT are skipped then).
+   * 1. Claim the send atomically (insert PENDING, or retake a FAILED / stale
+   *    PENDING row). ALREADY_SENT: done.
+   * 2. IN_PROGRESS: another delivery of the same event holds a live claim;
+   *    throw a retryable error so this message comes back after the backoff,
+   *    by when the other delivery has usually recorded SENT. Acking instead
+   *    would lose the email if that other delivery then fails.
+   * 3. Send outside any transaction, then record SENT, or FAILED with
+   *    retry_count + 1 and rethrow so the whole message is retried
+   *    (recipients already SENT are skipped then).
    */
   async send(
     eventId: string,
@@ -31,39 +40,34 @@ export class NotificationSender {
     subject: string,
     body: string,
   ): Promise<void> {
-    let log = await this.logs.findByEventIdAndRecipient(
-      eventId,
-      recipientEmail,
-    );
-    if (log?.status === NotificationStatus.SENT) return;
-
-    if (!log) {
-      log = NotificationLog.create(
+    const claim = await this.logs.claim(
+      NotificationLog.create(
         eventId,
         recipientEmail,
         NotificationChannel.EMAIL,
         subject,
         body,
+      ),
+      CLAIM_LEASE_MS,
+    );
+    if (claim === 'ALREADY_SENT') return;
+    if (claim === 'IN_PROGRESS') {
+      throw new Error(
+        `Event ${eventId}: another delivery is sending this email; retrying later`,
       );
-      if (!(await this.logs.insert(log))) return;
     }
 
-    let failure: unknown;
     try {
       await this.email.send({ to: recipientEmail, subject, body });
-      log.markSent();
     } catch (err) {
-      log.markFailed();
-      failure = err;
-    }
-    await this.logs.update(log);
-    if (failure !== undefined) {
+      await this.logs.markFailed(eventId, recipientEmail);
       throw new Error(
         `Sending "${subject}" to ${recipientEmail} for event ${eventId} failed: ${
-          failure instanceof Error ? failure.message : JSON.stringify(failure)
+          err instanceof Error ? err.message : JSON.stringify(err)
         }`,
-        { cause: failure },
+        { cause: err },
       );
     }
+    await this.logs.markSent(eventId, recipientEmail);
   }
 }

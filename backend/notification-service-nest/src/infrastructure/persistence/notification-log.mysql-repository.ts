@@ -1,66 +1,72 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { isDuplicateKey } from '@agricontract/eventing';
-import type { Pool, RowDataPacket } from 'mysql2/promise';
-import type { NotificationLogRepository } from '../../application/ports/notification-log.repository';
-import {
-  NotificationLog,
-  type NotificationChannel,
-  type NotificationStatus,
-} from '../../domain/notification-log';
+import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import type {
+  ClaimResult,
+  NotificationLogRepository,
+} from '../../application/ports/notification-log.repository';
+import type { NotificationLog } from '../../domain/notification-log';
 import { MYSQL_POOL } from './mysql.provider';
-
-interface NotificationLogRow extends RowDataPacket {
-  notification_id: string;
-  event_id: string;
-  user_id: string;
-  channel: NotificationChannel;
-  subject: string;
-  body: string;
-  status: NotificationStatus;
-  retry_count: number;
-}
 
 /**
  * `notification_logs` (V1 schema, unchanged). As in the Java service the
  * `user_id` column holds the recipient email, and `(event_id, user_id)` is
- * unique. Timestamps are written by the app; the pool runs in UTC.
+ * unique. `updated_at` doubles as the claim timestamp; all timestamps come
+ * from the database clock in UTC (UTC_TIMESTAMP), so the lease does not
+ * depend on the app host clock.
  */
 @Injectable()
 export class MysqlNotificationLogRepository implements NotificationLogRepository {
   constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
 
-  async findByEventIdAndRecipient(
-    eventId: string,
-    recipientEmail: string,
-  ): Promise<NotificationLog | null> {
-    const [rows] = await this.pool.query<NotificationLogRow[]>(
-      `SELECT notification_id, event_id, user_id, channel, subject, body, status, retry_count
-         FROM notification_logs
+  async claim(log: NotificationLog, leaseMs: number): Promise<ClaimResult> {
+    if (await this.insertPending(log)) return 'CLAIMED';
+
+    // The row exists. Retake it only if FAILED or if its PENDING claim is stale;
+    // the row lock makes this check-and-set atomic between concurrent callers.
+    const [result] = await this.pool.query<ResultSetHeader>(
+      `UPDATE notification_logs
+          SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6)
         WHERE event_id = ? AND user_id = ?
-        LIMIT 1`,
-      [eventId, recipientEmail],
+          AND (status = 'FAILED'
+               OR (status = 'PENDING'
+                   AND updated_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND))`,
+      [log.eventId, log.recipientEmail, leaseMs * 1000],
     );
-    const row = rows[0];
-    if (!row) return null;
-    return NotificationLog.reconstitute({
-      notificationId: row.notification_id,
-      eventId: row.event_id,
-      recipientEmail: row.user_id,
-      channel: row.channel,
-      subject: row.subject,
-      body: row.body,
-      status: row.status,
-      retryCount: row.retry_count,
-    });
+    if (result.affectedRows === 1) return 'CLAIMED';
+
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT status FROM notification_logs WHERE event_id = ? AND user_id = ?`,
+      [log.eventId, log.recipientEmail],
+    );
+    return rows[0]?.status === 'SENT' ? 'ALREADY_SENT' : 'IN_PROGRESS';
   }
 
-  async insert(log: NotificationLog): Promise<boolean> {
-    const now = new Date();
+  async markSent(eventId: string, recipientEmail: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE notification_logs
+          SET status = 'SENT', updated_at = UTC_TIMESTAMP(6)
+        WHERE event_id = ? AND user_id = ?`,
+      [eventId, recipientEmail],
+    );
+  }
+
+  async markFailed(eventId: string, recipientEmail: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE notification_logs
+          SET status = 'FAILED', retry_count = retry_count + 1, updated_at = UTC_TIMESTAMP(6)
+        WHERE event_id = ? AND user_id = ?`,
+      [eventId, recipientEmail],
+    );
+  }
+
+  /** Inserts the log as PENDING; false when (event_id, user_id) already exists. */
+  private async insertPending(log: NotificationLog): Promise<boolean> {
     try {
       await this.pool.query(
         `INSERT INTO notification_logs
            (notification_id, event_id, user_id, channel, subject, body, status, retry_count, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))`,
         [
           log.notificationId,
           log.eventId,
@@ -68,10 +74,6 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
           log.channel,
           log.subject,
           log.body,
-          log.status,
-          log.retryCount,
-          now,
-          now,
         ],
       );
       return true;
@@ -79,14 +81,5 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
       if (isDuplicateKey(err)) return false;
       throw err;
     }
-  }
-
-  async update(log: NotificationLog): Promise<void> {
-    await this.pool.query(
-      `UPDATE notification_logs
-          SET status = ?, retry_count = ?, updated_at = ?
-        WHERE notification_id = ?`,
-      [log.status, log.retryCount, new Date(), log.notificationId],
-    );
   }
 }
