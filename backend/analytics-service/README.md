@@ -1,9 +1,13 @@
-# analytics-service (Node)
+# analytics-service (Node + NestJS)
 
 Non-critical CQRS projection for AgriContract Phase 2 (`docs/phase_2/design/analytics-service-phase2-design.md`).
 It only listens to canonical RabbitMQ events and never calls core services. This increment (issue #118)
 delivers **persistence and a working, idempotent ingestion path**; projection handlers (fact and dimension
 tables) come with #133 and #148.
+
+The service runs on NestJS (HTTP, modules, lifecycle hooks). Domain and application code stay framework-free;
+Nest is used only in `infrastructure/` and `main.ts`. `/health` listens first and answers 503 until MySQL and
+RabbitMQ are up (`AnalyticsLifecycle` connects in the background). SIGTERM/SIGINT run the graceful shutdown.
 
 Built on the shared `@agricontract/eventing` library (`backend/shared/node-eventing`, issue #90).
 
@@ -18,11 +22,12 @@ src/
   infrastructure/
     messaging/                  topology, validation (eventContracts), mapping to the command, consumers, DLQ monitor
     persistence/                MySQL: landing table store, migrations, projection registry (empty for now)
-    http/health.ts              GET /health
+    http/health.controller.ts   GET /health (Nest controller)
+    nest/                       Nest modules and AnalyticsLifecycle (owns MySQL, RabbitMQ, shutdown)
     runtime.ts                  production wiring of the messaging side (also used by the tests)
     lifecycle.ts                graceful shutdown
     config.ts
-  main.ts                       composition root: creates the resources, wires them, handles signals
+  main.ts                       Nest bootstrap: creates the app, enables shutdown hooks, listens
 ```
 
 ## How it works

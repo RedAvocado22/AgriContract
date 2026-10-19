@@ -137,7 +137,7 @@ describe('persistence and config', () => {
     assert.match(statements, /CREATE TABLE IF NOT EXISTS analytics_idempotency_log/);
     assert.match(statements, /PRIMARY KEY \(consumer_name, event_id\)/);
     assert.doesNotMatch(statements, /\b(ALTER|DROP|TRUNCATE|DELETE|UPDATE)\b/i);
-    assert.match(readFileSync(resolve(here, '../src/main.ts'), 'utf8'), /table: 'analytics_idempotency_log'/);
+    assert.match(readFileSync(resolve(here, '../src/infrastructure/nest/analytics.lifecycle.ts'), 'utf8'), /table: 'analytics_idempotency_log'/);
   });
 
   it('V2 is additive and creates the landing table written by the ingest use case', () => {
@@ -169,25 +169,37 @@ describe('persistence and config', () => {
   });
 });
 
-describe('composition root (src/main.ts)', () => {
-  const main = readFileSync(resolve(here, '../src/main.ts'), 'utf8');
+describe('NestJS wiring', () => {
+  const read = (f: string) => readFileSync(resolve(here, '../src', f), 'utf8');
+  const lifecycle = read('infrastructure/nest/analytics.lifecycle.ts');
 
   it('starts the shared production wiring and registers the projections list', () => {
-    assert.match(main, /startAnalytics\(/);
-    assert.match(main, /projections: PROJECTIONS/);
-    assert.match(main, /new MysqlIngestedEventStore\(\)/);
+    assert.match(lifecycle, /startAnalytics\(/);
+    assert.match(lifecycle, /projections: PROJECTIONS/);
+    assert.match(lifecycle, /new MysqlIngestedEventStore\(\)/);
   });
 
-  it('handles SIGTERM and SIGINT with the graceful shutdown, and ignores the expected connection close', () => {
-    assert.match(main, /process\.once\('SIGTERM'/);
-    assert.match(main, /process\.once\('SIGINT'/);
-    assert.match(main, /gracefulShutdown\(/);
-    assert.match(main, /if \(shuttingDown\) return;/);
+  it('starts MySQL and RabbitMQ in the background so /health listens first', () => {
+    assert.match(lifecycle, /onApplicationBootstrap\(\): void/);
+    assert.doesNotMatch(lifecycle, /await this\.start\(\)/);
   });
 
-  it('keeps the handles shutdown needs: HTTP server, pool, connection and channels', () => {
-    for (const handle of ['server = createHealthServer', 'pool = mysql.createPool', 'connection = conn', 'channels = [consumeChannel, monitorChannel]']) {
-      assert.ok(main.includes(handle), handle);
+  it('runs the graceful shutdown on SIGTERM and SIGINT and ignores the expected connection close', () => {
+    assert.match(read('main.ts'), /enableShutdownHooks\(\['SIGTERM', 'SIGINT'\]\)/);
+    assert.match(lifecycle, /beforeApplicationShutdown\(/);
+    assert.match(lifecycle, /gracefulShutdown\(/);
+    assert.match(lifecycle, /if \(this\.shuttingDown\) return;/);
+  });
+
+  it('keeps the handles shutdown needs: pool, connection and channels', () => {
+    for (const handle of ['this.pool = pool', 'this.connection = conn', 'this.channels = [consumeChannel, monitorChannel]']) {
+      assert.ok(lifecycle.includes(handle), handle);
     }
+  });
+
+  it('Nest stays in infrastructure: modules, controller and lifecycle; the main.ts only bootstraps', () => {
+    assert.match(read('infrastructure/nest/app.module.ts'), /@Module\(/);
+    assert.match(read('infrastructure/http/health.controller.ts'), /@Controller\('health'\)/);
+    assert.doesNotMatch(read('main.ts'), /amqp|mysql/);
   });
 });
