@@ -1,22 +1,21 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { businessToday, requestHash, validateManualPrice } from '../src/domain/manualPrice.js';
-import { DuplicateIdempotencyKeyError } from '../src/domain/priceHistoryRepository.js';
-import { slugify, type PriceQuote } from '../src/domain/priceQuote.js';
-import { RedisPriceCache, cacheKey, type RedisClientLike } from '../src/infrastructure/cache/redisPriceCache.js';
-import { loadConfig } from '../src/infrastructure/config.js';
-import { migrationFiles } from '../src/infrastructure/persistence/migrate.js';
+import { resolve } from 'node:path';
+import { businessToday, requestHash, validateManualPrice } from '../src/domain/manualPrice';
+import { DuplicateIdempotencyKeyError } from '../src/domain/priceHistoryRepository';
+import { slugify, type PriceQuote } from '../src/domain/priceQuote';
+import { RedisPriceCache, cacheKey, type RedisClientLike } from '../src/infrastructure/cache/redisPriceCache';
+import { loadConfig } from '../src/infrastructure/config';
+import { migrationFiles } from '../src/infrastructure/persistence/migrate';
 import {
   MysqlPriceHistoryRepository,
   toMysqlDateTime,
   type MysqlPoolLike,
-} from '../src/infrastructure/persistence/mysqlPriceHistoryRepository.js';
-import { validBody } from './fakes.js';
+} from '../src/infrastructure/persistence/mysqlPriceHistoryRepository';
+import { validBody } from './fakes';
+import { deepEqual } from './deepEqual';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = __dirname;
 
 describe('slugify / cache key (design §2)', () => {
   it('matches the design examples', () => {
@@ -88,7 +87,7 @@ describe('RedisPriceCache', () => {
   it('writes the quote under price:coffee:{province}:{item} without TTL', async () => {
     const redis = fakeRedis();
     await new RedisPriceCache(redis, 1000).putLatest(quote('2026-10-10', '2026-10-12T05:00:00.000Z', '1.00'));
-    assert.deepEqual([...redis.data.keys()], ['price:coffee:dak-lak:ca-phe-robusta-nhan-xo']);
+    deepEqual([...redis.data.keys()], ['price:coffee:dak-lak:ca-phe-robusta-nhan-xo']);
   });
 
   it('a back-dated correction does not replace a price for a later date', async () => {
@@ -140,7 +139,7 @@ describe('MysqlPriceHistoryRepository', () => {
     await new MysqlPriceHistoryRepository(pool).append({ quote: q, idempotencyKey: 'k', requestHash: 'h' });
     const call = pool.calls[0]!;
     assert.match(call.sql, /^INSERT INTO price_history/);
-    assert.deepEqual(call.values, [
+    deepEqual(call.values, [
       'id-1', 'COFFEE', 'Cà phê Robusta nhân xô', 'ca-phe-robusta-nhan-xo', 'Đắk Lắk', 'dak-lak',
       '120500.00', 'OPERATOR_MANUAL', '2026-10-10', '2026-10-12 05:00:00.123', 'ref', 'why', 'op-1', 'k', 'h',
     ]);
@@ -165,8 +164,8 @@ describe('MysqlPriceHistoryRepository', () => {
       request_hash: 'h',
     }];
     const found = await new MysqlPriceHistoryRepository(pool).findByIdempotencyKey('op-1', 'k');
-    assert.deepEqual(found, { quote: q, requestHash: 'h' });
-    assert.deepEqual(pool.calls[0]!.values, ['op-1', 'k']);
+    deepEqual(found, { quote: q, requestHash: 'h' });
+    deepEqual(pool.calls[0]!.values, ['op-1', 'k']);
   });
 
   it('is append-only: the repository source contains no UPDATE or DELETE', () => {
@@ -193,7 +192,7 @@ describe('migration (additive)', () => {
   });
 
   it('runner picks migration files in version order', () => {
-    assert.deepEqual(migrationFiles(resolve(here, '../migrations')), ['V1__create_price_history.sql']);
+    deepEqual(migrationFiles(resolve(here, '../migrations')), ['V1__create_price_history.sql']);
   });
 });
 

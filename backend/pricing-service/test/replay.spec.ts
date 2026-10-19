@@ -7,17 +7,18 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { after, afterEach, before, describe, it } from 'node:test';
 import mysql from 'mysql2/promise';
-import type { PriceQuote } from '../src/domain/priceQuote.js';
-import { RedisPriceCache, cacheKey, type RedisClientLike } from '../src/infrastructure/cache/redisPriceCache.js';
-import { applyMigrations } from '../src/infrastructure/persistence/migrate.js';
+import type { PriceQuote } from '../src/domain/priceQuote';
+import { RedisPriceCache, cacheKey, type RedisClientLike } from '../src/infrastructure/cache/redisPriceCache';
+import { applyMigrations } from '../src/infrastructure/persistence/migrate';
 import {
   MysqlPriceHistoryRepository,
   createMysqlPool,
   type MysqlPoolLike,
-} from '../src/infrastructure/persistence/mysqlPriceHistoryRepository.js';
-import { operatorHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
+} from '../src/infrastructure/persistence/mysqlPriceHistoryRepository';
+import { operatorHeaders, postManual, validBody } from './fakes';
+import { startApp, type TestApp } from './testApp';
+import { deepEqual } from './deepEqual';
 
 /**
  * Stand-in for MySQL that converts values the way price_history's column types do and hands them
@@ -69,7 +70,7 @@ describe('idempotent replay returns the original response after the MySQL round 
       assert.equal(first.status, 201);
       assert.equal(replay.status, 201);
       assert.equal(replay.headers.get('idempotent-replayed'), 'true');
-      assert.deepEqual(replay.json, first.json);
+      deepEqual(replay.json, first.json);
     });
   }
 
@@ -122,7 +123,7 @@ describe('a replay heals a cache update that failed on the first attempt', () =>
     const retry = await postManual(app, validBody({ price: '121000.00', capturedAt: '2026-10-10' }), operatorHeaders({ 'Idempotency-Key': 'b' }));
     assert.equal(retry.status, 201);
     assert.equal(retry.headers.get('idempotent-replayed'), 'true');
-    assert.deepEqual(retry.json, b.json);
+    deepEqual(retry.json, b.json);
     assert.equal(cached(redis).id, b.json.id, 'the replay refreshed Redis with B');
     assert.equal(app.repo.rows.length, 2, 'the replay did not insert another row');
   });
@@ -145,11 +146,11 @@ describe('a replay heals a cache update that failed on the first attempt', () =>
  * (the database must exist; the test applies the migrations itself).
  */
 const MYSQL_URL = process.env.PRICING_TEST_MYSQL_URL;
-describe('real MySQL (PRICING_TEST_MYSQL_URL)', { skip: MYSQL_URL ? false : 'PRICING_TEST_MYSQL_URL not set' }, () => {
+(MYSQL_URL ? describe : describe.skip)('real MySQL (PRICING_TEST_MYSQL_URL)', () => {
   let pool: mysql.Pool;
   let app: TestApp;
 
-  before(async () => {
+  beforeAll(async () => {
     const conn = await mysql.createConnection({ uri: MYSQL_URL!, multipleStatements: true });
     try {
       await applyMigrations(conn);
@@ -163,7 +164,7 @@ describe('real MySQL (PRICING_TEST_MYSQL_URL)', { skip: MYSQL_URL ? false : 'PRI
     });
   });
 
-  after(async () => {
+  afterAll(async () => {
     await app?.close();
     await pool?.end();
   });
@@ -181,7 +182,7 @@ describe('real MySQL (PRICING_TEST_MYSQL_URL)', { skip: MYSQL_URL ? false : 'PRI
       assert.equal(first.status, 201, JSON.stringify(first.json));
       assert.equal(replay.status, 201);
       assert.equal(replay.headers.get('idempotent-replayed'), 'true');
-      assert.deepEqual(replay.json, first.json);
+      deepEqual(replay.json, first.json);
     });
   }
 });

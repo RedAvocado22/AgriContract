@@ -6,17 +6,17 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { after, before, describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import Ajv2020Module from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
 import yaml from 'js-yaml';
-import { MANUAL_PRICE_PATH } from '../src/infrastructure/http/app.js';
-import { MANUAL_PRICE_ROLES } from '../src/infrastructure/http/auth.js';
-import { operatorHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
+import { MANUAL_PRICE_PATH } from '../src/infrastructure/http/routes';
+import { MANUAL_PRICE_ROLES } from '../src/infrastructure/http/auth';
+import { operatorHeaders, postManual, validBody } from './fakes';
+import { startApp, type TestApp } from './testApp';
+import { deepEqual } from './deepEqual';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = __dirname;
 const repoRoot = resolve(here, '../../..');
 const load = (p: string) => yaml.load(readFileSync(join(repoRoot, p), 'utf8')) as any;
 
@@ -50,7 +50,7 @@ describe('supplementary-services-api.yaml: recordManualPrice', () => {
 
   it('contract auth is OPERATOR and the service allows exactly that role (ADMIN is not allowed)', () => {
     assert.equal(op['x-auth'], 'OPERATOR');
-    assert.deepEqual([...MANUAL_PRICE_ROLES], ['OPERATOR']);
+    deepEqual([...MANUAL_PRICE_ROLES], ['OPERATOR']);
   });
 
   it('contract responses 201 and 403 are the ones the service returns', () => {
@@ -67,10 +67,10 @@ describe('supplementary-services-api.yaml: recordManualPrice', () => {
 
 describe('golden-flow ErrorEnvelope', () => {
   let app: TestApp;
-  before(async () => {
+  beforeAll(async () => {
     app = await startApp();
   });
-  after(async () => {
+  afterAll(async () => {
     await app.close();
   });
 
@@ -114,7 +114,7 @@ describe('pricing is not a synchronous dependency of the contract flow (design Â
     it(`${service} has no client, URL or route to pricing-service`, () => {
       const dir = join(repoRoot, 'backend', service);
       const offenders = sourceFiles(dir).filter((f) => PRICING_REFERENCE.test(readFileSync(f, 'utf8')));
-      assert.deepEqual(offenders.map((f) => f.slice(repoRoot.length + 1)), []);
+      deepEqual(offenders.map((f) => f.slice(repoRoot.length + 1)), []);
     });
   }
 

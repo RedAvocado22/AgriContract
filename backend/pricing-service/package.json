@@ -2,30 +2,72 @@
   "name": "@agricontract/pricing-service",
   "version": "0.1.0",
   "private": true,
-  "description": "Pricing-service (Node): advisory coffee reference prices. This version provides the Admin/Operator manual fallback entry.",
-  "type": "module",
+  "description": "Pricing-service (Node + NestJS): advisory coffee reference prices. This version provides the Operator manual fallback entry.",
   "main": "dist/main.js",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test test/*.test.ts",
-    "migrate": "node dist/infrastructure/persistence/migrate.js",
-    "start": "node dist/main.js"
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main",
+    "typecheck": "tsc -p tsconfig.spec.json --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "migrate": "node dist/infrastructure/persistence/migrate.js"
   },
   "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
     "mysql2": "^3.11.0",
-    "redis": "^4.7.0"
+    "redis": "^4.7.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.5",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "jest": "^30.0.0",
     "js-yaml": "^4.1.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/test"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": "<rootDir>/tsconfig.spec.json"
+        }
+      ]
+    },
+    "testEnvironment": "node",
+    "testTimeout": 15000,
+    "collectCoverageFrom": [
+      "src/**/*.ts"
+    ],
+    "coverageDirectory": "coverage"
   }
 }

@@ -5,10 +5,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { deepEqual } from './deepEqual';
 
-const src = resolve(dirname(fileURLToPath(import.meta.url)), '../src');
+const src = resolve(__dirname, '../src');
 
 function tsFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -32,7 +31,7 @@ function relativeImports(file: string): string[] {
 
 describe('canonical layout', () => {
   it('src/ holds only domain/, application/, infrastructure/ and main.ts', () => {
-    assert.deepEqual(readdirSync(src).sort(), ['application', 'domain', 'infrastructure', 'main.ts']);
+    deepEqual(readdirSync(src).sort(), ['application', 'domain', 'infrastructure', 'main.ts']);
   });
 
   it('use cases live in application/usecase, ports in application/port.ts', () => {
@@ -73,7 +72,7 @@ describe('dependency rule', () => {
     for (const file of tsFiles(src).filter((f) => ['domain', 'application'].includes(layerOf(f)))) {
       const code = readFileSync(file, 'utf8');
       const packages = [...code.matchAll(/from\s+'([^'.][^']*)'/g)].map((m) => m[1]!);
-      assert.deepEqual(packages.filter((p) => !p.startsWith('node:')), [], relative(src, file));
+      deepEqual(packages.filter((p) => !p.startsWith('node:')), [], relative(src, file));
     }
   });
 
@@ -81,5 +80,45 @@ describe('dependency rule', () => {
     for (const file of tsFiles(src).filter((f) => ['domain', 'application'].includes(layerOf(f)))) {
       assert.doesNotMatch(readFileSync(file, 'utf8'), /HttpError|statusCode|\bstatus\s*[:=]/, relative(src, file));
     }
+  });
+});
+
+describe('NestJS (decision 19/10/2026)', () => {
+  const read = (f: string) => readFileSync(join(src, f), 'utf8');
+
+  it('Nest lives only in infrastructure/ and main.ts; domain and application stay framework-free', () => {
+    for (const file of tsFiles(src)) {
+      const uses = /from\s+'@nestjs\//.test(readFileSync(file, 'utf8'));
+      const layer = layerOf(file);
+      if (uses) assert.ok(['infrastructure', 'main'].includes(layer), relative(src, file));
+    }
+  });
+
+  it('controllers, guard, error filter and module exist where the canonical layout puts them', () => {
+    assert.match(read('infrastructure/http/prices.controller.ts'), /@Controller\(\)[\s\S]*@Post\(MANUAL_PRICE_PATH\)/);
+    assert.match(read('infrastructure/http/health.controller.ts'), /@Get\(HEALTH_PATH\)/);
+    assert.match(read('infrastructure/http/manualPrice.guard.ts'), /implements CanActivate/);
+    assert.match(read('infrastructure/http/problem.filter.ts'), /@Catch\(\)/);
+    assert.match(read('infrastructure/nest/pricing.module.ts'), /provide: APP_FILTER, useClass: ProblemFilter/);
+    assert.match(read('infrastructure/nest/app.module.ts'), /@Module\(/);
+  });
+
+  it('authorization is a guard, so it runs before the body is read', () => {
+    const controller = read('infrastructure/http/prices.controller.ts');
+    assert.match(controller, /@UseGuards\(ManualPriceGuard\)/);
+    assert.ok(controller.indexOf('readJsonBody(') > controller.indexOf('@UseGuards('));
+  });
+
+  it('main.ts only bootstraps: body parser off, shutdown hooks on, no MySQL or Redis client', () => {
+    const main = read('main.ts');
+    assert.match(main, /bodyParser: false/);
+    assert.match(main, /enableShutdownHooks\(\['SIGTERM', 'SIGINT'\]\)/);
+    assert.doesNotMatch(main, /from '(mysql2|redis)/);
+  });
+
+  it('the MySQL pool and the Redis connection are closed on shutdown', () => {
+    const module = read('infrastructure/nest/pricing.module.ts');
+    assert.match(module, /implements OnApplicationShutdown/);
+    assert.match(module, /this\.pool\.end\(\), this\.cache\.close\(\)/);
   });
 });
