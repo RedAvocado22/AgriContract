@@ -1,10 +1,10 @@
-# pricing-service (Node)
+# pricing-service (Node + NestJS)
 
 Advisory coffee reference prices for AgriContract Phase 2 (`docs/phase_2/design/pricing-service-phase2-design.md`).
 This increment implements the **Admin/Operator manual fallback** (design §3.2, issue #117).
 
 Pricing is **advisory only** (design §4.1). contract-service and escrow-service never call it; a test in
-`test/contract.test.ts` fails if either service gains a pricing client, URL or route.
+`test/contract.spec.ts` fails if either service gains a pricing client, URL or route.
 
 ## API
 
@@ -44,7 +44,7 @@ The API gateway route to this service is not added here (gateway is owned separa
 
 ## Layout
 
-Same canonical layout as the Java services (`domain` / `application` / `infrastructure`), checked by `test/architecture.test.ts`:
+Same canonical layout as the Java services (`domain` / `application` / `infrastructure`), checked by `test/architecture.spec.ts`:
 
 ```
 src/
@@ -57,19 +57,27 @@ src/
     config.ts
     persistence/          MySQL repository, migration runner
     cache/                Redis cache adapter
-    http/                 server, gateway auth, error envelope + application error -> HTTP mapping
-  main.ts                 composition root
+    http/                 Nest controllers (prices, health), gateway guard, error filter, error envelope + application error -> HTTP mapping
+    nest/                 PricingModule (providers, shutdown), AppModule, injection tokens
+  main.ts                 bootstraps the Nest application
 ```
 
 Dependency rule: `domain` imports nothing else, `application` imports only `domain`, and HTTP statuses exist only in `infrastructure/http`.
+NestJS 11 (CommonJS, Node >= 22.12, Jest, same setup as `notification-service-nest`) is used only in `infrastructure/` and `main.ts`;
+`domain/` and `application/` are unchanged and framework-free.
+
+How a request flows: `ManualPriceGuard` (gateway secret, then OPERATOR role) -> `PricesController` (reads the JSON body, calls the
+use case) -> `ProblemFilter` turns any error into the shared error envelope (400 / 403 / 404 / 405 / 409 / 413 / 415 / 500). The guard
+runs first, so an unauthorized request is never parsed. The app is created with `bodyParser: false` for that reason.
+On SIGTERM/SIGINT Nest stops the HTTP server and `PricingShutdown` closes the MySQL pool and the Redis connection.
 
 ## Run
 
 ```bash
 npm install
-npm run build
+npm run build         # nest build -> dist/
 npm run migrate      # applies migrations/V*.sql once each (table schema_migrations)
-npm start            # port 8091
+npm start            # nest start, port 8091
 ```
 
 Environment (same names as the Java services): `GATEWAY_INTERNAL_SECRET` (required), `SERVER_PORT` (8091),
@@ -83,10 +91,10 @@ npm run typecheck
 npm test
 ```
 
-Unit tests, HTTP tests through a real in-process server, contract tests against the repo's frozen YAML
+Jest: unit tests, HTTP tests through a real in-process Nest application, contract tests against the repo's frozen YAML
 contracts, and a boundary test proving the contract flow has no synchronous dependency on pricing.
-`test/redis.test.ts` drives the real node-redis client against a stopped and a frozen Redis (no Redis
-install needed). `test/replay.test.ts` checks that a replay read back from MySQL equals the first response;
+`test/redis.spec.ts` drives the real node-redis client against a stopped and a frozen Redis (no Redis
+install needed). `test/replay.spec.ts` checks that a replay read back from MySQL equals the first response;
 to also run it against a real MySQL (the database must exist, migrations are applied by the test):
 
 ```bash

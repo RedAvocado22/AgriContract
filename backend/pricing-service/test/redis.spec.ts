@@ -5,14 +5,14 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
-import { dirname, resolve } from 'node:path';
-import { afterEach, describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import type { PriceQuote } from '../src/domain/priceQuote.js';
-import { CacheTimeoutError, createRedisCache, type RedisCacheHandle } from '../src/infrastructure/cache/redisPriceCache.js';
-import { memoryLogger, postManual, startApp, validBody, type LogLine, type TestApp } from './fakes.js';
+import { resolve } from 'node:path';
+import type { PriceQuote } from '../src/domain/priceQuote';
+import { CacheTimeoutError, createRedisCache, type RedisCacheHandle } from '../src/infrastructure/cache/redisPriceCache';
+import { memoryLogger, postManual, validBody, type LogLine } from './fakes';
+import { startApp, type TestApp } from './testApp';
+import { deepEqual } from './deepEqual';
 
-const serviceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const serviceRoot = resolve(__dirname, '..');
 
 const quote: PriceQuote = {
   id: 'q-1',
@@ -157,7 +157,7 @@ describe('Redis cache never hangs (rules §4B)', () => {
     const { cache } = cacheFor(redis.url, 300, logs);
     await waitFor(() => logs.some((l) => l.message === 'Redis connected'), 3000);
     await cache.putLatest(quote); // healthy Redis: GET + SET answered
-    assert.deepEqual(redis.state.commands.slice(-2), ['GET', 'SET']);
+    deepEqual(redis.state.commands.slice(-2), ['GET', 'SET']);
 
     redis.state.muted = true;
     const put = await elapsed(() => cache.putLatest(quote));
@@ -198,7 +198,7 @@ describe('Redis cache never hangs (rules §4B)', () => {
 
   describe('startup does not wait for Redis', () => {
     for (const scenario of ['connection refused', 'never answers'] as const) {
-      it(`service answers /health while Redis is down (${scenario})`, { timeout: 30_000 }, async () => {
+      it(`service answers /health while Redis is down (${scenario})`, async () => {
         let redisUrl: string;
         if (scenario === 'connection refused') {
           redisUrl = `redis://127.0.0.1:${await refusedPort()}`;
@@ -208,10 +208,13 @@ describe('Redis cache never hangs (rules §4B)', () => {
           redisUrl = redis.url;
         }
         const port = await refusedPort();
-        const child = spawn(process.execPath, ['--import', 'tsx', 'src/main.ts'], {
+        const child = spawn(process.execPath, ['-r', 'ts-node/register', 'src/main.ts'], {
           cwd: serviceRoot,
           env: {
             ...process.env,
+            // The same CommonJS settings Jest compiles with (tsconfig.spec.json); type checking is the job of `npm run typecheck`.
+            TS_NODE_TRANSPILE_ONLY: 'true',
+            TS_NODE_COMPILER_OPTIONS: JSON.stringify({ module: 'commonjs', moduleResolution: 'node10', resolvePackageJsonExports: false }),
             GATEWAY_INTERNAL_SECRET: 'startup-test',
             SERVER_PORT: String(port),
             REDIS_URL: redisUrl,
@@ -239,7 +242,7 @@ describe('Redis cache never hangs (rules §4B)', () => {
           if (status !== 200) await new Promise((r) => setTimeout(r, 100));
         }
         assert.equal(status, 200, 'the service did not start while Redis was down');
-      });
+      }, 30_000);
     }
   });
 });

@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { businessToday, requestHash, validateManualPrice } from '../../domain/manualPrice.js';
+import { businessToday, requestHash, validateManualPrice } from '../../domain/manualPrice';
 import {
   DuplicateIdempotencyKeyError,
   type PriceHistoryRepository,
   type StoredManualPrice,
-} from '../../domain/priceHistoryRepository.js';
-import { COMMODITY, slugify, type PriceQuote } from '../../domain/priceQuote.js';
-import { IdempotencyConflict, IdempotencyKeyRequired, ValidationFailed } from '../errors.js';
-import type { Actor, Logger, PriceCache } from '../port.js';
+} from '../../domain/priceHistoryRepository';
+import { COMMODITY, slugify, type PriceQuote } from '../../domain/priceQuote';
+import { IdempotencyConflict, IdempotencyKeyRequired, ValidationFailed } from '../errors';
+import type { Actor, Logger, PriceCache } from '../port';
 
 export interface ManualPriceDeps {
   repository: PriceHistoryRepository;

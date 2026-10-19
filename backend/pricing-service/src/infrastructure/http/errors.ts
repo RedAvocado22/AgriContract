@@ -1,5 +1,5 @@
 import { STATUS_CODES } from 'node:http';
-import { IdempotencyConflict, IdempotencyKeyRequired, ValidationFailed } from '../../application/errors.js';
+import { IdempotencyConflict, IdempotencyKeyRequired, ValidationFailed } from '../../application/errors';
 
 /**
  * Shared AgriContract error envelope (docs/contracts/error-catalog.md,

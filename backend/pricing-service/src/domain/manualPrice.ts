@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { COMMODITY, slugify, type Commodity } from './priceQuote.js';
+import { COMMODITY, slugify, type Commodity } from './priceQuote';
 
 /**
  * Same money shape as the frozen API (askingUnitPrice): VND/kg with 2 decimals, max 99,999,999.99.

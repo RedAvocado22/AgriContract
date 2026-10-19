@@ -4,8 +4,8 @@ import {
   type NewPriceRow,
   type PriceHistoryRepository,
   type StoredManualPrice,
-} from '../../domain/priceHistoryRepository.js';
-import type { PriceQuote } from '../../domain/priceQuote.js';
+} from '../../domain/priceHistoryRepository';
+import type { PriceQuote } from '../../domain/priceQuote';
 
 /** Subset of a mysql2/promise Pool (structural, so tests can fake it). */
 export interface MysqlPoolLike {

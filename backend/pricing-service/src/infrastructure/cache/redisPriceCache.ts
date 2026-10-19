@@ -1,6 +1,6 @@
 import { createClient } from 'redis';
-import type { Logger, PriceCache } from '../../application/port.js';
-import type { PriceQuote } from '../../domain/priceQuote.js';
+import type { Logger, PriceCache } from '../../application/port';
+import type { PriceQuote } from '../../domain/priceQuote';
 
 /** Redis key from design §2: price:coffee:{province}:{itemSlug}. */
 export function cacheKey(provinceSlug: string, itemSlug: string): string {

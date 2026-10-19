@@ -1,14 +1,11 @@
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import type { Logger, PriceCache } from '../src/application/port.js';
+import type { Logger, PriceCache } from '../src/application/port';
 import {
   DuplicateIdempotencyKeyError,
   type NewPriceRow,
   type PriceHistoryRepository,
   type StoredManualPrice,
-} from '../src/domain/priceHistoryRepository.js';
-import type { PriceQuote } from '../src/domain/priceQuote.js';
-import { createApp, type AppDeps } from '../src/infrastructure/http/app.js';
+} from '../src/domain/priceHistoryRepository';
+import type { PriceQuote } from '../src/domain/priceQuote';
 
 export const GATEWAY_SECRET = 'test-gateway-secret';
 
@@ -60,39 +57,6 @@ export function memoryLogger(lines: LogLine[] = []): Logger {
   };
 }
 
-export interface TestApp {
-  baseUrl: string;
-  repo: InMemoryPriceHistory;
-  cache: FakeCache;
-  logs: LogLine[];
-  close(): Promise<void>;
-}
-
-export async function startApp(overrides: Partial<AppDeps> = {}): Promise<TestApp> {
-  const repo = new InMemoryPriceHistory();
-  const cache = new FakeCache(repo.events);
-  const logs: LogLine[] = [];
-  let seq = 0;
-  const server: Server = createApp({
-    repository: repo,
-    cache,
-    logger: memoryLogger(logs),
-    gatewaySecret: GATEWAY_SECRET,
-    now: () => new Date('2026-10-12T05:00:00.000Z'), // 12:00 ICT
-    newId: () => `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`,
-    ...overrides,
-  });
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-  const { port } = server.address() as AddressInfo;
-  return {
-    baseUrl: `http://127.0.0.1:${port}`,
-    repo,
-    cache,
-    logs,
-    close: () => new Promise<void>((r) => server.close(() => r())),
-  };
-}
-
 export function validBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     commodity: 'COFFEE',
@@ -118,7 +82,7 @@ export function operatorHeaders(overrides: Record<string, string> = {}): Record<
 }
 
 export async function postManual(
-  app: TestApp,
+  app: { baseUrl: string },
   body: unknown,
   headers: Record<string, string | undefined> = operatorHeaders(),
 ): Promise<{ status: number; json: any; headers: Headers }> {

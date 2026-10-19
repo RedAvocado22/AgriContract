@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
-import type { Actor } from '../../application/port.js';
-import { HttpError } from './errors.js';
+import type { Actor } from '../../application/port';
+import { HttpError } from './errors';
 
 /** Roles allowed to record a manual price: OPERATOR only (design change of 12/10, PR #158). ADMIN is not allowed. */
 export const MANUAL_PRICE_ROLES = ['OPERATOR'] as const;
