@@ -1,6 +1,6 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.KycQueueItemResponse;
 import com.agricontract.user.application.dto.ListUsersByVerificationStatusCommand;
 import com.agricontract.user.application.dto.PageResult;
 import com.agricontract.user.domain.model.UserProfile;
@@ -38,9 +38,9 @@ class ListUsersByVerificationStatusUseCaseImplTest {
                 .thenReturn(List.of(pendingProfile()));
         when(userProfileRepository.countByVerificationStatus(VerificationStatus.PENDING)).thenReturn(1L);
 
-        PageResult<AdminUserResponse> result = useCase.execute(new ListUsersByVerificationStatusCommand(null, 0, 20));
+        PageResult<KycQueueItemResponse> result = useCase.execute(new ListUsersByVerificationStatusCommand(null, 0, 20));
 
-        assertThat(result.content()).extracting(AdminUserResponse::userId).containsExactly("seller-1");
+        assertThat(result.content()).extracting(KycQueueItemResponse::userId).containsExactly("seller-1");
         assertThat(result.page()).isZero();
         assertThat(result.size()).isEqualTo(20);
         assertThat(result.totalElements()).isEqualTo(1);
@@ -51,7 +51,7 @@ class ListUsersByVerificationStatusUseCaseImplTest {
         when(userProfileRepository.findByVerificationStatus(VerificationStatus.REJECTED, 2, 5)).thenReturn(List.of());
         when(userProfileRepository.countByVerificationStatus(VerificationStatus.REJECTED)).thenReturn(10L);
 
-        PageResult<AdminUserResponse> result = useCase.execute(
+        PageResult<KycQueueItemResponse> result = useCase.execute(
                 new ListUsersByVerificationStatusCommand(VerificationStatus.REJECTED, 2, 5));
 
         assertThat(result.content()).isEmpty();

@@ -2,17 +2,22 @@ package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
 import com.agricontract.user.application.dto.AssignUserRoleCommand;
+import com.agricontract.user.application.dto.GetKycProfileCommand;
+import com.agricontract.user.application.dto.KycDecisionResponse;
+import com.agricontract.user.application.dto.KycQueueItemResponse;
 import com.agricontract.user.application.dto.ListUsersByVerificationStatusCommand;
 import com.agricontract.user.application.dto.PageResult;
 import com.agricontract.user.application.dto.RejectUserCommand;
 import com.agricontract.user.application.dto.VerifyUserCommand;
 import com.agricontract.user.application.usecase.AssignUserRoleUseCase;
+import com.agricontract.user.application.usecase.GetKycProfileUseCase;
 import com.agricontract.user.application.usecase.ListUsersByVerificationStatusUseCase;
 import com.agricontract.user.application.usecase.RejectUserUseCase;
 import com.agricontract.user.application.usecase.VerifyUserUseCase;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.RoleSeparationViolationException;
+import com.agricontract.user.domain.exception.ReadAuditUnavailableException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
@@ -56,11 +61,13 @@ class AdminUserControllerTest {
     private static final String VERIFY_URL = "/api/v1/admin/users/" + TARGET_ID + "/verify";
     private static final String REJECT_URL = "/api/v1/admin/users/" + TARGET_ID + "/reject";
     private static final String ROLE_URL = "/api/v1/admin/users/" + TARGET_ID + "/role";
+    private static final String DETAIL_URL = "/api/v1/admin/users/" + TARGET_ID;
     private static final String VERIFY_BODY = "{\"authorizationExpiresAt\":\"2027-06-30T16:59:59.999Z\"}";
 
     @Autowired private MockMvc mockMvc;
 
     @MockBean private ListUsersByVerificationStatusUseCase listUsersByVerificationStatusUseCase;
+    @MockBean private GetKycProfileUseCase getKycProfileUseCase;
     @MockBean private VerifyUserUseCase verifyUserUseCase;
     @MockBean private RejectUserUseCase rejectUserUseCase;
     @MockBean private AssignUserRoleUseCase assignUserRoleUseCase;
@@ -72,15 +79,27 @@ class AdminUserControllerTest {
                 .header("X-User-Role", roles);
     }
 
-    private AdminUserResponse response(VerificationStatus status) {
+    private KycDecisionResponse response(VerificationStatus status) {
+        return KycDecisionResponse.builder()
+                .userId(TARGET_ID)
+                .verificationStatus(status)
+                .verifiedByActorId(ACTOR_ID)
+                .verifiedAt(Instant.parse("2026-10-07T03:00:00Z"))
+                .build();
+    }
+
+    private KycQueueItemResponse queueItem() {
+        return new KycQueueItemResponse(TARGET_ID, "HTX Ca Phe", Role.SELLER, VerificationStatus.PENDING);
+    }
+
+    private AdminUserResponse fullProfile() {
         return AdminUserResponse.builder()
                 .userId(TARGET_ID)
                 .organizationName("HTX Ca Phe")
                 .role(Role.SELLER)
                 .email("seller@agricontract.test")
-                .verificationStatus(status)
-                .verifiedByActorId(ACTOR_ID)
-                .verifiedAt(Instant.parse("2026-10-07T03:00:00Z"))
+                .phone("0901234567")
+                .verificationStatus(VerificationStatus.PENDING)
                 .build();
     }
 
@@ -142,7 +161,9 @@ class AdminUserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.verificationStatus").value("VERIFIED"))
-                .andExpect(jsonPath("$.data.verifiedByActorId").value(ACTOR_ID));
+                .andExpect(jsonPath("$.data.verifiedByActorId").value(ACTOR_ID))
+                .andExpect(jsonPath("$.data.email").doesNotExist())
+                .andExpect(jsonPath("$.data.phone").doesNotExist());
 
         ArgumentCaptor<VerifyUserCommand> captor = ArgumentCaptor.forClass(VerifyUserCommand.class);
         verify(verifyUserUseCase).execute(captor.capture());
@@ -180,18 +201,79 @@ class AdminUserControllerTest {
     void list_asOperator_returnsPage() throws Exception {
         when(listUsersByVerificationStatusUseCase.execute(
                 new ListUsersByVerificationStatusCommand(VerificationStatus.PENDING, 1, 2)))
-                .thenReturn(new PageResult<>(List.of(response(VerificationStatus.PENDING)), 1, 2, 3));
+                .thenReturn(new PageResult<>(List.of(queueItem()), 1, 2, 3));
 
         mockMvc.perform(viaGateway(get("/api/v1/admin/users")
                         .param("verificationStatus", "PENDING").param("page", "1").param("size", "2"), "OPERATOR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].userId").value(TARGET_ID))
+                .andExpect(jsonPath("$.data.content[0].email").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].phone").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].rejectionReason").doesNotExist())
                 .andExpect(jsonPath("$.data.page").value(1))
                 .andExpect(jsonPath("$.data.size").value(2))
                 .andExpect(jsonPath("$.data.totalElements").value(3))
                 .andExpect(jsonPath("$.data.totalPages").value(2))
                 .andExpect(jsonPath("$.data.first").value(false))
                 .andExpect(jsonPath("$.data.last").value(true));
+    }
+
+    // --- KYC detail read (#155) ---
+
+    @Test
+    void detail_asOperator_returnsFullProfileAndPassesActorAndAppRoles() throws Exception {
+        when(getKycProfileUseCase.execute(any())).thenReturn(fullProfile());
+
+        mockMvc.perform(viaGateway(get(DETAIL_URL), "default-roles-agricontract,OPERATOR,offline_access"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.userId").value(TARGET_ID))
+                .andExpect(jsonPath("$.data.email").value("seller@agricontract.test"))
+                .andExpect(jsonPath("$.data.phone").value("0901234567"));
+
+        verify(getKycProfileUseCase).execute(new GetKycProfileCommand(TARGET_ID, ACTOR_ID, "OPERATOR"));
+    }
+
+    @Test
+    void detail_asAdmin_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(get(DETAIL_URL), "ADMIN"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(getKycProfileUseCase);
+    }
+
+    @Test
+    void detail_asSeller_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(get(DETAIL_URL), "SELLER"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(getKycProfileUseCase);
+    }
+
+    @Test
+    void detail_internalSecretWithForgedOperatorRole_forbidden() throws Exception {
+        mockMvc.perform(get(DETAIL_URL)
+                        .header("X-Internal-Secret", INTERNAL_SECRET)
+                        .header("X-User-Id", ACTOR_ID)
+                        .header("X-User-Role", "OPERATOR"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(getKycProfileUseCase);
+    }
+
+    @Test
+    void detail_userNotFound_notFound() throws Exception {
+        when(getKycProfileUseCase.execute(any())).thenThrow(new NoSuchElementException("User not found: " + TARGET_ID));
+
+        mockMvc.perform(viaGateway(get(DETAIL_URL), "OPERATOR"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void detail_auditUnavailable_serviceUnavailableWithoutData() throws Exception {
+        when(getKycProfileUseCase.execute(any()))
+                .thenThrow(new ReadAuditUnavailableException(TARGET_ID, new RuntimeException("db down")));
+
+        mockMvc.perform(viaGateway(get(DETAIL_URL), "OPERATOR"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.data").doesNotExist());
     }
 
     @Test

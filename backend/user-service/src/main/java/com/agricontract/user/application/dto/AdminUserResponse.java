@@ -7,7 +7,9 @@ import lombok.Builder;
 
 import java.time.Instant;
 
-// Staff-only view (OPERATOR for KYC, ADMIN for role assignment); contact info is needed to reach the applicant.
+// Staff-only view; contact info is needed to reach the applicant. Restricted data, returned by
+// GetKycProfileUseCase (OPERATOR), which writes a read-audit entry first (#155), and by AssignUserRoleUseCase
+// (ADMIN) as the result of a role change, which is not read-audited.
 @Builder
 public record AdminUserResponse(
         String userId,

@@ -30,6 +30,8 @@ public class SecurityConfig {
                         // Exactly one staff role per function, no ADMIN fallback (governance §5.2/§5.4).
                         .requestMatchers(HttpMethod.PUT, "/api/v1/admin/users/*/role").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/users").hasRole("OPERATOR")
+                        // Full KYC profile: an audited read (#155)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/admin/users/*").hasRole("OPERATOR")
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/admin/users/*/verify", "/api/v1/admin/users/*/reject").hasRole("OPERATOR")
                         .requestMatchers("/api/v1/admin/**").denyAll()
