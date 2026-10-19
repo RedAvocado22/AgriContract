@@ -83,11 +83,14 @@ Reputation công khai không nhét vào DTO này; client gọi `GET /api/v1/repu
 
 | Method | Path | Ý nghĩa |
 |---|---|---|
-| `GET` | `/api/v1/admin/users?verificationStatus=PENDING` | Hàng đợi duyệt |
+| `GET` | `/api/v1/admin/users?verificationStatus=PENDING` | Hàng đợi duyệt — chỉ `userId`, `organizationName`, `role`, `verificationStatus`; không contact, không metadata quyết định (**19/10/2026, #155**) |
+| `GET` | `/api/v1/admin/users/{userId}` | Xem đầy đủ hồ sơ KYC — **mỗi lần gọi ghi 1 dòng read-audit** (governance §8) trước khi trả data; ghi audit lỗi → không trả data. Không tìm thấy → 404, không ghi audit (**19/10/2026, #155**) |
 | `POST` | `/api/v1/admin/users/{userId}/verify` | Body **bắt buộc có key** `authorizationExpiresAt` — giá trị là instant theo giấy thật hoặc `null` tường minh (vô thời hạn). Thiếu key → 400 (**bổ sung 12/10/2026**, phát hiện ở PR #151: body `{}` từng được hiểu là vô thời hạn — Operator quên nhập thành cấp quyền vĩnh viễn) |
 | `POST` | `/api/v1/admin/users/{userId}/reject` | Body chứa `reason` bắt buộc |
 
 Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào hash chain là enhancement, không phải Phase 2 golden flow.
+
+**Read-audit (19/10/2026, #155):** response của `verify`/`reject` chỉ trả kết quả quyết định (`userId`, `verificationStatus`, thời điểm, actor, lý do), không contact — chi tiết hồ sơ chỉ đọc được qua `GET /{userId}`, nên đó là cửa đọc Restricted duy nhất và luôn có vết. Log nằm ở bảng append-only `kyc_read_audit` trong `user_db` `{actor_id, actor_role, resource_type=KYC_PROFILE, resource_id, case_context, accessed_at}`. **Known limitation:** chưa có job xoá log quá 2 năm; `case_context` để null vì KYC chưa có case ID.
 
 ### 4.3 Internal API — tuyệt đối không route qua Gateway
 

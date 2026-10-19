@@ -504,8 +504,19 @@ paths:
       security: [{bearerAuth: []}]
       parameters: [{name: verificationStatus, in: query, required: false, schema: {enum: [PENDING, VERIFIED, REJECTED]}}]
       responses:
-        '2XX': {description: KYC queue; exact response wire shape is not frozen.}
+        '2XX': {description: KYC queue; exact response wire shape is not frozen. Rows carry no contact or decision detail; listing is not a Restricted read (#155).}
         '403': {$ref: '#/components/responses/Forbidden'}
+  /api/v1/admin/users/{userId}:
+    x-service-owner: user-service
+    get:
+      operationId: getKycProfile
+      x-roles: [OPERATOR]
+      description: >-
+        Full KYC profile for review. Every successful call writes one read-audit entry
+        {actorId, role, resourceType, resourceId, timestamp} before data is returned; if the
+        audit write fails, no profile data is returned (data-governance design 8).
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      responses: {'2XX': {description: KYC profile; exact response wire shape is not frozen.}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}}
   /api/v1/admin/users/{userId}/verify:
     x-service-owner: user-service
     post:
@@ -1415,6 +1426,7 @@ x-reference-only:
     - /api/v1/users/me
     - /api/v1/users/{userId}
     - /api/v1/admin/users
+    - /api/v1/admin/users/{userId}
     - /api/v1/admin/users/{userId}/verify
     - /api/v1/admin/users/{userId}/reject
     - /api/v1/admin/users/{userId}/role
