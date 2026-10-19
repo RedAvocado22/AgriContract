@@ -19,7 +19,11 @@ deduplication. Not done yet: Dockerfile, compose and CI (M3), parity run against
 
 - A payload that is not JSON, or misses a required field, goes to the DLQ at once (see
   `src/infrastructure/messaging/legacy-payload.parsers.ts` for the required fields).
+- Each email (event + recipient) is claimed atomically in `notification_logs` before sending, so two deliveries
+  of the same event never both send it. A delivery that finds a live claim (younger than 120s) is retried
+  instead of acked; a `PENDING` claim older than that (sender died mid-send) can be taken over.
 - A failed send is retried 3 times (1s, 2s), then dead-lettered; the log row is `FAILED` with `retry_count`.
+- Logs carry the event id and a failure code (e.g. `EENVELOPE/550`), never a recipient address or payload text.
 - Every 5 minutes a warning is logged for each DLQ that holds messages.
 - On shutdown the consumers are cancelled and in-flight messages finish (up to 8s) before the channel and the
   database pool close.
@@ -86,14 +90,22 @@ Unlike Spring Boot's actuator, health does not check SMTP.
 | `npm test` | Unit tests (Jest) |
 | `npm run lint` | ESLint + Prettier, fixing what it can |
 | `npm run lint:check` | Same without `--fix`, for CI |
+| `npm run test:int` | Integration tests against the compose MySQL (`DB_*` env, table `notification_logs` must exist) |
 | `npm run fixtures:java` | Regenerate `test/fixtures/java-templates.json` from the Java `ProcessNotificationUseCaseImpl` |
 
 ## Golden email fixtures
 
 Subjects, bodies and recipient order must stay identical to the Java service. `test/fixtures/java-templates.json`
-is extracted from the Java source by `npm run fixtures:java`; `src/application/handlers.spec.ts` checks every
-handler against it, and, while the Java service is still in the repo, checks that the fixture matches the Java
+is extracted from the Java source by `npm run fixtures:java`; `src/application/use-cases.spec.ts` checks every
+use case against it, and, while the Java service is still in the repo, checks that the fixture matches the Java
 source.
+
+## Code layout
+
+`src/application` is plain TypeScript (no Nest imports): one `Notify<Event>UseCase` per queue with
+`execute(command)`, the shared `NotificationSender`, the ports and their errors. `NotificationModule` builds these
+classes with factories from the `EMAIL_PORT`, `NOTIFICATION_LOG_REPOSITORY` and `NOTIFICATION_SETTINGS` tokens;
+`src/infrastructure` holds the Nest/amqplib/mysql2/nodemailer adapters.
 
 ## Why Jest has its own tsconfig
 
