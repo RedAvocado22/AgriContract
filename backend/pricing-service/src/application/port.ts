@@ -1,4 +1,4 @@
-import type { PriceQuote } from '../domain/priceQuote.js';
+import type { PriceQuote } from '../domain/priceQuote';
 
 /** Authenticated caller. The web layer resolves it from the API gateway headers. */
 export interface Actor {

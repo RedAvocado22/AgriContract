@@ -1,4 +1,4 @@
-import type { PriceQuote } from './priceQuote.js';
+import type { PriceQuote } from './priceQuote';
 
 /** A row to append to price_history together with its idempotency identity. */
 export interface NewPriceRow {

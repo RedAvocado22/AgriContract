@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { afterEach, beforeEach, describe, it } from 'node:test';
-import { operatorHeaders, postManual, startApp, validBody, type TestApp } from './fakes.js';
+import { operatorHeaders, postManual, validBody } from './fakes';
+import { startApp, type TestApp } from './testApp';
+import { deepEqual } from './deepEqual';
 
 describe('POST /api/v1/prices/manual', () => {
   let app: TestApp;
@@ -72,7 +73,7 @@ describe('POST /api/v1/prices/manual', () => {
       const res = await postManual(app, validBody());
       assert.equal(res.status, 201);
       const stored = app.repo.rows[0]!.quote;
-      assert.deepEqual(stored, {
+      deepEqual(stored, {
         id: '00000000-0000-4000-8000-000000000001',
         commodity: 'COFFEE',
         itemName: 'Cà phê Robusta nhân xô',
@@ -87,7 +88,7 @@ describe('POST /api/v1/prices/manual', () => {
         reason: 'VNSAT không cập nhật quá 14 ngày',
         recordedBy: 'op-1',
       });
-      assert.deepEqual(res.json, stored);
+      deepEqual(res.json, stored);
     });
 
     it('trims text fields', async () => {
@@ -100,7 +101,7 @@ describe('POST /api/v1/prices/manual', () => {
     it('is append-only: a correction is a new row and the old price is untouched', async () => {
       await postManual(app, validBody({ price: '120000.00' }), operatorHeaders({ 'Idempotency-Key': 'a' }));
       await postManual(app, validBody({ price: '121000.00' }), operatorHeaders({ 'Idempotency-Key': 'b' }));
-      assert.deepEqual(
+      deepEqual(
         app.repo.rows.map((r) => r.quote.price),
         ['120000.00', '121000.00'],
       );
@@ -108,7 +109,7 @@ describe('POST /api/v1/prices/manual', () => {
 
     it('updates the cache only after the row is written', async () => {
       const res = await postManual(app, validBody());
-      assert.deepEqual(app.repo.events, [`append:${res.json.id}`, `cache:${res.json.id}`]);
+      deepEqual(app.repo.events, [`append:${res.json.id}`, `cache:${res.json.id}`]);
       assert.equal(app.cache.stored.length, 1);
     });
 
@@ -186,11 +187,11 @@ describe('POST /api/v1/prices/manual', () => {
       const first = await postManual(app, validBody());
       const second = await postManual(app, validBody());
       assert.equal(second.status, 201);
-      assert.deepEqual(second.json, first.json);
+      deepEqual(second.json, first.json);
       assert.equal(second.headers.get('idempotent-replayed'), 'true');
       assert.equal(app.repo.rows.length, 1);
       // The replay refreshes the cache again (a failed first refresh would otherwise stay stale).
-      assert.deepEqual(app.cache.stored.map((q) => q.id), [first.json.id, first.json.id]);
+      deepEqual(app.cache.stored.map((q) => q.id), [first.json.id, first.json.id]);
     });
 
     it('reusing a key with a different body is a 409 state conflict', async () => {
@@ -228,14 +229,14 @@ describe('POST /api/v1/prices/manual', () => {
       const res = await fetch(`${app.baseUrl}/api/v1/nope`);
       const json = await res.json();
       assert.equal(res.status, 404);
-      assert.deepEqual(Object.keys(json).sort(), ['code', 'error', 'message', 'path', 'status', 'timestamp', 'traceId']);
+      deepEqual(Object.keys(json).sort(), ['code', 'error', 'message', 'path', 'status', 'timestamp', 'traceId']);
       assert.equal(json.path, '/api/v1/nope');
     });
 
     it('health endpoint', async () => {
       const res = await fetch(`${app.baseUrl}/health`);
       assert.equal(res.status, 200);
-      assert.deepEqual(await res.json(), { status: 'UP' });
+      deepEqual(await res.json(), { status: 'UP' });
     });
 
     it('propagates X-Request-Id as traceId', async () => {

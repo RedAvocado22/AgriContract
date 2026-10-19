@@ -3,16 +3,15 @@
  * layer turns them into an HTTP status and wire code.
  */
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
 import {
   ApplicationError,
   IdempotencyConflict,
   IdempotencyKeyRequired,
   ValidationFailed,
-} from '../src/application/errors.js';
-import { recordManualPrice, type ManualPriceDeps } from '../src/application/usecase/recordManualPrice.js';
-import { HttpError, toHttpError } from '../src/infrastructure/http/errors.js';
-import { FakeCache, InMemoryPriceHistory, memoryLogger, validBody } from './fakes.js';
+} from '../src/application/errors';
+import { recordManualPrice, type ManualPriceDeps } from '../src/application/usecase/recordManualPrice';
+import { HttpError, toHttpError } from '../src/infrastructure/http/errors';
+import { FakeCache, InMemoryPriceHistory, memoryLogger, validBody } from './fakes';
 
 function deps(): ManualPriceDeps {
   return {
