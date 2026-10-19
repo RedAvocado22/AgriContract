@@ -7,7 +7,8 @@ import lombok.Builder;
 
 import java.time.Instant;
 
-// KYC review view for ADMIN/OPERATOR only; contact info is needed to reach the applicant.
+// Full KYC profile for OPERATOR review; contact info is needed to reach the applicant. Restricted data: only
+// returned by GetKycProfileUseCase, which writes a read-audit entry first (#155).
 @Builder
 public record AdminUserResponse(
         String userId,

@@ -4,6 +4,7 @@ import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.common.exception.UserAlreadyExistsException;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
+import com.agricontract.user.domain.exception.ReadAuditUnavailableException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -39,6 +40,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(SelfKycDecisionException.class)
     public ResponseEntity<ApiResponse<Void>> handleSelfKycDecision(SelfKycDecisionException ex) {
         return ResponseEntity.status(403).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    // Fail-closed: the audit store is a dependency of the read, so its failure is unavailability, not a client error.
+    @ExceptionHandler(ReadAuditUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleReadAuditUnavailable(ReadAuditUnavailableException ex) {
+        return ResponseEntity.status(503).body(ApiResponse.error("Service temporarily unavailable"));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
