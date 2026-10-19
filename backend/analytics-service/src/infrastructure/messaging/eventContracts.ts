@@ -143,8 +143,50 @@ export const EVENT_CONTRACTS: Readonly<Record<IngestedEventType, EventContract>>
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const MONEY = /^[0-9]+\.[0-9]{2}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
-const DATE_TIME = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
+const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME = /^(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)(z|([+-])(\d{2})(?::?(\d{2}))?)$/i;
+const DAYS_IN_MONTH = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const EMAIL = /^[^\s@]+@[^\s@]+$/;
+
+const hasOwn = (o: object, key: string): boolean => Object.prototype.hasOwnProperty.call(o, key);
+
+const isLeapYear = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
+function isCalendarDate(text: string): boolean {
+  const m = DATE.exec(text);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1) return false;
+  return day <= (month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month]!);
+}
+
+/** Time of day with a mandatory zone. A leap second (:60) is only valid at 23:59:60 UTC. */
+function isTimeWithZone(text: string): boolean {
+  const m = TIME.exec(text);
+  if (!m) return false;
+  const hour = Number(m[1]);
+  const minute = Number(m[2]);
+  const second = Number(m[3]);
+  const sign = m[5] === '-' ? -1 : 1;
+  const zoneHour = Number(m[6] ?? 0);
+  const zoneMinute = Number(m[7] ?? 0);
+  if (zoneHour > 23 || zoneMinute > 59) return false;
+  if (hour <= 23 && minute <= 59 && second < 60) return true;
+  const utcMinute = minute - zoneMinute * sign;
+  const utcHour = hour - zoneHour * sign - (utcMinute < 0 ? 1 : 0);
+  return (utcHour === 23 || utcHour === -1) && (utcMinute === 59 || utcMinute === -1) && second < 61;
+}
+
+/**
+ * RFC 3339 date-time, checked field by field (same rules as the JSON Schema "date-time" format of the
+ * frozen contract). Date.parse is not used: it rolls impossible dates over (2026-02-30 becomes 2 March).
+ */
+export function isDateTime(value: string): boolean {
+  const parts = value.split(/t|\s/i);
+  return parts.length === 2 && isCalendarDate(parts[0]!) && isTimeWithZone(parts[1]!);
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -160,7 +202,7 @@ export function checkRule(rule: Rule, value: unknown): string | null {
     case 'positiveNumber':
       return typeof value === 'number' && Number.isFinite(value) && value > 0 ? null : 'must be a number greater than 0';
     case 'dateTime':
-      return typeof value === 'string' && DATE_TIME.test(value) && !Number.isNaN(Date.parse(value))
+      return typeof value === 'string' && isDateTime(value)
         ? null
         : 'must be an RFC 3339 date-time with a time zone';
     case 'const':
@@ -212,14 +254,14 @@ export function validateCanonicalEvent(envelope: EventEnvelope, expectedType: st
   const payload: unknown = envelope.payload;
   if (!isObject(payload)) return [...errors, 'payload: must be an object'];
   for (const [field, rule] of Object.entries(contract.payload)) {
-    if (!(field in payload)) errors.push(`payload.${field}: is required`);
+    if (!hasOwn(payload, field)) errors.push(`payload.${field}: is required`);
     else {
       const problem = checkRule(rule, payload[field]);
       if (problem) errors.push(`payload.${field}: ${problem}`);
     }
   }
   for (const field of Object.keys(payload)) {
-    if (!(field in contract.payload)) errors.push(`payload.${field}: is not allowed`);
+    if (!hasOwn(contract.payload, field)) errors.push(`payload.${field}: is not allowed`);
   }
   return errors;
 }

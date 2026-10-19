@@ -1,14 +1,17 @@
 /**
  * Payload validation at the messaging boundary, checked against the frozen contract itself:
  *  - the production rules and golden-flow-events.yaml list the same fields, producers and enum values;
- *  - a small JSON Schema evaluator (the subset the YAML uses) and the production validator must agree on
- *    valid payloads and on hundreds of mutated ones, so a rule that is looser or stricter than the YAML fails.
+ *  - AJV (JSON Schema 2020-12 + ajv-formats) compiled from the frozen YAML and the production validator must
+ *    agree on valid payloads and on hundreds of mutated ones, so a rule that is looser or stricter than the
+ *    YAML fails. AJV is the oracle; the tests do not contain their own re-implementation of the schema rules.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import Ajv2020Module from 'ajv/dist/2020.js';
+import addFormatsModule from 'ajv-formats';
 import yaml from 'js-yaml';
 import { INGESTED_EVENT_TYPES } from '../src/domain/ingestedEvents.js';
 import { EVENT_CONTRACTS, validateCanonicalEvent, type Rule } from '../src/infrastructure/messaging/eventContracts.js';
@@ -27,63 +30,27 @@ function defFor(eventType: string): any {
   return found.allOf[1];
 }
 
-// ---- minimal JSON Schema evaluator for the subset used by the payload definitions ----
-const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 function resolveRef(ref: string): any {
   assert.match(ref, /^#\/\$defs\//, `unsupported $ref ${ref}`);
   return defs[ref.slice('#/$defs/'.length)];
 }
-function typeOk(type: string, v: unknown): boolean {
-  switch (type) {
-    case 'string': return typeof v === 'string';
-    case 'number': return typeof v === 'number' && Number.isFinite(v);
-    case 'integer': return Number.isInteger(v);
-    case 'object': return typeof v === 'object' && v !== null && !Array.isArray(v);
-    case 'array': return Array.isArray(v);
-    case 'null': return v === null;
-    case 'boolean': return typeof v === 'boolean';
-    default: throw new Error(`unsupported type ${type}`);
+
+// ---- AJV compiled from the frozen schema ----
+const Ajv2020 = ((Ajv2020Module as unknown as { default?: unknown }).default ?? Ajv2020Module) as new (
+  opts: object,
+) => { compile(schema: object): (data: unknown) => boolean };
+const addFormats = ((addFormatsModule as unknown as { default?: unknown }).default ?? addFormatsModule) as (ajv: unknown) => void;
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+addFormats(ajv);
+const compiled = new WeakMap<object, (data: unknown) => boolean>();
+/** True when AJV accepts `v` for the (payload) schema of the YAML; "#/$defs/..." references resolve in the catalog. */
+function valid(schema: object, v: unknown): boolean {
+  let validate = compiled.get(schema);
+  if (!validate) {
+    validate = ajv.compile({ $schema: 'https://json-schema.org/draft/2020-12/schema', $defs: defs, ...schema });
+    compiled.set(schema, validate);
   }
-}
-function formatOk(format: string, v: string): boolean {
-  if (format === 'uuid') return UUID.test(v);
-  if (format === 'date-time') return /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/.test(v) && !Number.isNaN(Date.parse(v));
-  if (format === 'email') return /^[^\s@]+@[^\s@]+$/.test(v);
-  throw new Error(`unsupported format ${format}`);
-}
-function valid(schema: any, v: unknown): boolean {
-  if (schema.$ref) return valid(resolveRef(schema.$ref), v);
-  if (schema.allOf && !schema.allOf.every((s: any) => valid(s, v))) return false;
-  if (schema.oneOf && schema.oneOf.filter((s: any) => valid(s, v)).length !== 1) return false;
-  if ('const' in schema && v !== schema.const) return false;
-  if (schema.enum && !schema.enum.includes(v)) return false;
-  if (schema.type) {
-    const types: string[] = Array.isArray(schema.type) ? schema.type : [schema.type];
-    if (!types.some((t) => typeOk(t, v))) return false;
-  }
-  if (typeof v === 'string') {
-    if (schema.pattern && !new RegExp(schema.pattern).test(v)) return false;
-    if (schema.maxLength !== undefined && v.length > schema.maxLength) return false;
-    if (schema.minLength !== undefined && v.length < schema.minLength) return false;
-    if (schema.format && !formatOk(schema.format, v)) return false;
-  }
-  if (typeof v === 'number') {
-    if (schema.exclusiveMinimum !== undefined && !(v > schema.exclusiveMinimum)) return false;
-    if (schema.minimum !== undefined && v < schema.minimum) return false;
-  }
-  if (Array.isArray(v)) {
-    if (schema.minItems !== undefined && v.length < schema.minItems) return false;
-    if (schema.uniqueItems && new Set(v.map((x) => JSON.stringify(x))).size !== v.length) return false;
-    if (schema.items && !v.every((x) => valid(schema.items, x))) return false;
-  }
-  if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-    const obj = v as Record<string, unknown>;
-    for (const r of schema.required ?? []) if (!(r in obj)) return false;
-    const props = schema.properties ?? {};
-    if (schema.additionalProperties === false && Object.keys(obj).some((k) => !(k in props))) return false;
-    for (const [k, s] of Object.entries(props)) if (k in obj && !valid(s, obj[k])) return false;
-  }
-  return true;
+  return validate(v);
 }
 
 // ---- helpers to read enum values out of the YAML ----
@@ -134,7 +101,11 @@ describe('production rules match golden-flow-events.yaml', () => {
 describe('validator and YAML schema agree', () => {
   const BAD_VALUES: unknown[] = [
     null, true, 0, -1, 1.5, 1e21, '', ' ', 'x', 'not-a-uuid', '12', '12.5', '12.345', '-1.00', '1e3', '0.00', '99999999999999999999.00',
-    '2026-13-45T00:00:00Z', '2026-10-12', '2026-10-12T05:00:00', 'COFFEE', 'ROBUSTA', 'BUYER', 'VND', [], [null], {}, { userId: 'x' },
+    '2026-13-45T00:00:00Z', '2026-10-12', '2026-10-12T05:00:00',
+    // calendar and clock limits (review finding: Date.parse rolls 2026-02-30 over to 2 March)
+    '2026-02-30T00:00:00Z', '2026-04-31T00:00:00Z', '2025-02-29T00:00:00Z', '2024-02-29T00:00:00Z', '2026-00-10T05:00:00Z',
+    '2026-10-00T05:00:00Z', '2026-10-12T24:00:00Z', '2026-10-12T05:60:00Z', '2026-10-12T05:00:60Z', '2016-12-31T23:59:60Z',
+    '2026-10-12T05:00:00+24:00', '2026-10-12T05:00:00+07:00', '2026-10-12T05:00:00.123Z', '2026-10-12t05:00:00z', 'COFFEE', 'ROBUSTA', 'BUYER', 'VND', [], [null], {}, { userId: 'x' },
   ];
 
   for (const eventType of INGESTED_EVENT_TYPES) {
@@ -149,6 +120,10 @@ describe('validator and YAML schema agree', () => {
     it(`${eventType}: dropping any field, adding a field or replacing a value gives the same verdict in both`, () => {
       const base = validPayload(eventType);
       const mutants: Array<[string, Record<string, unknown>]> = [['empty payload', {}], ['unknown field', { ...base, extra: 'x' }]];
+      // names that exist on every object (review finding: the `in` operator accepted them as known fields)
+      for (const name of ['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__']) {
+        mutants.push([`extra field ${name}`, JSON.parse(`${JSON.stringify(base).slice(0, -1)},"${name}":"x"}`)]);
+      }
       for (const field of Object.keys(base)) {
         const { [field]: _dropped, ...without } = base;
         mutants.push([`missing ${field}`, without]);
@@ -178,6 +153,22 @@ describe('validator and YAML schema agree', () => {
 });
 
 describe('what the production validator rejects (review finding)', () => {
+  it('a date that does not exist in the calendar is rejected (signedAt 2026-02-30)', () => {
+    const payload = { ...validPayload('contract.signed'), signedAt: '2026-02-30T00:00:00Z' };
+    assert.deepEqual(validateCanonicalEvent(validEvent('contract.signed', 'c-1', { payload }), 'contract.signed'), [
+      'payload.signedAt: must be an RFC 3339 date-time with a time zone',
+    ]);
+    assert.equal(valid(defFor('contract.signed').properties.payload, payload), false);
+  });
+
+  it('a field that only exists on every object ("constructor") is not a known field', () => {
+    const payload = JSON.parse(`${JSON.stringify(validPayload('contract.settled')).slice(0, -1)},"constructor":"x"}`);
+    assert.deepEqual(validateCanonicalEvent(validEvent('contract.settled', 'c-1', { payload }), 'contract.settled'), [
+      'payload.constructor: is not allowed',
+    ]);
+    assert.equal(valid(defFor('contract.settled').properties.payload, payload), false);
+  });
+
   it('an envelope-valid contract.signed from an unrelated producer with an empty payload is rejected, naming every problem', () => {
     const env = validEvent('contract.signed', 'c-1', { producer: 'unrelated-service', payload: {} });
     const errors = validateCanonicalEvent(env, 'contract.signed');

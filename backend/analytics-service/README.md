@@ -67,9 +67,12 @@ To add a projection, implement `ProjectionHandler` and add it to `PROJECTIONS` i
 
 `infrastructure/messaging/eventContracts.ts` mirrors `contracts/events/golden-flow-events.yaml`: producer,
 supported `eventVersion`, every payload field (required, format, enum) and no unknown fields. Error messages name
-the field and the rule, never the value. `test/event-contracts.test.ts` compares the rules with the YAML and runs
-the same valid and mutated payloads through a JSON Schema evaluator of the YAML and through the service; they
-must agree.
+the field and the rule, never the value. Date-times are checked field by field (a date such as
+2026-02-30 is rejected; `Date.parse` is not used) and unknown fields are detected with an own-property check.
+`test/event-contracts.test.ts` compares the rules with the YAML and runs the same valid and mutated payloads
+(impossible dates, clock limits, extra fields such as `constructor`) through AJV (2020-12 + ajv-formats) compiled
+from the frozen YAML and through the service; they must agree. `test/invalid-events.test.ts` checks that an
+invalid event goes to the DLQ without a landing row and without a dedup marker.
 
 ## Dead-letter queues
 
