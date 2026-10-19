@@ -2,12 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createTransport, type Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
-import type {
-  EmailMessage,
-  EmailPort,
+import { failureCode } from '../../application/notification-errors';
+import {
+  EmailDeliveryError,
+  type EmailMessage,
+  type EmailPort,
 } from '../../application/ports/email.port';
 import type { AppConfig } from '../../config/env.validation';
-import { describeError } from '../describe-error';
 
 /** Injection token of nodemailer's `createTransport`, replaced by a fake in tests. */
 export const CREATE_MAIL_TRANSPORT = Symbol('CREATE_MAIL_TRANSPORT');
@@ -26,7 +27,6 @@ export type CreateMailTransport = (
 export class NodemailerEmailAdapter implements EmailPort {
   private readonly transport: Pick<Transporter, 'sendMail'>;
   private readonly from: string;
-  private readonly server: string;
 
   constructor(
     config: ConfigService<AppConfig, true>,
@@ -34,7 +34,6 @@ export class NodemailerEmailAdapter implements EmailPort {
   ) {
     const mail = config.get('mail', { infer: true });
     this.from = mail.from;
-    this.server = `${mail.host}:${mail.port}`;
     this.transport = create({
       host: mail.host,
       port: mail.port,
@@ -56,12 +55,28 @@ export class NodemailerEmailAdapter implements EmailPort {
         text: body,
       });
     } catch (err) {
-      // Connection errors to "localhost" come as an AggregateError with an empty message.
-      throw new Error(`SMTP ${this.server}: ${describeError(err)}`, {
-        cause: err,
-      });
+      // Only a code leaves this adapter: nodemailer texts quote recipient
+      // addresses ("550 5.1.1 <x@y>: Recipient address rejected"). No cause is
+      // attached either, so nothing downstream can log the original by accident.
+      throw new EmailDeliveryError(smtpFailureCode(err));
     }
   }
+}
+
+/**
+ * `ECONNREFUSED`, `ETIMEDOUT`, `EENVELOPE/550`...: nodemailer's error code plus
+ * the SMTP reply code when there is one. Connecting to "localhost" fails with
+ * an AggregateError (::1 and 127.0.0.1); its first inner error names the cause.
+ */
+export function smtpFailureCode(err: unknown): string {
+  if (err instanceof AggregateError && err.errors.length > 0) {
+    return smtpFailureCode(err.errors[0]);
+  }
+  const code = failureCode(err);
+  const reply = (err as { responseCode?: unknown } | null)?.responseCode;
+  return typeof reply === 'number' && Number.isInteger(reply)
+    ? `${code}/${reply}`
+    : code;
 }
 
 export const mailTransportFactory = {

@@ -3,6 +3,10 @@ import {
   InMemoryNotificationLogRepository,
 } from '../../test/support/fakes';
 import { NotificationStatus } from '../domain/notification-log';
+import {
+  NotificationDeliveryError,
+  SendInProgressError,
+} from './notification-errors';
 import { CLAIM_LEASE_MS, NotificationSender } from './notification-sender';
 
 describe('NotificationSender.send (plan §4.3)', () => {
@@ -142,6 +146,45 @@ describe('NotificationSender.send (plan §4.3)', () => {
       release();
       await a;
       expect(email.sent).toHaveLength(1);
+    });
+  });
+
+  describe('error messages are safe to log (review #172)', () => {
+    it('a failed send names the event and the code, not the recipient', async () => {
+      email.failFor.add('a@example.test');
+
+      await expect(
+        sender.send('evt-1', 'a@example.test', 'S', 'B'),
+      ).rejects.toThrow(
+        new NotificationDeliveryError('evt-1', 'email', 'EENVELOPE/550'),
+      );
+    });
+
+    it('a repository failure is reduced to its code; the driver text is dropped', async () => {
+      jest
+        .spyOn(logs, 'claim')
+        .mockRejectedValue(
+          Object.assign(
+            new Error("Incorrect string value: 'a@example.test' for column"),
+            { code: 'ER_TRUNCATED_WRONG_VALUE' },
+          ),
+        );
+
+      const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+
+      await expect(failure).rejects.toBeInstanceOf(NotificationDeliveryError);
+      await expect(failure).rejects.toThrow(
+        'Event evt-1: notification log write failed (ER_TRUNCATED_WRONG_VALUE)',
+      );
+      expect(email.sent).toEqual([]);
+    });
+
+    it('an in-progress claim is a SendInProgressError', async () => {
+      logs.seed('evt-1', 'a@example.test', NotificationStatus.PENDING);
+
+      await expect(
+        sender.send('evt-1', 'a@example.test', 'S', 'B'),
+      ).rejects.toBeInstanceOf(SendInProgressError);
     });
   });
 });

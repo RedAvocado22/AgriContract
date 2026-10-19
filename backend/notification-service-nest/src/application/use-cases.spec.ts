@@ -203,7 +203,7 @@ describe('Notify*UseCase (golden fixtures from the Java source)', () => {
     email.failFor.add('seller@example.test');
 
     await expect(run('handleContractSigned', command)).rejects.toThrow(
-      'SMTP refused seller@example.test',
+      'Event evt-retry: email delivery failed (EENVELOPE/550)',
     );
     expect(email.sent.map((m) => m.to)).toEqual(['buyer@example.test']);
     expect(logs.get('evt-retry', 'seller@example.test')).toMatchObject({

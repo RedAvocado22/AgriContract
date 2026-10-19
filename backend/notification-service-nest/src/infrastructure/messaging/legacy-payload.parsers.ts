@@ -68,22 +68,30 @@ class PayloadReader {
     return value;
   }
 
+  /** The message names the field and type, plus the eventId when it is a plain id. */
   error(reason: string): NonRetryableError {
+    const id = this.payload.eventId;
+    const event =
+      typeof id === 'string' && SAFE_ID.test(id) ? ` (event ${id})` : '';
     return new NonRetryableError(
-      `Malformed ${this.eventType} payload: ${reason}`,
+      `Malformed ${this.eventType} payload: ${reason}${event}`,
     );
   }
 }
+
+/** UUIDs and ids like evt-signed-1729: safe to log, unlike free text or emails. */
+const SAFE_ID = /^[A-Za-z0-9-]{1,64}$/;
 
 function read(eventType: string, body: Buffer | string): PayloadReader {
   const text = typeof body === 'string' ? body : body.toString('utf8');
   let payload: unknown;
   try {
     payload = JSON.parse(text);
-  } catch (err) {
+  } catch {
+    // Not the JSON.parse message: it quotes a slice of the payload, which may
+    // hold names or emails (review #172).
     throw new NonRetryableError(
-      `Malformed ${eventType} payload: not valid JSON (${(err as Error).message})`,
-      { cause: err },
+      `Malformed ${eventType} payload: not valid JSON`,
     );
   }
   if (

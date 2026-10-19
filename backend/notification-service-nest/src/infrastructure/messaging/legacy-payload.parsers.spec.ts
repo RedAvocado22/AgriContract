@@ -328,6 +328,52 @@ it('error messages name the field type, never the value', () => {
       parseContractSigned(
         json({ ...CASES['contract.signed'].payload, buyerEmail: 99 }),
       ),
-    /field "buyerEmail" must be a non-empty string, got number$/,
+    /field "buyerEmail" must be a non-empty string, got number \(event evt-1\)$/,
   );
+});
+
+describe('error messages never carry payload text (review #172)', () => {
+  const PII = ['nguyen.van.a@example.test', 'Nguyễn Văn A', '0912345678'];
+
+  function messageOf(body: string): string {
+    let error: unknown;
+    try {
+      parseContractSigned(body);
+    } catch (err) {
+      error = err;
+    }
+    expect(error).toBeInstanceOf(NonRetryableError);
+    return (error as Error).message;
+  }
+
+  it('broken JSON that contains personal data reports only "not valid JSON"', () => {
+    const message = messageOf(
+      `{"buyerEmail":"${PII[0]}","buyerName":"${PII[1]}","phone":"${PII[2]}",`,
+    );
+
+    expect(message).toBe('Malformed contract.signed payload: not valid JSON');
+  });
+
+  it('a missing field names the field and the event id, not other values', () => {
+    const message = messageOf(
+      JSON.stringify({
+        eventId: 'evt-42',
+        contractId: 'c',
+        buyerEmail: PII[0],
+        buyerName: PII[1],
+      }),
+    );
+
+    expect(message).toBe(
+      'Malformed contract.signed payload: field "sellerEmail" must be a non-empty string, got undefined (event evt-42)',
+    );
+    for (const value of PII) expect(message).not.toContain(value);
+  });
+
+  it('an eventId that is not a plain id is left out', () => {
+    const message = messageOf(JSON.stringify({ eventId: PII[0] }));
+
+    expect(message).not.toContain(PII[0]);
+    expect(message).not.toContain('(event');
+  });
 });
