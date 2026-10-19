@@ -71,10 +71,16 @@ Mỗi dòng phải có test (unit hoặc Bruno) trước khi cutover.
 
 1. **Topology:** đúng tên exchange, queue, DLQ, DLX và kiểu exchange như bảng §2. `assertQueue` phải truyền **đúng** `arguments: { 'x-dead-letter-exchange': ... }`, không thêm argument nào khác. Nếu khác, RabbitMQ trả `PRECONDITION_FAILED` và đóng channel, vì queue đã tồn tại.
 2. `channel.prefetch(10)` trước khi consume (README node-eventing bắt buộc).
-3. **Thuật toán gửi** (`sendNotification`), mỗi người nhận xử lý độc lập:
-   1. Tìm log theo `(event_id, user_id = email)`. Nếu `SENT` thì bỏ qua.
-   2. Nếu chưa có: `INSERT` trạng thái `PENDING`. Nếu lỗi `ER_DUP_ENTRY` thì return (consumer khác đã giành), không gửi.
-   3. Gửi mail. Thành công thì `SENT`. Lỗi thì `FAILED`, `retry_count + 1`, rồi **throw** để cả message được retry. Người nhận đã `SENT` trước đó sẽ bị skip ở lần retry.
+3. **Thuật toán gửi** (`NotificationSender.send`), mỗi người nhận xử lý độc lập. Đây là bản chặt hơn Java, sửa theo review #172:
+   1. **Claim nguyên tử** theo `(event_id, user_id = email)`:
+      - Lần đầu: `INSERT` trạng thái `PENDING`.
+      - Nếu dòng đã tồn tại: chạy một câu `UPDATE` có điều kiện, chỉ lấy lại dòng `FAILED` hoặc dòng `PENDING` cũ hơn lease 120 giây (`updated_at` theo giờ DB, UTC), rồi kiểm `affectedRows`.
+      - Nhiều delivery chạy đồng thời thì tối đa một bên claim được.
+   2. Dòng `SENT` thì bỏ qua. Nếu một delivery khác đang giữ claim còn hạn: **throw lỗi retryable**, không ack. Lần retry thường sẽ thấy `SENT`. Nếu ack ngay thì mail sẽ mất khi bên đang giữ claim bị lỗi.
+   3. Gửi mail ngoài transaction. Thành công thì `SENT`. Lỗi thì `FAILED`, `retry_count + 1` (tính trong SQL), rồi throw để cả message được retry. Người nhận đã `SENT` sẽ bị bỏ qua ở lần retry.
+   4. Log chỉ chứa `eventId` và mã lỗi, không chứa email hay nội dung payload.
+
+   Java khác ở hai điểm: không claim dòng `PENDING`/`FAILED` có sẵn, và khi `INSERT` trùng khoá thì ack luôn.
 4. **Người nhận và nội dung:** copy nguyên văn subject/body từ `ProcessNotificationUseCaseImpl.java` (9 handler, 14 lần gửi):
    - `contract.disputed` gửi theo thứ tự admin (`ADMIN_EMAIL`), seller, buyer.
    - `escrow.penalized` lấy `buyerEmail` nếu `penalizedParty === 'BUYER'`, ngược lại lấy `sellerEmail`.
@@ -102,11 +108,13 @@ backend/notification-service-nest/
 │   ├── config/env.validation.ts                        # schema env, fail fast
 │   ├── domain/
 │   │   └── notification-log.ts                         # create/markSent/markFailed + status/channel enum
-│   ├── application/
+│   ├── application/                                    # TypeScript thuần, không import Nest (review #172)
 │   │   ├── commands/*.ts                               # 9 command type (thay record Java)
-│   │   ├── ports/email.port.ts
-│   │   ├── ports/notification-log.repository.ts
-│   │   └── process-notification.service.ts            # 9 handler + sendNotification
+│   │   ├── ports/email.port.ts                         # EmailPort + EmailDeliveryError (chỉ mã lỗi)
+│   │   ├── ports/notification-log.repository.ts        # claim / markSent / markFailed
+│   │   ├── notification-sender.ts                      # thuật toán gửi §4.3
+│   │   ├── notification-errors.ts                      # lỗi có thông báo an toàn để log
+│   │   └── use-cases/notify-*.use-case.ts              # 9 Notify<Event>UseCase, execute(command)
 │   └── infrastructure/
 │       ├── messaging/topology.ts                       # khai báo exchange/queue/DLQ (bảng §2 làm data)
 │       ├── messaging/legacy-payload.parsers.ts         # map JSON phẳng → command, NonRetryableError khi sai
@@ -177,10 +185,10 @@ backend/notification-service-nest/
 
 ### M2 — Port nghiệp vụ (3–4 ngày)
 
-- [x] `NotificationLog` domain, repository MySQL (`findByEventIdAndRecipient`, `insert` bắt `ER_DUP_ENTRY`, `update`).
-- [x] `ProcessNotificationService`: 9 handler, thuật toán §4.3, subject/body copy nguyên văn.
+- [x] `NotificationLog` domain, repository MySQL (`claim` nguyên tử, `markSent`, `markFailed`).
+- [x] 9 `Notify<Event>UseCase` (TypeScript thuần) và `NotificationSender`: thuật toán §4.3, subject/body copy nguyên văn.
 - [x] `legacy-payload.parsers.ts`: 9 parser, kể cả logic `penalizedParty`.
-- [x] `NotificationEventConsumer`: mỗi queue nối parser → service, đăng ký bằng `consumeEvents`.
+- [x] `NotificationEventConsumer`: mỗi queue nối parser → use case qua `legacyRoutes`, đăng ký bằng `consumeEvents`.
 - [x] Nodemailer adapter.
 - [x] DLQ monitor.
 - [x] Unit test (Jest):
@@ -188,12 +196,18 @@ backend/notification-service-nest/
   - Thêm: đủ 9 handler (đúng người nhận, subject, body), `SENT` thì skip, `ER_DUP_ENTRY` thì không gửi, mail lỗi thì `FAILED` + throw, recipient thứ 2 lỗi rồi retry thì không gửi lại recipient 1, payload thiếu hoặc sai kiểu thì `NonRetryableError`, `penalizedParty` BUYER/SELLER.
   - Test `handleDelivery` với channel giả: retry 3 lần rồi nack(requeue=false).
 
-**Xong khi:** coverage của `application/` và `messaging/` tương đương hoặc hơn Java, mọi dòng §4 có test.
+**Xong khi:** mọi dòng §4 có test; coverage (lines) của `application/` ≥ 95% và của `infrastructure/messaging/` ≥ 90%.
 
-**Kết quả M2 (17/10/2026):**
+Tiêu chí cũ "tương đương hoặc hơn Java" không kiểm được, vì Java không có baseline JaCoCo. Đã đổi theo review #172.
 
-- **Test:** 350 test pass trên clone sạch, Node 22, Linux.
-- **Coverage (lines):** `application/` 100%, `infrastructure/messaging/` 96%. Không đo được coverage của Java vì repo không cấu hình JaCoCo.
+**Kết quả M2 (17/10/2026, cập nhật 19/10/2026 sau review #172):**
+
+- **Test:** 366 unit test. Thêm `npm run test:int`: 5 test trên MySQL thật, chạy riêng vì cần DB.
+- **Coverage (lines):** `application/` 100%, `infrastructure/messaging/` 97.8%.
+- **Sửa theo review #172:**
+  - Claim nguyên tử cho từng email (§4.3).
+  - Không log email hay nội dung payload (có test bắt log đầu-cuối).
+  - Tầng `application/` là TypeScript thuần: một `Notify<Event>UseCase` cho mỗi hành động.
 - **Golden fixtures:** `test/fixtures/java-templates.json` được trích xuất từ `ProcessNotificationUseCaseImpl.java`.
 - **Smoke test** (hạ tầng local, Java không chạy):
   - 3 event (contract, escrow, category) cho đúng 4 mail và 4 dòng `SENT`, với `user_id` là email. Publish lại cùng `eventId` không gửi thêm mail nào.
