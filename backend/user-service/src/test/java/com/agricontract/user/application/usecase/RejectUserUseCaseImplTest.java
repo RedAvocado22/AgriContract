@@ -1,6 +1,6 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.RejectUserCommand;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.model.UserProfile;
@@ -61,7 +61,7 @@ class RejectUserUseCaseImplTest {
         when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(pendingProfile()));
         when(userProfileRepository.update(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        AdminUserResponse response = useCase.execute(new RejectUserCommand(TARGET_ID, ACTOR_ID, "Thieu giay phep"));
+        KycDecisionResponse response = useCase.execute(new RejectUserCommand(TARGET_ID, ACTOR_ID, "Thieu giay phep"));
 
         ArgumentCaptor<UserProfile> captor = ArgumentCaptor.forClass(UserProfile.class);
         verify(userProfileRepository).update(captor.capture());
