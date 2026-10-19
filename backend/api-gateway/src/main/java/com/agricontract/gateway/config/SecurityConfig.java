@@ -58,7 +58,7 @@ public class SecurityConfig {
                         // Coarse staff gate (gateway design 3.3, SRS v1.6): each action takes exactly its own staff
                         // role, no ADMIN fallback. Exact method+path matchers sit before the wildcards they narrow;
                         // the owning service still re-checks role and resource.
-                        .pathMatchers(HttpMethod.GET, "/api/v1/admin/users").hasRole("OPERATOR")
+                        .pathMatchers(HttpMethod.GET, "/api/v1/admin/users", "/api/v1/admin/users/*").hasRole("OPERATOR")
                         .pathMatchers(HttpMethod.POST,
                                 "/api/v1/admin/users/*/verify",
                                 "/api/v1/admin/users/*/reject").hasRole("OPERATOR")

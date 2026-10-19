@@ -336,6 +336,7 @@ class GatewayBoundaryTest {
 
     private static final List<StaffAction> STAFF_ACTIONS = List.of(
             new StaffAction("GET", "/api/v1/admin/users?verificationStatus=PENDING", "OPERATOR"),
+            new StaffAction("GET", "/api/v1/admin/users/user-456", "OPERATOR"),
             new StaffAction("POST", "/api/v1/admin/users/user-456/verify", "OPERATOR"),
             new StaffAction("POST", "/api/v1/admin/users/user-456/reject", "OPERATOR"),
             new StaffAction("PUT", "/api/v1/admin/users/user-456/role", "ADMIN"),
