@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { ConfigService } from '@nestjs/config';
 import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
@@ -10,24 +9,42 @@ import {
   readFixture,
   type JavaTemplate,
 } from '../../test/support/java-templates';
-import { validate, type AppConfig } from '../config/env.validation';
 import { NotificationStatus } from '../domain/notification-log';
-import { ProcessNotificationService } from './process-notification.service';
+import { NotificationSender } from './notification-sender';
+import {
+  NotifyCategoryApprovedUseCase,
+  NotifyCategoryRejectedUseCase,
+  NotifyContractCancelledUseCase,
+  NotifyContractDeliveredUseCase,
+  NotifyContractDisputedUseCase,
+  NotifyContractSignedUseCase,
+  NotifyEscrowLockedUseCase,
+  NotifyEscrowPenalizedUseCase,
+  NotifyEscrowReleasedUseCase,
+} from './use-cases';
 
 const ADMIN = 'ops-admin@example.test';
 const fixture = readFixture();
 
-/** Calls the handler named like the Java method (e.g. handleContractSigned). */
-function runHandler(
-  service: ProcessNotificationService,
-  name: string,
-  command: unknown,
-): Promise<void> {
-  const handlers = service as unknown as Record<
-    string,
-    (command: unknown) => Promise<void>
-  >;
-  return handlers[name](command);
+interface UseCase {
+  execute(command: never): Promise<void>;
+}
+
+/** The use case for each Java handler method of ProcessNotificationUseCaseImpl. */
+function useCasesBy(sender: NotificationSender): Record<string, UseCase> {
+  return {
+    handleContractSigned: new NotifyContractSignedUseCase(sender),
+    handleContractCancelled: new NotifyContractCancelledUseCase(sender),
+    handleContractDelivered: new NotifyContractDeliveredUseCase(sender),
+    handleContractDisputed: new NotifyContractDisputedUseCase(sender, {
+      adminEmail: ADMIN,
+    }),
+    handleEscrowLocked: new NotifyEscrowLockedUseCase(sender),
+    handleEscrowReleased: new NotifyEscrowReleasedUseCase(sender),
+    handleEscrowPenalized: new NotifyEscrowPenalizedUseCase(sender),
+    handleCategoryApproved: new NotifyCategoryApprovedUseCase(sender),
+    handleCategoryRejected: new NotifyCategoryRejectedUseCase(sender),
+  };
 }
 
 /** One sample command per handler; every field has a distinct value. */
@@ -107,23 +124,22 @@ function recipientsOf(
   );
 }
 
-describe('notification handlers (golden fixtures from the Java source)', () => {
+describe('Notify*UseCase (golden fixtures from the Java source)', () => {
   let logs: InMemoryNotificationLogRepository;
   let email: FakeEmailPort;
-  let service: ProcessNotificationService;
+  let useCases: Record<string, UseCase>;
+  const run = (name: string, command: unknown) =>
+    useCases[name].execute(command as never);
 
   beforeEach(() => {
     logs = new InMemoryNotificationLogRepository();
     email = new FakeEmailPort();
-    service = new ProcessNotificationService(
-      logs,
-      email,
-      new ConfigService<AppConfig, true>(validate({ ADMIN_EMAIL: ADMIN })),
-    );
+    useCases = useCasesBy(new NotificationSender(logs, email));
   });
 
-  it('covers the 9 Java handlers', () => {
+  it('covers the 9 Java handlers with one use case each', () => {
     expect(Object.keys(fixture).sort()).toEqual(Object.keys(SAMPLES).sort());
+    expect(Object.keys(useCases).sort()).toEqual(Object.keys(fixture).sort());
   });
 
   it.each(Object.keys(fixture))(
@@ -131,7 +147,7 @@ describe('notification handlers (golden fixtures from the Java source)', () => {
     async (name) => {
       const template = fixture[name];
       const command = SAMPLES[name];
-      await runHandler(service, name, command);
+      await run(name, command);
 
       const body = render(template, command);
       expect(email.sent).toEqual(
@@ -152,7 +168,7 @@ describe('notification handlers (golden fixtures from the Java source)', () => {
   it.each(['handleContractCancelled', 'handleContractDisputed'])(
     '%s renders a missing reason as "null", like Java',
     async (name) => {
-      await runHandler(service, name, { ...SAMPLES[name], reason: null });
+      await run(name, { ...SAMPLES[name], reason: null });
 
       expect(email.sent[0].body).toMatch(/ Reason: null$/);
       expect(email.sent[0].body).toBe(
@@ -162,7 +178,7 @@ describe('notification handlers (golden fixtures from the Java source)', () => {
   );
 
   it('contract.disputed mails admin, seller, then buyer', async () => {
-    await service.handleContractDisputed({
+    await run('handleContractDisputed', {
       eventId: 'evt-d',
       contractId: 'ctr',
       buyerEmail: 'buyer@example.test',
@@ -186,7 +202,7 @@ describe('notification handlers (golden fixtures from the Java source)', () => {
     };
     email.failFor.add('seller@example.test');
 
-    await expect(service.handleContractSigned(command)).rejects.toThrow(
+    await expect(run('handleContractSigned', command)).rejects.toThrow(
       'SMTP refused seller@example.test',
     );
     expect(email.sent.map((m) => m.to)).toEqual(['buyer@example.test']);
@@ -196,7 +212,7 @@ describe('notification handlers (golden fixtures from the Java source)', () => {
     });
 
     email.failFor.clear();
-    await service.handleContractSigned(command); // redelivery of the same event
+    await run('handleContractSigned', command); // redelivery of the same event
 
     expect(email.sent.map((m) => m.to)).toEqual([
       'buyer@example.test',
@@ -206,8 +222,8 @@ describe('notification handlers (golden fixtures from the Java source)', () => {
 
   it('a redelivered event sends nothing once every recipient is SENT', async () => {
     const command = SAMPLES.handleEscrowReleased;
-    await service.handleEscrowReleased(command as never);
-    await service.handleEscrowReleased(command as never);
+    await run('handleEscrowReleased', command);
+    await run('handleEscrowReleased', command);
 
     expect(email.sent).toHaveLength(2);
   });

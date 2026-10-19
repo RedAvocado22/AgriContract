@@ -6,7 +6,7 @@ import {
   type AmqpMessageLike,
 } from '@agricontract/eventing';
 import type { Channel } from 'amqplib';
-import type { ProcessNotificationService } from '../../application/process-notification.service';
+import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
 import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
 import {
   DRAIN_TIMEOUT_MS,
@@ -48,15 +48,15 @@ class FakeChannel {
 }
 
 const HANDLERS = [
-  'handleContractSigned',
-  'handleContractCancelled',
-  'handleContractDelivered',
-  'handleContractDisputed',
-  'handleEscrowLocked',
-  'handleEscrowReleased',
-  'handleEscrowPenalized',
-  'handleCategoryApproved',
-  'handleCategoryRejected',
+  'contractSigned',
+  'contractCancelled',
+  'contractDelivered',
+  'contractDisputed',
+  'escrowLocked',
+  'escrowReleased',
+  'escrowPenalized',
+  'categoryApproved',
+  'categoryRejected',
 ] as const;
 
 function setup() {
@@ -78,10 +78,11 @@ function setup() {
     (typeof HANDLERS)[number],
     jest.Mock<Promise<void>, [Record<string, unknown>]>
   >;
-  const consumer = new NotificationEventConsumer(
-    amqp,
-    service as unknown as ProcessNotificationService,
-  );
+  // Fake use cases: execute() is the mock, routed through the real legacyRoutes.
+  const useCases = Object.fromEntries(
+    HANDLERS.map((h) => [h, { execute: service[h] }]),
+  ) as unknown as NotificationUseCases;
+  const consumer = new NotificationEventConsumer(amqp, legacyRoutes(useCases));
   const open = async (channel: FakeChannel) => {
     for (const cb of readyCallbacks) await cb(channel as unknown as Channel);
   };
@@ -98,7 +99,7 @@ const PAYLOADS: Record<
   { handler: (typeof HANDLERS)[number]; payload: Record<string, unknown> }
 > = {
   'notification-svc.contract.signed': {
-    handler: 'handleContractSigned',
+    handler: 'contractSigned',
     payload: {
       eventId: 'e1',
       contractId: 'c',
@@ -107,7 +108,7 @@ const PAYLOADS: Record<
     },
   },
   'notification-svc.contract.cancelled': {
-    handler: 'handleContractCancelled',
+    handler: 'contractCancelled',
     payload: {
       eventId: 'e2',
       contractId: 'c',
@@ -117,11 +118,11 @@ const PAYLOADS: Record<
     },
   },
   'notification-svc.contract.delivered': {
-    handler: 'handleContractDelivered',
+    handler: 'contractDelivered',
     payload: { eventId: 'e3', contractId: 'c', sellerEmail: 's@x.test' },
   },
   'notification-svc.contract.disputed': {
-    handler: 'handleContractDisputed',
+    handler: 'contractDisputed',
     payload: {
       eventId: 'e4',
       contractId: 'c',
@@ -130,11 +131,11 @@ const PAYLOADS: Record<
     },
   },
   'notification-svc.escrow.locked': {
-    handler: 'handleEscrowLocked',
+    handler: 'escrowLocked',
     payload: { eventId: 'e5', escrowId: 'x', sellerEmail: 's@x.test' },
   },
   'notification-svc.escrow.released': {
-    handler: 'handleEscrowReleased',
+    handler: 'escrowReleased',
     payload: {
       eventId: 'e6',
       escrowId: 'x',
@@ -143,7 +144,7 @@ const PAYLOADS: Record<
     },
   },
   'notification-svc.escrow.penalized': {
-    handler: 'handleEscrowPenalized',
+    handler: 'escrowPenalized',
     payload: {
       eventId: 'e7',
       escrowId: 'x',
@@ -153,11 +154,11 @@ const PAYLOADS: Record<
     },
   },
   'notification-svc.category.approved': {
-    handler: 'handleCategoryApproved',
+    handler: 'categoryApproved',
     payload: { eventId: 'e8', name: 'n', proposedByEmail: 'p@x.test' },
   },
   'notification-svc.category.rejected': {
-    handler: 'handleCategoryRejected',
+    handler: 'categoryRejected',
     payload: {
       eventId: 'e9',
       name: 'n',
@@ -238,7 +239,7 @@ describe('NotificationEventConsumer', () => {
     const msg = channel.deliver('notification-svc.contract.signed', '{oops');
     await flush();
 
-    expect(service.handleContractSigned).not.toHaveBeenCalled();
+    expect(service.contractSigned).not.toHaveBeenCalled();
     expect(channel.nacked).toEqual([{ msg, requeue: false }]);
     expect(channel.acked).toEqual([]);
   });
@@ -249,7 +250,7 @@ describe('NotificationEventConsumer', () => {
     const channel = new FakeChannel();
     await open(channel);
     let finish!: () => void;
-    service.handleEscrowLocked.mockImplementation(
+    service.escrowLocked.mockImplementation(
       () => new Promise<void>((resolve) => (finish = resolve)),
     );
 
@@ -287,7 +288,7 @@ describe('NotificationEventConsumer', () => {
       await consumer.onModuleInit();
       const channel = new FakeChannel();
       await open(channel);
-      service.handleEscrowLocked.mockImplementation(
+      service.escrowLocked.mockImplementation(
         () => new Promise<void>(() => undefined),
       );
       channel.deliver(

@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   Logger,
   type BeforeApplicationShutdown,
@@ -12,21 +13,10 @@ import {
   type MessageConsumer,
 } from '@agricontract/eventing';
 import type { Channel, ConsumeMessage } from 'amqplib';
-import { ProcessNotificationService } from '../../application/process-notification.service';
 import { eventingLogger } from '../logging/eventing-logger';
 import { AmqpService } from './amqp.provider';
-import {
-  parseCategoryApproved,
-  parseCategoryRejected,
-  parseContractCancelled,
-  parseContractDelivered,
-  parseContractDisputed,
-  parseContractSigned,
-  parseEscrowLocked,
-  parseEscrowPenalized,
-  parseEscrowReleased,
-} from './legacy-payload.parsers';
-import { TOPOLOGY, queueName, type RoutingKey } from './topology';
+import { LEGACY_ROUTES, type LegacyRoutes } from './legacy-routes';
+import { TOPOLOGY, queueName } from './topology';
 
 /**
  * Upper bound on waiting for in-flight messages at shutdown. Docker sends
@@ -59,7 +49,6 @@ export class NotificationEventConsumer
   implements OnModuleInit, BeforeApplicationShutdown
 {
   private readonly logger = new Logger(NotificationEventConsumer.name);
-  private readonly routes: Record<RoutingKey, (body: Buffer) => Promise<void>>;
   private readonly inFlight = new Set<AmqpMessageLike>();
   private idleWaiters: Array<() => void> = [];
   private channel?: Channel;
@@ -68,28 +57,8 @@ export class NotificationEventConsumer
 
   constructor(
     private readonly amqp: AmqpService,
-    private readonly notifications: ProcessNotificationService,
-  ) {
-    const n = notifications;
-    // A Record over RoutingKey: the compiler rejects a queue of TOPOLOGY without a route.
-    this.routes = {
-      'contract.signed': (b) => n.handleContractSigned(parseContractSigned(b)),
-      'contract.delivered': (b) =>
-        n.handleContractDelivered(parseContractDelivered(b)),
-      'contract.cancelled': (b) =>
-        n.handleContractCancelled(parseContractCancelled(b)),
-      'contract.disputed': (b) =>
-        n.handleContractDisputed(parseContractDisputed(b)),
-      'escrow.locked': (b) => n.handleEscrowLocked(parseEscrowLocked(b)),
-      'escrow.released': (b) => n.handleEscrowReleased(parseEscrowReleased(b)),
-      'escrow.penalized': (b) =>
-        n.handleEscrowPenalized(parseEscrowPenalized(b)),
-      'category.approved': (b) =>
-        n.handleCategoryApproved(parseCategoryApproved(b)),
-      'category.rejected': (b) =>
-        n.handleCategoryRejected(parseCategoryRejected(b)),
-    };
-  }
+    @Inject(LEGACY_ROUTES) private readonly routes: LegacyRoutes,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.amqp.onChannelReady((channel) => this.attach(channel));

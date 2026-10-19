@@ -1,29 +1,23 @@
-import { ConfigService } from '@nestjs/config';
 import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
 } from '../../test/support/fakes';
-import { validate, type AppConfig } from '../config/env.validation';
 import { NotificationStatus } from '../domain/notification-log';
-import { ProcessNotificationService } from './process-notification.service';
+import { NotificationSender } from './notification-sender';
 
-describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
+describe('NotificationSender.send (plan §4.3)', () => {
   let logs: InMemoryNotificationLogRepository;
   let email: FakeEmailPort;
-  let service: ProcessNotificationService;
+  let sender: NotificationSender;
 
   beforeEach(() => {
     logs = new InMemoryNotificationLogRepository();
     email = new FakeEmailPort();
-    service = new ProcessNotificationService(
-      logs,
-      email,
-      new ConfigService<AppConfig, true>(validate({})),
-    );
+    sender = new NotificationSender(logs, email);
   });
 
   it('sends and records SENT with the recipient email as user', async () => {
-    await service.sendNotification('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', 'a@example.test', 'S', 'B');
 
     expect(email.sent).toEqual([
       { to: 'a@example.test', subject: 'S', body: 'B' },
@@ -38,10 +32,10 @@ describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
   });
 
   it('skips a recipient already SENT for this event', async () => {
-    await service.sendNotification('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', 'a@example.test', 'S', 'B');
     email.sent.length = 0;
 
-    await service.sendNotification('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', 'a@example.test', 'S', 'B');
 
     expect(email.sent).toEqual([]);
   });
@@ -49,7 +43,7 @@ describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
   it('does not send when the insert loses the race on (event_id, user_id)', async () => {
     logs.loseNextInsertRace = true;
 
-    await service.sendNotification('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', 'a@example.test', 'S', 'B');
 
     expect(email.sent).toEqual([]);
   });
@@ -58,7 +52,7 @@ describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
     email.failFor.add('a@example.test');
 
     await expect(
-      service.sendNotification('evt-1', 'a@example.test', 'S', 'B'),
+      sender.send('evt-1', 'a@example.test', 'S', 'B'),
     ).rejects.toThrow('SMTP refused a@example.test');
     expect(logs.get('evt-1', 'a@example.test')).toMatchObject({
       status: NotificationStatus.FAILED,
@@ -67,7 +61,7 @@ describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
 
     // Each redelivery of the same event sends again and counts the failure.
     await expect(
-      service.sendNotification('evt-1', 'a@example.test', 'S', 'B'),
+      sender.send('evt-1', 'a@example.test', 'S', 'B'),
     ).rejects.toThrow();
     expect(logs.get('evt-1', 'a@example.test')?.retryCount).toBe(2);
   });
@@ -75,11 +69,11 @@ describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
   it('sends again on redelivery after a failure, then records SENT', async () => {
     email.failFor.add('a@example.test');
     await expect(
-      service.sendNotification('evt-1', 'a@example.test', 'S', 'B'),
+      sender.send('evt-1', 'a@example.test', 'S', 'B'),
     ).rejects.toThrow();
 
     email.failFor.clear();
-    await service.sendNotification('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', 'a@example.test', 'S', 'B');
 
     expect(email.sent).toHaveLength(1);
     expect(logs.get('evt-1', 'a@example.test')).toMatchObject({
@@ -89,8 +83,8 @@ describe('ProcessNotificationService.sendNotification (plan §4.3)', () => {
   });
 
   it('a different event to the same recipient is a separate email', async () => {
-    await service.sendNotification('evt-1', 'a@example.test', 'S', 'B');
-    await service.sendNotification('evt-2', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-2', 'a@example.test', 'S', 'B');
 
     expect(email.sent).toHaveLength(2);
   });
