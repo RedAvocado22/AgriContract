@@ -2,7 +2,7 @@
   "name": "@agricontract/analytics-service",
   "version": "0.1.0",
   "private": true,
-  "description": "Analytics-service (Node): non-critical CQRS projection fed only by canonical RabbitMQ events. This version delivers persistence and validated, idempotent ingestion; projections follow in #133/#148.",
+  "description": "Analytics-service (Node + NestJS): non-critical CQRS projection fed only by canonical RabbitMQ events. Validated, idempotent ingestion plus the signed-contract and milestone projections.",
   "type": "module",
   "main": "dist/main.js",
   "engines": {
@@ -18,8 +18,13 @@
   },
   "dependencies": {
     "@agricontract/eventing": "file:../shared/node-eventing",
+    "@nestjs/common": "^10.4.0",
+    "@nestjs/core": "^10.4.0",
+    "@nestjs/platform-express": "^10.4.0",
     "amqplib": "^0.10.4",
-    "mysql2": "^3.11.0"
+    "mysql2": "^3.11.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.5",

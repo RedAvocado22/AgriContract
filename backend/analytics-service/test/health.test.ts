@@ -1,19 +1,35 @@
+/**
+ * GET /health through a real Nest application (HealthController); only the readiness source is fake.
+ * 503 STARTING while MySQL/RabbitMQ are still being waited for, 200 UP once ingestion has started.
+ */
+import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import { createHealthServer } from '../src/infrastructure/http/health.js';
+import { Module, type INestApplication } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { HealthController } from '../src/infrastructure/http/health.controller.js';
+import { AnalyticsLifecycle } from '../src/infrastructure/nest/analytics.lifecycle.js';
 
-describe('GET /health', () => {
-  let ready = false;
-  const server = createHealthServer(() => ready);
+let ready = false;
+
+@Module({
+  controllers: [HealthController],
+  providers: [{ provide: AnalyticsLifecycle, useValue: { isReady: () => ready } }],
+})
+class HealthTestModule {}
+
+describe('GET /health (Nest)', () => {
+  let app: INestApplication;
   let base = '';
 
   before(async () => {
-    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    app = await NestFactory.create(HealthTestModule, { logger: false });
+    await app.listen(0, '127.0.0.1');
+    base = `http://127.0.0.1:${((app.getHttpServer() as { address(): AddressInfo }).address()).port}`;
   });
   after(async () => {
-    await new Promise<void>((r) => server.close(() => r()));
+    await app.close();
   });
 
   it('503 STARTING while MySQL/RabbitMQ are still being waited for', async () => {
