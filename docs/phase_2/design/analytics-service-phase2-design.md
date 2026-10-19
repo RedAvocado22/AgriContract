@@ -38,7 +38,7 @@ CREATE TABLE dim_contract (
     commodity      VARCHAR(50) NOT NULL,
     buyer_id       CHAR(36) NOT NULL,
     seller_id      CHAR(36) NOT NULL,
-    total_amount   DECIMAL(15,2) NOT NULL,
+    total_amount   DECIMAL(18,2) NOT NULL,
     signed_at      TIMESTAMP NOT NULL
 );```
 
@@ -60,9 +60,9 @@ CREATE TABLE dim_contract (
        contract_id             CHAR(36) NOT NULL,
        milestone_id            CHAR(36) NOT NULL,
        status                  VARCHAR(20) NOT NULL, -- SETTLED / CANCELLED_WITH_PENALTY
-       locked_amount           DECIMAL(15,2) NOT NULL,
-       actual_amount           DECIMAL(15,2) NOT NULL,
-       delta_shortfall_amount  DECIMAL(15,2) NOT NULL, -- = locked - actual
+       locked_amount           DECIMAL(18,2) NOT NULL,
+       actual_amount           DECIMAL(18,2) NOT NULL,
+       delta_shortfall_amount  DECIMAL(18,2) NOT NULL, -- = locked - actual
        has_force_majeure       BOOLEAN NOT NULL DEFAULT FALSE,
        resolved_at             TIMESTAMP NOT NULL
    );
@@ -117,7 +117,7 @@ CREATE TABLE dim_contract (
        seller_breach_rate      DECIMAL(5,4) NOT NULL DEFAULT 0,
        buyer_breach_rate       DECIMAL(5,4) NOT NULL DEFAULT 0,
        force_majeure_incidents INT NOT NULL DEFAULT 0,
-       total_value_settled     DECIMAL(15,2) NOT NULL DEFAULT 0,
+       total_value_settled     DECIMAL(18,2) NOT NULL DEFAULT 0,
        escrow_efficiency_rate  DECIMAL(5,4) NOT NULL DEFAULT 0, -- (actual_amount / locked_amount) toàn tháng
        PRIMARY KEY (month_id, commodity)
    );
@@ -170,7 +170,7 @@ Mỗi khi nhận event từ RabbitMQ, pipeline xử lý phải đi qua bước c
 * **Nhận `milestone.force_majeure_resolved` (chỉ ghi nhận khi APPROVED):**
     * *Hành động (sửa 06/07/2026 — bug race condition):* Event này luôn tới **trước** khi milestone đạt trạng thái cuối, nên `fact_milestone_performance` gần như chắc chắn **chưa có row** để `UPDATE`. Thử `UPDATE fact_milestone_performance SET has_force_majeure = TRUE WHERE milestone_id = X` trước; nếu `rows affected = 0` → `INSERT` vào `pending_force_majeure_flag` (§2.4) để chờ merge lúc `INSERT` fact row thật (2 bước trên/dưới mục này).
 * **Nhận `milestone.cancelled_with_penalty` (lưu ý 19/07/2026 — event này giờ CHỈ bắn sau attribution, milestone-escrow §7.1/§6.4; tần suất sẽ thấp hơn thiết kế cũ vì Delta 1 không còn tự bắn):**
-    * *Hành động:* Cùng logic merge staging như `milestone.settled` ở trên. `INSERT` vào `fact_milestone_performance` với `status = CANCELLED`, `actual_amount = 0`, kiểm tra + merge `pending_force_majeure_flag` trước khi insert.
+    * *Hành động:* Cùng logic merge staging như `milestone.settled` ở trên. `INSERT` vào `fact_milestone_performance` với `status = CANCELLED_WITH_PENALTY` (khớp DDL `fact_milestone_performance` và tên event; chốt 19/10/2026), `actual_amount = 0`, kiểm tra + merge `pending_force_majeure_flag` trước khi insert.
 
 ### 3.3 Nhóm Event "Contract Level — Settlement/Termination" (đổi tên 19/07/2026)
 *(Nguồn: milestone-escrow-phase2-design.md §7.2)*

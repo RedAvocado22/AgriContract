@@ -287,7 +287,7 @@ CREATE TABLE ledger_entry (
                                                 -- remedy_decision_id không thể UNIQUE trong ledger; mỗi leg của remedyLegs
                                                 -- mang remedyLegId, replay leg → UNIQUE chặn. "Một decision → đúng một BỘ legs"
                                                 -- enforce bằng remedy_leg_id UNIQUE + reconcile group theo remedy_decision_id
-    amount             DECIMAL(15,2) NOT NULL,
+    amount             DECIMAL(18,2) NOT NULL,
     created_at         TIMESTAMP NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_ledger_entry_contract ON ledger_entry(contract_id, milestone_id);
