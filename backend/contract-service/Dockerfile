@@ -7,6 +7,8 @@ COPY product-service/pom.xml ./product-service/pom.xml
 COPY contract-service/pom.xml ./contract-service/pom.xml
 COPY escrow-service/pom.xml ./escrow-service/pom.xml
 COPY notification-service/pom.xml ./notification-service/pom.xml
+COPY reputation-service/pom.xml ./reputation-service/pom.xml
+COPY inspection-service/pom.xml ./inspection-service/pom.xml
 RUN mvn dependency:go-offline -pl contract-service -q
 COPY contract-service/src ./contract-service/src
 RUN mvn clean package -pl contract-service -DskipTests -q
