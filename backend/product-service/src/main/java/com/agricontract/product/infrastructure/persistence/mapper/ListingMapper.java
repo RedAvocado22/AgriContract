@@ -21,6 +21,7 @@ public interface ListingMapper {
                 .coverImageUrl(domain.getCoverImageUrl())
                 .quantity(domain.getQuantity().value())
                 .quantityUnit(domain.getQuantity().unit())
+                .quantityAvailable(domain.getQuantityAvailable())
                 .priceFloor(domain.getPriceFloor().amount())
                 .currency(domain.getPriceFloor().currency())
                 .deliveryDeadline(domain.getDeliveryDeadline())
@@ -37,6 +38,7 @@ public interface ListingMapper {
                 .coverImageUrl(listing.getCoverImageUrl())
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
+                .quantityAvailable(listing.getQuantityAvailable())
                 .priceFloor(listing.getPriceFloor().amount())
                 .currency(listing.getPriceFloor().currency())
                 .deliveryDeadline(listing.getDeliveryDeadline())
@@ -52,6 +54,7 @@ public interface ListingMapper {
                 entity.getProductName(),
                 entity.getCoverImageUrl(),
                 new Quantity(entity.getQuantity(), entity.getQuantityUnit()),
+                entity.getQuantityAvailable(),
                 new Money(entity.getPriceFloor(), entity.getCurrency()),
                 entity.getDeliveryDeadline(),
                 entity.getStatus()

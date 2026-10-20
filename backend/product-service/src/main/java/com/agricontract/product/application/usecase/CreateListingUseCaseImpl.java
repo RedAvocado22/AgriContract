@@ -84,6 +84,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                 .coverImageUrl(listing.getCoverImageUrl())
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
+                .quantityAvailable(listing.getQuantityAvailable())
                 .priceFloor(listing.getPriceFloor().amount())
                 .currency(listing.getPriceFloor().currency())
                 .deliveryDeadline(listing.getDeliveryDeadline())

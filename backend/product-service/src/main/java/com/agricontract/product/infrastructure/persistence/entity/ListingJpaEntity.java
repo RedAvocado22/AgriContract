@@ -43,6 +43,10 @@ public class ListingJpaEntity {
     @Column(name = "quantity_unit", nullable = false, length = 50)
     private String quantityUnit;
 
+    // Only written on insert; afterwards changed exclusively by conditional updates in ListingJpaRepository
+    @Column(name = "quantity_available", precision = 15, scale = 3)
+    private BigDecimal quantityAvailable;
+
     @Column(name = "price_floor", nullable = false, precision = 15, scale = 2)
     private BigDecimal priceFloor;
 
