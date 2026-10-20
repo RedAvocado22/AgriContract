@@ -156,6 +156,8 @@ CREATE TABLE user_event_idempotency (
 
 Không thêm credential, password hoặc Keycloak token vào `user_db`.
 
+**Triển khai từng phần (20/10/2026, #107):** `V6__add_locked_until.sql` chỉ thêm `locked_until` để `GET /internal/v1/users/{userId}` trả đúng lock projection. `last_lock_revision` và `user_event_idempotency` đi cùng consumer `reputation.locked/unlocked` (chưa có issue). Cột `locked_until` không nằm trong UPDATE của JPA (`updatable = false`) — consumer phải ghi bằng câu UPDATE riêng (atomic với `last_lock_revision`, §2.2), giá trị theo UTC; save KYC không bao giờ ghi đè lock.
+
 ## 7. Security & Failure Modes
 
 - Downstream chỉ tin identity headers khi có gateway/internal secret hợp lệ; client không được tự tiêm header.

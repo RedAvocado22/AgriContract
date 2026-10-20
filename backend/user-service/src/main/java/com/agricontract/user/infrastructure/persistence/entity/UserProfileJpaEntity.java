@@ -58,6 +58,10 @@ public class UserProfileJpaEntity {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
+    // Never in Hibernate's UPDATE: a KYC save of a stale entity would otherwise clear a lock written since it was loaded.
+    @Column(name = "locked_until", updatable = false)
+    private Instant lockedUntil;
+
     @Version
     @Column(nullable = false)
     private Long version;
