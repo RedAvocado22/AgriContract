@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,6 +47,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                 product.getName(),
                 product.getCoverImageUrl(),
                 new Quantity(request.quantity(), request.quantityUnit()),
+                request.minOrderQuantity(),
                 new Money(request.priceFloor(), request.currency()),
                 request.deliveryDeadline()
         );
@@ -69,26 +71,18 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                 existing.getProductId().equals(new ProductId(request.productId())) &&
                 existing.getQuantity().equals(new Quantity(request.quantity(), request.quantityUnit())) &&
                 existing.getPriceFloor().equals(new Money(request.priceFloor(), request.currency())) &&
-                existing.getDeliveryDeadline().equals(request.deliveryDeadline())) {
+                existing.getDeliveryDeadline().equals(request.deliveryDeadline()) &&
+                sameQuantity(existing.getMinOrderQuantity(), request.minOrderQuantity())) {
             return Optional.of(toResponse(existing));
         }
         throw new IllegalStateException("Listing " + listingId.value() + " already exists with different attributes");
     }
 
+    private static boolean sameQuantity(BigDecimal a, BigDecimal b) {
+        return a == null ? b == null : b != null && a.compareTo(b) == 0;
+    }
+
     private ListingResponse toResponse(Listing listing) {
-        return ListingResponse.builder()
-                .listingId(listing.getListingId().value())
-                .sellerId(listing.getSellerId())
-                .productId(listing.getProductId().value())
-                .productName(listing.getProductName())
-                .coverImageUrl(listing.getCoverImageUrl())
-                .quantity(listing.getQuantity().value())
-                .quantityUnit(listing.getQuantity().unit())
-                .quantityAvailable(listing.getQuantityAvailable())
-                .priceFloor(listing.getPriceFloor().amount())
-                .currency(listing.getPriceFloor().currency())
-                .deliveryDeadline(listing.getDeliveryDeadline())
-                .status(listing.getStatus())
-                .build();
+        return ListingResponse.from(listing);
     }
 }

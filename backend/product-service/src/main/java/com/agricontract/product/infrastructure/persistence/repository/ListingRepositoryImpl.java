@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +37,8 @@ public class ListingRepositoryImpl implements ListingRepository {
                 })
                 .orElseGet(() -> listingMapper.toJpaEntity(listing));
 
-        ListingJpaEntity saved = listingJpaRepository.save(entity);
+        // flush so @PreUpdate has stamped updatedAt before the version token is read back
+        ListingJpaEntity saved = listingJpaRepository.saveAndFlush(entity);
         return listingMapper.toDomain(saved);
     }
 
@@ -77,16 +80,22 @@ public class ListingRepositoryImpl implements ListingRepository {
 
     @Override
     @Transactional
-    public boolean decrementAvailable(ListingId listingId, BigDecimal quantity) {
+    public boolean reserveAvailable(ListingId listingId, BigDecimal quantity, String versionToken) {
         requirePositive(quantity);
-        return listingJpaRepository.decrementAvailable(listingId.value(), quantity) == 1;
+        LocalDateTime expectedUpdatedAt;
+        try {
+            expectedUpdatedAt = ListingMapper.fromVersionToken(versionToken);
+        } catch (DateTimeParseException | NullPointerException e) {
+            return false; // a token this service never issued cannot match any version
+        }
+        return listingJpaRepository.reserveAvailable(listingId.value(), quantity, expectedUpdatedAt) == 1;
     }
 
     @Override
     @Transactional
-    public boolean restoreAvailable(ListingId listingId, BigDecimal quantity) {
+    public boolean releaseAvailable(ListingId listingId, BigDecimal quantity) {
         requirePositive(quantity);
-        return listingJpaRepository.restoreAvailable(listingId.value(), quantity) == 1;
+        return listingJpaRepository.releaseAvailable(listingId.value(), quantity) == 1;
     }
 
     private static void requirePositive(BigDecimal quantity) {

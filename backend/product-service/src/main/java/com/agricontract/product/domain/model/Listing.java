@@ -4,6 +4,7 @@ import com.agricontract.product.domain.model.vo.*;
 import lombok.Getter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 
 // Aggregate Root
@@ -19,17 +20,22 @@ public class Listing {
     private Quantity quantity;
     // null = legacy listing created before inventory tracking: every reserve fails closed
     private BigDecimal quantityAvailable;
+    // null = no seller minimum per contract
+    private BigDecimal minOrderQuantity;
     private Money priceFloor;
     private LocalDate deliveryDeadline;
     private ListingStatus status;
+    // assigned by persistence; null until the listing is first saved
+    private Instant updatedAt;
 
     private Listing() {
     }
 
     public static Listing reconstruct(ListingId listingId, String sellerId,
                                       ProductId productId, String productName, String coverImageUrl,
-                                      Quantity quantity, BigDecimal quantityAvailable, Money priceFloor,
-                                      LocalDate deliveryDeadline, ListingStatus status) {
+                                      Quantity quantity, BigDecimal quantityAvailable, BigDecimal minOrderQuantity,
+                                      Money priceFloor, LocalDate deliveryDeadline, ListingStatus status,
+                                      Instant updatedAt) {
         Listing listing = new Listing();
         listing.listingId = listingId;
         listing.sellerId = sellerId;
@@ -38,9 +44,11 @@ public class Listing {
         listing.coverImageUrl = coverImageUrl;
         listing.quantity = quantity;
         listing.quantityAvailable = quantityAvailable;
+        listing.minOrderQuantity = minOrderQuantity;
         listing.priceFloor = priceFloor;
         listing.deliveryDeadline = deliveryDeadline;
         listing.status = status;
+        listing.updatedAt = updatedAt;
 
         return listing;
     }
@@ -51,8 +59,13 @@ public class Listing {
      */
     public static Listing create(ListingId listingId, String sellerId,
                                  ProductId productId, String productName, String coverImageUrl,
-                                 Quantity quantity, Money priceFloor,
+                                 Quantity quantity, BigDecimal minOrderQuantity, Money priceFloor,
                                  LocalDate deliveryDeadline) {
+        if (minOrderQuantity != null
+                && (minOrderQuantity.signum() <= 0 || minOrderQuantity.compareTo(quantity.value()) > 0)) {
+            throw new IllegalArgumentException("minOrderQuantity must be positive and not exceed quantity");
+        }
+
         Listing listing = new Listing();
         listing.listingId = listingId;
         listing.sellerId = sellerId;
@@ -61,11 +74,37 @@ public class Listing {
         listing.coverImageUrl = coverImageUrl;
         listing.quantity = quantity;
         listing.quantityAvailable = quantity.value();
+        listing.minOrderQuantity = minOrderQuantity;
         listing.priceFloor = priceFloor;
         listing.deliveryDeadline = deliveryDeadline;
         listing.status = ListingStatus.ACTIVE;
 
         return listing;
+    }
+
+    /**
+     * Opaque optimistic-concurrency token: canonical UTC form of updatedAt.
+     * Clients echo it back on reserve; inventory changes do not alter it.
+     */
+    public String getVersionToken() {
+        return updatedAt == null ? null : updatedAt.toString();
+    }
+
+    /**
+     * Explains why an atomic reserve matched no row, re-checked against the latest committed state.
+     * Quantity problems win over state/version so a buyer losing the last stock sees "insufficient".
+     */
+    public ReservationRejection classifyRejectedReserve(BigDecimal requestedQuantity, String versionToken) {
+        if (quantityAvailable == null
+                || quantityAvailable.compareTo(requestedQuantity) < 0
+                || (minOrderQuantity != null && minOrderQuantity.compareTo(requestedQuantity) > 0)) {
+            return ReservationRejection.INSUFFICIENT_QUANTITY;
+        }
+        if (status != ListingStatus.ACTIVE) {
+            return ReservationRejection.LISTING_STATE_CONFLICT;
+        }
+        // also covers a token that went stale between the failed update and this re-read
+        return ReservationRejection.VERSION_MISMATCH;
     }
 
     /**

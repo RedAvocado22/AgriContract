@@ -39,9 +39,11 @@ class CreateListingUseCaseImplTest {
         when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ListingResponse response = useCase.execute("seller-1", new CreateListingRequest(
-                "listing-1", "product-1", new BigDecimal("100"), "kg",
+                "listing-1", "product-1", new BigDecimal("100"), "kg", new BigDecimal("10"),
                 new BigDecimal("50000"), "VND", LocalDate.now().plusDays(10)));
 
         assertThat(response.coverImageUrl()).isEqualTo("https://cdn.test/cover.jpg");
+        assertThat(response.quantityAvailable()).isEqualByComparingTo("100");
+        assertThat(response.minOrderQuantity()).isEqualByComparingTo("10");
     }
 }

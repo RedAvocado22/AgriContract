@@ -9,6 +9,10 @@ import com.agricontract.product.domain.model.vo.Quantity;
 import com.agricontract.product.infrastructure.persistence.entity.ListingJpaEntity;
 import org.mapstruct.Mapper;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+
 @Mapper(componentModel = "spring")
 public interface ListingMapper {
 
@@ -22,6 +26,7 @@ public interface ListingMapper {
                 .quantity(domain.getQuantity().value())
                 .quantityUnit(domain.getQuantity().unit())
                 .quantityAvailable(domain.getQuantityAvailable())
+                .minOrderQuantity(domain.getMinOrderQuantity())
                 .priceFloor(domain.getPriceFloor().amount())
                 .currency(domain.getPriceFloor().currency())
                 .deliveryDeadline(domain.getDeliveryDeadline())
@@ -39,10 +44,12 @@ public interface ListingMapper {
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
                 .quantityAvailable(listing.getQuantityAvailable())
+                .minOrderQuantity(listing.getMinOrderQuantity())
                 .priceFloor(listing.getPriceFloor().amount())
                 .currency(listing.getPriceFloor().currency())
                 .deliveryDeadline(listing.getDeliveryDeadline())
                 .status(listing.getStatus())
+                .listingVersionToken(listing.getVersionToken())
                 .build();
     }
 
@@ -55,9 +62,18 @@ public interface ListingMapper {
                 entity.getCoverImageUrl(),
                 new Quantity(entity.getQuantity(), entity.getQuantityUnit()),
                 entity.getQuantityAvailable(),
+                entity.getMinOrderQuantity(),
                 new Money(entity.getPriceFloor(), entity.getCurrency()),
                 entity.getDeliveryDeadline(),
-                entity.getStatus()
+                entity.getStatus(),
+                entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().toInstant(ZoneOffset.UTC)
         );
+    }
+
+    /**
+     * Inverse of {@link Listing#getVersionToken()}: the stored UTC updated_at the token was issued from.
+     */
+    static LocalDateTime fromVersionToken(String versionToken) {
+        return LocalDateTime.ofInstant(Instant.parse(versionToken), ZoneOffset.UTC);
     }
 }

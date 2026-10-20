@@ -1,6 +1,8 @@
 package com.agricontract.product.common.exception;
 
 import com.agricontract.product.common.ApiResponse;
+import com.agricontract.product.common.ErrorEnvelope;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.Instant;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -53,6 +56,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleCategoryNotApproved(CategoryNotApprovedException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ReservationConflictException.class)
+    public ResponseEntity<ErrorEnvelope> handleReservationConflict(ReservationConflictException ex,
+                                                                   HttpServletRequest request) {
+        return envelope(HttpStatus.CONFLICT, ex.getCode(), ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(ReservationNotFoundException.class)
+    public ResponseEntity<ErrorEnvelope> handleReservationNotFound(ReservationNotFoundException ex,
+                                                                   HttpServletRequest request) {
+        return envelope(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", ex.getMessage(), request);
+    }
+
+    private static ResponseEntity<ErrorEnvelope> envelope(HttpStatus status, String code, String message,
+                                                          HttpServletRequest request) {
+        return ResponseEntity.status(status).body(new ErrorEnvelope(Instant.now(), status.value(),
+                status.getReasonPhrase(), code, message, request.getRequestURI(), null));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
