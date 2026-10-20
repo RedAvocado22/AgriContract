@@ -32,6 +32,8 @@ public class UserProfile {
     private String verifiedByActorId;
     private Instant verifiedAt;
     private String rejectionReason;
+    // Projection of reputation-service lock state; only the lock event consumer may change it.
+    private Instant lockedUntil;
 
     private UserProfile() {
     }
@@ -58,7 +60,8 @@ public class UserProfile {
                                            Instant authorizationExpiresAt,
                                            String verifiedByActorId,
                                            Instant verifiedAt,
-                                           String rejectionReason) {
+                                           String rejectionReason,
+                                           Instant lockedUntil) {
         UserProfile userProfile = new UserProfile();
         userProfile.userId = userId;
         userProfile.organizationName = organizationName;
@@ -69,6 +72,7 @@ public class UserProfile {
         userProfile.verifiedByActorId = verifiedByActorId;
         userProfile.verifiedAt = verifiedAt;
         userProfile.rejectionReason = rejectionReason;
+        userProfile.lockedUntil = lockedUntil;
         return userProfile;
     }
 

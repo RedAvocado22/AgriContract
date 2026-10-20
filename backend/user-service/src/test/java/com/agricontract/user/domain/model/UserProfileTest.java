@@ -62,7 +62,7 @@ class UserProfileTest {
     @Test
     void reconstitute_doesNotAddDomainEvents() {
         UserProfile profile = UserProfile.reconstitute(userId, "Cong ty A", Role.SELLER, contactInfo,
-                VerificationStatus.VERIFIED, EXPIRES_AT, ACTOR_ID, DECIDED_AT, null);
+                VerificationStatus.VERIFIED, EXPIRES_AT, ACTOR_ID, DECIDED_AT, null, null);
 
         assertTrue(profile.pullDomainEvents().isEmpty());
     }
@@ -70,7 +70,7 @@ class UserProfileTest {
     @Test
     void reconstitute_restoresKycDecision() {
         UserProfile profile = UserProfile.reconstitute(userId, "Cong ty A", Role.SELLER, contactInfo,
-                VerificationStatus.REJECTED, null, ACTOR_ID, DECIDED_AT, "Thieu giay uy quyen");
+                VerificationStatus.REJECTED, null, ACTOR_ID, DECIDED_AT, "Thieu giay uy quyen", null);
 
         assertEquals(VerificationStatus.REJECTED, profile.getVerificationStatus());
         assertEquals(ACTOR_ID, profile.getVerifiedByActorId());
