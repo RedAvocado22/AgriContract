@@ -17,10 +17,12 @@ public record ListingResponse(
         BigDecimal quantity,
         String quantityUnit,
         BigDecimal quantityAvailable,  // server-owned, null for legacy listings
+        BigDecimal minOrderQuantity,   // null = no seller minimum
         BigDecimal priceFloor,
         String currency,
         LocalDate deliveryDeadline,
-        ListingStatus status
+        ListingStatus status,
+        String listingVersionToken     // opaque; contract-service echoes it to reserve
 ) {
     public static ListingResponse from(Listing listing) {
         return ListingResponse.builder()
@@ -32,10 +34,12 @@ public record ListingResponse(
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
                 .quantityAvailable(listing.getQuantityAvailable())
+                .minOrderQuantity(listing.getMinOrderQuantity())
                 .priceFloor(listing.getPriceFloor().amount())
                 .currency(listing.getPriceFloor().currency())
                 .deliveryDeadline(listing.getDeliveryDeadline())
                 .status(listing.getStatus())
+                .listingVersionToken(listing.getVersionToken())
                 .build();
     }
 }

@@ -4,11 +4,12 @@ import com.agricontract.product.domain.model.vo.ListingStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "listings")
@@ -43,9 +44,13 @@ public class ListingJpaEntity {
     @Column(name = "quantity_unit", nullable = false, length = 50)
     private String quantityUnit;
 
-    // Only written on insert; afterwards changed exclusively by conditional updates in ListingJpaRepository
-    @Column(name = "quantity_available", precision = 15, scale = 3)
+    // Only written on insert; afterwards changed exclusively by conditional updates in ListingJpaRepository.
+    // updatable = false so an entity save (close/expire) can never write back a stale counter.
+    @Column(name = "quantity_available", precision = 15, scale = 3, updatable = false)
     private BigDecimal quantityAvailable;
+
+    @Column(name = "min_order_quantity", precision = 15, scale = 3)
+    private BigDecimal minOrderQuantity;
 
     @Column(name = "price_floor", nullable = false, precision = 15, scale = 2)
     private BigDecimal priceFloor;
@@ -60,11 +65,21 @@ public class ListingJpaEntity {
     @Column(nullable = false, length = 20)
     private ListingStatus status;
 
+    // INVENTORY_EXHAUSTED when a reserve drained the listing; set/cleared only by conditional updates
+    @Column(name = "close_reason", length = 30, insertable = false, updatable = false)
+    private String closeReason;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
+    // UTC, microsecond precision (matches DATETIME(6)) so the version token read back equals the stored value
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    @PreUpdate
+    void touchUpdatedAt() {
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
+    }
 }

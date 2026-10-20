@@ -44,6 +44,16 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // /internal/** is service identity only: a gateway-authenticated end user must never reach it.
+        if (isInternalPath(request)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write(
+                    "{\"success\":false,\"message\":\"Unauthorized\",\"data\":null}"
+            );
+            return;
+        }
+
         String headerSecret = request.getHeader("X-Gateway-Secret");
 
         if (headerSecret == null || !MessageDigest.isEqual(
@@ -68,5 +78,11 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    // The Spring Security firewall has already rejected encoded slashes and dot segments, so the raw URI is safe to match.
+    private static boolean isInternalPath(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.equals("/internal") || path.startsWith("/internal/");
     }
 }

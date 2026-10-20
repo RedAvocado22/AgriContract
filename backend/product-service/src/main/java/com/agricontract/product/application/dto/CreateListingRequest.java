@@ -13,6 +13,7 @@ public record CreateListingRequest(
         @NotBlank String productId,
         @NotNull @DecimalMin("0.001") BigDecimal quantity,
         @NotBlank String quantityUnit,
+        @DecimalMin("0.001") BigDecimal minOrderQuantity,  // optional; must not exceed quantity
         @NotNull @DecimalMin("0.01") BigDecimal priceFloor,
         @NotBlank String currency,
         @NotNull @FutureOrPresent LocalDate deliveryDeadline

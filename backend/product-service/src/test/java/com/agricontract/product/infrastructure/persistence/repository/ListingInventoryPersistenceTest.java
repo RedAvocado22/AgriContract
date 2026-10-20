@@ -59,7 +59,7 @@ class ListingInventoryPersistenceTest {
         jdbcTemplate.update("DELETE FROM listing_reservations");
         jdbcTemplate.update("DELETE FROM listings");
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
-                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"),
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
                 new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31)));
     }
 
@@ -71,16 +71,16 @@ class ListingInventoryPersistenceTest {
     }
 
     @Test
-    void decrement_partialFill_thenInsufficientFailsWithoutChange() {
-        assertThat(listingRepository.decrementAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
+    void reserve_partialFill_thenInsufficientFailsWithoutChange() {
+        assertThat(reserve(new BigDecimal("40"))).isTrue();
         assertThat(available()).isEqualByComparingTo("60");
-        assertThat(listingRepository.decrementAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
+        assertThat(reserve(new BigDecimal("40"))).isTrue();
         assertThat(available()).isEqualByComparingTo("20");
 
-        assertThat(listingRepository.decrementAvailable(LISTING_ID, new BigDecimal("30"))).isFalse();
+        assertThat(reserve(new BigDecimal("30"))).isFalse();
         assertThat(available()).isEqualByComparingTo("20");
 
-        assertThat(listingRepository.decrementAvailable(LISTING_ID, new BigDecimal("20"))).isTrue();
+        assertThat(reserve(new BigDecimal("20"))).isTrue();
         assertThat(available()).isEqualByComparingTo("0");
     }
 
@@ -89,25 +89,25 @@ class ListingInventoryPersistenceTest {
         jdbcTemplate.update("UPDATE listings SET quantity_available = NULL WHERE listing_id = ?", LISTING_ID.value());
 
         assertThat(listingRepository.findById(LISTING_ID).orElseThrow().getQuantityAvailable()).isNull();
-        assertThat(listingRepository.decrementAvailable(LISTING_ID, BigDecimal.ONE)).isFalse();
-        assertThat(listingRepository.restoreAvailable(LISTING_ID, BigDecimal.ONE)).isFalse();
+        assertThat(reserve(BigDecimal.ONE)).isFalse();
+        assertThat(listingRepository.releaseAvailable(LISTING_ID, BigDecimal.ONE)).isFalse();
         assertThat(available()).isNull();
     }
 
     @Test
-    void restore_neverExceedsOfferedQuantity() {
-        listingRepository.decrementAvailable(LISTING_ID, new BigDecimal("40"));
+    void release_neverExceedsOfferedQuantity() {
+        reserve(new BigDecimal("40"));
 
-        assertThat(listingRepository.restoreAvailable(LISTING_ID, new BigDecimal("41"))).isFalse();
-        assertThat(listingRepository.restoreAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
+        assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("41"))).isFalse();
+        assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
         assertThat(available()).isEqualByComparingTo("100");
     }
 
     @Test
     void nonPositiveQuantity_isRejectedBeforeTouchingTheRow() {
-        assertThatThrownBy(() -> listingRepository.decrementAvailable(LISTING_ID, BigDecimal.ZERO))
+        assertThatThrownBy(() -> reserve(BigDecimal.ZERO))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> listingRepository.restoreAvailable(LISTING_ID, new BigDecimal("-5")))
+        assertThatThrownBy(() -> listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("-5")))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(available()).isEqualByComparingTo("100");
     }
@@ -144,12 +144,12 @@ class ListingInventoryPersistenceTest {
 
     @Test
     void lastStock_twoConcurrentDecrements_onlyOneWins() throws Exception {
-        listingRepository.decrementAvailable(LISTING_ID, new BigDecimal("40"));
+        reserve(new BigDecimal("40"));
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
         Callable<Boolean> reserveLast = () -> {
             start.await();
-            return listingRepository.decrementAvailable(LISTING_ID, new BigDecimal("60"));
+            return reserve(new BigDecimal("60"));
         };
         try {
             Future<Boolean> first = pool.submit(reserveLast);
@@ -162,6 +162,7 @@ class ListingInventoryPersistenceTest {
             pool.shutdownNow();
         }
         assertThat(available()).isEqualByComparingTo("0");
+        assertThat(statusAndReason()).isEqualTo("CLOSED/INVENTORY_EXHAUSTED");
     }
 
     @Test
@@ -194,6 +195,82 @@ class ListingInventoryPersistenceTest {
         assertThat(reservationRepository.findByContractId(contractId).orElseThrow().getStatus()).isEqualTo(COMMITTED);
         assertThatThrownBy(() -> reservationRepository.transition(contractId, COMMITTED, RELEASED))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void reserve_staleOrForeignToken_changesNothing() {
+        assertThat(listingRepository.reserveAvailable(LISTING_ID, BigDecimal.ONE, "2020-01-01T00:00:00Z")).isFalse();
+        assertThat(listingRepository.reserveAvailable(LISTING_ID, BigDecimal.ONE, "not-a-token")).isFalse();
+        assertThat(available()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void reserve_doesNotChangeVersionToken() {
+        String before = token();
+        reserve(new BigDecimal("40"));
+        assertThat(token()).isEqualTo(before);
+    }
+
+    @Test
+    void reserve_belowMinOrderQuantity_changesNothing() {
+        jdbcTemplate.update("UPDATE listings SET min_order_quantity = 50 WHERE listing_id = ?", LISTING_ID.value());
+
+        assertThat(reserve(new BigDecimal("49.999"))).isFalse();
+        assertThat(reserve(new BigDecimal("50"))).isTrue();
+        assertThat(available()).isEqualByComparingTo("50");
+    }
+
+    @Test
+    void reserve_notActive_changesNothing() {
+        jdbcTemplate.update("UPDATE listings SET status = 'EXPIRED' WHERE listing_id = ?", LISTING_ID.value());
+
+        assertThat(reserve(BigDecimal.ONE)).isFalse();
+        assertThat(available()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void drainToZero_closesAsInventoryExhausted_andReleaseReopens() {
+        assertThat(reserve(new BigDecimal("100"))).isTrue();
+        assertThat(statusAndReason()).isEqualTo("CLOSED/INVENTORY_EXHAUSTED");
+
+        assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("100"))).isTrue();
+        assertThat(statusAndReason()).isEqualTo("ACTIVE/null");
+        assertThat(available()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void release_preservesCloseThatWasNotInventoryExhaustion() {
+        reserve(new BigDecimal("40"));
+        Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
+        listing.close();
+        listingRepository.save(listing);
+
+        assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
+        assertThat(statusAndReason()).isEqualTo("CLOSED/null");
+        assertThat(available()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void entitySave_neverWritesBackAStaleCounter() {
+        Listing stale = listingRepository.findById(LISTING_ID).orElseThrow(); // read at 100
+        reserve(new BigDecimal("40"));
+        stale.close();
+        listingRepository.save(stale);
+
+        assertThat(available()).isEqualByComparingTo("60");
+    }
+
+    private boolean reserve(BigDecimal quantity) {
+        return listingRepository.reserveAvailable(LISTING_ID, quantity, token());
+    }
+
+    private String token() {
+        return listingRepository.findById(LISTING_ID).orElseThrow().getVersionToken();
+    }
+
+    private String statusAndReason() {
+        return jdbcTemplate.queryForObject("SELECT CONCAT(status, '/', COALESCE(close_reason, 'null')) FROM listings WHERE listing_id = ?",
+                String.class, LISTING_ID.value());
     }
 
     private BigDecimal available() {

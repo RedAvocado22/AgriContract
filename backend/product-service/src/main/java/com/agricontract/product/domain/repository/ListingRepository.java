@@ -24,13 +24,17 @@ public interface ListingRepository {
     List<Listing> findActiveExpiredBefore(LocalDate date);
 
     /**
-     * Atomic conditional decrement of quantityAvailable. Fails closed (returns false) for legacy
-     * listings with quantityAvailable = null and when the remaining stock is insufficient.
+     * Atomic conditional decrement of quantityAvailable. Applies only while the listing is ACTIVE, still at
+     * {@code versionToken}, not legacy (quantityAvailable = null), has enough stock and the quantity meets
+     * minOrderQuantity; a decrement to zero closes the listing as inventory-exhausted.
+     *
+     * @return false when any condition fails — nothing is changed
      */
-    boolean decrementAvailable(ListingId listingId, BigDecimal quantity);
+    boolean reserveAvailable(ListingId listingId, BigDecimal quantity, String versionToken);
 
     /**
-     * Atomic conditional restore of quantityAvailable; never exceeds the offered quantity.
+     * Atomic conditional restore of quantityAvailable; never exceeds the offered quantity. Reopens the listing
+     * only if it was closed by inventory exhaustion — any other close (or expiry) is preserved.
      */
-    boolean restoreAvailable(ListingId listingId, BigDecimal quantity);
+    boolean releaseAvailable(ListingId listingId, BigDecimal quantity);
 }

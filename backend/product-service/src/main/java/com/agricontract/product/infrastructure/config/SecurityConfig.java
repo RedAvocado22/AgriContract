@@ -33,6 +33,8 @@ public class SecurityConfig {
                                 "/api/v1/products/{productId}").permitAll()
                         .requestMatchers(HttpMethod.PUT,
                                 "/api/v1/listings/{listingId}/close").permitAll()
+                        // only reachable with a valid X-Internal-Secret, enforced by HeaderAuthenticationFilter
+                        .requestMatchers("/internal/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .build();
