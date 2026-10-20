@@ -16,6 +16,7 @@ public record ListingResponse(
         String coverImageUrl,  // snapshot field
         BigDecimal quantity,
         String quantityUnit,
+        BigDecimal quantityAvailable,  // server-owned, null for legacy listings
         BigDecimal priceFloor,
         String currency,
         LocalDate deliveryDeadline,
@@ -30,6 +31,7 @@ public record ListingResponse(
                 .coverImageUrl(listing.getCoverImageUrl())
                 .quantity(listing.getQuantity().value())
                 .quantityUnit(listing.getQuantity().unit())
+                .quantityAvailable(listing.getQuantityAvailable())
                 .priceFloor(listing.getPriceFloor().amount())
                 .currency(listing.getPriceFloor().currency())
                 .deliveryDeadline(listing.getDeliveryDeadline())

@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -27,7 +28,8 @@ public class ListingRepositoryImpl implements ListingRepository {
         ListingJpaEntity entity = listingJpaRepository
                 .findByListingId(listing.getListingId().value())
                 .map(existing -> {
-                    // only syncs status — extend here if new mutable fields are added to Listing
+                    // only syncs status — extend here if new mutable fields are added to Listing.
+                    // quantityAvailable is deliberately not synced: it only changes via the conditional updates below.
                     existing.setStatus(listing.getStatus());
                     return existing;
                 })
@@ -71,5 +73,25 @@ public class ListingRepositoryImpl implements ListingRepository {
                 .findByStatusAndDeliveryDeadlineBefore(ListingStatus.ACTIVE, date).stream()
                 .map(listingMapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public boolean decrementAvailable(ListingId listingId, BigDecimal quantity) {
+        requirePositive(quantity);
+        return listingJpaRepository.decrementAvailable(listingId.value(), quantity) == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean restoreAvailable(ListingId listingId, BigDecimal quantity) {
+        requirePositive(quantity);
+        return listingJpaRepository.restoreAvailable(listingId.value(), quantity) == 1;
+    }
+
+    private static void requirePositive(BigDecimal quantity) {
+        if (quantity == null || quantity.signum() <= 0) {
+            throw new IllegalArgumentException("quantity must be positive");
+        }
     }
 }

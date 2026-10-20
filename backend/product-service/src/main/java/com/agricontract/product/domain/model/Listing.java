@@ -3,6 +3,7 @@ package com.agricontract.product.domain.model;
 import com.agricontract.product.domain.model.vo.*;
 import lombok.Getter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 // Aggregate Root
@@ -16,6 +17,8 @@ public class Listing {
     private String productName;
     private String coverImageUrl;
     private Quantity quantity;
+    // null = legacy listing created before inventory tracking: every reserve fails closed
+    private BigDecimal quantityAvailable;
     private Money priceFloor;
     private LocalDate deliveryDeadline;
     private ListingStatus status;
@@ -25,7 +28,7 @@ public class Listing {
 
     public static Listing reconstruct(ListingId listingId, String sellerId,
                                       ProductId productId, String productName, String coverImageUrl,
-                                      Quantity quantity, Money priceFloor,
+                                      Quantity quantity, BigDecimal quantityAvailable, Money priceFloor,
                                       LocalDate deliveryDeadline, ListingStatus status) {
         Listing listing = new Listing();
         listing.listingId = listingId;
@@ -34,6 +37,7 @@ public class Listing {
         listing.productName = productName;
         listing.coverImageUrl = coverImageUrl;
         listing.quantity = quantity;
+        listing.quantityAvailable = quantityAvailable;
         listing.priceFloor = priceFloor;
         listing.deliveryDeadline = deliveryDeadline;
         listing.status = status;
@@ -56,6 +60,7 @@ public class Listing {
         listing.productName = productName;
         listing.coverImageUrl = coverImageUrl;
         listing.quantity = quantity;
+        listing.quantityAvailable = quantity.value();
         listing.priceFloor = priceFloor;
         listing.deliveryDeadline = deliveryDeadline;
         listing.status = ListingStatus.ACTIVE;
