@@ -18,6 +18,7 @@
     <name>AgriContract Parent</name>
 
     <modules>
+        <module>shared/java-eventing</module>
         <module>api-gateway</module>
         <module>user-service</module>
         <module>product-service</module>
