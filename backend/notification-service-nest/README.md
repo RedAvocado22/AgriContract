@@ -3,9 +3,10 @@
 NestJS port of the Spring Boot `notification-service`. Plan and status:
 `docs/planning/notification-service-nestjs-migration.md`.
 
-**Status: M2 (Phase 1 behaviour ported).** The service consumes the 9 Phase 1 queues, sends the same emails as the
-Java service and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient
-deduplication. Not done yet: Dockerfile, compose and CI (M3), parity run against Java with Bruno (M4).
+**Status: M3 (packaged, in compose and CI).** The service consumes the 9 Phase 1 queues, sends the same emails as
+the Java service and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient
+deduplication. The compose service `notification-service` now builds this service. Not done yet: parity run against
+Java with Bruno (M4).
 
 | Queue (`notification-svc.<key>`) | Recipients, in order |
 | --- | --- |
@@ -28,8 +29,9 @@ deduplication. Not done yet: Dockerfile, compose and CI (M3), parity run against
 - On shutdown the consumers are cancelled and in-flight messages finish (up to 8s) before the channel and the
   database pool close.
 
-The table `notification_logs` comes from `db/migration` of the Java service (Flyway V1); running Flyway for this
-service is M3.
+The table `notification_logs` comes from `db/migration/V1__create_notification_logs.sql`, a byte-for-byte copy of
+the Java service's Flyway V1 (same checksum). The app does not run migrations; the compose service
+`notification-migrate` (`flyway/flyway:10.10.0`) does, before the app starts.
 
 > **Never run this service and the Java `notification-service` at the same time.** They use the same queues and the
 > same database; two consumers on one queue split the messages between them. Stop the Java container first.
@@ -51,16 +53,42 @@ startup with a list of every invalid variable. `.env` files are not read.
 | `ADMIN_EMAIL` | `admin@agricontract.com` |
 | `SERVER_PORT` | `8085` |
 
+## Run with compose
+
+From `backend/`. compose needs the two secrets set to any value, even for these services (on PowerShell, set
+`$env:GATEWAY_INTERNAL_SECRET` and `$env:SERVICE_INTERNAL_SECRET` first).
+
+```bash
+GATEWAY_INTERNAL_SECRET=local-dev SERVICE_INTERNAL_SECRET=local-dev \
+  docker compose up -d --build notification-migrate notification-service mailhog
+docker compose ps notification-service     # becomes (healthy) once /actuator/health returns 200
+```
+
+`notification-migrate` runs Flyway once and exits; `notification-service` starts only if it succeeded, and
+`docker compose logs notification-migrate` shows why it did not. Rerunning it is safe: an up-to-date schema is a
+no-op.
+
+- **First run: the `notification_db_data` volume must be empty, or come from the Java service** (which recorded V1
+  in `flyway_schema_history`). A volume that has `notification_logs` without `flyway_schema_history` makes Flyway
+  stop with `Found non-empty schema(s) ... but no schema history table`. Remove that volume
+  (`docker compose rm -sf notification-db && docker volume rm backend_notification_db_data`), which deletes its
+  data.
+- The image is built from `notification-service-nest/Dockerfile` with build context `backend/`, so
+  `shared/node-eventing` is built inside the image; nothing needs to be built on the host.
+- **Do not run it next to the Java service.** If you start the Java image by hand (for the M4 parity run), stop
+  this one first: `docker compose stop notification-service`.
+
 ## Run locally
 
-Requires Node >= 22.12 and a built `@agricontract/eventing`.
+Requires Node >= 22.12 and a built `@agricontract/eventing`. The database schema must already exist (run
+`notification-migrate` once, see above).
 
 ```bash
 # 1. Infrastructure from the backend compose (run in backend/).
 #    compose needs these two secrets set to any value, even for these services.
 GATEWAY_INTERNAL_SECRET=local-dev SERVICE_INTERNAL_SECRET=local-dev \
   docker compose up -d rabbitmq notification-db mailhog
-docker compose stop notification-service   # if the Java service is running
+docker compose stop notification-service   # the compose container would consume the same queues
 
 # 2. Shared eventing package, then this service.
 cd shared/node-eventing && npm ci && npm run build

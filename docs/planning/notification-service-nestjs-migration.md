@@ -221,13 +221,24 @@ Tiêu chí cũ "tương đương hoặc hơn Java" không kiểm được, vì J
 
 ### M3 — Đóng gói, compose, CI (1–2 ngày)
 
-- [ ] `Dockerfile` multi-stage `node:22-alpine`, build context `backend/`: build `shared/node-eventing` trước, rồi `npm ci && npm run build` của service, image runtime chỉ có `dist` và `node_modules` production, chạy user `node`.
-- [ ] `docker-compose.yml`:
-  - Thêm service `notification-migrate` (`flyway/flyway`, mount `notification-service/db/migration`, `migrate`).
+- [x] `Dockerfile` multi-stage `node:22-alpine`, build context `backend/`: build `shared/node-eventing` trước, rồi `npm ci && npm run build` của service, image runtime chỉ có `dist` và `node_modules` production, chạy user `node`.
+- [x] `docker-compose.yml`:
+  - Thêm service `notification-migrate` (`flyway/flyway`, mount `notification-service-nest/db/migration` cho tới M5, `migrate`).
   - `notification-service` thêm `depends_on: notification-migrate: condition: service_completed_successfully` và trỏ build sang Dockerfile mới.
-- [ ] CI (`.github/workflows/ci.yml`): thêm job `notification-service-node` gồm setup-node 22 (cache npm), build và test `backend/shared/node-eventing`, rồi `npm ci`, `lint`, `test`, `build` của service. **Chưa** bỏ Java ở bước này.
+- [x] CI (`.github/workflows/ci.yml`): thêm job `notification-service-node` gồm setup-node 22 (cache npm), build và test `backend/shared/node-eventing`, rồi `npm ci`, `lint`, `test`, `build` của service. **Chưa** bỏ Java ở bước này.
 
 **Xong khi:** CI xanh cả Maven lẫn Node. `docker compose up` từ volume trống chạy Flyway V1 rồi app lên healthy.
+
+**Kết quả M3 (21/10/2026):**
+
+- **Image:** 287 MB, Node 22, chạy user `node`. Layout giữ như stage build (`/app/notification-service-nest` cạnh `/app/shared/node-eventing`) để symlink `file:` vẫn đúng. `require('@agricontract/eventing')` chạy được. Không có `src/`, `test/` hay devDependencies; file `.ts` duy nhất là `.d.ts` và source kèm theo của `rxjs` trong `node_modules`. `HEALTHCHECK` gọi `/actuator/health` bằng `node -e`.
+- **Migration:** `db/migration/V1__create_notification_logs.sql` copy nguyên byte từ Java (cùng blob `e62cf79`). `notification-migrate` dùng `flyway/flyway:10.10.0`, đúng phiên bản Flyway của Java.
+- **Compose từ volume trống:** Flyway áp dụng V1 (`flyway_schema_history`: version 1, checksum `-1380183233`, success 1). `notification-service` lên `healthy`, health trả `{"status":"UP","components":{"db":{"status":"UP"},"rabbit":{"status":"UP"}}}`, đủ 9 queue + 9 DLQ, mỗi queue chính 1 consumer. Chạy migrate lần hai: "No migration necessary". Restart service: lại `healthy`, không thêm migration.
+- **Tương thích với Java:** dừng Nest, chạy image Java trên DB do Flyway CLI tạo: Java validate V1 thành công, "Schema is up to date". Hai bên dùng chung `flyway_schema_history` được.
+- **Build và CI:** `docker compose build` toàn bộ thành công (5 service Java + Nest). CI xanh cả job Maven và `notification-service-node` (lint, 366 test, build).
+- **Quyết định trong M3:**
+  - JDBC URL của Flyway thêm `allowPublicKeyRetrieval=true`, giống URL của Java. Driver MariaDB trong image Flyway không dùng SSL, nên thiếu tham số này thì không xác thực được với MySQL 8.
+  - Volume `notification_db_data` có bảng `notification_logs` mà không có `flyway_schema_history` thì Flyway dừng với lỗi `non-empty schema`. Volume cần trống, hoặc là volume do Java tạo.
 
 ### M4 — Parity test (1–2 ngày)
 
