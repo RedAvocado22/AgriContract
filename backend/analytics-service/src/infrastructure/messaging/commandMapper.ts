@@ -1,5 +1,5 @@
 import type { EventEnvelope } from '@agricontract/eventing';
-import type { IngestEventCommand } from '../../application/port.js';
+import type { IngestEventCommand } from '../../application/port';
 
 /**
  * Maps a validated canonical envelope to the application command. Analytics never needs contact data, so

@@ -1,16 +1,15 @@
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
-import type { ProjectionHandler } from '../src/application/port.js';
-import { IngestEvent } from '../src/application/usecase/ingestEvent.js';
-import { startIngestion } from '../src/infrastructure/messaging/consumers.js';
+import type { ProjectionHandler } from '../src/application/port';
+import { IngestEvent } from '../src/application/usecase/ingestEvent';
+import { startIngestion } from '../src/infrastructure/messaging/consumers';
 import {
   CONTRACTS_EXCHANGE,
   SUBSCRIPTIONS,
   deadLetterQueueName,
   declareTopology,
   queueName,
-} from '../src/infrastructure/messaging/topology.js';
-import { validEvent } from './fixtures.js';
+} from '../src/infrastructure/messaging/topology';
+import { validEvent } from './fixtures';
 import {
   FakeBroker,
   InMemoryDb,
@@ -20,7 +19,8 @@ import {
   recordingLogger,
   silentLogger,
   type FakeTx,
-} from './fakes.js';
+} from './fakes';
+import { deepEqual } from './deepEqual';
 
 const SIGNED = 'contract.signed';
 const SETTLED = 'milestone.settled';
@@ -79,7 +79,7 @@ describe('analytics canonical event ingestion', () => {
       const published = SUBSCRIPTIONS.map((s, i) => event(s.eventType, `agg-${i}`));
       for (const env of published) publishEvent(broker, CONTRACTS_EXCHANGE, env);
       await broker.drain();
-      assert.deepEqual(
+      deepEqual(
         db.committed.ingested.map((e) => e.eventId).sort(),
         published.map((e) => e.eventId).sort(),
       );
@@ -100,7 +100,7 @@ describe('analytics canonical event ingestion', () => {
       publishEvent(broker, CONTRACTS_EXCHANGE, env); // at-least-once redelivery
       await broker.drain();
       assert.equal(db.committed.ingested.length, 1);
-      assert.deepEqual(db.committed.processed, [
+      deepEqual(db.committed.processed, [
         { consumerName: 'analytics.contract.signed', eventId: env.eventId, eventType: SIGNED },
       ]);
       assert.equal(store.calls, 1);
@@ -122,7 +122,7 @@ describe('analytics canonical event ingestion', () => {
       assert.equal(failing.calls, 3);
       assert.equal(db.committed.ingested.length, 1);
       assert.equal(db.committed.processed.length, 1);
-      assert.deepEqual(sleeps, [1000, 2000]); // transient errors back off, like the Java services
+      deepEqual(sleeps, [1000, 2000]); // transient errors back off, like the Java services
     });
 
     it('a failing projection rolls back the stored event too (one transaction)', async () => {
@@ -171,7 +171,7 @@ describe('analytics canonical event ingestion', () => {
       assert.equal(db.committed.processed.length, 0, 'no processed marker');
       assert.equal(db.committed.ingested.length, 0);
       assert.equal(broker.depth(deadLetterQueueName(queueType)), 1, 'parked in the DLQ');
-      assert.deepEqual(sleeps, [], 'a permanent failure is never retried');
+      deepEqual(sleeps, [], 'a permanent failure is never retried');
     }
 
     it('contract.signed from an unrelated producer with an empty payload (the review probe)', async () => {
@@ -212,7 +212,7 @@ describe('analytics canonical event ingestion', () => {
       const good = event(SIGNED, 'c-2');
       publishEvent(broker, CONTRACTS_EXCHANGE, good);
       await broker.drain();
-      assert.deepEqual(db.committed.ingested.map((e) => e.eventId), [good.eventId]);
+      deepEqual(db.committed.ingested.map((e) => e.eventId), [good.eventId]);
     });
   });
 
@@ -225,7 +225,7 @@ describe('analytics canonical event ingestion', () => {
       const stored = JSON.stringify(db.committed.ingested[0]!.payload);
       assert.doesNotMatch(stored, /@example\.com|email/);
       const recipients = (db.committed.ingested[0]!.payload as { recipients: Array<Record<string, unknown>> }).recipients;
-      assert.deepEqual(recipients.map((r) => Object.keys(r).sort()), [['role', 'userId'], ['role', 'userId']]);
+      deepEqual(recipients.map((r) => Object.keys(r).sort()), [['role', 'userId'], ['role', 'userId']]);
     });
   });
 
@@ -257,7 +257,7 @@ describe('analytics canonical event ingestion', () => {
       await broker.drain();
 
       assert.equal(broker.depth(queueName(SETTLED)), 0);
-      assert.deepEqual(db.committed.ingested.map((e) => e.eventId), envs.map((e) => e.eventId));
+      deepEqual(db.committed.ingested.map((e) => e.eventId), envs.map((e) => e.eventId));
       assert.equal(db.committed.processed.length, 100);
     });
 

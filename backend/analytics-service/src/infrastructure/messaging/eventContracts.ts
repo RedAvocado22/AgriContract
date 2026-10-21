@@ -1,5 +1,5 @@
 import { NonRetryableError, type EventEnvelope } from '@agricontract/eventing';
-import type { IngestedEventType } from '../../domain/ingestedEvents.js';
+import type { IngestedEventType } from '../../domain/ingestedEvents';
 
 /**
  * Producer, version and payload rules for every event analytics ingests, mirrored from the frozen

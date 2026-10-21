@@ -5,10 +5,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { deepEqual } from './deepEqual';
 
-const src = resolve(dirname(fileURLToPath(import.meta.url)), '../src');
+const src = resolve(__dirname, '../src');
 
 function tsFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -30,7 +29,7 @@ function importSpecifiers(file: string): string[] {
 
 describe('canonical layout', () => {
   it('src/ holds only domain/, application/, infrastructure/ and main.ts', () => {
-    assert.deepEqual(readdirSync(src).sort(), ['application', 'domain', 'infrastructure', 'main.ts']);
+    deepEqual(readdirSync(src).sort(), ['application', 'domain', 'infrastructure', 'main.ts']);
   });
 
   it('use case in application/usecase, ports in application/port.ts', () => {

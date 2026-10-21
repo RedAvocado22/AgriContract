@@ -1,5 +1,5 @@
 import type { MysqlConnectionLike } from '@agricontract/eventing';
-import type { IngestEventCommand, IngestedEventStore } from '../../application/port.js';
+import type { IngestEventCommand, IngestedEventStore } from '../../application/port';
 
 /** DATETIME(3) text in UTC; the pool is created with timezone 'Z'. */
 export function toMysqlDateTime(date: Date): string {

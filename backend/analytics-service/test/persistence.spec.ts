@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
 import type { MysqlConnectionLike } from '@agricontract/eventing';
-import { toIngestCommand } from '../src/infrastructure/messaging/commandMapper.js';
-import { MysqlIngestedEventStore, toMysqlDateTime } from '../src/infrastructure/persistence/ingestedEventStore.js';
-import { validEvent } from './fixtures.js';
+import { toIngestCommand } from '../src/infrastructure/messaging/commandMapper';
+import { MysqlIngestedEventStore, toMysqlDateTime } from '../src/infrastructure/persistence/ingestedEventStore';
+import { validEvent } from './fixtures';
+import { deepEqual } from './deepEqual';
 
 function fakeTx() {
   const calls: Array<{ sql: string; values: unknown[] }> = [];
@@ -34,7 +34,7 @@ describe('toIngestCommand', () => {
     const command = toIngestCommand(env);
     const recipients = (command.payload as { recipients: Array<Record<string, unknown>> }).recipients;
     assert.equal(recipients.length, 2);
-    for (const r of recipients) assert.deepEqual(Object.keys(r).sort(), ['role', 'userId']);
+    for (const r of recipients) deepEqual(Object.keys(r).sort(), ['role', 'userId']);
     assert.doesNotMatch(JSON.stringify(command), /@example\.com/);
   });
 
@@ -46,7 +46,7 @@ describe('toIngestCommand', () => {
 
   it('leaves payloads without recipients untouched', () => {
     const env = validEvent('contract.signed', 'c-1');
-    assert.deepEqual(toIngestCommand(env).payload, env.payload);
+    deepEqual(toIngestCommand(env).payload, env.payload);
   });
 });
 
@@ -59,7 +59,7 @@ describe('MysqlIngestedEventStore', () => {
     assert.equal(calls.length, 1);
     assert.match(calls[0]!.sql, /INSERT INTO analytics_ingested_event/);
     assert.doesNotMatch(calls[0]!.sql, /IGNORE|ON DUPLICATE/i, 'a duplicate must surface, dedupe happens before');
-    assert.deepEqual(calls[0]!.values, [
+    deepEqual(calls[0]!.values, [
       env.eventId,
       'contract.signed',
       1,

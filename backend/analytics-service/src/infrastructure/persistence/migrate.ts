@@ -1,14 +1,13 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { loadConfig } from '../config.js';
+import { join, resolve } from 'node:path';
+import { loadConfig } from '../config';
 
 /**
  * Minimal Flyway-style runner: applies migrations/V<n>__*.sql in order, once each,
  * recording them in schema_migrations. Usage: npm run build && npm run migrate
  * (src/infrastructure/persistence and dist/infrastructure/persistence are both 3 levels below the service root.)
  */
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'migrations');
+const MIGRATIONS_DIR = join(__dirname, '..', '..', '..', 'migrations');
 
 export function migrationFiles(dir: string = MIGRATIONS_DIR): string[] {
   return readdirSync(dir)
@@ -53,7 +52,7 @@ async function run(): Promise<void> {
 }
 
 const norm = (p: string) => (process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p));
-if (process.argv[1] && norm(fileURLToPath(import.meta.url)) === norm(process.argv[1])) {
+if (process.argv[1] && norm(__filename) === norm(process.argv[1])) {
   run().catch((err) => {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);

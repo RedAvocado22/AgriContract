@@ -3,15 +3,14 @@
  * restart / replay scenario. Only the broker and the database are in-memory fakes.
  */
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
-import { startAnalytics, type AnalyticsRuntime } from '../src/infrastructure/runtime.js';
+import { startAnalytics, type AnalyticsRuntime } from '../src/infrastructure/runtime';
 import {
   CONTRACTS_EXCHANGE,
   SUBSCRIPTIONS,
   deadLetterQueueName,
   queueName,
-} from '../src/infrastructure/messaging/topology.js';
-import { validEvent } from './fixtures.js';
+} from '../src/infrastructure/messaging/topology';
+import { validEvent } from './fixtures';
 import {
   FakeBroker,
   InMemoryDb,
@@ -19,7 +18,8 @@ import {
   event,
   publishEvent,
   recordingLogger,
-} from './fakes.js';
+} from './fakes';
+import { deepEqual } from './deepEqual';
 
 describe('production wiring: stop, publish, restart, replay', () => {
   let broker: FakeBroker;
@@ -66,7 +66,7 @@ describe('production wiring: stop, publish, restart, replay', () => {
     await boot(); // restart
     await broker.drain();
 
-    assert.deepEqual(
+    deepEqual(
       db.committed.ingested.map((e) => e.eventId).sort(),
       events.map((e) => e.eventId).sort(),
     );
@@ -112,9 +112,9 @@ describe('production wiring: stop, publish, restart, replay', () => {
     publishEvent(broker, CONTRACTS_EXCHANGE, validEvent('contract.settled', 'c-3', { payload: { contractId: 'x' } }));
     await broker.drain();
     runtime.stopMonitor();
-    const { DlqMonitor } = await import('../src/infrastructure/messaging/dlqMonitor.js');
+    const { DlqMonitor } = await import('../src/infrastructure/messaging/dlqMonitor');
     await new DlqMonitor(broker, { intervalMs: 60_000, logger }).checkOnce();
     const warning = logger.entries.find((e) => e.msg.startsWith('Dead-letter queue is not empty'));
-    assert.deepEqual(warning?.meta, { queue: deadLetterQueueName('contract.settled'), depth: 1 });
+    deepEqual(warning?.meta, { queue: deadLetterQueueName('contract.settled'), depth: 1 });
   });
 });

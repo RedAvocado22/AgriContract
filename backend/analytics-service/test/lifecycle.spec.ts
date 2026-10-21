@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
 import type { AmqpChannelLike, AmqpMessageLike } from '@agricontract/eventing';
-import { IngestEvent } from '../src/application/usecase/ingestEvent.js';
-import type { ProjectionHandler } from '../src/application/port.js';
-import { gracefulShutdown, type ShutdownSteps } from '../src/infrastructure/lifecycle.js';
-import { startIngestion } from '../src/infrastructure/messaging/consumers.js';
-import { CONTRACTS_EXCHANGE, declareTopology, queueName } from '../src/infrastructure/messaging/topology.js';
-import { startAnalytics } from '../src/infrastructure/runtime.js';
+import { IngestEvent } from '../src/application/usecase/ingestEvent';
+import type { ProjectionHandler } from '../src/application/port';
+import { gracefulShutdown, type ShutdownSteps } from '../src/infrastructure/lifecycle';
+import { startIngestion } from '../src/infrastructure/messaging/consumers';
+import { CONTRACTS_EXCHANGE, declareTopology, queueName } from '../src/infrastructure/messaging/topology';
+import { startAnalytics } from '../src/infrastructure/runtime';
 import {
   FakeBroker,
   InMemoryDb,
@@ -16,7 +15,8 @@ import {
   recordingLogger,
   silentLogger,
   type FakeTx,
-} from './fakes.js';
+} from './fakes';
+import { deepEqual } from './deepEqual';
 
 function deferred() {
   let release!: () => void;
@@ -46,7 +46,7 @@ describe('gracefulShutdown', () => {
     const order: string[] = [];
     const result = await gracefulShutdown(recordingSteps(order), { logger: silentLogger, timeoutMs: 100 });
     assert.equal(result, 'CLEAN');
-    assert.deepEqual(order, ['not-ready', 'stop-monitor', 'stop-consuming', 'stop-http', 'await-idle', 'close-db', 'close-broker']);
+    deepEqual(order, ['not-ready', 'stop-monitor', 'stop-consuming', 'stop-http', 'await-idle', 'close-db', 'close-broker']);
   });
 
   it('a failing step is logged and every later step still runs', async () => {
@@ -130,7 +130,7 @@ describe('shutdown with an active handler (real wiring)', () => {
 
     gate.release();
     assert.equal(await shutdown, 'CLEAN');
-    assert.deepEqual(log, ['handler-started', 'not-ready', 'consuming-stopped', 'http-stopped', 'handler-finished', 'db-closed', 'broker-closed']);
+    deepEqual(log, ['handler-started', 'not-ready', 'consuming-stopped', 'http-stopped', 'handler-finished', 'db-closed', 'broker-closed']);
     assert.equal(db.committed.ingested.length, 1, 'the in-flight event was committed');
     assert.equal(broker.unackedCount(), 0, 'and acked before the connection closed');
     assert.equal(broker.depth(queueName('contract.signed')), 0);
@@ -195,7 +195,7 @@ describe('deliveries that arrive after shutdown began', () => {
     await handle.stopConsuming();
     const env = event('contract.signed', 'c-1');
     callbacks[0]!({ content: Buffer.from(JSON.stringify(env)), fields: { routingKey: 'contract.signed' } });
-    assert.deepEqual(nacks, [{ requeue: true }]);
+    deepEqual(nacks, [{ requeue: true }]);
     assert.equal(store.calls, 0);
     assert.equal(handle.inFlight.count, 0);
   });

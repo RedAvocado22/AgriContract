@@ -9,7 +9,7 @@
  *    producers; failed messages go to a per-queue DLQ (same pattern as the Java services).
  */
 
-import { INGESTED_EVENT_TYPES } from '../../domain/ingestedEvents.js';
+import { INGESTED_EVENT_TYPES } from '../../domain/ingestedEvents';
 
 /** Exchange used by contract-service for contract.* and milestone.* events (see its OutboxPoller). */
 export const CONTRACTS_EXCHANGE = 'agricontract.contracts';

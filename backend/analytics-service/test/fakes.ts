@@ -6,9 +6,9 @@ import type {
   ProcessedEventStore,
   TransactionRunner,
 } from '@agricontract/eventing';
-import type { IngestEventCommand, IngestedEventStore } from '../src/application/port.js';
-import type { TopologyChannel } from '../src/infrastructure/messaging/topology.js';
-import { validEvent } from './fixtures.js';
+import type { IngestEventCommand, IngestedEventStore } from '../src/application/port';
+import type { TopologyChannel } from '../src/infrastructure/messaging/topology';
+import { validEvent } from './fixtures';
 
 /**
  * Minimal in-memory RabbitMQ: topic exchanges with exact routing keys, direct DLX,

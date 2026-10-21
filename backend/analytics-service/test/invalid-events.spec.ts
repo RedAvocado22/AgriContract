@@ -4,11 +4,11 @@
  * same eventId is still ingested.
  */
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
-import { startAnalytics, type AnalyticsRuntime } from '../src/infrastructure/runtime.js';
-import { CONTRACTS_EXCHANGE, deadLetterQueueName, queueName } from '../src/infrastructure/messaging/topology.js';
-import { validEvent, validPayload } from './fixtures.js';
-import { FakeBroker, InMemoryDb, InMemoryIngestedEventStore, publishEvent, recordingLogger, type FakeTx } from './fakes.js';
+import { startAnalytics, type AnalyticsRuntime } from '../src/infrastructure/runtime';
+import { CONTRACTS_EXCHANGE, deadLetterQueueName, queueName } from '../src/infrastructure/messaging/topology';
+import { validEvent, validPayload } from './fixtures';
+import { FakeBroker, InMemoryDb, InMemoryIngestedEventStore, publishEvent, recordingLogger, type FakeTx } from './fakes';
+import { deepEqual } from './deepEqual';
 
 describe('invalid events are dead-lettered without side effects', () => {
   let broker: FakeBroker;
@@ -65,7 +65,7 @@ describe('invalid events are dead-lettered without side effects', () => {
     const fixed = { ...bad, payload: validPayload('contract.signed') };
     publishEvent(broker, CONTRACTS_EXCHANGE, fixed);
     await broker.drain();
-    assert.deepEqual(db.committed.ingested.map((e) => e.eventId), [bad.eventId]);
+    deepEqual(db.committed.ingested.map((e) => e.eventId), [bad.eventId]);
     assert.equal(db.committed.processed.length, 1);
   });
 });
