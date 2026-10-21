@@ -23,3 +23,33 @@ jobs:
       - name: Build and run unit tests
         working-directory: backend
         run: mvn clean verify -DskipITs --no-transfer-progress
+
+  notification-service-node:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/shared/node-eventing/package-lock.json
+            backend/notification-service-nest/package-lock.json
+
+      - name: Build and test node-eventing
+        working-directory: backend/shared/node-eventing
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Lint, test and build notification-service
+        working-directory: backend/notification-service-nest
+        run: |
+          npm ci
+          npm run lint:check
+          npm test
+          npm run build
