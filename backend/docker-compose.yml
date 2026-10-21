@@ -275,10 +275,23 @@ services:
     networks:
       - agricontract-net
 
+  notification-migrate:
+    image: flyway/flyway:10.10.0
+    container_name: notification-migrate
+    command: -url=jdbc:mysql://notification-db:3306/notification_db?allowPublicKeyRetrieval=true -user=${DB_USERNAME:-root} -password=${DB_PASSWORD:-password} -connectRetries=20 migrate
+    volumes:
+      - ./notification-service-nest/db/migration:/flyway/sql:ro
+    depends_on:
+      notification-db:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - agricontract-net
+
   notification-service:
     build:
       context: .
-      dockerfile: notification-service/Dockerfile
+      dockerfile: notification-service-nest/Dockerfile
     container_name: notification-service
     environment:
       DB_HOST: notification-db
@@ -294,5 +307,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      notification-migrate:
+        condition: service_completed_successfully
     networks:
       - agricontract-net
