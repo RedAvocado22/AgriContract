@@ -5,26 +5,26 @@
  *   ANALYTICS_TEST_MYSQL_URL=mysql://root:root@localhost:3306/analytics_test npm test
  */
 import assert from 'node:assert/strict';
-import { after, before, describe, it } from 'node:test';
 import mysql from 'mysql2/promise';
 import {
   MysqlProcessedEventStore,
   MysqlTransactionRunner,
   type MysqlConnectionLike,
 } from '@agricontract/eventing';
-import { IngestEvent } from '../src/application/usecase/ingestEvent.js';
-import { buildConsumer } from '../src/infrastructure/messaging/consumers.js';
-import { MysqlIngestedEventStore } from '../src/infrastructure/persistence/ingestedEventStore.js';
-import { applyMigrations } from '../src/infrastructure/persistence/migrate.js';
-import { event } from './fakes.js';
+import { IngestEvent } from '../src/application/usecase/ingestEvent';
+import { buildConsumer } from '../src/infrastructure/messaging/consumers';
+import { MysqlIngestedEventStore } from '../src/infrastructure/persistence/ingestedEventStore';
+import { applyMigrations } from '../src/infrastructure/persistence/migrate';
+import { event } from './fakes';
+import { deepEqual } from './deepEqual';
 
 const URL = process.env.ANALYTICS_TEST_MYSQL_URL;
 const PROBE = 'it_projection_probe'; // test-only stand-in for a projection table
 
-describe('real MySQL (ANALYTICS_TEST_MYSQL_URL)', { skip: URL ? false : 'ANALYTICS_TEST_MYSQL_URL not set' }, () => {
+(URL ? describe : describe.skip)('real MySQL (ANALYTICS_TEST_MYSQL_URL)', () => {
   let pool: mysql.Pool;
 
-  before(async () => {
+  beforeAll(async () => {
     const conn = await mysql.createConnection({ uri: URL!, multipleStatements: true });
     try {
       await applyMigrations(conn);
@@ -35,7 +35,7 @@ describe('real MySQL (ANALYTICS_TEST_MYSQL_URL)', { skip: URL ? false : 'ANALYTI
     pool = mysql.createPool({ uri: URL!, connectionLimit: 4, dateStrings: true, timezone: 'Z' });
   });
 
-  after(async () => {
+  afterAll(async () => {
     await pool?.end();
   });
 
@@ -97,7 +97,7 @@ describe('real MySQL (ANALYTICS_TEST_MYSQL_URL)', { skip: URL ? false : 'ANALYTI
       'SELECT consumer_name, event_type FROM analytics_idempotency_log WHERE event_id = ?',
       [env.eventId],
     );
-    assert.deepEqual(rows, [{ consumer_name: 'analytics.milestone.settled', event_type: 'milestone.settled' }]);
+    deepEqual(rows, [{ consumer_name: 'analytics.milestone.settled', event_type: 'milestone.settled' }]);
     const [stored] = await pool.query('SELECT payload FROM analytics_ingested_event WHERE event_id = ?', [env.eventId]);
     assert.doesNotMatch(JSON.stringify(stored), /email|@example\.com/);
   });

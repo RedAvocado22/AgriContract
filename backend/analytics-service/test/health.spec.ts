@@ -5,11 +5,11 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
-import { after, before, describe, it } from 'node:test';
 import { Module, type INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { HealthController } from '../src/infrastructure/http/health.controller.js';
-import { AnalyticsLifecycle } from '../src/infrastructure/nest/analytics.lifecycle.js';
+import { HealthController } from '../src/infrastructure/http/health.controller';
+import { AnalyticsLifecycle } from '../src/infrastructure/nest/analytics.lifecycle';
+import { deepEqual } from './deepEqual';
 
 let ready = false;
 
@@ -23,12 +23,12 @@ describe('GET /health (Nest)', () => {
   let app: INestApplication;
   let base = '';
 
-  before(async () => {
+  beforeAll(async () => {
     app = await NestFactory.create(HealthTestModule, { logger: false });
     await app.listen(0, '127.0.0.1');
     base = `http://127.0.0.1:${((app.getHttpServer() as { address(): AddressInfo }).address()).port}`;
   });
-  after(async () => {
+  afterAll(async () => {
     await app.close();
   });
 
@@ -36,14 +36,14 @@ describe('GET /health (Nest)', () => {
     ready = false;
     const res = await fetch(`${base}/health`);
     assert.equal(res.status, 503);
-    assert.deepEqual(await res.json(), { status: 'STARTING' });
+    deepEqual(await res.json(), { status: 'STARTING' });
   });
 
   it('200 UP once ingestion has started', async () => {
     ready = true;
     const res = await fetch(`${base}/health`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { status: 'UP' });
+    deepEqual(await res.json(), { status: 'UP' });
   });
 
   it('404 for any other path', async () => {

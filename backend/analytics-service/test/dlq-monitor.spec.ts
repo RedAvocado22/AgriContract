@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-import { DlqMonitor, type QueueProbe } from '../src/infrastructure/messaging/dlqMonitor.js';
-import { SUBSCRIPTIONS, deadLetterQueueName } from '../src/infrastructure/messaging/topology.js';
-import { recordingLogger } from './fakes.js';
+import { DlqMonitor, type QueueProbe } from '../src/infrastructure/messaging/dlqMonitor';
+import { SUBSCRIPTIONS, deadLetterQueueName } from '../src/infrastructure/messaging/topology';
+import { recordingLogger } from './fakes';
+import { deepEqual } from './deepEqual';
 
 function probe(depths: Record<string, number>, failing: string[] = []): QueueProbe & { asked: string[] } {
   const asked: string[] = [];
@@ -20,17 +20,17 @@ describe('DLQ monitor', () => {
   it('checks the DLQ of every subscribed event', async () => {
     const p = probe({});
     await new DlqMonitor(p, { intervalMs: 1000, logger: recordingLogger() }).checkOnce();
-    assert.deepEqual(p.asked, SUBSCRIPTIONS.map((s) => deadLetterQueueName(s.eventType)));
+    deepEqual(p.asked, SUBSCRIPTIONS.map((s) => deadLetterQueueName(s.eventType)));
   });
 
   it('a non-empty DLQ warns with queue and depth', async () => {
     const logger = recordingLogger();
     const queue = deadLetterQueueName('milestone.settled');
     const depths = await new DlqMonitor(probe({ [queue]: 3 }), { intervalMs: 1000, logger }).checkOnce();
-    assert.deepEqual(depths.find((d) => d.queue === queue), { queue, depth: 3 });
+    deepEqual(depths.find((d) => d.queue === queue), { queue, depth: 3 });
     const warnings = logger.entries.filter((e) => e.level === 'warn');
     assert.equal(warnings.length, 1);
-    assert.deepEqual(warnings[0]!.meta, { queue, depth: 3 });
+    deepEqual(warnings[0]!.meta, { queue, depth: 3 });
   });
 
   it('empty DLQs do not warn', async () => {

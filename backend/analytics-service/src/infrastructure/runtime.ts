@@ -1,9 +1,9 @@
 import type { AmqpChannelLike, Logger, ProcessedEventStore, TransactionRunner } from '@agricontract/eventing';
-import type { IngestedEventStore, ProjectionHandler } from '../application/port.js';
-import { IngestEvent } from '../application/usecase/ingestEvent.js';
-import { startIngestion } from './messaging/consumers.js';
-import { DlqMonitor, type QueueProbe } from './messaging/dlqMonitor.js';
-import { declareTopology, type TopologyChannel } from './messaging/topology.js';
+import type { IngestedEventStore, ProjectionHandler } from '../application/port';
+import { IngestEvent } from '../application/usecase/ingestEvent';
+import { startIngestion } from './messaging/consumers';
+import { DlqMonitor, type QueueProbe } from './messaging/dlqMonitor';
+import { declareTopology, type TopologyChannel } from './messaging/topology';
 
 export interface RuntimeDeps<Tx> {
   /** Channel with prefetch already set: declares the topology and consumes. */

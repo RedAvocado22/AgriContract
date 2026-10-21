@@ -10,10 +10,10 @@ import {
   type ProcessedEventStore,
   type TransactionRunner,
 } from '@agricontract/eventing';
-import { consumerName, type IngestEvent } from '../../application/usecase/ingestEvent.js';
-import { toIngestCommand } from './commandMapper.js';
-import { InvalidEventError, validateCanonicalEvent } from './eventContracts.js';
-import { SUBSCRIPTIONS, queueName } from './topology.js';
+import { consumerName, type IngestEvent } from '../../application/usecase/ingestEvent';
+import { toIngestCommand } from './commandMapper';
+import { InvalidEventError, validateCanonicalEvent } from './eventContracts';
+import { SUBSCRIPTIONS, queueName } from './topology';
 
 /**
  * One consumer for one event type. Order matters, and nothing is committed before step 2 passes:

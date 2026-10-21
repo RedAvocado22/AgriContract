@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
-import { AnalyticsLifecycle } from '../nest/analytics.lifecycle.js';
+import { AnalyticsLifecycle } from '../nest/analytics.lifecycle';
 
 /**
  * GET /health: 200 UP once ingestion has started, 503 STARTING while MySQL or RabbitMQ is still being

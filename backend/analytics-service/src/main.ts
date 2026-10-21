@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { loadConfig } from './infrastructure/config.js';
-import { jsonLogger } from './infrastructure/logger.js';
-import { AppModule } from './infrastructure/nest/app.module.js';
+import { loadConfig } from './infrastructure/config';
+import { jsonLogger } from './infrastructure/logger';
+import { AppModule } from './infrastructure/nest/app.module';
 
 /**
  * Entry point: creates the Nest application and starts listening. Nothing here contacts MySQL or

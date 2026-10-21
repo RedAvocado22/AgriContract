@@ -1,5 +1,5 @@
-import { INGESTED_EVENT_TYPES } from '../../domain/ingestedEvents.js';
-import type { IngestEventCommand, IngestedEventStore, ProjectionHandler } from '../port.js';
+import { INGESTED_EVENT_TYPES } from '../../domain/ingestedEvents';
+import type { IngestEventCommand, IngestedEventStore, ProjectionHandler } from '../port';
 
 /** Dedupe identity of an ingest consumer: one idempotency-log namespace per ingested event type. */
 export function consumerName(eventType: string): string {

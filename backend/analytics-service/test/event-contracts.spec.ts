@@ -8,16 +8,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import Ajv2020Module from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
 import yaml from 'js-yaml';
-import { INGESTED_EVENT_TYPES } from '../src/domain/ingestedEvents.js';
-import { EVENT_CONTRACTS, validateCanonicalEvent, type Rule } from '../src/infrastructure/messaging/eventContracts.js';
-import { validEvent, validPayload } from './fixtures.js';
+import { INGESTED_EVENT_TYPES } from '../src/domain/ingestedEvents';
+import { EVENT_CONTRACTS, validateCanonicalEvent, type Rule } from '../src/infrastructure/messaging/eventContracts';
+import { validEvent, validPayload } from './fixtures';
+import { deepEqual } from './deepEqual';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = __dirname;
 const catalog = yaml.load(readFileSync(join(resolve(here, '../../..'), 'contracts/events/golden-flow-events.yaml'), 'utf8')) as {
   $defs: Record<string, any>;
 };
@@ -78,8 +77,8 @@ describe('production rules match golden-flow-events.yaml', () => {
 
       it('same producer, same required fields, no extra or missing property', () => {
         assert.equal(contract.producer, def.properties.producer.const);
-        assert.deepEqual(Object.keys(contract.payload).sort(), [...payloadSchema.required].sort());
-        assert.deepEqual(Object.keys(contract.payload).sort(), Object.keys(payloadSchema.properties).sort());
+        deepEqual(Object.keys(contract.payload).sort(), [...payloadSchema.required].sort());
+        deepEqual(Object.keys(contract.payload).sort(), Object.keys(payloadSchema.properties).sort());
         assert.equal(payloadSchema.additionalProperties, false);
       });
 
@@ -87,14 +86,14 @@ describe('production rules match golden-flow-events.yaml', () => {
         for (const [field, rule] of Object.entries(contract.payload)) {
           const expected = yamlEnum(payloadSchema.properties[field]);
           const actual = ruleEnum(rule);
-          if (expected || actual) assert.deepEqual([...(actual ?? [])].sort(), [...(expected ?? [])].sort(), field);
+          if (expected || actual) deepEqual([...(actual ?? [])].sort(), [...(expected ?? [])].sort(), field);
         }
       });
     });
   }
 
   it('every ingested event type is covered by a rule set', () => {
-    assert.deepEqual(Object.keys(EVENT_CONTRACTS).sort(), [...INGESTED_EVENT_TYPES].sort());
+    deepEqual(Object.keys(EVENT_CONTRACTS).sort(), [...INGESTED_EVENT_TYPES].sort());
   });
 });
 
@@ -114,7 +113,7 @@ describe('validator and YAML schema agree', () => {
     it(`${eventType}: the valid fixture passes both`, () => {
       const payload = validPayload(eventType);
       assert.equal(valid(payloadSchema, payload), true);
-      assert.deepEqual(validateCanonicalEvent(validEvent(eventType, 'agg-1', { payload }), eventType), []);
+      deepEqual(validateCanonicalEvent(validEvent(eventType, 'agg-1', { payload }), eventType), []);
     });
 
     it(`${eventType}: dropping any field, adding a field or replacing a value gives the same verdict in both`, () => {
@@ -148,14 +147,14 @@ describe('validator and YAML schema agree', () => {
       assert.equal(validateCanonicalEvent(validEvent('milestone.settled', 'a', { payload }), 'milestone.settled').length > 0, true);
       assert.equal(valid(defFor('milestone.settled').properties.payload, payload), false);
     }
-    assert.deepEqual(validateCanonicalEvent(validEvent('milestone.settled', 'a', { payload: { ...base, recipients: [] } }), 'milestone.settled'), []);
+    deepEqual(validateCanonicalEvent(validEvent('milestone.settled', 'a', { payload: { ...base, recipients: [] } }), 'milestone.settled'), []);
   });
 });
 
 describe('what the production validator rejects (review finding)', () => {
   it('a date that does not exist in the calendar is rejected (signedAt 2026-02-30)', () => {
     const payload = { ...validPayload('contract.signed'), signedAt: '2026-02-30T00:00:00Z' };
-    assert.deepEqual(validateCanonicalEvent(validEvent('contract.signed', 'c-1', { payload }), 'contract.signed'), [
+    deepEqual(validateCanonicalEvent(validEvent('contract.signed', 'c-1', { payload }), 'contract.signed'), [
       'payload.signedAt: must be an RFC 3339 date-time with a time zone',
     ]);
     assert.equal(valid(defFor('contract.signed').properties.payload, payload), false);
@@ -163,7 +162,7 @@ describe('what the production validator rejects (review finding)', () => {
 
   it('a field that only exists on every object ("constructor") is not a known field', () => {
     const payload = JSON.parse(`${JSON.stringify(validPayload('contract.settled')).slice(0, -1)},"constructor":"x"}`);
-    assert.deepEqual(validateCanonicalEvent(validEvent('contract.settled', 'c-1', { payload }), 'contract.settled'), [
+    deepEqual(validateCanonicalEvent(validEvent('contract.settled', 'c-1', { payload }), 'contract.settled'), [
       'payload.constructor: is not allowed',
     ]);
     assert.equal(valid(defFor('contract.settled').properties.payload, payload), false);
@@ -180,17 +179,17 @@ describe('what the production validator rejects (review finding)', () => {
 
   it('an unsupported eventVersion is rejected', () => {
     const errors = validateCanonicalEvent(validEvent('contract.settled', 'c-1', { eventVersion: 2 }), 'contract.settled');
-    assert.deepEqual(errors, ['eventVersion: supported versions are 1']);
+    deepEqual(errors, ['eventVersion: supported versions are 1']);
   });
 
   it('an event delivered to the wrong queue is rejected', () => {
     const errors = validateCanonicalEvent(validEvent('contract.settled', 'c-1'), 'contract.signed');
-    assert.deepEqual(errors, ['eventType: this queue only accepts contract.signed']);
+    deepEqual(errors, ['eventType: this queue only accepts contract.signed']);
   });
 
   it('a non-object payload is rejected without throwing', () => {
     const env = { ...validEvent('contract.settled', 'c-1'), payload: [] as unknown as Record<string, unknown> };
-    assert.deepEqual(validateCanonicalEvent(env, 'contract.settled'), ['payload: must be an object']);
+    deepEqual(validateCanonicalEvent(env, 'contract.settled'), ['payload: must be an object']);
   });
 
   it('error messages never contain payload values (amounts, ids, e-mail addresses)', () => {

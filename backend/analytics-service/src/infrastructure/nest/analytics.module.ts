@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { loadConfig } from '../config.js';
-import { jsonLogger } from '../logger.js';
-import { AnalyticsLifecycle } from './analytics.lifecycle.js';
-import { CONFIG, LOGGER } from './tokens.js';
+import { loadConfig } from '../config';
+import { jsonLogger } from '../logger';
+import { AnalyticsLifecycle } from './analytics.lifecycle';
+import { CONFIG, LOGGER } from './tokens';
 
 /** Configuration, logger and the resources that ingest events (MySQL, RabbitMQ). */
 @Module({

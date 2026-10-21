@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { consumerName } from '../src/application/usecase/ingestEvent.js';
-import { loadConfig } from '../src/infrastructure/config.js';
-import { migrationFiles } from '../src/infrastructure/persistence/migrate.js';
-import { PROJECTIONS } from '../src/infrastructure/persistence/projections.js';
+import { consumerName } from '../src/application/usecase/ingestEvent';
+import { loadConfig } from '../src/infrastructure/config';
+import { migrationFiles } from '../src/infrastructure/persistence/migrate';
+import { PROJECTIONS } from '../src/infrastructure/persistence/projections';
 import {
   ANALYTICS_DLX,
   CONTRACTS_EXCHANGE,
@@ -16,17 +14,18 @@ import {
   declareTopology,
   queueArguments,
   queueName,
-} from '../src/infrastructure/messaging/topology.js';
-import { FakeBroker } from './fakes.js';
+} from '../src/infrastructure/messaging/topology';
+import { FakeBroker } from './fakes';
+import { deepEqual } from './deepEqual';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = __dirname;
 const repoRoot = resolve(here, '../../..');
 
 describe('RabbitMQ topology', () => {
   it('declares the producer exchange exactly like the Java services (topic, durable, not auto-delete)', async () => {
     const broker = new FakeBroker();
     await declareTopology(broker);
-    assert.deepEqual(broker.exchanges.get(CONTRACTS_EXCHANGE), { type: 'topic', options: { durable: true, autoDelete: false } });
+    deepEqual(broker.exchanges.get(CONTRACTS_EXCHANGE), { type: 'topic', options: { durable: true, autoDelete: false } });
     assert.equal(broker.exchanges.get(ANALYTICS_DLX)?.type, 'direct');
   });
 
@@ -117,7 +116,7 @@ describe('analytics is not on the transaction critical path (Matrix 23)', () => 
   for (const service of ['contract-service', 'escrow-service']) {
     it(`${service} has no synchronous client, URL or route to analytics-service`, () => {
       const offenders = files(join(repoRoot, 'backend', service)).filter((f) => ANALYTICS_REFERENCE.test(readFileSync(f, 'utf8')));
-      assert.deepEqual(offenders.map((f) => f.slice(repoRoot.length + 1)), []);
+      deepEqual(offenders.map((f) => f.slice(repoRoot.length + 1)), []);
     });
   }
 
@@ -150,7 +149,7 @@ describe('persistence and config', () => {
   });
 
   it('migration runner finds both migrations in order', () => {
-    assert.deepEqual(migrationFiles(resolve(here, '../migrations')), [
+    deepEqual(migrationFiles(resolve(here, '../migrations')), [
       'V1__create_analytics_idempotency_log.sql',
       'V2__create_analytics_ingested_event.sql',
     ]);

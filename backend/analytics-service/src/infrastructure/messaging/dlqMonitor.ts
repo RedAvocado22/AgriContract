@@ -1,5 +1,5 @@
 import type { Logger } from '@agricontract/eventing';
-import { SUBSCRIPTIONS, deadLetterQueueName } from './topology.js';
+import { SUBSCRIPTIONS, deadLetterQueueName } from './topology';
 
 /** Subset of an amqplib Channel. Use a dedicated channel: a failed checkQueue closes the channel it ran on. */
 export interface QueueProbe {

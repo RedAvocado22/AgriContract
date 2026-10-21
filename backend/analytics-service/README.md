@@ -5,7 +5,7 @@ It only listens to canonical RabbitMQ events and never calls core services. This
 delivers **persistence and a working, idempotent ingestion path**; projection handlers (fact and dimension
 tables) come with #133 and #148.
 
-The service runs on NestJS (HTTP, modules, lifecycle hooks). Domain and application code stay framework-free;
+The service runs on NestJS 11 (CommonJS, Node >= 22.12, Jest; same setup as `notification-service-nest`) for HTTP, modules and lifecycle hooks. Domain and application code stay framework-free;
 Nest is used only in `infrastructure/` and `main.ts`. `/health` listens first and answers 503 until MySQL and
 RabbitMQ are up (`AnalyticsLifecycle` connects in the background). SIGTERM/SIGINT run the graceful shutdown.
 
@@ -54,9 +54,9 @@ anything is written; analytics never stores contact data.
 
 | Acceptance criterion | How it is met | Test |
 |---|---|---|
-| Consumer dedupes events | `IdempotentConsumer` marks the `eventId` in `analytics_idempotency_log` in the same transaction as the write; a redelivery or DLQ replay of the same `eventId` is skipped. | `ingestion.test.ts` "consumer dedupes events"; `mysql.test.ts` (real MySQL) |
+| Consumer dedupes events | `IdempotentConsumer` marks the `eventId` in `analytics_idempotency_log` in the same transaction as the write; a redelivery or DLQ replay of the same `eventId` is skipped. | `ingestion.spec.ts` "consumer dedupes events"; `mysql.spec.ts` (real MySQL) |
 | Outage does not block producers | Producers publish to their own exchange and never wait for analytics. Queues are durable with no length limit / overflow / TTL. contract-service and escrow-service have no client or URL for analytics. | "outage does not block producers", "queues cannot push back", "not on the transaction critical path" |
-| Queue backlog can catch up | Production wiring test: stop analytics, publish, restart, everything is stored exactly once (duplicates and DLQ replays are no-ops). | `runtime.test.ts`, `ingestion.test.ts` "queue backlog can catch up" |
+| Queue backlog can catch up | Production wiring test: stop analytics, publish, restart, everything is stored exactly once (duplicates and DLQ replays are no-ops). | `runtime.spec.ts`, `ingestion.spec.ts` "queue backlog can catch up" |
 
 Subscribed events: `contract.signed`, `milestone.settled`, `milestone.cancelled_with_penalty`,
 `milestone.force_majeure_resolved`, `milestone.price_adjusted`, `contract.settled`, `contract.terminated`.
@@ -69,9 +69,9 @@ To add a projection, implement `ProjectionHandler` and add it to `PROJECTIONS` i
 supported `eventVersion`, every payload field (required, format, enum) and no unknown fields. Error messages name
 the field and the rule, never the value. Date-times are checked field by field (a date such as
 2026-02-30 is rejected; `Date.parse` is not used) and unknown fields are detected with an own-property check.
-`test/event-contracts.test.ts` compares the rules with the YAML and runs the same valid and mutated payloads
+`test/event-contracts.spec.ts` compares the rules with the YAML and runs the same valid and mutated payloads
 (impossible dates, clock limits, extra fields such as `constructor`) through AJV (2020-12 + ajv-formats) compiled
-from the frozen YAML and through the service; they must agree. `test/invalid-events.test.ts` checks that an
+from the frozen YAML and through the service; they must agree. `test/invalid-events.spec.ts` checks that an
 invalid event goes to the DLQ without a landing row and without a dedup marker.
 
 ## Dead-letter queues
@@ -92,9 +92,9 @@ Requires MySQL 8 and RabbitMQ (same as `backend/docker-compose.yml`).
 
 ```bash
 npm install          # also installs and builds ../shared/node-eventing
-npm run build
+npm run build        # nest build -> dist/
 npm run migrate      # creates analytics_idempotency_log and analytics_ingested_event (additive)
-npm start            # health: GET http://localhost:8093/health
+npm start            # nest start; health: GET http://localhost:8093/health
 ```
 
 Environment: `SERVER_PORT` (8093), `DB_HOST`, `DB_PORT`, `DB_NAME` (`analytics_db`), `DB_USERNAME`, `DB_PASSWORD`,
@@ -107,11 +107,15 @@ drops it exits so the orchestrator restarts it (unacked messages are redelivered
 
 ```bash
 npm run typecheck
-npm test
+npm test             # Jest
 ```
 
+`@agricontract/eventing` is ESM-only. At runtime the CommonJS app loads it through Node's `require(esm)` (Node >= 22.12). Jest
+cannot do that, so `package.json` maps `@agricontract/eventing` to the library's TypeScript source and strips `.js` from its
+relative imports, and `tsconfig.spec.json` compiles specs and that source to CommonJS (same setup as `notification-service-nest`).
+
 In-memory broker and database cover the wiring, validation, DLQ monitor and shutdown (including a handler that
-never finishes). `test/mysql.test.ts` runs the real transaction, dedupe and landing table against MySQL when
+never finishes). `test/mysql.spec.ts` runs the real transaction, dedupe and landing table against MySQL when
 `ANALYTICS_TEST_MYSQL_URL` is set, e.g. `mysql://root:root@localhost:3306/analytics_test`.
 Not covered by an automated test: a live RabbitMQ broker (the in-memory broker follows its ack/nack/DLX behavior).
 CI does not run the Node tests yet; that is tracked in #87.

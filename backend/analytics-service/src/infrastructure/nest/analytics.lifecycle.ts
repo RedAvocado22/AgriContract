@@ -7,13 +7,13 @@ import {
   type AmqpChannelLike,
   type Logger,
 } from '@agricontract/eventing';
-import type { Config } from '../config.js';
-import { gracefulShutdown } from '../lifecycle.js';
-import type { TopologyChannel } from '../messaging/topology.js';
-import { MysqlIngestedEventStore } from '../persistence/ingestedEventStore.js';
-import { PROJECTIONS } from '../persistence/projections.js';
-import { startAnalytics, type AnalyticsRuntime } from '../runtime.js';
-import { CONFIG, LOGGER } from './tokens.js';
+import type { Config } from '../config';
+import { gracefulShutdown } from '../lifecycle';
+import type { TopologyChannel } from '../messaging/topology';
+import { MysqlIngestedEventStore } from '../persistence/ingestedEventStore';
+import { PROJECTIONS } from '../persistence/projections';
+import { startAnalytics, type AnalyticsRuntime } from '../runtime';
+import { CONFIG, LOGGER } from './tokens';
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));

@@ -1,5 +1,5 @@
 import type { MysqlConnectionLike } from '@agricontract/eventing';
-import type { ProjectionHandler } from '../../application/port.js';
+import type { ProjectionHandler } from '../../application/port';
 
 /**
  * Projection handlers registered at startup. Empty on purpose in this increment:
