@@ -5,7 +5,8 @@ import yaml from 'js-yaml';
 import { consumerName } from '../src/application/usecase/ingestEvent';
 import { loadConfig } from '../src/infrastructure/config';
 import { migrationFiles } from '../src/infrastructure/persistence/migrate';
-import { PROJECTIONS } from '../src/infrastructure/persistence/projections';
+import { MysqlContractDimensionRepository, MysqlMilestoneFactRepository } from '../src/infrastructure/persistence/mysqlProjections';
+import { buildProjections } from '../src/infrastructure/persistence/projections';
 import {
   ANALYTICS_DLX,
   CONTRACTS_EXCHANGE,
@@ -94,8 +95,13 @@ describe('frozen event contract', () => {
     }
   });
 
-  it('no projection is registered yet (facts arrive in #133/#148); events are still ingested and stored', () => {
-    assert.equal(PROJECTIONS.length, 0);
+  it('#133 registers exactly its four projections (contract-level facts arrive in #148)', () => {
+    deepEqual(buildProjections(new MysqlContractDimensionRepository(), new MysqlMilestoneFactRepository()).map((p) => p.eventType).sort(), [
+      'contract.signed',
+      'milestone.cancelled_with_penalty',
+      'milestone.force_majeure_resolved',
+      'milestone.settled',
+    ]);
   });
 });
 
@@ -148,10 +154,30 @@ describe('persistence and config', () => {
     assert.doesNotMatch(statements, /email/i, 'no contact PII column');
   });
 
-  it('migration runner finds both migrations in order', () => {
+  it('V3 is additive and creates the dimension, fact and staging tables of design 2.1 / 2.2 / 2.4', () => {
+    const statements = strip('V3__create_signed_and_milestone_facts.sql');
+    for (const table of ['dim_contract', 'fact_milestone_performance', 'pending_force_majeure_flag']) {
+      assert.match(statements, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
+    }
+    assert.match(statements, /UNIQUE KEY uq_fact_milestone \(milestone_id\)/);
+    assert.match(statements, /milestone_projection_lock/);
+    assert.doesNotMatch(statements, /\b(ALTER|DROP|TRUNCATE|DELETE|UPDATE)\b/i);
+  });
+
+  it('V3 money columns are DECIMAL(18,2) (platform standard), never (15,2)', () => {
+    const statements = strip('V3__create_signed_and_milestone_facts.sql');
+    for (const column of ['total_amount', 'locked_amount', 'actual_amount', 'delta_shortfall_amount']) {
+      assert.match(statements, new RegExp(`${column}\\s+DECIMAL\\(18,2\\)`), column);
+    }
+    assert.doesNotMatch(statements, /DECIMAL\(15,2\)/);
+    assert.equal((statements.match(/DECIMAL\(/g) ?? []).length, 4);
+  });
+
+  it('migration runner finds all migrations in order', () => {
     deepEqual(migrationFiles(resolve(here, '../migrations')), [
       'V1__create_analytics_idempotency_log.sql',
       'V2__create_analytics_ingested_event.sql',
+      'V3__create_signed_and_milestone_facts.sql',
     ]);
   });
 
@@ -172,9 +198,16 @@ describe('NestJS wiring', () => {
   const read = (f: string) => readFileSync(resolve(here, '../src', f), 'utf8');
   const lifecycle = read('infrastructure/nest/analytics.lifecycle.ts');
 
-  it('starts the shared production wiring and registers the projections list', () => {
+  it('starts the shared production wiring with the projections injected by Nest', () => {
     assert.match(lifecycle, /startAnalytics\(/);
-    assert.match(lifecycle, /projections: PROJECTIONS/);
+    assert.match(lifecycle, /@Inject\(PROJECTIONS\)/);
+    assert.match(lifecycle, /projections: this\.projections/);
+    assert.doesNotMatch(lifecycle, /persistence\/projections/);
+    const module = read('infrastructure/nest/projections.module.ts');
+    assert.match(module, /@Module\(/);
+    assert.match(module, /provide: PROJECTIONS/);
+    assert.match(module, /inject: \[CONTRACT_DIMENSION, MILESTONE_FACTS\]/);
+    assert.match(read('infrastructure/nest/analytics.module.ts'), /imports: \[ProjectionsModule\]/);
     assert.match(lifecycle, /new MysqlIngestedEventStore\(\)/);
   });
 

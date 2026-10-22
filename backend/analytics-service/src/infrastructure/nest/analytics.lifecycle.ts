@@ -6,14 +6,15 @@ import {
   MysqlTransactionRunner,
   type AmqpChannelLike,
   type Logger,
+  type MysqlConnectionLike,
 } from '@agricontract/eventing';
+import type { ProjectionHandler } from '../../application/port';
 import type { Config } from '../config';
 import { gracefulShutdown } from '../lifecycle';
 import type { TopologyChannel } from '../messaging/topology';
 import { MysqlIngestedEventStore } from '../persistence/ingestedEventStore';
-import { PROJECTIONS } from '../persistence/projections';
 import { startAnalytics, type AnalyticsRuntime } from '../runtime';
-import { CONFIG, LOGGER } from './tokens';
+import { CONFIG, LOGGER, PROJECTIONS } from './tokens';
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -39,6 +40,7 @@ export class AnalyticsLifecycle implements OnApplicationBootstrap, BeforeApplica
   constructor(
     @Inject(CONFIG) private readonly config: Config,
     @Inject(LOGGER) private readonly logger: Logger,
+    @Inject(PROJECTIONS) private readonly projections: readonly ProjectionHandler<MysqlConnectionLike>[],
   ) {}
 
   isReady(): boolean {
@@ -104,12 +106,12 @@ export class AnalyticsLifecycle implements OnApplicationBootstrap, BeforeApplica
       transactions: new MysqlTransactionRunner(pool),
       processedEvents: new MysqlProcessedEventStore({ table: 'analytics_idempotency_log' }),
       store: new MysqlIngestedEventStore(),
-      projections: PROJECTIONS,
+      projections: this.projections,
       logger,
       dlqMonitorIntervalMs: config.dlqMonitorIntervalMs,
     });
     this.ready = !this.shuttingDown;
-    logger.info('analytics-service ready', { projections: PROJECTIONS.map((p) => p.eventType) });
+    logger.info('analytics-service ready', { projections: this.projections.map((p) => p.eventType) });
   }
 
   async beforeApplicationShutdown(signal?: string): Promise<void> {
