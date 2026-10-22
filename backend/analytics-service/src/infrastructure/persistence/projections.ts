@@ -1,11 +1,25 @@
 import type { MysqlConnectionLike } from '@agricontract/eventing';
-import type { ProjectionHandler } from '../../application/port';
+import type { ContractDimensionRepository, MilestoneFactRepository, ProjectionHandler } from '../../application/port';
+import { FlagForceMajeure } from '../../application/usecase/flagForceMajeure';
+import { RecordMilestoneOutcome } from '../../application/usecase/recordMilestoneOutcome';
+import { RecordSignedContract } from '../../application/usecase/recordSignedContract';
 
 /**
- * Projection handlers registered at startup. Empty on purpose in this increment:
- *  - #133 adds contract.signed (dim_contract) and milestone settlement facts;
- *  - #148 adds dispute/remedy and final-role termination facts.
- * Events are consumed, validated, deduplicated and persisted in analytics_ingested_event meanwhile, so
- * nothing is lost and those projections can be built from the stored events.
+ * Projection handlers registered at startup (they run in the same DB transaction as the ingest write):
+ *  - #133: contract.signed (dim_contract), milestone.settled / milestone.cancelled_with_penalty
+ *    (fact_milestone_performance) and milestone.force_majeure_resolved (has_force_majeure);
+ *  - #148 adds the contract-level settlement / termination facts.
+ * Events without a handler are still consumed, validated, deduplicated and stored in analytics_ingested_event.
+ * The Nest ProjectionsModule calls this with the repositories it provides.
  */
-export const PROJECTIONS: readonly ProjectionHandler<MysqlConnectionLike>[] = [];
+export function buildProjections(
+  contracts: ContractDimensionRepository<MysqlConnectionLike>,
+  milestoneFacts: MilestoneFactRepository<MysqlConnectionLike>,
+): ProjectionHandler<MysqlConnectionLike>[] {
+  return [
+    new RecordSignedContract(contracts),
+    RecordMilestoneOutcome.settled(milestoneFacts),
+    RecordMilestoneOutcome.cancelledWithPenalty(milestoneFacts),
+    new FlagForceMajeure(milestoneFacts),
+  ];
+}

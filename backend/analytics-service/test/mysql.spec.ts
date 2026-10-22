@@ -1,7 +1,7 @@
 /**
  * Dedupe through a real MySQL: the analytics migration, the shared MysqlProcessedEventStore and
  * MysqlTransactionRunner, and the ingest use case together. Runs only when ANALYTICS_TEST_MYSQL_URL
- * is set, e.g. with the docker-compose MySQL (the database must exist; migrations are applied here):
+ * is set, e.g. with the docker-compose MySQL (each suite creates and drops its own database, so the user needs CREATE / DROP):
  *   ANALYTICS_TEST_MYSQL_URL=mysql://root:root@localhost:3306/analytics_test npm test
  */
 import assert from 'node:assert/strict';
@@ -14,8 +14,8 @@ import {
 import { IngestEvent } from '../src/application/usecase/ingestEvent';
 import { buildConsumer } from '../src/infrastructure/messaging/consumers';
 import { MysqlIngestedEventStore } from '../src/infrastructure/persistence/ingestedEventStore';
-import { applyMigrations } from '../src/infrastructure/persistence/migrate';
 import { event } from './fakes';
+import { createTestDatabase, type TestDatabase } from './mysqlTestDb';
 import { deepEqual } from './deepEqual';
 
 const URL = process.env.ANALYTICS_TEST_MYSQL_URL;
@@ -23,20 +23,22 @@ const PROBE = 'it_projection_probe'; // test-only stand-in for a projection tabl
 
 (URL ? describe : describe.skip)('real MySQL (ANALYTICS_TEST_MYSQL_URL)', () => {
   let pool: mysql.Pool;
+  let testDb: TestDatabase;
 
   beforeAll(async () => {
-    const conn = await mysql.createConnection({ uri: URL!, multipleStatements: true });
+    testDb = await createTestDatabase(URL!); // private database, all migrations applied from empty
+    const conn = await mysql.createConnection({ uri: testDb.url });
     try {
-      await applyMigrations(conn);
       await conn.query(`CREATE TABLE IF NOT EXISTS ${PROBE} (event_id CHAR(36) NOT NULL)`);
     } finally {
       await conn.end();
     }
-    pool = mysql.createPool({ uri: URL!, connectionLimit: 4, dateStrings: true, timezone: 'Z' });
+    pool = mysql.createPool({ uri: testDb.url, connectionLimit: 4, dateStrings: true, timezone: 'Z' });
   });
 
   afterAll(async () => {
     await pool?.end();
+    await testDb?.drop();
   });
 
   const count = async (sql: string, values: unknown[]) => {

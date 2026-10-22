@@ -6,7 +6,13 @@ import type {
   ProcessedEventStore,
   TransactionRunner,
 } from '@agricontract/eventing';
-import type { IngestEventCommand, IngestedEventStore } from '../src/application/port';
+import type {
+  ContractDimensionRepository,
+  IngestEventCommand,
+  IngestedEventStore,
+  MilestoneFactRepository,
+} from '../src/application/port';
+import type { ContractDimension, MilestoneFact } from '../src/domain/projections';
 import type { TopologyChannel } from '../src/infrastructure/messaging/topology';
 import { validEvent } from './fixtures';
 
@@ -138,11 +144,14 @@ export class FakeBroker implements TopologyChannel, AmqpChannelLike {
 export interface DbState {
   processed: Array<{ consumerName: string; eventId: string; eventType: string }>;
   ingested: Array<{ eventId: string; eventType: string; aggregateId: string; payload: Record<string, unknown> }>;
+  dimContract: ContractDimension[];
+  milestoneFacts: MilestoneFact[];
+  pendingForceMajeure: Array<{ milestoneId: string; flaggedAt: Date }>;
 }
 export type FakeTx = { state: DbState };
 
 export class InMemoryDb implements TransactionRunner<FakeTx>, ProcessedEventStore<FakeTx> {
-  committed: DbState = { processed: [], ingested: [] };
+  committed: DbState = { processed: [], ingested: [], dimContract: [], milestoneFacts: [], pendingForceMajeure: [] };
   private lock: Promise<void> = Promise.resolve();
 
   async inTransaction<T>(work: (tx: FakeTx) => Promise<T>): Promise<T> {
@@ -164,6 +173,46 @@ export class InMemoryDb implements TransactionRunner<FakeTx>, ProcessedEventStor
     if (tx.state.processed.some((p) => p.consumerName === consumerName && p.eventId === envelope.eventId)) return false;
     tx.state.processed.push({ consumerName, eventId: envelope.eventId, eventType: envelope.eventType });
     return true;
+  }
+}
+
+/** dim_contract fake: primary key contract_id, upsert overwrites. */
+export class InMemoryContractDimension implements ContractDimensionRepository<FakeTx> {
+  async upsert(tx: FakeTx, contract: ContractDimension): Promise<void> {
+    const i = tx.state.dimContract.findIndex((c) => c.contractId === contract.contractId);
+    if (i >= 0) tx.state.dimContract[i] = contract;
+    else tx.state.dimContract.push(contract);
+  }
+}
+
+/** fact_milestone_performance + pending_force_majeure_flag fake, with the unique keys of the real tables. */
+export class InMemoryMilestoneFacts implements MilestoneFactRepository<FakeTx> {
+  /** Every repository call in order, so tests can assert that the lock is taken first. */
+  calls: string[] = [];
+  async lockMilestone(_tx: FakeTx, milestoneId: string): Promise<void> {
+    this.calls.push(`lock:${milestoneId}`);
+  }
+  async insertIfAbsent(tx: FakeTx, fact: MilestoneFact): Promise<boolean> {
+    if (tx.state.milestoneFacts.some((f) => f.milestoneId === fact.milestoneId || f.factId === fact.factId)) return false;
+    tx.state.milestoneFacts.push(fact);
+    return true;
+  }
+  async markForceMajeure(tx: FakeTx, milestoneId: string): Promise<boolean> {
+    const row = tx.state.milestoneFacts.find((f) => f.milestoneId === milestoneId);
+    if (!row) return false;
+    row.hasForceMajeure = true;
+    return true;
+  }
+  async addPendingForceMajeure(tx: FakeTx, milestoneId: string, flaggedAt: Date): Promise<void> {
+    if (!tx.state.pendingForceMajeure.some((p) => p.milestoneId === milestoneId)) {
+      tx.state.pendingForceMajeure.push({ milestoneId, flaggedAt });
+    }
+  }
+  async hasPendingForceMajeure(tx: FakeTx, milestoneId: string): Promise<boolean> {
+    return tx.state.pendingForceMajeure.some((p) => p.milestoneId === milestoneId);
+  }
+  async deletePendingForceMajeure(tx: FakeTx, milestoneId: string): Promise<void> {
+    tx.state.pendingForceMajeure = tx.state.pendingForceMajeure.filter((p) => p.milestoneId !== milestoneId);
   }
 }
 
