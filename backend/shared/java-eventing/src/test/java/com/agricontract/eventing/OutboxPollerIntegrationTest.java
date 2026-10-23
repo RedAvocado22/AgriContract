@@ -1,5 +1,6 @@
 package com.agricontract.eventing;
 
+import com.agricontract.eventing.outbox.EventOutboxStaleMonitor;
 import com.agricontract.eventing.outbox.OutboxPoller;
 import com.agricontract.eventing.outbox.OutboxProperties;
 import com.agricontract.eventing.outbox.OutboxWriter;
@@ -11,6 +12,7 @@ import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -89,9 +91,9 @@ class OutboxPollerIntegrationTest {
 
     private static OutboxPoller poller(int batchSize) {
         OutboxProperties properties = new OutboxProperties(true, EXCHANGE, batchSize,
-                Duration.ofSeconds(1), Duration.ofSeconds(5));
+                Duration.ofSeconds(1), Duration.ofSeconds(5), Duration.ofMinutes(5), Duration.ofMinutes(1));
         return new EventingAutoConfiguration.OutboxPollerConfiguration()
-                .outboxPoller(jdbc, connectionFactory, txManager, properties);
+                .eventingOutboxPoller(jdbc, connectionFactory, txManager, properties, new StandardEnvironment());
     }
 
     private EventEnvelope append(String eventType) {
@@ -231,5 +233,17 @@ class OutboxPollerIntegrationTest {
         List<Message> messages = drain();
         assertThat(messages).hasSize(total);
         assertThat(messages).extracting(m -> m.getMessageProperties().getMessageId()).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void staleMonitor_countsOnlyPendingRowsOlderThanThreshold() {
+        EventEnvelope old = append("contract.unbound");
+        EventEnvelope oldPublished = append("contract.signed");
+        append("contract.unbound");
+        jdbc.update("UPDATE event_outbox SET created_at = NOW(3) - INTERVAL 10 MINUTE WHERE event_id IN (?, ?)",
+                old.eventId().toString(), oldPublished.eventId().toString());
+        jdbc.update("UPDATE event_outbox SET status = 'PUBLISHED' WHERE event_id = ?", oldPublished.eventId().toString());
+
+        assertThat(new EventOutboxStaleMonitor(jdbc, Duration.ofMinutes(5)).countStale()).isEqualTo(1);
     }
 }
