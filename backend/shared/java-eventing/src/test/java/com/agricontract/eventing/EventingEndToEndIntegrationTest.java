@@ -15,6 +15,7 @@ import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -168,8 +169,10 @@ class EventingEndToEndIntegrationTest {
     }
 
     private OutboxPoller poller() {
-        return new EventingAutoConfiguration.OutboxPollerConfiguration().outboxPoller(jdbc, connectionFactory,
-                txManager, new OutboxProperties(true, EXCHANGE, 50, Duration.ofSeconds(1), Duration.ofSeconds(5)));
+        return new EventingAutoConfiguration.OutboxPollerConfiguration().eventingOutboxPoller(jdbc,
+                connectionFactory, txManager, new OutboxProperties(true, EXCHANGE, 50, Duration.ofSeconds(1),
+                        Duration.ofSeconds(5), Duration.ofMinutes(5), Duration.ofMinutes(1)),
+                new StandardEnvironment());
     }
 
     private EventEnvelope produce() {

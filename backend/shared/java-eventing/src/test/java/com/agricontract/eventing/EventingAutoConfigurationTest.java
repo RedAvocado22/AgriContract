@@ -1,11 +1,14 @@
 package com.agricontract.eventing;
 
 import com.agricontract.eventing.inbox.ProcessedEventStore;
+import com.agricontract.eventing.outbox.EventOutboxStaleMonitor;
 import com.agricontract.eventing.outbox.OutboxPoller;
 import com.agricontract.eventing.outbox.OutboxWriter;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,15 +21,24 @@ import static org.mockito.Mockito.when;
 
 class EventingAutoConfigurationTest {
 
-    // Long interval: the first scheduled run fires on startup against mocks and returns, nothing after that.
+    private static final String ENABLED = "agricontract.eventing.outbox.enabled=true";
+    private static final String EXCHANGE = "agricontract.eventing.outbox.exchange=agricontract.contracts";
+
+    // Long intervals: the first scheduled runs fire on startup against mocks and return, nothing after that.
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(EventingAutoConfiguration.class))
-            .withPropertyValues("agricontract.eventing.outbox.poll-interval=PT1H");
+            .withPropertyValues("agricontract.eventing.outbox.poll-interval=PT1H",
+                    "agricontract.eventing.outbox.stale-check-interval=PT1H");
+
+    private static ConnectionFactory connectionFactory(boolean confirms) {
+        ConnectionFactory factory = mock(ConnectionFactory.class);
+        when(factory.isPublisherConfirms()).thenReturn(confirms);
+        when(factory.isPublisherReturns()).thenReturn(confirms);
+        return factory;
+    }
 
     @Configuration(proxyBeanMethods = false)
     static class Infra {
-        static boolean confirms = true;
-
         @Bean
         JdbcTemplate jdbcTemplate() {
             return mock(JdbcTemplate.class);
@@ -39,10 +51,34 @@ class EventingAutoConfigurationTest {
 
         @Bean
         ConnectionFactory connectionFactory() {
-            ConnectionFactory factory = mock(ConnectionFactory.class);
-            when(factory.isPublisherConfirms()).thenReturn(confirms);
-            when(factory.isPublisherReturns()).thenReturn(confirms);
-            return factory;
+            return EventingAutoConfigurationTest.connectionFactory(true);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class InfraWithoutConfirms {
+        @Bean
+        JdbcTemplate jdbcTemplate() {
+            return mock(JdbcTemplate.class);
+        }
+
+        @Bean
+        PlatformTransactionManager transactionManager() {
+            return mock(PlatformTransactionManager.class);
+        }
+
+        @Bean
+        ConnectionFactory connectionFactory() {
+            return EventingAutoConfigurationTest.connectionFactory(false);
+        }
+    }
+
+    /** Stand-in for the services' legacy @Component OutboxPoller, whose bean name is "outboxPoller". */
+    @Configuration(proxyBeanMethods = false)
+    static class LegacyPoller {
+        @Bean
+        Object outboxPoller() {
+            return new Object();
         }
     }
 
@@ -54,6 +90,7 @@ class EventingAutoConfigurationTest {
             assertThat(context).hasSingleBean(ProcessedEventStore.class);
             assertThat(context).hasSingleBean(EventEnvelopeCodec.class);
             assertThat(context).doesNotHaveBean(OutboxPoller.class);
+            assertThat(context).doesNotHaveBean(EventOutboxStaleMonitor.class);
         });
     }
 
@@ -67,45 +104,75 @@ class EventingAutoConfigurationTest {
     }
 
     @Test
-    void enabledWithExchangeAndConfirms_pollerRegistered() {
-        Infra.confirms = true;
+    void codecOnlyClasspath_withoutJdbcOrRabbit_startsWithCodecOnly() {
+        runner.withClassLoader(new FilteredClassLoader(JdbcTemplate.class, RabbitTemplate.class))
+                .withPropertyValues(ENABLED, EXCHANGE)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(EventEnvelopeCodec.class);
+                    assertThat(context).doesNotHaveBean(OutboxPoller.class);
+                });
+    }
+
+    @Test
+    void enabledWithExchangeAndConfirms_pollerAndStaleMonitorRegistered() {
         runner.withUserConfiguration(Infra.class)
-                .withPropertyValues("agricontract.eventing.outbox.enabled=true",
-                        "agricontract.eventing.outbox.exchange=agricontract.contracts")
+                .withPropertyValues(ENABLED, EXCHANGE)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(OutboxPoller.class);
+                    assertThat(context).hasSingleBean(EventOutboxStaleMonitor.class);
+                });
+    }
+
+    @Test
+    void enabledAlongsideLegacyOutboxPollerBean_bothCoexist() {
+        runner.withUserConfiguration(Infra.class, LegacyPoller.class)
+                .withPropertyValues(ENABLED, EXCHANGE)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasBean("outboxPoller");
+                    assertThat(context).hasSingleBean(OutboxPoller.class);
+                });
+    }
+
+    @Test
+    void enabledWithDefaultIntervals_startsWithoutOverride() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(EventingAutoConfiguration.class))
+                .withUserConfiguration(Infra.class)
+                .withPropertyValues(ENABLED, EXCHANGE)
                 .run(context -> assertThat(context).hasSingleBean(OutboxPoller.class));
     }
 
     @Test
-    void enabledWithDefaultPollInterval_startsWithoutOverride() {
-        Infra.confirms = true;
-        new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(EventingAutoConfiguration.class))
-                .withUserConfiguration(Infra.class)
-                .withPropertyValues("agricontract.eventing.outbox.enabled=true",
-                        "agricontract.eventing.outbox.exchange=agricontract.contracts")
+    void enabledWithBootStylePollInterval_failsFastNamingTheKey() {
+        runner.withUserConfiguration(Infra.class)
+                .withPropertyValues(ENABLED, EXCHANGE, "agricontract.eventing.outbox.poll-interval=2s")
+                .run(context -> assertThat(context).getFailure().rootCause()
+                        .hasMessageContaining("agricontract.eventing.outbox.poll-interval")
+                        .hasMessageContaining("PT1S"));
+    }
+
+    @Test
+    void enabledWithMillisecondPollInterval_isAccepted() {
+        runner.withUserConfiguration(Infra.class)
+                .withPropertyValues(ENABLED, EXCHANGE, "agricontract.eventing.outbox.poll-interval=2000")
                 .run(context -> assertThat(context).hasSingleBean(OutboxPoller.class));
     }
 
     @Test
     void enabledWithoutExchange_failsFast() {
-        Infra.confirms = true;
         runner.withUserConfiguration(Infra.class)
-                .withPropertyValues("agricontract.eventing.outbox.enabled=true")
+                .withPropertyValues(ENABLED)
                 .run(context -> assertThat(context).getFailure()
                         .hasRootCauseMessage("agricontract.eventing.outbox.exchange must be set when the outbox poller is enabled"));
     }
 
     @Test
     void enabledWithoutPublisherConfirms_failsFast() {
-        Infra.confirms = false;
-        try {
-            runner.withUserConfiguration(Infra.class)
-                    .withPropertyValues("agricontract.eventing.outbox.enabled=true",
-                            "agricontract.eventing.outbox.exchange=agricontract.contracts")
-                    .run(context -> assertThat(context).getFailure()
-                            .rootCause().hasMessageContaining("publisher-confirm-type=correlated"));
-        } finally {
-            Infra.confirms = true;
-        }
+        runner.withUserConfiguration(InfraWithoutConfirms.class)
+                .withPropertyValues(ENABLED, EXCHANGE)
+                .run(context -> assertThat(context).getFailure()
+                        .rootCause().hasMessageContaining("publisher-confirm-type=correlated"));
     }
 }
