@@ -28,15 +28,19 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
+        <!-- Optional: a service brings its own spring-boot-starter-jdbc / -amqp. Not forcing them keeps a codec-only
+             user (e.g. user-service) from getting Rabbit auto-configured and its health DOWN without a broker. -->
         <!-- JdbcTemplate + spring-tx: outbox and inbox writes join the caller's transaction. -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-jdbc</artifactId>
+            <optional>true</optional>
         </dependency>
-        <!-- RabbitTemplate for OutboxPoller; services using the module already have spring-boot-starter-amqp. -->
+        <!-- RabbitTemplate for OutboxPoller. -->
         <dependency>
             <groupId>org.springframework.amqp</groupId>
             <artifactId>spring-rabbit</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
