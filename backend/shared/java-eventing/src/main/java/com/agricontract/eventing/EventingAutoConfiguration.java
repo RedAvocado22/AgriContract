@@ -1,5 +1,6 @@
 package com.agricontract.eventing;
 
+import com.agricontract.eventing.inbox.ProcessedEventStore;
 import com.agricontract.eventing.outbox.OutboxPoller;
 import com.agricontract.eventing.outbox.OutboxProperties;
 import com.agricontract.eventing.outbox.OutboxWriter;
@@ -23,7 +24,8 @@ import org.springframework.util.StringUtils;
 
 /**
  * Registered through META-INF/spring/...AutoConfiguration.imports, because services do not component-scan
- * com.agricontract.eventing. The writer is available wherever a JdbcTemplate is; the poller only when enabled.
+ * com.agricontract.eventing. The writer and the dedupe store are available wherever a JdbcTemplate is; the poller
+ * only when enabled.
  */
 @AutoConfiguration(after = {JdbcTemplateAutoConfiguration.class, RabbitAutoConfiguration.class})
 @EnableConfigurationProperties(OutboxProperties.class)
@@ -40,6 +42,13 @@ public class EventingAutoConfiguration {
     @ConditionalOnBean(JdbcTemplate.class)
     OutboxWriter outboxWriter(JdbcTemplate jdbcTemplate, EventEnvelopeCodec codec) {
         return new OutboxWriter(jdbcTemplate, codec);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(JdbcTemplate.class)
+    ProcessedEventStore processedEventStore(JdbcTemplate jdbcTemplate) {
+        return new ProcessedEventStore(jdbcTemplate);
     }
 
     @Configuration(proxyBeanMethods = false)
