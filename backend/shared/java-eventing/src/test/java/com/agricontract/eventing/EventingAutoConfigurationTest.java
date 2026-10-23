@@ -1,5 +1,6 @@
 package com.agricontract.eventing;
 
+import com.agricontract.eventing.inbox.ProcessedEventStore;
 import com.agricontract.eventing.outbox.OutboxPoller;
 import com.agricontract.eventing.outbox.OutboxWriter;
 import org.junit.jupiter.api.Test;
@@ -46,20 +47,22 @@ class EventingAutoConfigurationTest {
     }
 
     @Test
-    void defaults_writerAndCodecRegistered_pollerOff() {
+    void defaults_writerStoreAndCodecRegistered_pollerOff() {
         runner.withUserConfiguration(Infra.class).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(OutboxWriter.class);
+            assertThat(context).hasSingleBean(ProcessedEventStore.class);
             assertThat(context).hasSingleBean(EventEnvelopeCodec.class);
             assertThat(context).doesNotHaveBean(OutboxPoller.class);
         });
     }
 
     @Test
-    void noJdbcTemplate_noWriter() {
+    void noJdbcTemplate_noWriterOrStore() {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(OutboxWriter.class);
+            assertThat(context).doesNotHaveBean(ProcessedEventStore.class);
         });
     }
 
