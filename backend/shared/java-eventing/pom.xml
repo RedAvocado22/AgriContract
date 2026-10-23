@@ -33,6 +33,11 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-jdbc</artifactId>
         </dependency>
+        <!-- RabbitTemplate for OutboxPoller; services using the module already have spring-boot-starter-amqp. -->
+        <dependency>
+            <groupId>org.springframework.amqp</groupId>
+            <artifactId>spring-rabbit</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.testcontainers</groupId>
