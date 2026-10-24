@@ -6,6 +6,7 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 // Aggregate Root
 // State machine: ACTIVE → CLOSED | EXPIRED
@@ -27,6 +28,8 @@ public class Listing {
     private ListingStatus status;
     // assigned by persistence; null until the listing is first saved
     private Instant updatedAt;
+    // copies of the registry plots the goods come from, taken at creation (design §2.4); empty only for legacy rows
+    private List<ListingPlot> plots;
 
     private Listing() {
     }
@@ -35,7 +38,7 @@ public class Listing {
                                       ProductId productId, String productName, String coverImageUrl,
                                       Quantity quantity, BigDecimal quantityAvailable, BigDecimal minOrderQuantity,
                                       Money priceFloor, LocalDate deliveryDeadline, ListingStatus status,
-                                      Instant updatedAt) {
+                                      Instant updatedAt, List<ListingPlot> plots) {
         Listing listing = new Listing();
         listing.listingId = listingId;
         listing.sellerId = sellerId;
@@ -49,6 +52,7 @@ public class Listing {
         listing.deliveryDeadline = deliveryDeadline;
         listing.status = status;
         listing.updatedAt = updatedAt;
+        listing.plots = List.copyOf(plots);
 
         return listing;
     }
@@ -56,14 +60,21 @@ public class Listing {
     /**
      * coverImageUrl is snapshotted once here, same as productName — never re-synced
      * if the seller later updates the product's image list (audit trail for disputes).
+     * Every new listing is coffee and must name all plots the goods come from: EUDR forbids mass balance (design §5).
      */
     public static Listing create(ListingId listingId, String sellerId,
                                  ProductId productId, String productName, String coverImageUrl,
                                  Quantity quantity, BigDecimal minOrderQuantity, Money priceFloor,
-                                 LocalDate deliveryDeadline) {
+                                 LocalDate deliveryDeadline, List<ListingPlot> plots) {
         if (minOrderQuantity != null
                 && (minOrderQuantity.signum() <= 0 || minOrderQuantity.compareTo(quantity.value()) > 0)) {
             throw new IllegalArgumentException("minOrderQuantity must be positive and not exceed quantity");
+        }
+        if (plots == null || plots.isEmpty()) {
+            throw new IllegalArgumentException("A coffee listing must reference at least one plot");
+        }
+        if (plots.stream().map(ListingPlot::sourceRegistryEntryId).distinct().count() != plots.size()) {
+            throw new IllegalArgumentException("A plot can be referenced only once per listing");
         }
 
         Listing listing = new Listing();
@@ -78,6 +89,7 @@ public class Listing {
         listing.priceFloor = priceFloor;
         listing.deliveryDeadline = deliveryDeadline;
         listing.status = ListingStatus.ACTIVE;
+        listing.plots = List.copyOf(plots);
 
         return listing;
     }

@@ -25,6 +25,12 @@ gateway:
 service:
   internal-secret: ${SERVICE_INTERNAL_SECRET:changeme-internal}
 
+plot:
+  # a plot still PENDING after this becomes UNVERIFIED and can back a listing (design §2.2.4)
+  geo-verification-timeout-hours: ${PLOT_GEO_VERIFICATION_TIMEOUT_HOURS:6}
+  # local/Bruno runs: PLOT_GEO_VERIFICATION_TIMEOUT_HOURS=0 and a short check interval so a new plot is usable at once
+  geo-verification-timeout-check-ms: ${PLOT_GEO_VERIFICATION_TIMEOUT_CHECK_MS:600000}
+
 server:
   port: ${SERVER_PORT:8082}
 

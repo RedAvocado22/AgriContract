@@ -1,11 +1,13 @@
 package com.agricontract.product.domain.model;
 
 import com.agricontract.product.domain.model.vo.*;
+import com.agricontract.product.testsupport.PlotFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 import static com.agricontract.product.domain.model.vo.ReservationRejection.*;
 import static org.assertj.core.api.Assertions.*;
@@ -18,13 +20,15 @@ class ListingTest {
     private static Listing create(BigDecimal minOrderQuantity) {
         return Listing.create(new ListingId("listing-1"), "seller-1", new ProductId("product-1"),
                 "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"),
-                minOrderQuantity, new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31));
+                minOrderQuantity, new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
+                PlotFixtures.onePlot());
     }
 
     private static Listing reconstruct(BigDecimal available, BigDecimal min, ListingStatus status) {
         return Listing.reconstruct(new ListingId("listing-1"), "seller-1", new ProductId("product-1"),
                 "Ca phe Robusta", "", new Quantity(new BigDecimal("100"), "kg"), available, min,
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31), status, UPDATED_AT);
+                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31), status, UPDATED_AT,
+                List.of());
     }
 
     @Test

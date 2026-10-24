@@ -6,6 +6,7 @@ import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Builder
 public record ListingResponse(
@@ -22,7 +23,8 @@ public record ListingResponse(
         String currency,
         LocalDate deliveryDeadline,
         ListingStatus status,
-        String listingVersionToken     // opaque; contract-service echoes it to reserve
+        String listingVersionToken,    // opaque; contract-service echoes it to reserve
+        List<String> registryEntryIds  // registry plots the goods come from; empty for legacy listings
 ) {
     public static ListingResponse from(Listing listing) {
         return ListingResponse.builder()
@@ -40,6 +42,7 @@ public record ListingResponse(
                 .deliveryDeadline(listing.getDeliveryDeadline())
                 .status(listing.getStatus())
                 .listingVersionToken(listing.getVersionToken())
+                .registryEntryIds(listing.getPlots().stream().map(p -> p.sourceRegistryEntryId().value()).toList())
                 .build();
     }
 }

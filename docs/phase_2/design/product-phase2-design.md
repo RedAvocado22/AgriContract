@@ -139,6 +139,8 @@ Rơi vào class rừng tự nhiên 2020 → `geoRiskLevel = HIGH_RISK`; rơi và
 
 Áp dụng theo từng plot riêng lẻ, không phải theo tổng diện tích cả listing.
 
+**Implement (24/10/2026, #128):** đọc bảng trên theo đúng EUDR — plot **> 4ha bắt buộc `POLYGON`** (khai `POINT` có `areaHectares > 4` bị reject); `POLYGON` được nhận ở mọi diện tích (chính xác hơn, không ép thu về điểm). `POINT` không có diện tích hình học nên `areaHectares` lấy từ input (ExtendedData `area_ha`/`dien_tich` của KML hoặc field bắt buộc của manual pin); `POLYGON` tính diện tích trên mặt cầu WGS84 (spherical excess), MySQL `ST_Area` khớp trong 1%.
+
 ### 2.3b Global overlap check + yield anomaly — chống tái sử dụng tọa độ CHÉO seller (mới, 18/07/2026)
 
 **Gap:** mọi lớp hiện có đều per-seller — `UNIQUE(sellerId, householdLabel)` không bắt Seller B đăng ký lại đúng polygon X của Seller A; province check và baseline rừng cũng pass vì tọa độ hoàn toàn hợp lệ. Đây là attack rẻ nhất để "mượn" đất sạch EUDR của người khác.
@@ -171,6 +173,8 @@ Snapshot, không phải tham chiếu sống — cùng nguyên tắc đã dùng x
 | `verificationLevel` | Enum | Copy — snapshot đúng trạng thái lúc tạo listing, không đổi theo nếu registry gốc sau này upload thêm trích lục |
 | `cadastralExtractFileId` | UUID, nullable | Copy |
 | `declaredAt` | Timestamp | Thời điểm tạo listing (không phải thời điểm đo GPS gốc — đó là `PlotRegistryEntry.importedAt`) |
+
+**Implement (24/10/2026, #128) — snapshot theo listing, không theo product:** bảng copy là `listing_plot(listing_id, source_registry_entry_id, …)` thay vì `product_plot(product_id, …)`. Snapshot được chụp lúc `CreateListing` và mỗi listing (mùa vụ khác nhau của cùng 1 product) chọn bộ plot riêng, nên khoá theo listing mới khớp `ListingResponse.registryEntryIds` và `GoodsTermsSnapshot.originSnapshot.plotRefs` của contract. Copy kèm `geometryHash` (SHA-256 của WKT chuẩn hoá, 6 số thập phân, `norm()` nên không phụ thuộc điểm bắt đầu/chiều vòng) — đây là giá trị `PlotRefSnapshot.geometryHash` của contract. Không có `plotId` riêng: khoá là cặp (listing, registry entry). Re-import registry entry sau đó không đổi `listing_plot`.
 
 ### 2.5 GeoJSON storage — `GEOMETRY` (SRID 4326), không phải `TEXT` (chốt 04/07/2026, session riêng)
 
@@ -242,6 +246,8 @@ CREATE INDEX idx_product_plot_product_id ON product_plot(product_id);
 ```
 
 Không có `UPDATE`/migration nào chạy trên data cũ — bảng mới, rỗng, không ảnh hưởng listing đã tồn tại.
+
+**Implement (24/10/2026, #128, product Flyway V6):** `plot_registry_entry` + `listing_plot` như trên, khác bản nháp ở các điểm: thêm `geometry_hash CHAR(64)`; `household_label` dùng collation `utf8mb4_0900_as_cs` (collation mặc định `_ai_ci` coi "Hồ" = "Hổ" và sẽ gộp nhầm 2 hộ; label còn được chuẩn hoá Unicode NFC ở application để file KML NFD/NFC match nhau); chưa có `cadastral_extract_file_id`/`original_kml_file_id`/`province_mismatch_flag` (đi cùng #141 và upload file-service); CHECK constraint cho `MANUAL_PIN ⇒ POINT`, `POINT ⇒ area ≤ 4` và `geo_risk_level` chỉ có khi `CHECKED`. Chưa có forest-baseline check: job `GeoVerificationTimeoutJob` chuyển `PENDING → UNVERIFIED` sau `geoVerificationTimeoutHours`, nên đây là đường duy nhất để plot rời `PENDING` cho tới khi có check thật.
 
 ---
 

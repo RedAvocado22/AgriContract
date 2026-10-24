@@ -1,0 +1,53 @@
+meta {
+  name: POST /api/v1/plots (manual pin)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{product_service_url}}/api/v1/plots
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: {{seller1_sub}}
+  X-User-Role: SELLER
+  Idempotency-Key: bruno-plot-ho-nguyen-van-a
+}
+
+body:json {
+  {
+    "householdLabel": "Hộ Nguyễn Văn A",
+    "latitude": 12.666789,
+    "longitude": 108.050123,
+    "areaHectares": 1.5,
+    "accuracyMeters": 8.5,
+    "declaredProvince": "DAK_LAK"
+  }
+}
+
+script:post-response {
+  const plotId = res.getBody()?.data?.registryEntryId;
+  if (plotId) {
+    bru.setEnvVar("plot_id", plotId);
+  }
+}
+
+tests {
+  // 201 on the first run, 200 when the same household is pinned again
+  test("should return 201 or 200", function() {
+    expect([200, 201]).to.include(res.getStatus());
+  });
+
+  test("plot is a POINT registry entry", function() {
+    expect(res.getBody().data.registryEntryId).to.be.a("string");
+    expect(res.getBody().data.geometryType).to.equal("POINT");
+    expect(res.getBody().data.source).to.equal("MANUAL_PIN");
+  });
+
+  test("geometryHash is a SHA-256 hex", function() {
+    expect(res.getBody().data.geometryHash).to.match(/^[a-f0-9]{64}$/);
+  });
+}
