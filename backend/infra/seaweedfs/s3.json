@@ -1,0 +1,11 @@
+{
+  "identities": [
+    {
+      "name": "agricontract-dev",
+      "credentials": [
+        { "accessKey": "agricontract", "secretKey": "agricontract-dev-secret" }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

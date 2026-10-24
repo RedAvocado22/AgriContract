@@ -10,6 +10,16 @@ volumes:
   contract_db_data:
   escrow_db_data:
   notification_db_data:
+  inspection_db_data:
+  reputation_db_data:
+  bank_db_data:
+  audit_db_data:
+  analytics_db_data:
+  file_db_data:
+  pricing_db_data:
+  object_storage_data:
+  redis_data:
+  clamav_data:
   keycloak_data:
   rabbitmq_data:
   mailhog_data:
@@ -161,6 +171,198 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  inspection-db:
+    image: mysql:8.0
+    container_name: inspection-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: inspection_db
+    ports:
+      - "3312:3306"
+    volumes:
+      - inspection_db_data:/var/lib/mysql
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  reputation-db:
+    image: mysql:8.0
+    container_name: reputation-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: reputation_db
+    ports:
+      - "3313:3306"
+    volumes:
+      - reputation_db_data:/var/lib/mysql
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bank-db:
+    image: mysql:8.0
+    container_name: bank-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: bank_db
+    ports:
+      - "3314:3306"
+    volumes:
+      - bank_db_data:/var/lib/mysql
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  audit-db:
+    image: mysql:8.0
+    container_name: audit-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: audit_db
+    ports:
+      - "3315:3306"
+    volumes:
+      - audit_db_data:/var/lib/mysql
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  analytics-db:
+    image: mysql:8.0
+    container_name: analytics-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: analytics_db
+    ports:
+      - "3316:3306"
+    volumes:
+      - analytics_db_data:/var/lib/mysql
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  file-db:
+    image: mysql:8.0
+    container_name: file-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: file_db
+    ports:
+      - "3317:3306"
+    volumes:
+      - file_db_data:/var/lib/mysql
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pricing-db:
+    image: mysql:8.0
+    container_name: pricing-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-password}
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: pricing_db
+    ports:
+      - "3318:3306"
+    volumes:
+      - pricing_db_data:/var/lib/mysql
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # S3-compatible object storage for file-service (file-service-phase2-design §2.3: one flat bucket, key = fileId).
+  # SeaweedFS instead of MinIO: MinIO stopped publishing community images (Oct 2025) and archived the repo.
+  # S3 API on :8333; dev credentials in infra/seaweedfs/s3.json (access key agricontract).
+  object-storage:
+    image: chrislusf/seaweedfs:4.48
+    container_name: object-storage
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -master.volumeSizeLimitMB=1024
+    ports:
+      - "8333:8333"
+    volumes:
+      - object_storage_data:/data
+      - ./infra/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/healthz" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Gateway rate-limit buckets (api-gateway-phase2-design: public pricing/reputation/audit-hash and auth routes).
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Virus scan for uploaded files (file-service). OFF by default: clamd keeps every signature in memory
+  # (~1GB+ RAM) and freshclam updates them on start. Start it only when testing the upload/scan flow:
+  #   docker compose --profile scan up -d clamav
+  # Signatures persist in clamav_data. Measured 24/10: healthy in ~40s on first start.
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: clamav
+    profiles: [ "scan" ]
+    ports:
+      - "3410:3310"   # host 3310 is escrow-db; inside the network use clamav:3310
+    volumes:
+      - clamav_data:/var/lib/clamav
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "clamdcheck.sh" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 5m
 
   # ── Services ──────────────────────────────────────────────────
 
