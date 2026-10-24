@@ -28,7 +28,7 @@ class UpdateProductImagesUseCaseImplTest {
     void execute_existingProduct_fullyReplacesImages() {
         useCase = new UpdateProductImagesUseCaseImpl(productRepository);
         Product product = Product.create(new ProductId("product-1"), "Gao ST25", "kg", "category-1",
-                List.of("https://cdn.test/a.jpg"));
+                List.of("https://cdn.test/a.jpg"), null, null, null);
         when(productRepository.findById(new ProductId("product-1"))).thenReturn(Optional.of(product));
         when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -53,7 +53,7 @@ class UpdateProductImagesUseCaseImplTest {
     void execute_invalidImages_throwsAndDoesNotSave() {
         useCase = new UpdateProductImagesUseCaseImpl(productRepository);
         Product product = Product.create(new ProductId("product-1"), "Gao ST25", "kg", "category-1",
-                List.of("https://cdn.test/a.jpg"));
+                List.of("https://cdn.test/a.jpg"), null, null, null);
         when(productRepository.findById(new ProductId("product-1"))).thenReturn(Optional.of(product));
 
         assertThatThrownBy(() -> useCase.execute("product-1", List.of()))

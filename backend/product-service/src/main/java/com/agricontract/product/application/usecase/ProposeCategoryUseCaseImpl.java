@@ -52,6 +52,7 @@ public class ProposeCategoryUseCaseImpl implements ProposeCategoryUseCase {
                 .status(category.getStatus())
                 .rejectionReason(category.getRejectionReason())
                 .proposedBy(category.getProposedBy())
+                .commodity(category.getCommodity())
                 .build();
     }
 }

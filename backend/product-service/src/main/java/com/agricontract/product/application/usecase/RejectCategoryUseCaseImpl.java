@@ -32,6 +32,7 @@ public class RejectCategoryUseCaseImpl implements RejectCategoryUseCase {
                 .status(category.getStatus())
                 .rejectionReason(category.getRejectionReason())
                 .proposedBy(category.getProposedBy())
+                .commodity(category.getCommodity())
                 .build();
     }
 }

@@ -7,6 +7,7 @@ import com.agricontract.product.common.exception.CategoryNotFoundException;
 import com.agricontract.product.domain.model.Category;
 import com.agricontract.product.domain.model.Product;
 import com.agricontract.product.domain.model.vo.CategoryId;
+import com.agricontract.product.domain.model.vo.CategoryStatus;
 import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.repository.CategoryRepository;
 import com.agricontract.product.domain.repository.ProductRepository;
@@ -46,10 +47,40 @@ class CreateProductUseCaseImplTest {
         when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ProductResponse response = useCase.execute(
-                new CreateProductRequest("product-1", "Gao ST25", "kg", "category-1", IMAGES));
+                new CreateProductRequest("product-1", "Gao ST25", "kg", "category-1", IMAGES, null, null, null));
 
         assertThat(response.categoryId()).isEqualTo("category-1");
         assertThat(response.images()).isEqualTo(IMAGES);
+    }
+
+    @Test
+    void execute_keepsSeasonData_blankHarvestSeasonIsNotDeclared() {
+        useCase = new CreateProductUseCaseImpl(productRepository, categoryRepository);
+        when(productRepository.findById(any())).thenReturn(Optional.empty());
+        when(categoryRepository.findById(new CategoryId("category-1"))).thenReturn(Optional.of(approvedCategory()));
+        when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductResponse response = useCase.execute(new CreateProductRequest("product-1", "Ca phe Robusta", "kg",
+                "category-1", IMAGES, 2026, "  ", List.of("4C (cam ket)")));
+
+        assertThat(response.cropYear()).isEqualTo(2026);
+        assertThat(response.harvestSeason()).isNull();
+        assertThat(response.certifications()).containsExactly("4C (cam ket)");
+    }
+
+    @Test
+    void execute_categoryApprovedBeforeCommodityExisted_isNotCoffee() {
+        useCase = new CreateProductUseCaseImpl(productRepository, categoryRepository);
+        when(productRepository.findById(any())).thenReturn(Optional.empty());
+        Category legacy = Category.reconstruct(new CategoryId("category-1"), "Gao", "gao", CategoryStatus.APPROVED,
+                null, "admin", "admin@test.com", null);
+        when(categoryRepository.findById(new CategoryId("category-1"))).thenReturn(Optional.of(legacy));
+
+        assertThatThrownBy(() -> useCase.execute(
+                new CreateProductRequest("product-1", "Gao ST25", "kg", "category-1", IMAGES, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("COFFEE");
+
+        verify(productRepository, never()).save(any());
     }
 
     @Test
@@ -59,7 +90,7 @@ class CreateProductUseCaseImplTest {
         when(categoryRepository.findById(new CategoryId("missing"))).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(
-                new CreateProductRequest("product-1", "Gao ST25", "kg", "missing", IMAGES)))
+                new CreateProductRequest("product-1", "Gao ST25", "kg", "missing", IMAGES, null, null, null)))
                 .isInstanceOf(CategoryNotFoundException.class);
 
         verify(productRepository, never()).save(any());
@@ -73,7 +104,7 @@ class CreateProductUseCaseImplTest {
         when(categoryRepository.findById(new CategoryId("category-1"))).thenReturn(Optional.of(pending));
 
         assertThatThrownBy(() -> useCase.execute(
-                new CreateProductRequest("product-1", "Gao ST25", "kg", "category-1", IMAGES)))
+                new CreateProductRequest("product-1", "Gao ST25", "kg", "category-1", IMAGES, null, null, null)))
                 .isInstanceOf(CategoryNotApprovedException.class);
 
         verify(productRepository, never()).save(any());
@@ -82,11 +113,11 @@ class CreateProductUseCaseImplTest {
     @Test
     void execute_sameIdSameAttributes_idempotentReturnsExisting() {
         useCase = new CreateProductUseCaseImpl(productRepository, categoryRepository);
-        Product existing = Product.create(new ProductId("product-1"), "Gao ST25", "kg", "category-1", IMAGES);
+        Product existing = Product.create(new ProductId("product-1"), "Gao ST25", "kg", "category-1", IMAGES, null, null, null);
         when(productRepository.findById(new ProductId("product-1"))).thenReturn(Optional.of(existing));
 
         ProductResponse response = useCase.execute(
-                new CreateProductRequest("product-1", "Gao ST25", "kg", "category-1", IMAGES));
+                new CreateProductRequest("product-1", "Gao ST25", "kg", "category-1", IMAGES, null, null, null));
 
         assertThat(response.productId()).isEqualTo("product-1");
         verify(productRepository, never()).save(any());
@@ -96,11 +127,11 @@ class CreateProductUseCaseImplTest {
     @Test
     void execute_sameIdDifferentAttributes_throwsConflict() {
         useCase = new CreateProductUseCaseImpl(productRepository, categoryRepository);
-        Product existing = Product.create(new ProductId("product-1"), "Gao ST25", "kg", "category-1", IMAGES);
+        Product existing = Product.create(new ProductId("product-1"), "Gao ST25", "kg", "category-1", IMAGES, null, null, null);
         when(productRepository.findById(new ProductId("product-1"))).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> useCase.execute(
-                new CreateProductRequest("product-1", "Gao khac", "kg", "category-1", IMAGES)))
+                new CreateProductRequest("product-1", "Gao khac", "kg", "category-1", IMAGES, null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
     }
 }

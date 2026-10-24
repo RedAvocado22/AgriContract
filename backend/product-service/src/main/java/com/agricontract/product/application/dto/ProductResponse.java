@@ -10,5 +10,8 @@ public record ProductResponse(
         String name,
         String unit,
         String categoryId,
-        List<String> images
+        List<String> images,
+        Integer cropYear,
+        String harvestSeason,
+        List<String> certifications
 ) {}

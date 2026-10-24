@@ -12,7 +12,7 @@ class ProductTest {
     private static final ProductId PRODUCT_ID = new ProductId("product-1");
 
     private Product create(List<String> images) {
-        return Product.create(PRODUCT_ID, "Gao ST25", "kg", "category-1", images);
+        return Product.create(PRODUCT_ID, "Gao ST25", "kg", "category-1", images, null, null, null);
     }
 
     @Test

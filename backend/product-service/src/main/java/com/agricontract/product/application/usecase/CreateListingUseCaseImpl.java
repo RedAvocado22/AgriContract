@@ -5,15 +5,20 @@ import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.common.exception.PlotNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotOwnedException;
 import com.agricontract.product.common.exception.ProductNotFoundException;
+import com.agricontract.product.domain.model.Category;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.Product;
+import com.agricontract.product.domain.model.vo.CategoryId;
+import com.agricontract.product.domain.model.vo.CoffeeQualitySpec;
+import com.agricontract.product.domain.model.vo.ListingGoods;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ListingPlot;
 import com.agricontract.product.domain.model.vo.Money;
 import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.model.vo.Quantity;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
+import com.agricontract.product.domain.repository.CategoryRepository;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import com.agricontract.product.domain.repository.ProductRepository;
@@ -28,6 +33,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -39,6 +45,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
     private final ListingRepository listingRepository;
     private final ProductRepository productRepository;
     private final PlotRegistryRepository plotRegistryRepository;
+    private final CategoryRepository categoryRepository;
 
     @Override
     public ListingResponse execute(String sellerId, CreateListingRequest request) {
@@ -53,6 +60,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
 
         Product product = productRepository.findById(new ProductId(request.productId()))
                 .orElseThrow(() -> new ProductNotFoundException(request.productId()));
+        Category category = coffeeCategoryOf(product);
         List<ListingPlot> plots = plotsFor(sellerId, request.registryEntryIds());
 
         Listing listing = Listing.create(
@@ -65,7 +73,19 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                 request.minOrderQuantity(),
                 new Money(request.priceFloor(), request.currency()),
                 request.deliveryDeadline(),
-                plots
+                plots,
+                new ListingGoods(
+                        category.getCategoryId(),
+                        category.getCommodity(),
+                        product.getCropYear(),
+                        product.getHarvestSeason(),
+                        product.getCertifications(),
+                        request.regionText().trim(),
+                        request.declaredQualitySpec().toDomain(),
+                        blankToNull(request.packagingDeclaration()),
+                        blankToNull(request.warehouseLocation()),
+                        request.estimatedAvailabilityDate(),
+                        request.traceabilityEvidencePackageId())
         );
 
         Listing saved;
@@ -89,7 +109,8 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                 existing.getPriceFloor().equals(new Money(request.priceFloor(), request.currency())) &&
                 existing.getDeliveryDeadline().equals(request.deliveryDeadline()) &&
                 sameQuantity(existing.getMinOrderQuantity(), request.minOrderQuantity()) &&
-                samePlots(existing, request.registryEntryIds())) {
+                samePlots(existing, request.registryEntryIds()) &&
+                sameDeclaredGoods(existing.getGoods(), request)) {
             return Optional.of(toResponse(existing));
         }
         throw new IllegalStateException("Listing " + listingId.value() + " already exists with different attributes");
@@ -124,6 +145,33 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
                     entry.getVerificationLevel()));
         }
         return plots;
+    }
+
+    // Phase 2 creates coffee listings only (design §1/§9, matrix 22): the product's category must be approved as COFFEE.
+    private Category coffeeCategoryOf(Product product) {
+        Category category = product.getCategoryId() == null ? null
+                : categoryRepository.findById(new CategoryId(product.getCategoryId())).orElse(null);
+        if (category == null || !category.isApprovedCoffee()) {
+            throw new IllegalArgumentException("Phase 2 accepts COFFEE listings only: product "
+                    + product.getProductId().value() + " is not in an approved coffee category");
+        }
+        return category;
+    }
+
+    // the seller-declared part of the goods; the product-derived part is not in the request
+    private static boolean sameDeclaredGoods(ListingGoods goods, CreateListingRequest request) {
+        CoffeeQualitySpec spec = goods.declaredQualitySpec();
+        return spec != null
+                && spec.equals(request.declaredQualitySpec().toDomain())
+                && Objects.equals(goods.regionText(), request.regionText().trim())
+                && Objects.equals(goods.packagingDeclaration(), blankToNull(request.packagingDeclaration()))
+                && Objects.equals(goods.warehouseLocation(), blankToNull(request.warehouseLocation()))
+                && Objects.equals(goods.estimatedAvailabilityDate(), request.estimatedAvailabilityDate())
+                && Objects.equals(goods.traceabilityEvidencePackageId(), request.traceabilityEvidencePackageId());
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static boolean samePlots(Listing existing, List<String> registryEntryIds) {

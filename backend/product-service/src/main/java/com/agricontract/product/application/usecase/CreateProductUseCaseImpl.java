@@ -37,9 +37,10 @@ public class CreateProductUseCaseImpl implements CreateProductUseCase {
             return matched.get();
         }
 
-        assertCategoryApproved(request.categoryId());
+        assertCategoryApprovedCoffee(request.categoryId());
 
-        Product product = Product.create(productId, request.name(), request.unit(), request.categoryId(), request.imageUrls());
+        Product product = Product.create(productId, request.name(), request.unit(), request.categoryId(),
+                request.imageUrls(), request.cropYear(), request.harvestSeason(), request.certifications());
 
         Product saved;
         try {
@@ -51,11 +52,15 @@ public class CreateProductUseCaseImpl implements CreateProductUseCase {
         return toResponse(saved);
     }
 
-    private void assertCategoryApproved(String categoryId) {
+    // Phase 2 creates coffee products only (design §1, matrix 22); a category approved before commodity existed is out
+    private void assertCategoryApprovedCoffee(String categoryId) {
         Category category = categoryRepository.findById(new CategoryId(categoryId))
                 .orElseThrow(() -> new CategoryNotFoundException(categoryId));
         if (category.getStatus() != CategoryStatus.APPROVED) {
             throw new CategoryNotApprovedException(categoryId);
+        }
+        if (!category.isApprovedCoffee()) {
+            throw new IllegalArgumentException("Category " + categoryId + " is not a COFFEE category; Phase 2 accepts coffee only");
         }
     }
 
@@ -67,7 +72,10 @@ public class CreateProductUseCaseImpl implements CreateProductUseCase {
         if (existing.getName().equals(request.name()) &&
                 existing.getUnit().equals(request.unit()) &&
                 Objects.equals(existing.getCategoryId(), request.categoryId()) &&
-                Objects.equals(existing.getImages(), request.imageUrls())) {
+                Objects.equals(existing.getImages(), request.imageUrls()) &&
+                Objects.equals(existing.getCropYear(), request.cropYear()) &&
+                Objects.equals(existing.getHarvestSeason(), blankToNull(request.harvestSeason())) &&
+                Objects.equals(existing.getCertifications(), request.certifications())) {
             return Optional.of(toResponse(existing));
         }
         throw new IllegalStateException("Product " + productId.value() + " already exists with different attributes");
@@ -80,6 +88,13 @@ public class CreateProductUseCaseImpl implements CreateProductUseCase {
                 .unit(product.getUnit())
                 .categoryId(product.getCategoryId())
                 .images(product.getImages())
+                .cropYear(product.getCropYear())
+                .harvestSeason(product.getHarvestSeason())
+                .certifications(product.getCertifications())
                 .build();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

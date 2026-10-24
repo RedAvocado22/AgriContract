@@ -8,6 +8,7 @@ import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import com.agricontract.product.domain.service.PlotGeometries;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperImpl;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapperImpl;
+import com.agricontract.product.testsupport.GoodsFixtures;
 import com.agricontract.product.testsupport.PlotFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -151,7 +152,7 @@ class PlotRegistryPersistenceTest {
                 "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
                 new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
                 List.of(new ListingPlot(plot.getRegistryEntryId(), plot.getHouseholdLabel(), plot.getGeometry(),
-                        plot.getVerificationLevel()))));
+                        plot.getVerificationLevel())), GoodsFixtures.coffeeGoods()));
 
         PlotGeometry remeasured = polygon(0.002);
         plot.reimport(remeasured, PlotSource.KML_IMPORT, null, Province.DAK_LAK, NOW.plusSeconds(60));
@@ -173,7 +174,7 @@ class PlotRegistryPersistenceTest {
             listingRepository.save(Listing.create(new ListingId(id), "seller-1", new ProductId("product-1"),
                     "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
                     new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                    List.of(PlotFixtures.listingPlot(id.equals("listing-a") ? "plot-a" : "plot-b"))));
+                    List.of(PlotFixtures.listingPlot(id.equals("listing-a") ? "plot-a" : "plot-b")), GoodsFixtures.coffeeGoods()));
         }
 
         List<Listing> page = listingRepository.findBySellerId("seller-1",
