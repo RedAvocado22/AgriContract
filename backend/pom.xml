@@ -34,6 +34,9 @@
         <spring-cloud.version>2023.0.3</spring-cloud.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <lombok.version>1.18.34</lombok.version>
+        <!-- Boot 3.3.5 manages 1.19.8, whose Docker client speaks API 1.32; Docker Engine 29 rejects it (min 1.40)
+             and every @Testcontainers(disabledWithoutDocker = true) test is silently skipped (#182). -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencyManagement>
