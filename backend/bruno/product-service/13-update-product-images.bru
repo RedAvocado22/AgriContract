@@ -18,7 +18,7 @@ headers {
 
 body:json {
   {
-    "imageUrls": ["https://cdn.agricontract.test/products/gao-st25-new-cover.jpg"]
+    "imageUrls": ["https://cdn.agricontract.test/products/ca-phe-robusta-new-cover.jpg"]
   }
 }
 
@@ -29,6 +29,6 @@ tests {
 
   test("images fully replaced (only 1 entry now)", function() {
     expect(res.getBody().data.images.length).to.equal(1);
-    expect(res.getBody().data.images[0]).to.equal("https://cdn.agricontract.test/products/gao-st25-new-cover.jpg");
+    expect(res.getBody().data.images[0]).to.equal("https://cdn.agricontract.test/products/ca-phe-robusta-new-cover.jpg");
   });
 }

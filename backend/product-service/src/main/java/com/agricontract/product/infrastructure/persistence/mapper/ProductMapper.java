@@ -23,7 +23,10 @@ public class ProductMapper {
                 .name(domain.getName())
                 .unit(domain.getUnit())
                 .categoryId(domain.getCategoryId())
-                .images(serializeImages(domain.getImages()))
+                .images(toJsonArray(domain.getImages()))
+                .cropYear(domain.getCropYear())
+                .harvestSeason(domain.getHarvestSeason())
+                .certifications(domain.getCertifications() == null ? null : toJsonArray(domain.getCertifications()))
                 .build();
     }
 
@@ -33,26 +36,29 @@ public class ProductMapper {
                 entity.getName(),
                 entity.getUnit(),
                 entity.getCategoryId(),
-                deserializeImages(entity.getImages())
+                fromJsonArray(entity.getImages()),
+                entity.getCropYear(),
+                entity.getHarvestSeason(),
+                entity.getCertifications() == null ? null : fromJsonArray(entity.getCertifications())
         );
     }
 
-    private String serializeImages(List<String> images) {
+    private String toJsonArray(List<String> values) {
         try {
-            return objectMapper.writeValueAsString(images);
+            return objectMapper.writeValueAsString(values);
         } catch (JsonProcessingException ex) {
-            throw new RuntimeException("Failed to serialize product images", ex);
+            throw new RuntimeException("Failed to serialize product string list", ex);
         }
     }
 
-    private List<String> deserializeImages(String json) {
+    private List<String> fromJsonArray(String json) {
         if (json == null || json.isBlank()) {
             return List.of();
         }
         try {
             return objectMapper.readValue(json, new TypeReference<List<String>>() {});
         } catch (JsonProcessingException ex) {
-            throw new RuntimeException("Failed to deserialize product images", ex);
+            throw new RuntimeException("Failed to deserialize product string list", ex);
         }
     }
 }

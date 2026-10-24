@@ -18,10 +18,13 @@ headers {
 
 body:json {
   {
-    "name": "Gao ST25",
+    "name": "Ca phe Robusta Dak Lak",
     "unit": "kg",
     "categoryId": "{{category_id}}",
-    "imageUrls": ["https://cdn.agricontract.test/products/gao-st25-1.jpg", "https://cdn.agricontract.test/products/gao-st25-2.jpg"]
+    "imageUrls": ["https://cdn.agricontract.test/products/ca-phe-robusta-1.jpg", "https://cdn.agricontract.test/products/ca-phe-robusta-2.jpg"],
+    "cropYear": 2026,
+    "harvestSeason": "Nien vu 2026/27",
+    "certifications": ["4C (cam ket)"]
   }
 }
 
@@ -46,7 +49,7 @@ tests {
   });
 
   test("should return correct name", function() {
-    expect(res.getBody().data.name).to.equal("Gao ST25");
+    expect(res.getBody().data.name).to.equal("Ca phe Robusta Dak Lak");
   });
 
   test("categoryId should match", function() {

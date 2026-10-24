@@ -2,6 +2,9 @@ package com.agricontract.product.infrastructure.persistence.mapper;
 
 import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.domain.model.Listing;
+import com.agricontract.product.domain.model.vo.CategoryId;
+import com.agricontract.product.domain.model.vo.CoffeeQualitySpec;
+import com.agricontract.product.domain.model.vo.ListingGoods;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ListingPlot;
 import com.agricontract.product.domain.model.vo.Money;
@@ -33,27 +36,29 @@ public interface ListingMapper {
                 .currency(domain.getPriceFloor().currency())
                 .deliveryDeadline(domain.getDeliveryDeadline())
                 .status(domain.getStatus())
+                .categoryId(domain.getGoods().categoryId() == null ? null : domain.getGoods().categoryId().value())
+                .commodity(domain.getGoods().commodity())
+                .cropYear(domain.getGoods().cropYear())
+                .harvestSeason(domain.getGoods().harvestSeason())
+                .certifications(domain.getGoods().certifications())
+                .regionText(domain.getGoods().regionText())
+                .qualityType(spec(domain) == null ? null : spec(domain).type())
+                .qualityMoisturePercent(spec(domain) == null ? null : spec(domain).moisturePercent())
+                .qualityForeignMatterPercent(spec(domain) == null ? null : spec(domain).foreignMatterPercent())
+                .qualityBlackBrokenPercent(spec(domain) == null ? null : spec(domain).blackBrokenBeansPercent())
+                .packagingDeclaration(domain.getGoods().packagingDeclaration())
+                .warehouseLocation(domain.getGoods().warehouseLocation())
+                .estimatedAvailabilityDate(domain.getGoods().estimatedAvailabilityDate())
+                .traceabilityEvidencePackageId(domain.getGoods().traceabilityEvidencePackageId())
                 .build();
     }
 
+    private static CoffeeQualitySpec spec(Listing listing) {
+        return listing.getGoods().declaredQualitySpec();
+    }
+
     default ListingResponse toResponse(Listing listing) {
-        return ListingResponse.builder()
-                .listingId(listing.getListingId().value())
-                .sellerId(listing.getSellerId())
-                .productId(listing.getProductId().value())
-                .productName(listing.getProductName())
-                .coverImageUrl(listing.getCoverImageUrl())
-                .quantity(listing.getQuantity().value())
-                .quantityUnit(listing.getQuantity().unit())
-                .quantityAvailable(listing.getQuantityAvailable())
-                .minOrderQuantity(listing.getMinOrderQuantity())
-                .priceFloor(listing.getPriceFloor().amount())
-                .currency(listing.getPriceFloor().currency())
-                .deliveryDeadline(listing.getDeliveryDeadline())
-                .status(listing.getStatus())
-                .listingVersionToken(listing.getVersionToken())
-                .registryEntryIds(listing.getPlots().stream().map(p -> p.sourceRegistryEntryId().value()).toList())
-                .build();
+        return ListingResponse.from(listing);
     }
 
     default Listing toDomain(ListingJpaEntity entity, List<ListingPlot> plots) {
@@ -70,7 +75,21 @@ public interface ListingMapper {
                 entity.getDeliveryDeadline(),
                 entity.getStatus(),
                 entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().toInstant(ZoneOffset.UTC),
-                plots
+                plots,
+                new ListingGoods(
+                        entity.getCategoryId() == null ? null : new CategoryId(entity.getCategoryId()),
+                        entity.getCommodity(),
+                        entity.getCropYear(),
+                        entity.getHarvestSeason(),
+                        entity.getCertifications(),
+                        entity.getRegionText(),
+                        entity.getQualityType() == null ? null : new CoffeeQualitySpec(entity.getQualityType(),
+                                entity.getQualityMoisturePercent(), entity.getQualityForeignMatterPercent(),
+                                entity.getQualityBlackBrokenPercent()),
+                        entity.getPackagingDeclaration(),
+                        entity.getWarehouseLocation(),
+                        entity.getEstimatedAvailabilityDate(),
+                        entity.getTraceabilityEvidencePackageId())
         );
     }
 

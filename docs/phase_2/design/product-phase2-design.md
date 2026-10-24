@@ -451,6 +451,8 @@ Ba field `Listing` được expose qua common create/response DTO. Ba field `Pro
 
 Lý do consistency: `goodsTerms` snapshot lúc ký mang `cropYear`/`harvestSeason` dưới dạng required-but-nullable server-derived fields. Nếu buyer ký hợp đồng có các field này nhưng lúc xem Listing lại không thấy, buyer đang ký một phần thông tin mà họ chưa từng nhìn thấy. ListingResponse phải hiển thị cùng lớp thông tin với snapshot; đây là cùng lớp vấn đề với `listingVersionToken`/listing-version guard. `certifications` vẫn là metadata seller-declared read-only của ListingResponse trong Phase 2; chưa tự nâng thành chứng nhận đã verify hoặc signed compliance claim.
 
+**Implement (24/10/2026, #111 phần không phụ thuộc contract, product Flyway V7):** `categoryId`, `commodity`, `cropYear`, `harvestSeason`, `certifications` được **copy sang listing lúc `CreateListing`** (cùng pattern với `productName`/`coverImageUrl`), không join Product mỗi lần đọc. Hiện không có API sửa các field này của Product nên kết quả hiển thị như projection; nếu sau này cho sửa Product thì listing cũ vẫn giữ giá trị buyer đã thấy. `Category.commodity` gán `COFFEE` trong `approve()` (giá trị duy nhất của Phase 2); category approve trước V7 có `commodity = NULL` và không tạo được product/listing mới. `declaredQualitySpec` lưu 4 cột trên `listings`, CHECK all-or-none; thiếu cả 4 = `legacyQualitySpecMissing = true`. Chưa đổi tên field Phase 1 của `ListingResponse`/request (`quantity`/`priceFloor`/`deliveryDeadline` vs `offeredQuantity`/`askingUnitPrice` của contract) — làm riêng vì job hết hạn listing còn dùng `deliveryDeadline`.
+
 ---
 
 ## 9. Cross-service Note — `Category` aggregate + quan hệ 2 tầng `commodity`/`category` (đồng bộ với Phase 1 Category redesign, 08/07/2026)

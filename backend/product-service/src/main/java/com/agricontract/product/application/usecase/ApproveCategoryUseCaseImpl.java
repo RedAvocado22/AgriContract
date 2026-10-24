@@ -32,6 +32,7 @@ public class ApproveCategoryUseCaseImpl implements ApproveCategoryUseCase {
                 .status(category.getStatus())
                 .rejectionReason(category.getRejectionReason())
                 .proposedBy(category.getProposedBy())
+                .commodity(category.getCommodity())
                 .build();
     }
 }
