@@ -480,6 +480,39 @@ class AdminUserControllerTest {
     }
 
     @Test
+    void assignRole_integerRole_badRequest() throws Exception {
+        // ordinal 2 is ADMIN; Jackson's default enum coercion would accept it
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":2}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_numericStringRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"2\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_nullRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":null}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_lowercaseRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"operator\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
     void assignRole_missingRole_badRequest() throws Exception {
         mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
