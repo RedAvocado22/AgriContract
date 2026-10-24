@@ -9,3 +9,5 @@ public class UserServiceApplication {
         SpringApplication.run(UserServiceApplication.class, args);
     }
 }
+
+// ci affected-module check, throwaway PR, do not merge
