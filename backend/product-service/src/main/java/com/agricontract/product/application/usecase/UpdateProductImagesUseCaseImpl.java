@@ -34,6 +34,9 @@ public class UpdateProductImagesUseCaseImpl implements UpdateProductImagesUseCas
                 .unit(product.getUnit())
                 .categoryId(product.getCategoryId())
                 .images(product.getImages())
+                .cropYear(product.getCropYear())
+                .harvestSeason(product.getHarvestSeason())
+                .certifications(product.getCertifications())
                 .build();
     }
 }

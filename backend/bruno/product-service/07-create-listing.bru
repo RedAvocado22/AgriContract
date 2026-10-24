@@ -24,7 +24,16 @@ body:json {
     "priceFloor": 15000.00,
     "currency": "VND",
     "deliveryDeadline": "2026-09-30",
-    "registryEntryIds": ["{{plot_id}}"]
+    "registryEntryIds": ["{{plot_id}}"],
+    "regionText": "Buon Ma Thuot, Dak Lak",
+    "declaredQualitySpec": {
+      "commodity": "COFFEE",
+      "type": "ROBUSTA",
+      "moisturePercent": 12.5,
+      "foreignMatterPercent": 0.5,
+      "blackBrokenBeansPercent": 5.0
+    },
+    "packagingDeclaration": "Bao day 60 kg"
   }
 }
 
@@ -59,15 +68,24 @@ tests {
   });
 
   test("productName snapshot should be set", function() {
-    expect(res.getBody().data.productName).to.equal("Gao ST25");
+    expect(res.getBody().data.productName).to.equal("Ca phe Robusta Dak Lak");
   });
 
   test("coverImageUrl snapshot should be product's first image", function() {
-    expect(res.getBody().data.coverImageUrl).to.equal("https://cdn.agricontract.test/products/gao-st25-1.jpg");
+    expect(res.getBody().data.coverImageUrl).to.equal("https://cdn.agricontract.test/products/ca-phe-robusta-1.jpg");
   });
 
   test("status should be ACTIVE", function() {
     expect(res.getBody().data.status).to.equal("ACTIVE");
+  });
+
+  test("coffee goods: commodity from the category, season from the product, declared quality", function() {
+    const data = res.getBody().data;
+    expect(data.commodity).to.equal("COFFEE");
+    expect(data.categoryId).to.equal(bru.getEnvVar("category_id"));
+    expect(data.cropYear).to.equal(2026);
+    expect(data.declaredQualitySpec.type).to.equal("ROBUSTA");
+    expect(data.legacyQualitySpecMissing).to.equal(false);
   });
 
   test("listing names the registry plot it comes from", function() {

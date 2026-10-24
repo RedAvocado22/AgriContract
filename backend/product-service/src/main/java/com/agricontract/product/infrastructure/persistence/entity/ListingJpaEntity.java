@@ -1,15 +1,20 @@
 package com.agricontract.product.infrastructure.persistence.entity;
 
+import com.agricontract.product.domain.model.vo.CoffeeType;
+import com.agricontract.product.domain.model.vo.Commodity;
 import com.agricontract.product.domain.model.vo.ListingStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Entity
 @Table(name = "listings")
@@ -34,6 +39,52 @@ public class ListingJpaEntity {
 
     @Column(name = "product_name", nullable = false, length = 255)
     private String productName;
+
+    // coffee goods (V7); all null on rows created before Phase 2
+    @Column(name = "category_id", length = 255)
+    private String categoryId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Commodity commodity;
+
+    @Column(name = "crop_year")
+    private Integer cropYear;
+
+    @Column(name = "harvest_season", length = 100)
+    private String harvestSeason;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private List<String> certifications;
+
+    @Column(name = "region_text", length = 255)
+    private String regionText;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "quality_type", length = 20)
+    private CoffeeType qualityType;
+
+    @Column(name = "quality_moisture_percent", precision = 5, scale = 2)
+    private BigDecimal qualityMoisturePercent;
+
+    @Column(name = "quality_foreign_matter_percent", precision = 5, scale = 2)
+    private BigDecimal qualityForeignMatterPercent;
+
+    @Column(name = "quality_black_broken_percent", precision = 5, scale = 2)
+    private BigDecimal qualityBlackBrokenPercent;
+
+    @Column(name = "packaging_declaration", length = 500)
+    private String packagingDeclaration;
+
+    @Column(name = "warehouse_location", length = 500)
+    private String warehouseLocation;
+
+    @Column(name = "estimated_availability_date")
+    private LocalDate estimatedAvailabilityDate;
+
+    @Column(name = "traceability_evidence_package_id", length = 36)
+    private String traceabilityEvidencePackageId;
 
     @Column(name = "cover_image_url", nullable = false, length = 1000)
     private String coverImageUrl;

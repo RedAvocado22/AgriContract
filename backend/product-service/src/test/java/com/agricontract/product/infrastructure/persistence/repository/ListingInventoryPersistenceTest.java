@@ -7,6 +7,7 @@ import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperImpl;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapperImpl;
+import com.agricontract.product.testsupport.GoodsFixtures;
 import com.agricontract.product.testsupport.PlotFixtures;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapperImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +64,38 @@ class ListingInventoryPersistenceTest {
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
                 "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
                 new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot()));
+                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
+    }
+
+    @Test
+    void newListing_readsBackItsCoffeeGoods() {
+        Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
+
+        assertThat(listing.getGoods()).isEqualTo(GoodsFixtures.coffeeGoods());
+        assertThat(listing.isLegacyQualitySpecMissing()).isFalse();
+    }
+
+    @Test
+    void legacyListingWithoutGoods_staysReadable_andReportsTheMissingQualitySpec() {
+        jdbcTemplate.update("""
+                INSERT INTO listings (listing_id, seller_id, product_id, product_name, cover_image_url, quantity,
+                    quantity_unit, price_floor, currency, delivery_deadline, status, created_at, updated_at)
+                VALUES ('legacy-1', 'seller-1', 'product-1', 'Gao ST25', '', 50, 'kg', 10000, 'VND', '2026-12-31',
+                    'ACTIVE', UTC_TIMESTAMP(), UTC_TIMESTAMP(6))""");
+
+        Listing legacy = listingRepository.findById(new ListingId("legacy-1")).orElseThrow();
+
+        assertThat(legacy.getGoods()).isEqualTo(ListingGoods.legacy());
+        assertThat(legacy.isLegacyQualitySpecMissing()).isTrue();
+        assertThat(legacy.getPlots()).isEmpty();
+    }
+
+    @Test
+    void qualitySpecIsAllOrNothing_inTheDatabaseToo() {
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE listings SET quality_moisture_percent = NULL WHERE listing_id = ?", LISTING_ID.value()))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("chk_listings_quality_all_or_none");
     }
 
     @Test

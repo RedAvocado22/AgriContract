@@ -20,23 +20,33 @@ public class Product {
     private String unit;
     private String categoryId;
     private List<String> images;
+    // seller-declared season data (design §8c), all optional; frozen into contract goods snapshots via the listing
+    private Integer cropYear;
+    private String harvestSeason;
+    // free-text commitments for future goods, not certificates the platform verified
+    private List<String> certifications;
 
     private Product() {
     }
 
     public static Product reconstruct(ProductId productId, String name, String unit,
-                                       String categoryId, List<String> images) {
+                                       String categoryId, List<String> images,
+                                       Integer cropYear, String harvestSeason, List<String> certifications) {
         Product product = new Product();
         product.productId = productId;
         product.name = name;
         product.unit = unit;
         product.categoryId = categoryId;
         product.images = images;
+        product.cropYear = cropYear;
+        product.harvestSeason = harvestSeason;
+        product.certifications = certifications;
         return product;
     }
 
     public static Product create(ProductId productId, String name, String unit,
-                                  String categoryId, List<String> images) {
+                                  String categoryId, List<String> images,
+                                  Integer cropYear, String harvestSeason, List<String> certifications) {
         validateImages(images);
         Product product = new Product();
         product.productId = productId;
@@ -44,6 +54,9 @@ public class Product {
         product.unit = unit;
         product.categoryId = categoryId;
         product.images = images;
+        product.cropYear = cropYear;
+        product.harvestSeason = blankToNull(harvestSeason);
+        product.certifications = certifications == null ? null : List.copyOf(certifications);
         return product;
     }
 
@@ -66,6 +79,10 @@ public class Product {
 
     public String getCoverImageUrl() {
         return this.images.get(0);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static void validateImages(List<String> images) {

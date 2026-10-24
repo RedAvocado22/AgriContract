@@ -17,6 +17,7 @@ public interface CategoryMapper {
                 .rejectionReason(domain.getRejectionReason())
                 .proposedBy(domain.getProposedBy())
                 .proposedByEmail(domain.getProposedByEmail())
+                .commodity(domain.getCommodity())
                 .build();
     }
 
@@ -28,7 +29,8 @@ public interface CategoryMapper {
                 entity.getStatus(),
                 entity.getRejectionReason(),
                 entity.getProposedBy(),
-                entity.getProposedByEmail()
+                entity.getProposedByEmail(),
+                entity.getCommodity()
         );
     }
 }
