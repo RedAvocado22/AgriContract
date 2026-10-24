@@ -1,11 +1,11 @@
 ---
 name: notification-service-parity-m4
 description: "Báo cáo parity M4: notification-service Java (Spring Boot) và NestJS chạy trên cùng broker, DB và MailHog. Bruno 00–19 và 5 tình huống ngoài Bruno."
-status: "CHƯA ĐẠT: có 1 lỗi của Nest (D-1) và 1 khác biệt ngoài §6 cần quyết định (D-2). M4 chưa tick."
+status: "D-1 đã sửa và kiểm chứng lại (§3.1, §4). Còn chờ quyết định D-2…D-6 và e2e (§5.2). M4 chưa tick."
 metadata:
   type: report
   plan: "planning/notification-service-nestjs-migration.md §4, §6 M4, §7"
-  run_date: "24/10/2026"
+  run_date: "24/10/2026 (lượt đầu, 13:16–13:42 UTC); kiểm chứng lại sau sửa D-1: 24/10/2026 16:33–17:22 UTC"
 ---
 
 # Parity M4: notification-service Java ↔ NestJS
@@ -21,10 +21,11 @@ metadata:
 | Tình huống 1, 3, 5                                           | Đạt ở cả hai bên                                                                                                                                                                   |
 | Tình huống 2 (JSON lỗi)                                      | Kết quả cuối giống nhau (vào DLQ, không mail, không log). **Java retry 3 lần** rồi mới vào DLQ, Nest vào DLQ ngay (D-3)                                                             |
 | Tình huống 2 (thiếu field)                                   | Khác như đã chấp nhận trong §6, nhưng hành vi thật của Java **khác với mô tả trong plan** (D-4)                                                                                     |
-| Tình huống 4 (`docker stop` giữa chừng)                      | Đạt theo cách chạy đã ghi. Biến thể 4b (dừng khi đang gửi, rồi khởi động lại trong vòng 120 giây): **Nest làm mất mail**, message vào DLQ, dòng log kẹt ở `PENDING`. **Lỗi D-1** |
+| Tình huống 4 (`docker stop` giữa chừng)                      | Lượt đầu: biến thể 4b làm **mất mail** (D-1). **Sau sửa D-1: đạt, giống Java** (§3.1): message được redeliver, 2 mail, không `FAILED`, không `PENDING`, DLQ 0 |
+| Sửa D-1, kiểm chứng lại (§3.1, §4)                           | D-1a, D-1b, D-1c đạt. Tình huống 3, 4, 5 đạt. Bruno 00–19 Lượt B chạy lại: giống lần trước (18/20, 32/39, 14 dòng `SENT`, 14 mail, DLQ 0) |
 | End-to-end `bruno/contract`, `bruno/escrow` (plan M4 bullet 3) | **Chưa chạy**, đang bị chặn (§5.2)                                                                                                                                                 |
 
-Không sửa code Nest. Chưa tick M4 trong plan §6. Cần team quyết định D-1 và D-2 (§4) trước khi chạy lại.
+D-1 đã sửa (§4, commit trong PR #206). D-2…D-6 và e2e vẫn **chờ quyết định**. Chưa tick M4 trong plan §6.
 
 ## 1. Môi trường
 
@@ -93,15 +94,56 @@ Mỗi tình huống dùng một `eventId` riêng (`evt-s<n>-java` / `evt-s<n>-ne
 | 2a  | Body không phải JSON (`this is {not json`)                                                   | **Retry 3 lần** (`Retries exhausted` sau 3.15s, do `MessageConversionException` không nằm trong danh sách non-retryable), rồi vào DLQ (2). Không mail, không log                                                                                             | Vào DLQ sau **1** lần thử (`permanent: true`) (2). Không mail, không log                                                                                                                                                                                                                                            | Nest ✅, Java ❌ kỳ vọng (D-3)   |
 | 2b  | JSON thiếu `buyerEmail`                                                                      | `INSERT` với `user_id = NULL` lỗi 1048, `DataIntegrityViolationException` bị nuốt → **bỏ qua buyer**, gửi mail cho seller (dòng `SENT`), ack. DLQ vẫn 2                                                                                                    | Vào DLQ ngay (`field "buyerEmail" must be a non-empty string`) (3). Không mail, không log                                                                                                                                                                                                                         | khác đã chấp nhận §6, xem D-4   |
 | 3   | `docker restart rabbitmq` khi đang chạy                                                      | Không crash. 9 consumer về `1` sau ~12s. Message `contract.delivered` publish sau đó: 1 mail, 1 dòng `SENT`                                                                                                                                                 | Không crash (`RestartCount = 0`, vẫn `healthy`). Reconnect với backoff 1s → 2s → 4s → 8s, 9 consumer về `1` sau ~16s. Message publish sau đó: 1 mail, 1 dòng `SENT`                                                                                                                                                  | ✅ cả hai                        |
-| 4   | MailHog tắt, publish, `docker stop` 2s sau, bật MailHog rồi start service                    | Dừng trong 5.8s, exit **143**. Spring đợi worker 5s rồi đóng channel: message về `ready`. buyer kẹt `PENDING`, `retry_count = 0`. Sau khi start: redeliver, buyer và seller mỗi người **1** mail, 2 dòng `SENT`                                            | Dừng trong 10.4s, exit **137** (bị SIGKILL). Drain 8s hết hạn, message về `ready`. buyer `FAILED`, `retry_count = 1` (lần thử 1 xong trước khi dừng). Sau khi start: redeliver, mỗi người **1** mail, 2 dòng `SENT` (`retry_count` buyer = 1)                                                                     | ✅ theo tiêu chí. Exit code: D-1 |
-| 4b  | Như 4 nhưng `docker stop` 1s sau publish, start lại ngay (trong vòng lease 120s). Chỉ chạy với Nest | (đối chiếu: ở tình huống 4, Java cũng để buyer ở `PENDING` và được redeliver ~30s sau khi claim, và Java gửi lại thành công)                                                                                                                                          | Drain hết hạn lúc lần gửi còn treo. Pool MySQL đóng trong khi handler vẫn chạy (`notification log write failed`). buyer kẹt `PENDING`, exit 137. Sau khi start: 3 lần thử đều `another delivery is sending this email` → **vào DLQ (4), không mail nào được gửi**, dòng vẫn `PENDING`                                 | ❌ Nest: **lỗi D-1**             |
+| 4   | MailHog tắt, publish, `docker stop` 2s sau, bật MailHog rồi start service                    | Dừng trong 5.8s, exit **143**. Spring đợi worker 5s rồi đóng channel: message về `ready`. buyer kẹt `PENDING`, `retry_count = 0`. Sau khi start: redeliver, buyer và seller mỗi người **1** mail, 2 dòng `SENT`                                            | Dừng trong 10.4s, exit **137** (bị SIGKILL). Drain 8s hết hạn, message về `ready`. buyer `FAILED`, `retry_count = 1` (lần thử 1 xong trước khi dừng). Sau khi start: redeliver, mỗi người **1** mail, 2 dòng `SENT` (`retry_count` buyer = 1)                                                                     | ✅ theo tiêu chí. Exit code: D-1. Sau sửa: xem §3.1 |
+| 4b  | Như 4 nhưng `docker stop` 1s sau publish, start lại ngay (trong vòng lease 120s). Chỉ chạy với Nest | (đối chiếu: ở tình huống 4, Java cũng để buyer ở `PENDING` và được redeliver ~30s sau khi claim, và Java gửi lại thành công)                                                                                                                                          | Drain hết hạn lúc lần gửi còn treo. Pool MySQL đóng trong khi handler vẫn chạy (`notification log write failed`). buyer kẹt `PENDING`, exit 137. Sau khi start: 3 lần thử đều `another delivery is sending this email` → **vào DLQ (4), không mail nào được gửi**, dòng vẫn `PENDING`                                 | ❌ Nest: **lỗi D-1** (đã sửa, §3.1) |
 | 5   | Publish lại `eventId` của tình huống 4                                                       | Không mail mới, không dòng mới, `updated_at` không đổi                                                                                                                                                                                                     | Không mail mới, không dòng mới, `updated_at` không đổi                                                                                                                                                                                                                                                              | ✅ cả hai                        |
 
 DLQ sau từng tình huống: Java 1 → 2 → 2 → 2 → 2 → 2. Nest 1 → 2 → **3** → 3 → 3 → 3 (→ 4 sau 4b). Chênh lệch từ 2b là khác biệt đã chấp nhận ở §6.
 
+### 3.1. Sau sửa D-1 (Nest, 24/10/2026 16:33–17:22 UTC)
+
+Image `backend-notification-service` `d374d5108c4d`, build từ nhánh này có đủ các commit D-1 (§4). Trạng thái được dọn bằng `reset.sh` trước tình huống 4 và trước Bruno. Java không chạy lại: cột Java lấy từ lượt đầu (§3).
+
+**Tình huống 4** (MailHog tắt, publish `contract.signed`, `docker compose stop` 2s sau, bật MailHog, start Nest):
+
+| Mục                     | Java (lượt đầu)                                   | Nest trước sửa                                        | Nest lần chạy giữa (drain 40s, chưa park)                     | **Nest sau sửa**                                                                  |
+| ----------------------- | ------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Thời gian dừng, exit    | 5.8s, 143                                         | 10.4s, **137** (SIGKILL)                              | 10.2s, 0                                                      | **6.9s, 0**                                                                       |
+| Lúc dừng                | đợi worker 5s rồi đóng channel                    | drain 8s hết hạn                                      | 3 lần thử chạy hết trong lúc drain                            | lần thử 1 (`EDNS`) chạy xong, lần retry **bị park**                                |
+| Message sau khi dừng    | về `ready`                                        | về `ready`                                            | **vào DLQ**                                                   | về `ready`, DLQ 0                                                                 |
+| Dòng log sau khi dừng   | buyer `PENDING`, `retry_count = 0`                | buyer `FAILED`, 1                                     | buyer `FAILED`, 3                                             | buyer `FAILED`, 1                                                                 |
+| Sau khi start lại       | redeliver, buyer và seller mỗi người 1 mail       | redeliver, mỗi người 1 mail                           | **0 mail**                                                    | redeliver, mail đến 1.7s sau khi start, **mỗi người 1 mail**                       |
+| Dòng log cuối           | 2 `SENT`                                          | 2 `SENT` (buyer `retry_count = 1`)                    | buyer `FAILED` 3, không có seller                             | **2 `SENT`** (buyer `retry_count = 1`), không `FAILED`, không `PENDING`, DLQ 0     |
+
+Log Nest sau sửa:
+
+```text
+17:07:05 LOG  Cancelled 9 consumers; waiting for 1 in-flight message(s)
+17:07:11 WARN Event handling failed, retrying {"attempt":1,"error":"Event evt-s4-nest3: email delivery failed (EDNS)"}
+17:07:12 LOG  1 message(s) not retried during shutdown; they stay unacked and will be redelivered
+         exit=0, finished 17:07:12.02 (stop gọi lúc 17:07:05.12)
+queue contract.signed: 1 ready, 0 unacked; dlq 0
+--- MailHog bật, start 17:07:55.43 ---
+17:07:57.10 mail buyer1, 17:07:57.15 mail seller1
+evt-s4-nest3 buyer1   SENT 1   evt-s4-nest3 seller1  SENT 0
+```
+
+`retry_count = 1` của buyer khác Java (0): Nest đã xong lần thử 1 trước khi dừng, Java thì chưa. Đây là cùng loại lệch đã ghi ở "Không tính là khác biệt" (§4).
+
+**Tình huống 3 và 5 sau sửa:**
+
+| #   | Tình huống                                  | Nest sau sửa                                                                                                                                                                                 | Đạt? |
+| --- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 3   | `docker restart rabbitmq` khi đang chạy     | Không crash (`RestartCount = 0`, `healthy`). Backoff 1s → 2s → 4s → 8s → 16s, 9 consumer về `1` sau 31s (broker lên chậm hơn lượt đầu, nên rơi vào bước 16s). `contract.delivered` publish sau đó: 1 mail, 1 dòng `SENT` | ✅   |
+| 5   | Publish lại `eventId` của tình huống 4      | Không mail mới (MailHog vẫn 2), không dòng mới, `updated_at` không đổi, DLQ 0                                                                                                              | ✅   |
+
+**Bruno 00–19, Lượt B chạy lại** (sau `reset.sh`, Nest trên MailHog thật): 18/20 request pass, 32/39 test. Chỉ 17 (3 test) và 19 (4 test) fail, như lượt đầu và như Java (§5.1). 14 dòng `SENT` (`retry_count = 0`, `EMAIL`), cùng thứ tự `event_id`/`user_id` với §7.2. 14 mail, cùng người nhận, thứ tự và subject với §7.3. DLQ 0. Kết quả giống lượt đầu và giống Java, ngoài D-2 đã biết. `local.bru` đã được khôi phục.
+
 ## 4. Khác biệt ngoài §6
 
-### D-1. Nest làm mất mail khi bị dừng trong lúc đang gửi rồi khởi động lại trong vòng 120 giây (**lỗi, chặn M4**)
+"§6" trong báo cáo này là danh sách "Thay đổi hành vi có chủ đích" của plan (hiện nằm ở cuối §4 của plan). D-1 đã sửa. **D-2 đến D-6 giữ nguyên như lượt đầu, chờ quyết định.**
+
+### D-1. Nest làm mất mail khi bị dừng trong lúc đang gửi rồi khởi động lại trong vòng 120 giây (**lỗi, đã sửa 25/10/2026**)
 
 **Tái hiện (tình huống 4b):** MailHog tắt, publish `contract.signed`, sau 1s chạy `docker stop notification-service` (timeout mặc định 10s), rồi bật MailHog và start service ngay.
 
@@ -128,11 +170,42 @@ MailHog total=0, DLQ 3 → 4, dòng vẫn PENDING
 
 Điểm 2 không chỉ xảy ra với `docker stop`. Mọi lần process chết trong lúc gửi (OOM, SIGKILL, mất điện) rồi lên lại trong vòng 2 phút đều cho cùng kết quả. Java ở cùng tình huống thì gửi lại (tình huống 4: buyer `PENDING`, redeliver ~30s sau khi claim, gửi thành công). Điều này trái với §6 ("Kết quả cuối cùng phải giống nhau").
 
-**Hướng sửa có thể** (cần team chọn, chưa làm):
-- Shutdown: khi drain hết hạn thì dừng hẳn vòng retry của message đang chạy (không thử tiếp, không ghi DB sau khi pool đóng), để process thoát trước SIGKILL. Hoặc tăng `stop_grace_period` trong compose và drain timeout cho đủ một lần gửi.
-- Lease: cho cửa sổ retry dài hơn lease, hoặc rút lease cho khớp timeout SMTP, hoặc khi gặp `IN_PROGRESS` ở lần thử cuối thì nack có requeue thay vì dead-letter. Mỗi cách đổi thuật toán §4.3 nên cần review riêng.
+**Cách sửa (đã chọn và làm, PR #206).** Không đổi schema, không sửa node-eventing:
 
-### D-2. Mã hoá MIME của mail khác nhau (giải mã ra giống nhau; cần quyết định)
+| Thay đổi                                                                                          | Giá trị                                         | Commit             |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------ |
+| Drain khi shutdown                                                                                | 40s (thay 8s), thoát sớm khi drain xong         | `a0c5cda`          |
+| `stop_grace_period` của `notification-service`                                                   | 60s                                             | `b19677f`          |
+| Lease claim                                                                                       | 45s (thay 120s)                                 | `42995b0`          |
+| Heartbeat khi đang gửi (`updated_at = UTC_TIMESTAMP(6)`, chỉ khi `PENDING`)                       | mỗi 15s, dừng trong `finally`                   | `42995b0`          |
+| Chờ claim còn sống của delivery khác                                                              | poll mỗi 1s, tối đa 50s                         | `ac4e525`          |
+| Test integration MySQL (lease 44s/46s, takeover đồng thời, heartbeat, redeliver sau crash)        |                                                 | `20f1b85`          |
+| `enableShutdownHooks([], { useProcessExit: true })`                                               | process thoát ngay sau các hook                 | `5639330`          |
+| Khi shutdown đã bắt đầu, lần thử mới bị **park** (không chạy, không claim, không ack/nack)        | message được redeliver khi channel đóng         | `871475a`, `bac27e9`, `65d3765` |
+
+`5639330` thêm vào sau khi chạy D-1a: Node là PID 1 trong container nên bỏ qua `SIGTERM` mà Nest gửi lại cho chính nó sau các hook. Sau khi drain hết hạn, process vẫn chạy tiếp message đang dở trên channel và pool đã đóng (log `notification log write failed`) tới giây thứ 60. Có tuỳ chọn này thì process thoát lúc 40.4s.
+
+Park (`871475a`) thêm vào sau lần chạy giữa: chỉ có drain 40s thì tình huống 4 vào DLQ trong lúc dừng (§3.1).
+
+**Kiểm chứng sau sửa** (image `d374d5108c4d`). Các listener SMTP giả chạy trên host, Nest qua compose với `MAIL_HOST=host.docker.internal`:
+- `stall`: gửi lời chào 220 rồi không trả lời.
+- `slow`: proxy tới MailHog, giữ câu trả lời sau `DATA` 15s.
+
+| Kịch bản | Cách chạy | Kết quả | Đạt? |
+| -------- | --------- | ------- | ---- |
+| D-1a, SMTP treo | `stall`, publish, `docker compose stop` 3s sau, rồi start với MailHog | Dừng sau **27.8s**, exit 0. Lần thử 1 hết `socketTimeout` 30s → buyer `FAILED` 1, lần retry bị park, message về `ready`, không dòng `PENDING`. Sau khi start: mail đến 1.5s sau start, mỗi người 1 mail, 2 `SENT`, DLQ 0 | ✅ |
+| D-1a, SMTP chậm (gửi xong trong lúc drain) | `slow` 15s/mail, stop 3s sau publish | Dừng sau **27.0s**, exit 0. Cả 2 mail gửi xong và `SENT` trong lúc drain, message được ack. Start lại: không mail thêm | ✅ (chạy trước khi có park, image `f5855175d2ba`) |
+| D-1b, `docker kill` (exit 137) | `stall`, kill 16s sau publish (ngay sau heartbeat đầu), start lại ngay với MailHog | Heartbeat lúc 17:18:27.45 (claim + 15.0s). Kill 17:18:28.73, message về `ready`. Start 17:18:33.30, mail buyer 17:19:12.82: **39.5s sau khi start**, 45.4s sau heartbeat cuối (hết lease). Mỗi người 1 mail, không DLQ, không retry | ✅ |
+| D-1b, start lại sau 24s | như trên, kill 20s sau publish, start lại 24s sau | Mail đến **15.8s sau khi start** (45.7s sau heartbeat cuối). Mỗi người 1 mail | ✅ (image `f5855175d2ba`) |
+| D-1c, hai delivery đồng thời | `slow`, publish cùng `eventId` hai lần cách 1s | 2 message unacked cùng lúc. Proxy chỉ thấy 2 kết nối SMTP (1 cho mỗi người nhận). Delivery thứ hai chờ claim, thấy `SENT`, bỏ qua. 2 mail, 2 `SENT`, cả hai message ack lúc 17:20:14, không retry, không DLQ | ✅ |
+
+Tự động: service `lint:check` sạch, `npm test` 389/389, `npm run test:int` 11/11 (MySQL thật), `build` OK. node-eventing `npm ci && npm run build && npm test`: 90/90.
+
+**Khác biệt mới, đã thêm vào danh sách "Thay đổi hành vi có chủ đích"** (plan, cuối §4):
+- Có thể gửi trùng khi crash đúng lúc giữa lúc SMTP đã chấp nhận và lúc ghi `SENT`. Java cũng có rủi ro này. Không loại bỏ được nếu không có outbox hoặc idempotency phía nhà cung cấp mail.
+- Nest không gửi trùng do tranh chấp claim. Java chỉ chặn lần `INSERT` đầu. Khi dòng đã có ở `PENDING`/`FAILED`, `sendNotification` cập nhật dòng rồi gửi, nên hai delivery đồng thời có thể cùng gửi. Đây là khác biệt có lợi.
+
+### D-2. Mã hoá MIME của mail khác nhau (giải mã ra giống nhau; **chờ quyết định**)
 
 | Header                      | Java (JavaMail)                                                 | Nest (nodemailer)                                                                                                                                         |
 | --------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -193,16 +266,17 @@ Image `mailhog/mailhog` mặc định không lưu mail ra đĩa (volume `mailhog
 
 - [ ] §4.1 Topology: cả hai khởi động trên broker có sẵn queue mà không gặp `PRECONDITION_FAILED`. 9 queue, 9 DLQ, mỗi queue chính đúng 1 consumer
 - [ ] §4.2 `prefetch(10)`: theo unit test M2 (không đo được qua Bruno)
-- [ ] §4.3 Thuật toán gửi: idempotency (Bruno 02–03, tình huống 5) giống nhau. **Không đạt ở 4b (D-1)**
+- [ ] §4.3 Thuật toán gửi: idempotency (Bruno 02–03, tình huống 5) giống nhau. 4b không đạt ở lượt đầu (D-1). **Sau sửa: D-1a/b/c đạt (§4)**
 - [ ] §4.4 Người nhận, nội dung, thứ tự: giống nhau ở 14/14 mail (decoded). Mã hoá MIME khác nhau (D-2), cần quyết định
 - [ ] §4.5 Retry 3 lần (1s/2s), rồi DLQ: giống nhau ở tình huống 1. Payload sai vào DLQ ngay: Nest đạt, Java retry (D-3)
 - [ ] §4.6 DLQ monitor 5 phút: cả hai cảnh báo cùng câu chữ. Thời điểm lần đầu khác (D-5)
 - [ ] §4.7 `created_at`/`updated_at` UTC, `DATETIME(6)`: giống nhau
-- [ ] §4.8 Ack thủ công và graceful shutdown: redeliver đạt. **Shutdown Nest bị SIGKILL (D-1)**
+- [ ] §4.8 Ack thủ công và graceful shutdown: redeliver đạt. Lượt đầu Nest bị SIGKILL (D-1). **Sau sửa: thoát với exit 0 trong 6.9–27.8s, tình huống 4 giống Java (§3.1)**
 - [ ] Bruno 00–19 giống nhau (17 và 19 fail ở cả hai bên do collection, §5.1)
 - [ ] 5 tình huống ngoài Bruno, cả hai bên (§3)
 - [ ] End-to-end contract/escrow (§5.2): **chưa chạy**
-- [ ] Các khác biệt D-2…D-6: chấp nhận / không chấp nhận (ghi rõ)
+- [ ] Các khác biệt D-2…D-6: chấp nhận / không chấp nhận (ghi rõ). **Chờ quyết định**
+- [ ] Hai thay đổi có chủ đích mới từ sửa D-1 (gửi trùng khi crash; không gửi trùng do tranh chấp claim, §4 D-1)
 
 | Vai trò  | Tên | Ngày | Chữ ký / approve PR |
 | -------- | --- | ---- | ------------------- |
@@ -221,6 +295,9 @@ Image `mailhog/mailhog` mặc định không lưu mail ra đĩa (volume `mailhog
 | B, trước (13:32:47, sau reset)           | 0                   | 0       | 0                               | 0                             |
 | B, sau Bruno (13:34:01)                  | 14 (`SENT`)         | 14      | 0                               | 9 × 1                         |
 | B, cuối (13:41:48, sau 4b)               | 19                  | 0¹      | 4 (`contract.signed.dlq`)       | 9 × 1 → 0 sau `docker compose stop` |
+| Sau sửa D-1, trước tình huống 4 (17:06, sau reset) | 0         | 0       | 0                               | 0                             |
+| Sau sửa D-1, B chạy lại, trước (17:20, sau reset) | 0          | 0       | 0                               | 0                             |
+| Sau sửa D-1, B chạy lại, sau Bruno (17:21:40) | 14 (`SENT`)    | 14      | 0                               | 9 × 1                         |
 
 ¹ MailHog vừa khởi động lại (§5.3).
 
