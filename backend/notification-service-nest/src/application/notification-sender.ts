@@ -27,6 +27,16 @@ export const CLAIM_LEASE_MS = 45_000;
 /** How often a live claim is refreshed while sending: three beats per lease. */
 export const CLAIM_HEARTBEAT_MS = 15_000;
 
+/**
+ * How long a delivery waits for another delivery's live claim to end before
+ * giving up with a retryable error: above the lease, so the claim of a
+ * delivery that died is always taken over within the wait.
+ */
+export const CLAIM_WAIT_MS = 50_000;
+
+/** How often the waiting delivery looks at the row again. */
+export const CLAIM_POLL_MS = 1_000;
+
 /** Where the sender reports failures it does not throw (heartbeats). */
 export interface SenderLogger {
   error(message: string): void;
@@ -34,6 +44,10 @@ export interface SenderLogger {
 
 export interface NotificationSenderOptions {
   logger?: SenderLogger;
+  /** Monotonic clock in ms for the claim wait; replaced in tests. */
+  now?: () => number;
+  /** Pause between two looks at a claimed row; replaced in tests. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -42,6 +56,8 @@ export interface NotificationSenderOptions {
  */
 export class NotificationSender {
   private readonly logger: SenderLogger;
+  private readonly now: () => number;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(
     private readonly logs: NotificationLogRepository,
@@ -49,15 +65,21 @@ export class NotificationSender {
     options: NotificationSenderOptions = {},
   ) {
     this.logger = options.logger ?? console;
+    this.now = options.now ?? (() => performance.now());
+    this.sleep =
+      options.sleep ??
+      ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   }
 
   /**
    * 1. Claim the send atomically (insert PENDING, or retake a FAILED row or a
    *    PENDING row older than the lease). ALREADY_SENT: done.
-   * 2. IN_PROGRESS: another delivery of the same event holds a live claim;
-   *    throw a retryable error so this message comes back after the backoff,
-   *    by when the other delivery has usually recorded SENT. Acking instead
-   *    would lose the email if that other delivery then fails.
+   * 2. While another delivery of the same event holds a live claim, look
+   *    again every CLAIM_POLL_MS for up to CLAIM_WAIT_MS: SENT means done,
+   *    FAILED or an expired claim is taken over and sent. Still claimed after
+   *    the wait: throw a retryable error, so the message comes back after the
+   *    backoff. Acking instead would lose the email if the other delivery
+   *    then fails. The message stays unacked while waiting.
    * 3. Send outside any transaction, refreshing the claim every
    *    CLAIM_HEARTBEAT_MS until the send ends, then record SENT, or FAILED
    *    with retry_count + 1 and rethrow so the whole message is retried
@@ -73,20 +95,16 @@ export class NotificationSender {
     subject: string,
     body: string,
   ): Promise<void> {
-    const claim = await this.logStep(eventId, () =>
-      this.logs.claim(
-        NotificationLog.create(
-          eventId,
-          recipientEmail,
-          NotificationChannel.EMAIL,
-          subject,
-          body,
-        ),
-        CLAIM_LEASE_MS,
+    const claim = await this.claimOrWait(
+      NotificationLog.create(
+        eventId,
+        recipientEmail,
+        NotificationChannel.EMAIL,
+        subject,
+        body,
       ),
     );
     if (claim === 'ALREADY_SENT') return;
-    if (claim === 'IN_PROGRESS') throw new SendInProgressError(eventId);
 
     try {
       await this.sendWithHeartbeat(eventId, {
@@ -105,6 +123,25 @@ export class NotificationSender {
     await this.logStep(eventId, () =>
       this.logs.markSent(eventId, recipientEmail),
     );
+  }
+
+  /**
+   * Claims the send, polling while another delivery holds a live claim
+   * (step 2 of send). Each look is a full claim attempt, so taking over a
+   * FAILED or expired row stays atomic between concurrent waiters.
+   */
+  private async claimOrWait(
+    log: NotificationLog,
+  ): Promise<'CLAIMED' | 'ALREADY_SENT'> {
+    const deadline = this.now() + CLAIM_WAIT_MS;
+    for (;;) {
+      const claim = await this.logStep(log.eventId, () =>
+        this.logs.claim(log, CLAIM_LEASE_MS),
+      );
+      if (claim !== 'IN_PROGRESS') return claim;
+      if (this.now() >= deadline) throw new SendInProgressError(log.eventId);
+      await this.sleep(CLAIM_POLL_MS);
+    }
   }
 
   /**

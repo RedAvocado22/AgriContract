@@ -144,13 +144,9 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
       deliveryB.send(eventId, 'buyer@it.test', 'S', 'B'),
     ]);
 
+    // The loser waits for the claim (1s polls), finds SENT and sends nothing.
     expect(sent).toHaveLength(1);
-    expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
-    expect(outcomes.filter((o) => o.status === 'rejected')).toHaveLength(1); // retried later
+    expect(outcomes.map((o) => o.status)).toEqual(['fulfilled', 'fulfilled']);
     expect(await row(eventId)).toEqual([{ status: 'SENT', retry_count: 0 }]);
-
-    // The loser's retry finds SENT and sends nothing.
-    await deliveryB.send(eventId, 'buyer@it.test', 'S', 'B');
-    expect(sent).toHaveLength(1);
   });
 });

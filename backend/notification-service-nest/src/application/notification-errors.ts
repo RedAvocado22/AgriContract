@@ -12,7 +12,7 @@ export class NotificationError extends Error {
   }
 }
 
-/** Retryable: another delivery holds a live claim on the same email. */
+/** Retryable: another delivery still held a live claim on the same email after the claim wait. */
 export class SendInProgressError extends NotificationError {
   constructor(readonly eventId: string) {
     super(
