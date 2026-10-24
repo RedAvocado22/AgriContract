@@ -1,7 +1,7 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.UserInfoResponse;
+import com.agricontract.user.application.dto.PublicUserResponse;
 
 public interface GetUserInfoUseCase {
-    UserInfoResponse execute(String userId);
+    PublicUserResponse execute(String userId);
 }

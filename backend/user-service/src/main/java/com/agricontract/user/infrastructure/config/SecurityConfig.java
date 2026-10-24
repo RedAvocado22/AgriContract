@@ -3,6 +3,7 @@ package com.agricontract.user.infrastructure.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -28,6 +29,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // KYC decisions: OPERATOR is the day-to-day reviewer, ADMIN the fallback (governance §5).
                         .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "OPERATOR")
+                        // Profile reads need an end-user principal (design §4.1): /me is the owner's own profile, and
+                        // the public DTO is for logged-in users. Service-to-service reads go to /internal/v1/users/{userId}.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/**").authenticated()
                         .anyRequest().permitAll()
                 )
                 .exceptionHandling(ex -> ex
