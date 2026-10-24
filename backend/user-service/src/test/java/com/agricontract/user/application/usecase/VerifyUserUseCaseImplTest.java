@@ -1,6 +1,6 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.VerifyUserCommand;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
@@ -63,7 +63,7 @@ class VerifyUserUseCaseImplTest {
         when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(pendingProfile()));
         when(userProfileRepository.update(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        AdminUserResponse response = useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, EXPIRES_AT));
+        KycDecisionResponse response = useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, EXPIRES_AT));
 
         ArgumentCaptor<UserProfile> captor = ArgumentCaptor.forClass(UserProfile.class);
         verify(userProfileRepository).update(captor.capture());
@@ -77,7 +77,6 @@ class VerifyUserUseCaseImplTest {
         assertThat(response.verificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
         assertThat(response.verifiedByActorId()).isEqualTo(ACTOR_ID);
         assertThat(response.verifiedAt()).isEqualTo(NOW);
-        assertThat(response.email()).isEqualTo("seller@agricontract.test");
     }
 
     @Test
@@ -87,7 +86,7 @@ class VerifyUserUseCaseImplTest {
         when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(pendingProfile()));
         when(userProfileRepository.update(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        AdminUserResponse response = useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, EXPIRES_AT));
+        KycDecisionResponse response = useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, EXPIRES_AT));
 
         assertThat(response.verifiedAt()).isEqualTo(Instant.parse("2026-10-07T03:00:00.123456Z"));
     }

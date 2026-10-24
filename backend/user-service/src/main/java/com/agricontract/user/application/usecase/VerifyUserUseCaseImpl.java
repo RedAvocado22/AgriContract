@@ -1,6 +1,6 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.VerifyUserCommand;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.UserId;
@@ -22,7 +22,7 @@ public class VerifyUserUseCaseImpl implements VerifyUserUseCase {
 
     @Override
     @Transactional
-    public AdminUserResponse execute(VerifyUserCommand command) {
+    public KycDecisionResponse execute(VerifyUserCommand command) {
         UserProfile profile = userProfileRepository.findById(new UserId(command.targetUserId()))
                 .orElseThrow(() -> new NoSuchElementException("User not found: " + command.targetUserId()));
 
@@ -30,6 +30,6 @@ public class VerifyUserUseCaseImpl implements VerifyUserUseCase {
 
         UserProfile saved = userProfileRepository.update(profile);
         // TODO(#154): publish notification.user_kyc_result_requested via outbox in this transaction
-        return AdminUserResponse.from(saved);
+        return KycDecisionResponse.from(saved);
     }
 }
