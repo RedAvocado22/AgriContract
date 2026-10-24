@@ -10,9 +10,11 @@ COPY escrow-service/pom.xml ./escrow-service/pom.xml
 COPY notification-service/pom.xml ./notification-service/pom.xml
 COPY reputation-service/pom.xml ./reputation-service/pom.xml
 COPY inspection-service/pom.xml ./inspection-service/pom.xml
-RUN mvn dependency:go-offline -pl product-service -q
+RUN mvn dependency:go-offline -pl product-service -am -q
+# Shared library modules the service may depend on; -am builds them in the same reactor.
+COPY shared/java-eventing/src ./shared/java-eventing/src
 COPY product-service/src ./product-service/src
-RUN mvn clean package -pl product-service -DskipTests -q
+RUN mvn clean package -pl product-service -am -DskipTests -q
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
