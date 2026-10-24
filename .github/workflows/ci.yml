@@ -13,9 +13,16 @@ jobs:
     outputs:
       java: ${{ steps.modules.outputs.java }}
       node: ${{ steps.modules.outputs.node }}
+      analytics: ${{ steps.modules.outputs.analytics }}
+      frontend: ${{ steps.modules.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
 
+      # ADDING A JAVA SERVICE/MODULE: add it in TWO places below, or CI never builds or tests it:
+      #   1. a filter line here:      <module>: 'backend/<module>/**'
+      #   2. the "all" list in the modules step
+      # A new shared library goes in the "all" filter instead, so every module is rebuilt when it changes.
+      # A new Node service or app needs its own filter, output and job (see analytics / frontend).
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -37,24 +44,56 @@ jobs:
             node:
               - 'backend/shared/node-eventing/**'
               - 'backend/notification-service-nest/**'
+            analytics:
+              - 'backend/shared/node-eventing/**'
+              - 'backend/analytics-service/**'
+            frontend: 'frontend/**'
 
       - id: modules
         env:
           CHANGES: ${{ steps.filter.outputs.changes }}
           EVENT: ${{ github.event_name }}
         run: |
+          # Keep in sync with the filters above (step 2 of "adding a Java service").
           all='["shared/java-eventing","api-gateway","user-service","product-service","contract-service","escrow-service","notification-service","reputation-service","inspection-service"]'
           if [ "$EVENT" = "push" ] || echo "$CHANGES" | jq -e 'index("all")' > /dev/null; then
             java="$all"
             node=true
+            analytics=true
+            frontend=true
           else
             java=$(jq -cn --argjson all "$all" --argjson changed "$CHANGES" '$all - ($all - $changed)')
             node=$(echo "$CHANGES" | jq 'index("node") != null')
+            analytics=$(echo "$CHANGES" | jq 'index("analytics") != null')
+            frontend=$(echo "$CHANGES" | jq 'index("frontend") != null')
           fi
-          echo "java=$java" >> "$GITHUB_OUTPUT"
-          echo "node=$node" >> "$GITHUB_OUTPUT"
-          echo "Java modules: $java"
-          echo "Node: $node"
+          {
+            echo "java=$java"
+            echo "node=$node"
+            echo "analytics=$analytics"
+            echo "frontend=$frontend"
+          } >> "$GITHUB_OUTPUT"
+          echo "Java modules: $java | node: $node | analytics: $analytics | frontend: $frontend"
+
+  # Every PR closes exactly one issue (Definition of Done). Reads the current body through the API,
+  # so fixing the description and re-running this job is enough; no new push needed.
+  pr-policy:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          count=$(gh pr view "$PR" --repo "$REPO" --json body -q .body | grep -oiE '\bcloses #[0-9]+' | wc -l)
+          echo "Closes references: $count"
+          if [ "$count" -ne 1 ]; then
+            echo "::error::PR description must contain exactly one 'Closes #<issue>' (found $count)."
+            exit 1
+          fi
 
   java:
     needs: changes
@@ -118,10 +157,59 @@ jobs:
           npm test
           npm run build
 
+  analytics-service:
+    needs: changes
+    if: needs.changes.outputs.analytics == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/shared/node-eventing/package-lock.json
+            backend/analytics-service/package-lock.json
+
+      # postinstall builds shared/node-eventing, which the service imports.
+      - name: Typecheck, test and build
+        working-directory: backend/analytics-service
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # build = tsc -b (typecheck) + vite build. No test runner in the app yet.
+      - name: Lint and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
   # The only required check on main. Jobs skipped by the path filter count as passed;
   # a failed or cancelled job fails the gate.
   ci-gate:
-    needs: [changes, java, notification-service-node]
+    needs: [changes, pr-policy, java, notification-service-node, analytics-service, frontend]
     if: always()
     runs-on: ubuntu-latest
     steps:
