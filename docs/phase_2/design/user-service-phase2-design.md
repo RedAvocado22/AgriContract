@@ -89,6 +89,17 @@ Reputation công khai không nhét vào DTO này; client gọi `GET /api/v1/repu
 
 Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào hash chain là enhancement, không phải Phase 2 golden flow.
 
+### 4.2b Role assignment API — qua Gateway, role `ADMIN` (mới 13/10/2026, #161; contract `assignUserRole` trong `golden-flow-api.yaml`)
+
+| Method | Path | Ý nghĩa |
+|---|---|---|
+| `PUT` | `/api/v1/admin/users/{userId}/role` | Body `{"role": "<BUYER\|SELLER\|ADMIN\|INSPECTOR\|OPERATOR\|ARBITRATOR>"}`, field lạ → 400; user không tồn tại → 404 |
+
+- **Một account một role** (cột `role` đơn trị) — tổ hợp `OPERATOR` + `ARBITRATOR` không biểu diễn được trong `user_db`. Lỗ hổng còn lại là **đổi thẳng** `OPERATOR` ↔ `ARBITRATOR` (người vừa propose đổi role rồi tự approve) → **409 `ROLE_SEPARATION_VIOLATION`**, rule nằm ở domain (`UserProfile.assignRole`). Cần người khác thì dùng account khác. Gán lại đúng role hiện tại → no-op.
+- Token mang cả 2 role cũng bị chặn: `HeaderAuthenticationFilter` trả 403 cho **mọi request** có `X-User-Role` (realm roles từ JWT) chứa cả `OPERATOR` và `ARBITRATOR` — gồm cả `register`, nên không lặng lẽ chọn role đầu tiên.
+- **Không ADMIN fallback:** ADMIN chỉ gán role, không được gọi KYC (§4.2) hay bất kỳ action OPERATOR/ARBITRATOR nào trong user-service (governance §5.2/§5.4).
+- **Known limitation:** endpoint chỉ đổi role trong `user_db`, chưa đồng bộ realm role sang Keycloak (cần Keycloak admin client — follow-up). Tới lúc đó ADMIN gán realm role trên Keycloak bằng tay và realm export không seed account nào mang cả 2 role.
+
 ### 4.3 Internal API — tuyệt đối không route qua Gateway
 
 `GET /internal/v1/users/{userId}` trả `InternalUserInfoResponse`:
