@@ -88,6 +88,9 @@ public class EventingAutoConfiguration {
             // A private template, so mandatory=true does not change how the service's own RabbitTemplate behaves.
             RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
             rabbitTemplate.setMandatory(true);
+            // Returns reach the poller through CorrelationData.getReturned(); this only stops the template from
+            // warning "no callback available" on every unroutable publish.
+            rabbitTemplate.setReturnsCallback(returned -> { });
             return new OutboxPoller(jdbcTemplate, rabbitTemplate, new TransactionTemplate(transactionManager),
                     properties.exchange(), properties.batchSize(), properties.confirmTimeout());
         }
