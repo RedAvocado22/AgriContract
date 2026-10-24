@@ -7,36 +7,60 @@ import {
   SendInProgressError,
   failureCode,
 } from './notification-errors';
-import { EmailDeliveryError, type EmailPort } from './ports/email.port';
+import {
+  EmailDeliveryError,
+  type EmailMessage,
+  type EmailPort,
+} from './ports/email.port';
 import type { NotificationLogRepository } from './ports/notification-log.repository';
 
-/**
- * How long a PENDING claim protects a send in progress. Well above the
- * longest possible SMTP attempt (10s connect + 10s greeting + 30s socket), so
- * a live claim is never taken over; after it, the claim of a delivery that
- * died mid-send can be taken again.
+/*
+ * Claim timing (plan §4.3). A PENDING row is a claim on one email; its
+ * updated_at (database clock) is refreshed by a heartbeat while the email is
+ * being sent, so only the claim of a delivery that died mid-send ages past
+ * the lease and can be taken over.
  */
-export const CLAIM_LEASE_MS = 120_000;
+
+/** A PENDING claim not refreshed for this long is dead: above the 30s SMTP socket timeout. */
+export const CLAIM_LEASE_MS = 45_000;
+
+/** How often a live claim is refreshed while sending: three beats per lease. */
+export const CLAIM_HEARTBEAT_MS = 15_000;
+
+/** Where the sender reports failures it does not throw (heartbeats). */
+export interface SenderLogger {
+  error(message: string): void;
+}
+
+export interface NotificationSenderOptions {
+  logger?: SenderLogger;
+}
 
 /**
  * Sends one email for one event to one recipient, at most once (plan §4.3).
  * Shared by the Notify*UseCase classes; plain TypeScript, no framework.
  */
 export class NotificationSender {
+  private readonly logger: SenderLogger;
+
   constructor(
     private readonly logs: NotificationLogRepository,
     private readonly email: EmailPort,
-  ) {}
+    options: NotificationSenderOptions = {},
+  ) {
+    this.logger = options.logger ?? console;
+  }
 
   /**
-   * 1. Claim the send atomically (insert PENDING, or retake a FAILED / stale
-   *    PENDING row). ALREADY_SENT: done.
+   * 1. Claim the send atomically (insert PENDING, or retake a FAILED row or a
+   *    PENDING row older than the lease). ALREADY_SENT: done.
    * 2. IN_PROGRESS: another delivery of the same event holds a live claim;
    *    throw a retryable error so this message comes back after the backoff,
    *    by when the other delivery has usually recorded SENT. Acking instead
    *    would lose the email if that other delivery then fails.
-   * 3. Send outside any transaction, then record SENT, or FAILED with
-   *    retry_count + 1 and rethrow so the whole message is retried
+   * 3. Send outside any transaction, refreshing the claim every
+   *    CLAIM_HEARTBEAT_MS until the send ends, then record SENT, or FAILED
+   *    with retry_count + 1 and rethrow so the whole message is retried
    *    (recipients already SENT are skipped then).
    *
    * Every error thrown is a NotificationError whose message holds only the
@@ -65,7 +89,11 @@ export class NotificationSender {
     if (claim === 'IN_PROGRESS') throw new SendInProgressError(eventId);
 
     try {
-      await this.email.send({ to: recipientEmail, subject, body });
+      await this.sendWithHeartbeat(eventId, {
+        to: recipientEmail,
+        subject,
+        body,
+      });
     } catch (err) {
       await this.logStep(eventId, () =>
         this.logs.markFailed(eventId, recipientEmail),
@@ -77,6 +105,36 @@ export class NotificationSender {
     await this.logStep(eventId, () =>
       this.logs.markSent(eventId, recipientEmail),
     );
+  }
+
+  /**
+   * Sends `message`, refreshing its claim every CLAIM_HEARTBEAT_MS until the
+   * send ends, successfully or not. A failed beat is logged (event id and
+   * code only) and does not stop the send: the next beat may succeed, and if
+   * none does the claim can be taken over after the lease, as for a crash.
+   */
+  private async sendWithHeartbeat(
+    eventId: string,
+    message: EmailMessage,
+  ): Promise<void> {
+    let beating = false;
+    const timer = setInterval(() => {
+      if (beating) return; // the previous beat is still waiting for the database
+      beating = true;
+      this.logs
+        .heartbeat(eventId, message.to)
+        .catch((err: unknown) =>
+          this.logger.error(
+            `Event ${eventId}: claim heartbeat failed (${failureCode(err)})`,
+          ),
+        )
+        .finally(() => (beating = false));
+    }, CLAIM_HEARTBEAT_MS);
+    try {
+      await this.email.send(message);
+    } finally {
+      clearInterval(timer);
+    }
   }
 
   /** Runs a repository call; a failure becomes a code-only error (driver texts may quote values). */

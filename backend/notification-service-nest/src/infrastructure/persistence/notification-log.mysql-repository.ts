@@ -42,6 +42,15 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
     return rows[0]?.status === 'SENT' ? 'ALREADY_SENT' : 'IN_PROGRESS';
   }
 
+  async heartbeat(eventId: string, recipientEmail: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE notification_logs
+          SET updated_at = UTC_TIMESTAMP(6)
+        WHERE event_id = ? AND user_id = ? AND status = 'PENDING'`,
+      [eventId, recipientEmail],
+    );
+  }
+
   async markSent(eventId: string, recipientEmail: string): Promise<void> {
     await this.pool.query(
       `UPDATE notification_logs

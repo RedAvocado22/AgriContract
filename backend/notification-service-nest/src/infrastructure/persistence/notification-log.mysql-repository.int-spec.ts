@@ -6,7 +6,10 @@
  */
 import { randomUUID } from 'node:crypto';
 import { createPool, type Pool, type RowDataPacket } from 'mysql2/promise';
-import { NotificationSender } from '../../application/notification-sender';
+import {
+  CLAIM_LEASE_MS,
+  NotificationSender,
+} from '../../application/notification-sender';
 import type {
   EmailMessage,
   EmailPort,
@@ -19,7 +22,7 @@ import {
 import { MysqlNotificationLogRepository } from './notification-log.mysql-repository';
 
 const db = validate(process.env).db;
-const LEASE_MS = 120_000;
+const LEASE_MS = CLAIM_LEASE_MS;
 
 describe('MysqlNotificationLogRepository on real MySQL', () => {
   let pool: Pool;
@@ -101,7 +104,7 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
     );
 
     await pool.query(
-      'UPDATE notification_logs SET updated_at = UTC_TIMESTAMP(6) - INTERVAL 121 SECOND WHERE event_id = ?',
+      'UPDATE notification_logs SET updated_at = UTC_TIMESTAMP(6) - INTERVAL 46 SECOND WHERE event_id = ?',
       [eventId],
     );
     await expect(repo.claim(log(eventId), LEASE_MS)).resolves.toBe('CLAIMED');
