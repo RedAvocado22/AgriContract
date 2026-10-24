@@ -24,11 +24,14 @@ import { LEGACY_ROUTES, type LegacyRoutes } from './legacy-routes';
 import { TOPOLOGY, queueName } from './topology';
 
 /**
- * Upper bound on waiting for in-flight messages at shutdown. Docker sends
- * SIGKILL 10s after SIGTERM by default; anything still running then stays
- * unacked and is redelivered, where SENT recipients are skipped.
+ * Upper bound on waiting for in-flight messages at shutdown: above the
+ * longest SMTP attempt (30s socket timeout), so a send in progress can finish
+ * and be recorded, and below the compose `stop_grace_period` (60s), so the
+ * channel and pool still close before SIGKILL. Messages still running then
+ * are not acked: closing the channel makes the broker redeliver them, where
+ * SENT recipients are skipped and the dead claim is taken over after its lease.
  */
-export const DRAIN_TIMEOUT_MS = 8_000;
+export const DRAIN_TIMEOUT_MS = 40_000;
 
 /** One queue: parse the flat payload, run the handler, report PROCESSED (no envelope, D6). */
 export class QueueConsumer implements MessageConsumer {
