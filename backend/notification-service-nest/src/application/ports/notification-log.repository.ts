@@ -22,6 +22,13 @@ export interface NotificationLogRepository {
    */
   claim(log: NotificationLog, leaseMs: number): Promise<ClaimResult>;
 
+  /**
+   * Keeps a claim alive while its email is being sent: moves `updated_at` of
+   * the PENDING row to now (database clock), so the claim stays younger than
+   * the lease. Does nothing once the row is SENT or FAILED.
+   */
+  heartbeat(eventId: string, recipientEmail: string): Promise<void>;
+
   /** Records the claimed email as SENT. */
   markSent(eventId: string, recipientEmail: string): Promise<void>;
 
