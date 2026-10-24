@@ -2,12 +2,20 @@ import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
 } from '../../test/support/fakes';
-import { NotificationStatus } from '../domain/notification-log';
+import {
+  NotificationChannel,
+  NotificationLog,
+  NotificationStatus,
+} from '../domain/notification-log';
 import {
   NotificationDeliveryError,
   SendInProgressError,
 } from './notification-errors';
-import { CLAIM_LEASE_MS, NotificationSender } from './notification-sender';
+import {
+  CLAIM_HEARTBEAT_MS,
+  CLAIM_LEASE_MS,
+  NotificationSender,
+} from './notification-sender';
 
 describe('NotificationSender.send (plan §4.3)', () => {
   let logs: InMemoryNotificationLogRepository;
@@ -146,6 +154,152 @@ describe('NotificationSender.send (plan §4.3)', () => {
       release();
       await a;
       expect(email.sent).toHaveLength(1);
+    });
+  });
+
+  describe('claim heartbeat while sending (fake timers)', () => {
+    let logger: { error: jest.Mock };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      logger = { error: jest.fn() };
+      sender = new NotificationSender(logs, email, { logger });
+    });
+    afterEach(() => jest.useRealTimers());
+
+    /** Advances the timers and the fake repository clock together. */
+    const tick = async (ms: number) => {
+      logs.now += ms;
+      await jest.advanceTimersByTimeAsync(ms);
+    };
+
+    it('uses a 45s lease refreshed every 15s', () => {
+      expect(CLAIM_LEASE_MS).toBe(45_000);
+      expect(CLAIM_HEARTBEAT_MS).toBe(15_000);
+    });
+
+    it('refreshes the claim every 15s while the send is in progress', async () => {
+      const heartbeat = jest.spyOn(logs, 'heartbeat');
+      const release = email.hold();
+      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+
+      await tick(CLAIM_HEARTBEAT_MS - 1);
+      expect(heartbeat).not.toHaveBeenCalled();
+      await tick(1);
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+      expect(heartbeat).toHaveBeenCalledWith('evt-1', 'a@example.test');
+      await tick(CLAIM_HEARTBEAT_MS);
+      expect(heartbeat).toHaveBeenCalledTimes(2);
+
+      release();
+      await sending;
+    });
+
+    it('keeps a long send claimed past the lease: another delivery cannot take it over', async () => {
+      const release = email.hold();
+      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+
+      await tick(CLAIM_LEASE_MS + CLAIM_HEARTBEAT_MS); // 60s after the claim, last beat at 60s
+
+      await expect(
+        logs.claim(
+          NotificationLog.create(
+            'evt-1',
+            'a@example.test',
+            NotificationChannel.EMAIL,
+            'S',
+            'B',
+          ),
+          CLAIM_LEASE_MS,
+        ),
+      ).resolves.toBe('IN_PROGRESS');
+
+      release();
+      await sending;
+      expect(email.sent).toHaveLength(1);
+    });
+
+    it('stops beating once the send succeeded', async () => {
+      const heartbeat = jest.spyOn(logs, 'heartbeat');
+      const release = email.hold();
+      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      await tick(CLAIM_HEARTBEAT_MS);
+      release();
+      await sending;
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+
+      await tick(10 * CLAIM_HEARTBEAT_MS);
+
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+      expect(jest.getTimerCount()).toBe(0);
+      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
+        NotificationStatus.SENT,
+      );
+    });
+
+    it('stops beating once the send failed', async () => {
+      const heartbeat = jest.spyOn(logs, 'heartbeat');
+      email.failFor.add('a@example.test');
+      const release = email.hold();
+      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const failed = expect(sending).rejects.toBeInstanceOf(
+        NotificationDeliveryError,
+      );
+      await tick(CLAIM_HEARTBEAT_MS);
+      release();
+      await failed;
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+
+      await tick(10 * CLAIM_HEARTBEAT_MS);
+
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+      expect(jest.getTimerCount()).toBe(0);
+      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
+        NotificationStatus.FAILED,
+      );
+    });
+
+    it('a failed beat is logged as an error with the event id and code only; the send goes on', async () => {
+      jest.spyOn(logs, 'heartbeat').mockRejectedValueOnce(
+        Object.assign(new Error("Lock wait for 'a@example.test'"), {
+          code: 'ER_LOCK_WAIT_TIMEOUT',
+        }),
+      );
+      const release = email.hold();
+      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+
+      await tick(CLAIM_HEARTBEAT_MS);
+      release();
+      await sending;
+
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(
+        'Event evt-1: claim heartbeat failed (ER_LOCK_WAIT_TIMEOUT)',
+      );
+      expect(email.sent).toHaveLength(1);
+      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
+        NotificationStatus.SENT,
+      );
+    });
+
+    it('does not start a beat while the previous one still waits for the database', async () => {
+      let unblock!: () => void;
+      const heartbeat = jest
+        .spyOn(logs, 'heartbeat')
+        .mockImplementationOnce(
+          () => new Promise<void>((resolve) => (unblock = resolve)),
+        );
+      const release = email.hold();
+      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+
+      await tick(3 * CLAIM_HEARTBEAT_MS);
+      expect(heartbeat).toHaveBeenCalledTimes(1);
+      unblock();
+      await tick(CLAIM_HEARTBEAT_MS);
+      expect(heartbeat).toHaveBeenCalledTimes(2);
+
+      release();
+      await sending;
     });
   });
 
