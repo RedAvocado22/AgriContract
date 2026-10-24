@@ -16,6 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ADDING A JAVA SERVICE/MODULE: add it in TWO places below, or CI never builds or tests it:
+      #   1. a filter line here:      <module>: 'backend/<module>/**'
+      #   2. the "all" list in the modules step
+      # A new shared library goes in the "all" filter instead, so every module is rebuilt when it changes.
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -43,6 +47,7 @@ jobs:
           CHANGES: ${{ steps.filter.outputs.changes }}
           EVENT: ${{ github.event_name }}
         run: |
+          # Keep in sync with the filters above (step 2 of "adding a Java service").
           all='["shared/java-eventing","api-gateway","user-service","product-service","contract-service","escrow-service","notification-service","reputation-service","inspection-service"]'
           if [ "$EVENT" = "push" ] || echo "$CHANGES" | jq -e 'index("all")' > /dev/null; then
             java="$all"
