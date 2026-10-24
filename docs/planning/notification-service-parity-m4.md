@@ -31,7 +31,7 @@ D-1 đã sửa (§4, commit trong PR #206). D-2…D-6 và e2e vẫn **chờ quy�
 
 | Mục             | Giá trị                                                                                                                                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Nhánh / commit  | `feat/notification-service-nest-m4` từ `main` `50c24f6` (đã có M3 #181). Code Nest và node-eventing không đổi kể từ M3                                                                                       |
+| Nhánh / commit  | `feat/notification-service-nest-m4` từ `main` `50c24f6` (đã có M3 #181). Lượt đầu chạy trên code M3, chưa đổi. Sau đó nhánh có thêm các commit sửa D-1 (`a0c5cda` … `65d3765`, §4). Riêng `871475a`, `bac27e9`, `65d3765` đổi code Nest (park khi shutdown) và test. node-eventing không đổi                                                                                       |
 | Java            | image `notification-service-java:m3-verify` (`1465e6c218aa`), chạy bằng `docker run` trên `backend_agricontract-net` với lệnh trong brief M4                                                                 |
 | Nest            | `backend-notification-service:latest` build lại từ nhánh này (`b9ba188d60b2`), chạy bằng `docker compose up -d notification-migrate notification-service`                                                    |
 | Hạ tầng dùng chung | `rabbitmq:3.13-management-alpine`, `mailhog/mailhog:latest`, `mysql:8.0` (`notification-db`, `@@system_time_zone = UTC`). Không có `docker-compose.override.yml`                                         |
@@ -187,16 +187,16 @@ MailHog total=0, DLQ 3 → 4, dòng vẫn PENDING
 
 Park (`871475a`) thêm vào sau lần chạy giữa: chỉ có drain 40s thì tình huống 4 vào DLQ trong lúc dừng (§3.1).
 
-**Kiểm chứng sau sửa** (image `d374d5108c4d`). Các listener SMTP giả chạy trên host, Nest qua compose với `MAIL_HOST=host.docker.internal`:
+**Kiểm chứng sau sửa** (image `d374d5108c4d`; riêng D-1a `slow` và D-1b 24s chạy lại trên image `732cd495f338`, build từ HEAD `e50a3c0`, cùng code Nest). Các listener SMTP giả chạy trên host, Nest qua compose với `MAIL_HOST=host.docker.internal`:
 - `stall`: gửi lời chào 220 rồi không trả lời.
 - `slow`: proxy tới MailHog, giữ câu trả lời sau `DATA` 15s.
 
 | Kịch bản | Cách chạy | Kết quả | Đạt? |
 | -------- | --------- | ------- | ---- |
 | D-1a, SMTP treo | `stall`, publish, `docker compose stop` 3s sau, rồi start với MailHog | Dừng sau **27.8s**, exit 0. Lần thử 1 hết `socketTimeout` 30s → buyer `FAILED` 1, lần retry bị park, message về `ready`, không dòng `PENDING`. Sau khi start: mail đến 1.5s sau start, mỗi người 1 mail, 2 `SENT`, DLQ 0 | ✅ |
-| D-1a, SMTP chậm (gửi xong trong lúc drain) | `slow` 15s/mail, stop 3s sau publish | Dừng sau **27.0s**, exit 0. Cả 2 mail gửi xong và `SENT` trong lúc drain, message được ack. Start lại: không mail thêm | ✅ (chạy trước khi có park, image `f5855175d2ba`) |
+| D-1a, SMTP chậm (gửi xong trong lúc drain) | `slow` 15s/mail, `reset.sh`, stop 3s sau publish, start lại với MailHog | Stop 20:29:03.72, thoát 20:29:30.76: **27.0s, exit 0**. Cả 2 mail gửi xong và `SENT` trong lúc drain (20:29:15.65, 20:29:30.69), message được ack, DLQ 0, không dòng `PENDING`. Start lại: không mail thêm (MailHog vẫn 2) | ✅ (image `732cd495f338`) |
 | D-1b, `docker kill` (exit 137) | `stall`, kill 16s sau publish (ngay sau heartbeat đầu), start lại ngay với MailHog | Heartbeat lúc 17:18:27.45 (claim + 15.0s). Kill 17:18:28.73, message về `ready`. Start 17:18:33.30, mail buyer 17:19:12.82: **39.5s sau khi start**, 45.4s sau heartbeat cuối (hết lease). Mỗi người 1 mail, không DLQ, không retry | ✅ |
-| D-1b, start lại sau 24s | như trên, kill 20s sau publish, start lại 24s sau | Mail đến **15.8s sau khi start** (45.7s sau heartbeat cuối). Mỗi người 1 mail | ✅ (image `f5855175d2ba`) |
+| D-1b, start lại sau 24s | `stall`, `reset.sh`, kill 20s sau publish, đợi 24s rồi start với MailHog | Heartbeat 20:30:33.47. Kill 20:30:38.74, **exit 137**, message về `ready`. Container start 20:31:08.03 (29.3s sau kill, gồm thời gian compose khởi động). Mail buyer 20:31:19.35: **11.3s sau khi start**, 45.9s sau heartbeat cuối. Mỗi người đúng 1 mail, 2 `SENT`, DLQ 0, không retry | ✅ (image `732cd495f338`) |
 | D-1c, hai delivery đồng thời | `slow`, publish cùng `eventId` hai lần cách 1s | 2 message unacked cùng lúc. Proxy chỉ thấy 2 kết nối SMTP (1 cho mỗi người nhận). Delivery thứ hai chờ claim, thấy `SENT`, bỏ qua. 2 mail, 2 `SENT`, cả hai message ack lúc 17:20:14, không retry, không DLQ | ✅ |
 
 Tự động: service `lint:check` sạch, `npm test` 389/389, `npm run test:int` 11/11 (MySQL thật), `build` OK. node-eventing `npm ci && npm run build && npm test`: 90/90.
