@@ -367,6 +367,170 @@ describe('NotificationEventConsumer', () => {
   });
 });
 
+describe('NotificationEventConsumer at shutdown: no new attempt starts (fake timers)', () => {
+  const QUEUE = 'notification-svc.contract.signed';
+  const PAYLOAD = PAYLOADS[QUEUE].payload;
+  let log: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    for (const level of ['warn', 'error', 'debug'] as const) {
+      jest.spyOn(Logger.prototype, level).mockImplementation(() => undefined);
+    }
+    log = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  async function started() {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+    let drained = false;
+    const shutdown = () => {
+      const done = consumer
+        .beforeApplicationShutdown()
+        .then(() => (drained = true));
+      return done;
+    };
+    return {
+      consumer,
+      channel,
+      handler: service.contractSigned,
+      shutdown,
+      drained: () => drained,
+    };
+  }
+
+  it('an attempt running when shutdown begins finishes and is acked', async () => {
+    const { consumer, channel, handler, shutdown, drained } = await started();
+    let finish!: () => void;
+    handler.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    const msg = channel.deliver(QUEUE, PAYLOAD);
+    await jest.advanceTimersByTimeAsync(0);
+
+    const done = shutdown();
+    await jest.advanceTimersByTimeAsync(5_000);
+    expect(drained()).toBe(false);
+    finish();
+    await jest.advanceTimersByTimeAsync(0);
+    await done;
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(channel.acked).toEqual([msg]);
+    expect(consumer.parkedCount).toBe(0);
+  });
+
+  it('an attempt running when shutdown begins that fails for good is nacked to the DLQ as usual', async () => {
+    const { channel, handler, shutdown } = await started();
+    let fail!: (err: Error) => void;
+    handler.mockImplementationOnce(
+      () => new Promise<void>((_resolve, reject) => (fail = reject)),
+    );
+    const msg = channel.deliver(QUEUE, PAYLOAD);
+    await jest.advanceTimersByTimeAsync(0);
+
+    const done = shutdown();
+    fail(new NonRetryableError('bad payload'));
+    await jest.advanceTimersByTimeAsync(0);
+    await done;
+
+    expect(channel.nacked).toEqual([{ msg, requeue: false }]);
+  });
+
+  it('the retry after a failed attempt is parked: handler not called again, no ack, no nack, drain does not wait for it', async () => {
+    const { consumer, channel, handler, shutdown, drained } = await started();
+    let fail!: (err: Error) => void;
+    handler.mockImplementationOnce(
+      () => new Promise<void>((_resolve, reject) => (fail = reject)),
+    );
+    channel.deliver(QUEUE, PAYLOAD);
+    await jest.advanceTimersByTimeAsync(0);
+
+    const done = shutdown();
+    fail(new Error('SMTP down')); // retryable: handleDelivery sleeps 1s, then tries again
+    await jest.advanceTimersByTimeAsync(999);
+    expect(drained()).toBe(false); // still in its backoff
+    await jest.advanceTimersByTimeAsync(1);
+    await done;
+
+    expect(drained()).toBe(true); // after 1s, not the 40s drain timeout
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(channel.acked).toEqual([]);
+    expect(channel.nacked).toEqual([]);
+    expect(consumer.inFlightCount).toBe(1);
+    expect(consumer.parkedCount).toBe(1);
+    expect(log).toHaveBeenCalledWith(
+      '1 message(s) not retried during shutdown; they stay unacked and will be redelivered',
+    );
+
+    // Nothing happens later either: no further attempt, never settled.
+    await jest.advanceTimersByTimeAsync(10 * DRAIN_TIMEOUT_MS);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(channel.acked).toEqual([]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('a message already in its backoff when shutdown begins is parked when the backoff ends', async () => {
+    const { consumer, channel, handler, shutdown } = await started();
+    handler.mockRejectedValueOnce(new Error('SMTP down'));
+    channel.deliver(QUEUE, PAYLOAD);
+    await jest.advanceTimersByTimeAsync(500); // attempt 1 failed, 500ms into the 1s backoff
+
+    const done = shutdown();
+    await jest.advanceTimersByTimeAsync(500);
+    await done;
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(consumer.parkedCount).toBe(1);
+    expect(channel.acked).toEqual([]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('a delivery reaching the consumer after shutdown began is parked without running', async () => {
+    const { consumer, channel, handler, shutdown } = await started();
+    const done = shutdown(); // consumers are being cancelled
+
+    channel.deliver(QUEUE, PAYLOAD);
+    await jest.advanceTimersByTimeAsync(0);
+    await done;
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(consumer.parkedCount).toBe(1);
+    expect(channel.acked).toEqual([]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('waits for a running send next to a parked message, and on timeout leaves both unacked', async () => {
+    const { consumer, channel, handler, shutdown, drained } = await started();
+    handler
+      .mockRejectedValueOnce(new Error('SMTP down')) // message 1: will be parked
+      .mockImplementationOnce(() => new Promise<void>(() => undefined)); // message 2: send hangs
+    channel.deliver(QUEUE, { ...PAYLOAD, eventId: 'e-park' });
+    channel.deliver(QUEUE, { ...PAYLOAD, eventId: 'e-hang' });
+    await jest.advanceTimersByTimeAsync(0);
+
+    const done = shutdown();
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(consumer.parkedCount).toBe(1);
+    expect(drained()).toBe(false); // message 2 is still sending
+
+    await jest.advanceTimersByTimeAsync(DRAIN_TIMEOUT_MS - 1_000);
+    await done;
+
+    expect(consumer.inFlightCount).toBe(2);
+    expect(channel.acked).toEqual([]);
+    expect(channel.nacked).toEqual([]);
+  });
+});
+
 describe('delivery handling of a QueueConsumer (eventing handleDelivery)', () => {
   function recordingChannel() {
     const calls = { acks: 0, nacks: [] as Array<boolean | undefined> };
