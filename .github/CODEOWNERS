@@ -1,0 +1,17 @@
+# Auto-requests review from whoever knows the code best. Not enforced: branch protection does not require
+# code-owner approval, so an absent owner never blocks a merge. Later lines win for overlapping paths.
+
+*                                    @RedAvocado22
+
+/backend/api-gateway/                @RedAvocado22 @LetMeSoloSir
+/backend/user-service/               @LetMeSoloSir @RedAvocado22
+/backend/product-service/            @LetMeSoloSir @RedAvocado22
+/backend/notification-service-nest/  @viethung82nd
+/backend/reputation-service/         @Emperor294
+/backend/inspection-service/         @Emperor294
+/backend/analytics-service/          @minhlphe171115
+/backend/shared/node-eventing/       @minhlphe171115 @viethung82nd
+
+# Shared contracts and CI touch everyone; the repo owner reviews them.
+/contracts/                          @RedAvocado22
+/.github/                            @RedAvocado22
