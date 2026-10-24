@@ -35,6 +35,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/admin/users/*/verify", "/api/v1/admin/users/*/reject").hasRole("OPERATOR")
                         .requestMatchers("/api/v1/admin/**").denyAll()
+                        // Profile reads need an end-user principal (design §4.1): /me is the owner's own profile, and
+                        // the public DTO is for logged-in users. Service-to-service reads go to /internal/v1/users/{userId}.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/**").authenticated()
                         .anyRequest().permitAll()
                 )
                 .exceptionHandling(ex -> ex
