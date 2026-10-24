@@ -72,6 +72,8 @@ Dùng chung 1 enum cho cả 3 channel (không tách nhánh riêng theo channel) 
 
 ### 2.3 Storage key trong MinIO
 
+> **Cập nhật 24/10/2026 (#91):** "MinIO" trong tài liệu này hiểu là *object storage S3-compatible*. Compose dùng **SeaweedFS** (`object-storage`, S3 API `:8333`) vì MinIO ngừng phát hành image community từ 10/2025 và đã archive repo. file-service gọi qua S3 SDK nên thiết kế không đổi.
+
 **Chốt (review pass 2, 05/07/2026):** object key = chính `fileId` (UUID), 1 bucket phẳng — không phân cấp theo `contentType`/`ingestChannel` (VD không tạo `images/`, `documents/`). Không ai truy cập MinIO trực tiếp để "duyệt tìm" file — mọi truy xuất đi qua `GetFile(fileId)`, luôn có `fileId` trong tay trước khi cần đọc. Phân loại ảnh/tài liệu đã có sẵn ở `contentType` trong bảng `file` (DB là nguồn sự thật cho metadata, storage key chỉ là địa chỉ vật lý). Thêm hierarchy chỉ có giá trị nếu cần lifecycle policy theo ngày/tháng hoặc partition ở scale rất lớn — ngoài scope đồ án, không thêm structure không cần dùng.
 
 ---
