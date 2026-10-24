@@ -198,4 +198,39 @@ class EventEnvelopeCodecTest {
                 .hasMessageContaining("eventVersion must be >= 1")
                 .hasNoCause();
     }
+
+    // Jackson would coerce each of these into a valid-looking envelope; the schema types reject them.
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "\"eventVersion\":\"1\"",       // string for integer
+            "\"eventVersion\":1.9",           // float for integer
+            "\"producer\":123",               // number for string
+            "\"aggregateId\":true",           // boolean for string
+            "\"occurredAt\":1700000000",      // epoch number for date-time
+            "\"occurredAt\":1700000000.5",
+            "\"occurredAt\":true",
+            "\"eventId\":5"                   // number for uuid
+    })
+    void parse_scalarOfWrongType_throwsInsteadOfCoercing(String field) {
+        String name = field.substring(1, field.indexOf('"', 1));
+        String json = validJson("").replaceFirst("\"" + name + "\":(\"[^\"]*\"|[0-9]+)", field);
+
+        assertThatThrownBy(() -> codec.parse(bytes(json)))
+                .isInstanceOf(InvalidEnvelopeException.class);
+    }
+
+    @Test
+    void parse_correlationIdNumber_throwsInsteadOfCoercing() {
+        assertThatThrownBy(() -> codec.parse(bytes(validJson(",\"correlationId\":5"))))
+                .isInstanceOf(InvalidEnvelopeException.class);
+    }
+
+    @Test
+    void parse_occurredAtNumber_failureNamesTheField() {
+        String json = validJson("").replace("\"2026-10-23T03:00:00Z\"", "1700000000");
+
+        assertThatThrownBy(() -> codec.parse(bytes(json)))
+                .isInstanceOf(InvalidEnvelopeException.class)
+                .hasMessageContaining("occurredAt");
+    }
 }
