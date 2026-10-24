@@ -145,4 +145,21 @@ describe('shutdown order (Nest lifecycle)', () => {
 
     expect(app.events).toEqual(['channel.close', 'pool.end']);
   });
+
+  it('a retry due during shutdown is parked: the channel closes after its backoff, without ack or nack', async () => {
+    let calls = 0;
+    const app = await startApp(() => {
+      calls += 1;
+      return Promise.reject(new Error('SMTP down'));
+    });
+    app.deliver();
+    await jest.advanceTimersByTimeAsync(0); // attempt 1 failed, 1s backoff running
+
+    const shutdown = app.close();
+    await jest.advanceTimersByTimeAsync(1_000);
+    await shutdown.done;
+
+    expect(calls).toBe(1); // attempt 2 never ran
+    expect(app.events).toEqual(['channel.close', 'pool.end']);
+  });
 });
