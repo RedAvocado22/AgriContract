@@ -1,6 +1,6 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.UserInfoResponse;
+import com.agricontract.user.application.dto.PublicUserResponse;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.UserProfileRepository;
@@ -15,17 +15,17 @@ public class GetUserInfoUseCaseImpl implements GetUserInfoUseCase {
     private final UserProfileRepository userProfileRepository;
 
     @Override
-    public UserInfoResponse execute(String userId) {
+    public PublicUserResponse execute(String userId) {
         UserProfile userProfile = userProfileRepository.findById(new UserId(userId)).orElseThrow(() -> new NoSuchElementException("User not found: " + userId));
         return toResponse(userProfile);
     }
 
-    private UserInfoResponse toResponse(UserProfile profile) {
-        return UserInfoResponse.builder()
+    private PublicUserResponse toResponse(UserProfile profile) {
+        return PublicUserResponse.builder()
                 .userId(profile.getUserId().value())
-                .email(profile.getContactInfo().email())
                 .organizationName(profile.getOrganizationName())
                 .role(profile.getRole())
+                .verificationStatus(profile.getVerificationStatus())
                 .build();
     }
 }
