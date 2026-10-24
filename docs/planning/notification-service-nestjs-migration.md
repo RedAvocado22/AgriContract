@@ -74,10 +74,16 @@ Mỗi dòng phải có test (unit hoặc Bruno) trước khi cutover.
 3. **Thuật toán gửi** (`NotificationSender.send`), mỗi người nhận xử lý độc lập. Đây là bản chặt hơn Java, sửa theo review #172:
    1. **Claim nguyên tử** theo `(event_id, user_id = email)`:
       - Lần đầu: `INSERT` trạng thái `PENDING`.
-      - Nếu dòng đã tồn tại: chạy một câu `UPDATE` có điều kiện, chỉ lấy lại dòng `FAILED` hoặc dòng `PENDING` cũ hơn lease 120 giây (`updated_at` theo giờ DB, UTC), rồi kiểm `affectedRows`.
+      - Nếu dòng đã tồn tại: chạy một câu `UPDATE` có điều kiện, chỉ lấy lại dòng `FAILED` hoặc dòng `PENDING` có `updated_at < UTC_TIMESTAMP(6) - 45 giây` (lease, giờ DB), rồi kiểm `affectedRows`. Lease 45 giây lớn hơn SMTP socket timeout 30 giây.
       - Nhiều delivery chạy đồng thời thì tối đa một bên claim được.
-   2. Dòng `SENT` thì bỏ qua. Nếu một delivery khác đang giữ claim còn hạn: **throw lỗi retryable**, không ack. Lần retry thường sẽ thấy `SENT`. Nếu ack ngay thì mail sẽ mất khi bên đang giữ claim bị lỗi.
-   3. Gửi mail ngoài transaction. Thành công thì `SENT`. Lỗi thì `FAILED`, `retry_count + 1` (tính trong SQL), rồi throw để cả message được retry. Người nhận đã `SENT` sẽ bị bỏ qua ở lần retry.
+      - Hằng số `CLAIM_LEASE_MS`, `CLAIM_HEARTBEAT_MS`, `CLAIM_WAIT_MS`, `CLAIM_POLL_MS` nằm ở một chỗ: `application/notification-sender.ts`.
+   2. Dòng `SENT` thì bỏ qua. Nếu một delivery khác đang giữ claim còn hạn: **chờ claim**, xem lại dòng mỗi 1 giây, tối đa 50 giây (message vẫn unacked trong lúc chờ):
+      - Dòng thành `SENT`: bỏ qua người nhận này, không gửi.
+      - Dòng thành `FAILED`, hoặc claim hết lease (bên giữ đã chết): lấy claim và gửi.
+      - Hết 50 giây mà claim vẫn sống: **throw lỗi retryable**, không ack. Nếu ack thì mail sẽ mất khi bên đang giữ claim bị lỗi.
+
+      Vì chờ 50 giây lớn hơn lease 45 giây, claim của một delivery đã chết luôn được lấy lại trong thời gian chờ (sửa D-1 trong báo cáo parity M4).
+   3. Gửi mail ngoài transaction. Trong lúc gửi, **heartbeat** mỗi 15 giây cập nhật `updated_at = UTC_TIMESTAMP(6)` của dòng (chỉ khi còn `PENDING`), nên claim của lần gửi đang sống không bao giờ quá lease. Heartbeat dừng khi gửi xong, dù thành công hay lỗi. Heartbeat lỗi thì log error (chỉ `eventId` và mã lỗi) và việc gửi vẫn tiếp tục. Thành công thì `SENT`. Lỗi thì `FAILED`, `retry_count + 1` (tính trong SQL), rồi throw để cả message được retry. Người nhận đã `SENT` sẽ bị bỏ qua ở lần retry.
    4. Log chỉ chứa `eventId` và mã lỗi, không chứa email hay nội dung payload.
 
    Java khác ở hai điểm: không claim dòng `PENDING`/`FAILED` có sẵn, và khi `INSERT` trùng khoá thì ack luôn.
@@ -88,9 +94,20 @@ Mỗi dòng phải có test (unit hoặc Bruno) trước khi cutover.
 5. **Retry:** 3 lần, 1s/2s, sau đó DLQ. Payload sai thì throw `NonRetryableError` và vào DLQ ngay.
 6. **DLQ monitor:** mỗi 5 phút gọi `checkQueue` trên 9 DLQ, log warn khi `messageCount > 0` (`@nestjs/schedule`).
 7. **Ghi `created_at`/`updated_at`** kiểu `DATETIME(6)` UTC như Java (JPA auditing).
-8. Ack/nack thủ công (`noAck: false`). Graceful shutdown: `enableShutdownHooks()`, cancel consumer, đợi in-flight message xong, rồi đóng channel, connection và pool.
+8. Ack/nack thủ công (`noAck: false`). Graceful shutdown, theo thứ tự:
+   1. `enableShutdownHooks([], { useProcessExit: true })`: process thoát ngay sau các hook. Node là PID 1 trong container nên bỏ qua signal mà Nest gửi lại cho chính nó; thiếu tuỳ chọn này thì process chạy tiếp sau khi pool đã đóng.
+   2. `onModuleDestroy`: ngừng reconnect RabbitMQ.
+   3. `beforeApplicationShutdown`: từ lúc này **không bắt đầu lần thử mới**. Lần retry tới hạn sau backoff (hoặc delivery đến ngay trước khi cancel) bị **park**: không chạy handler, không claim DB, không ack, không nack. Message giữ unacked và được broker redeliver khi channel đóng, giống Java. Sau đó cancel consumer và đợi các lần thử đang chạy xong, **tối đa 40 giây** (lớn hơn SMTP timeout 30 giây). Drain không chờ message đã park.
+   4. Hết 40 giây mà vẫn còn lần gửi đang chạy: không ack, đóng channel, broker redeliver.
+   5. `onApplicationShutdown`: đóng channel, connection, rồi pool (sau khi drain xong hoặc hết hạn).
 
-**Thay đổi hành vi có chủ đích (đã đồng ý 16/10/2026):** Java chỉ ném `InvalidEventPayloadException` khi field **sai kiểu**. Field **thiếu** (null) vẫn lọt qua và gửi mail tới `null`. Bản Nest sẽ validate các field bắt buộc là string không rỗng, thiếu thì vào DLQ ngay.
+   Compose cho `notification-service` `stop_grace_period: 60s`, lớn hơn drain 40 giây, nên process thoát trước SIGKILL.
+
+**Thay đổi hành vi có chủ đích:**
+
+- (Đã đồng ý 16/10/2026.) Java chỉ ném `InvalidEventPayloadException` khi field **sai kiểu**. Field **thiếu** (null) vẫn lọt qua và gửi mail tới `null`. Bản Nest sẽ validate các field bắt buộc là string không rỗng, thiếu thì vào DLQ ngay.
+- (Sửa D-1, 25/10/2026.) **Có thể gửi trùng khi crash** đúng lúc giữa lúc SMTP đã chấp nhận mail và lúc ghi `SENT`: dòng vẫn `PENDING`, message được redeliver, claim bị lấy lại sau lease và mail được gửi lần nữa. Java cũng có rủi ro này. Không loại bỏ hoàn toàn được nếu không có outbox hoặc idempotency phía nhà cung cấp mail.
+- (Sửa D-1, 25/10/2026.) **Nest không gửi trùng do tranh chấp claim**: khi hai delivery cùng `(event_id, email)` chạy đồng thời, đúng một bên gửi, bên kia chờ claim rồi thấy `SENT`. Java chỉ chặn được lần `INSERT` đầu tiên (trùng khoá thì bỏ qua). Khi dòng đã có sẵn ở `PENDING` (một delivery đang gửi) hoặc `FAILED`, `ProcessNotificationUseCaseImpl.sendNotification` tìm thấy dòng, `save` cập nhật nó mà không lỗi rồi gửi. Vì vậy hai delivery đồng thời có thể cùng gửi. Đây là khác biệt có lợi.
 
 ## 5. Cấu trúc thư mục
 
