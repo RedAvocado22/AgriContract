@@ -68,12 +68,15 @@ public class OutboxPoller {
                         error = e.getMessage();
                     }
                     error = error.substring(0, Math.min(MAX_ERROR_LENGTH, error.length()));
-                    log.warn("Failed to publish outbox event {} ({}) to {}, will retry next poll: {}",
+                    log.warn("Failed to publish outbox event {} ({}) to {}, stopping this batch, will retry next poll: {}",
                             row.eventId(), row.eventType(), exchange, error);
                     jdbcTemplate.update(
                             "UPDATE event_outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?",
                             error, row.id()
                     );
+                    // Stop at the first failure, as node-eventing does: later rows are not sent ahead of this one,
+                    // and a stalled broker costs one confirm timeout per poll instead of one per row.
+                    return;
                 }
             }
         });
