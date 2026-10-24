@@ -4,7 +4,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.type.LogicalType;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
@@ -28,6 +31,14 @@ public class EventEnvelopeCodec {
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
                 .disable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
+                // Jackson coerces scalars by default ("1" -> int, 1.9 -> 1, 123 -> "123"); the schema types do not.
+                .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
+                .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
+                .withCoercionConfig(LogicalType.Textual, cfg -> {
+                    cfg.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail);
+                    cfg.setCoercion(CoercionInputShape.Float, CoercionAction.Fail);
+                    cfg.setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
+                })
                 .build();
     }
 
@@ -48,6 +59,10 @@ public class EventEnvelopeCodec {
             // The schema allows subject to be absent, never null; the record alone cannot tell the two apart.
             if (tree.has("subject") && tree.get("subject").isNull()) {
                 throw new InvalidEnvelopeException("subject must be absent rather than null");
+            }
+            // JavaTimeModule reads a number as epoch seconds and ignores the coercion config; the schema wants date-time.
+            if (tree.has("occurredAt") && !tree.get("occurredAt").isTextual()) {
+                throw new InvalidEnvelopeException("occurredAt must be an ISO-8601 string");
             }
             return mapper.treeToValue(tree, EventEnvelope.class);
         } catch (IOException e) {
