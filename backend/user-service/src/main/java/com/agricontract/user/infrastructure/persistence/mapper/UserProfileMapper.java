@@ -26,6 +26,8 @@ public interface UserProfileMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "version", ignore = true)
+    // The lock projection is written only by the reputation event consumer, never by KYC/profile saves.
+    @Mapping(target = "lockedUntil", ignore = true)
     @Mapping(target = "email", source = "contactInfo.email")
     @Mapping(target = "phone", source = "contactInfo.phone")
     @Mapping(target = "address", source = "contactInfo.address")
@@ -41,7 +43,8 @@ public interface UserProfileMapper {
                 entity.getAuthorizationExpiresAt(),
                 entity.getVerifiedByActorId(),
                 entity.getVerifiedAt(),
-                entity.getRejectionReason()
+                entity.getRejectionReason(),
+                entity.getLockedUntil()
         );
     }
 }

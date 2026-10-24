@@ -22,6 +22,7 @@ import java.util.Locale;
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     static final String FORBIDDEN_BODY = "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}";
+    static final String UNAUTHORIZED_BODY = "{\"success\":false,\"message\":\"Unauthorized\",\"data\":null}";
 
     private static final List<String> IDENTITY_HEADERS = List.of("X-User-Id", "X-User-Role", "X-User-Email");
 
@@ -49,6 +50,12 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         if (internalSecret != null && MessageDigest.isEqual(
                 serviceInternalSecret.getBytes(StandardCharsets.UTF_8), internalSecret.getBytes(StandardCharsets.UTF_8))) {
             filterChain.doFilter(request, response);
+            return;
+        }
+
+        // /internal/** is service identity only: a gateway-authenticated end user must never reach it.
+        if (isInternalPath(request)) {
+            writeUnauthorized(response);
             return;
         }
 
@@ -82,6 +89,18 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType("application/json");
         response.getWriter().write(FORBIDDEN_BODY);
+    }
+
+    private static void writeUnauthorized(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write(UNAUTHORIZED_BODY);
+    }
+
+    // The Spring Security firewall has already rejected encoded slashes and dot segments, so the raw URI is safe to match.
+    private static boolean isInternalPath(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.equals("/internal") || path.startsWith("/internal/");
     }
 
     private static boolean hasMultipleValues(HttpServletRequest request, String name) {
