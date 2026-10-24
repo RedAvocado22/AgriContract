@@ -1,0 +1,40 @@
+name: Task
+description: A unit of work that one PR closes.
+title: "[P?][area] "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What is true once this is done.
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+      placeholder: "Name (@github-handle)"
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Design docs, contracts, verification-matrix rows.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      value: |
+        - [ ] Additive migration exists or is explicitly not required
+        - [ ] Implementation matches the frozen API/event contract
+        - [ ] Unit tests pass
+        - [ ] Boundary integration/contract test passes when applicable
+        - [ ] PR contains exactly one `Closes #...`
+        - [ ] No unrelated refactor or second service implementation
