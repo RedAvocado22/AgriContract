@@ -1,7 +1,7 @@
 ---
 name: notification-service-nestjs-migration
 description: "Kế hoạch chuyển notification-service từ Spring Boot (Java 21) sang NestJS (TypeScript) — parity Phase 1 trước, Phase 2 viết thẳng trên Nest."
-status: PLANNED — team đã chốt chuyển sang NestJS và chốt các câu hỏi mở §10 (16/10/2026).
+status: "IN PROGRESS: M0–M3 xong, M4 đang làm (PR #206 draft), M5 chưa làm"
 metadata:
   type: plan
   owner: "P3 (Node) — xem team-assignment-plan.md"
@@ -105,7 +105,7 @@ Mỗi dòng phải có test (unit hoặc Bruno) trước khi cutover.
 
 **Thay đổi hành vi có chủ đích:**
 
-- (Đã đồng ý 16/10/2026.) Java chỉ ném `InvalidEventPayloadException` khi field **sai kiểu**. Field **thiếu** (null) vẫn lọt qua và gửi mail tới `null`. Bản Nest sẽ validate các field bắt buộc là string không rỗng, thiếu thì vào DLQ ngay.
+- (Đã đồng ý 16/10/2026.) Java chỉ ném `InvalidEventPayloadException` khi field **sai kiểu**. Field **thiếu** (null): Java bỏ qua người nhận thiếu email, gửi cho những người còn lại, ack. Nest vào DLQ ngay (validate các field bắt buộc là string không rỗng).
 - (Sửa D-1, 25/10/2026.) **Có thể gửi trùng khi crash** đúng lúc giữa lúc SMTP đã chấp nhận mail và lúc ghi `SENT`: dòng vẫn `PENDING`, message được redeliver, claim bị lấy lại sau lease và mail được gửi lần nữa. Java cũng có rủi ro này. Không loại bỏ hoàn toàn được nếu không có outbox hoặc idempotency phía nhà cung cấp mail.
 - (Sửa D-1, 25/10/2026.) **Nest không gửi trùng do tranh chấp claim**: khi hai delivery cùng `(event_id, email)` chạy đồng thời, đúng một bên gửi, bên kia chờ claim rồi thấy `SENT`. Java chỉ chặn được lần `INSERT` đầu tiên (trùng khoá thì bỏ qua). Khi dòng đã có sẵn ở `PENDING` (một delivery đang gửi) hoặc `FAILED`, `ProcessNotificationUseCaseImpl.sendNotification` tìm thấy dòng, `save` cập nhật nó mà không lỗi rồi gửi. Vì vậy hai delivery đồng thời có thể cùng gửi. Đây là khác biệt có lợi.
 
@@ -165,7 +165,7 @@ backend/notification-service-nest/
 ### M0 — Spike & chốt nền tảng (1 ngày)
 
 - [x] Tạo Nest project, thêm `@agricontract/eventing` qua `file:`, build node-eventing, rồi chứng minh `import { consumeEvents } from '@agricontract/eventing'` chạy được cả trong `nest start` **và** Jest (D3). Nếu Jest không chạy được thì làm phương án dự phòng (dual build cho node-eventing).
-- [ ] Mở PR vào node-eventing cho D6 (`DeliveryOutcome`), có review của người giữ package. _Diff đã soạn và test; chờ tạo PR._
+- [x] Mở PR vào node-eventing cho D6 (`DeliveryOutcome`), có review của người giữ package: #169.
 - [x] Team chốt các câu hỏi mở ở §10 (16/10/2026).
 
 **Xong khi:** một consumer demo nhận được 1 message từ queue tạm, ack, và test Jest import được package.
@@ -264,7 +264,7 @@ Tiêu chí cũ "tương đương hoặc hơn Java" không kiểm được, vì J
   - Tắt MailHog: message retry 3 lần rồi vào DLQ, log `FAILED`, DLQ monitor cảnh báo.
   - Publish JSON lỗi: vào DLQ ngay.
   - Restart RabbitMQ trong lúc chạy: service không crash, consume lại.
-  - `docker stop` giữa chừng: message chưa ack được redeliver và không gửi trùng.
+  - `docker stop` giữa chừng: message chưa ack được redeliver; không gửi trùng ngoài cửa sổ đã ghi ở §4.
 - [ ] Chạy luồng contract/escrow end-to-end (`backend/bruno/contract`, `escrow`) và kiểm tra MailHog nhận đủ mail.
 
 **Xong khi:** có checklist parity ký xác nhận (đính trong PR).
@@ -312,9 +312,8 @@ Làm theo `phase_2/design/notification-service-phase2-design.md`. Thứ tự đ�
 | #   | Câu hỏi                      | Chốt                                                                                   |
 | --- | ---------------------------- | -------------------------------------------------------------------------------------- |
 | 1   | Runtime cho Docker/CI        | **Node 22 LTS** (máy dev Node 24 vẫn chạy được)                                        |
-| 2   | Payload thiếu field bắt buộc | **Vào DLQ ngay** — cải thiện so với Java (gửi mail tới `null`)                         |
+| 2   | Payload thiếu field bắt buộc | **Vào DLQ ngay**. Java bỏ qua người nhận thiếu email, gửi cho những người còn lại, ack. Nest vào DLQ ngay |
 | 3   | node-eventing                | **Làm PR nới `HandleOutcome`** (D6). Dual build CJS **chỉ khi** spike M0 thất bại (D3) |
 | 4   | Logger                       | **Nest `Logger` mặc định**, đủ cho Phase 1 (D12)                                       |
 | 5   | Health path                  | **Giữ `/actuator/health`** (D11)                                                       |
-
-“Fastify (#168) bị bỏ, chuyển sang NestJS (16/10/2026).”
+| 6   | Framework                    | **NestJS**. Fastify (#168) bị bỏ (16/10/2026)                                          |
