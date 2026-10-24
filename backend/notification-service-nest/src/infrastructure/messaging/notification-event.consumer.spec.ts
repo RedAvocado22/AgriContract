@@ -281,34 +281,78 @@ describe('NotificationEventConsumer', () => {
     expect(consumer.inFlightCount).toBe(0);
   });
 
-  it('stops waiting after the drain timeout and leaves the message unacked', async () => {
-    jest.useFakeTimers();
-    try {
+  it('drains for 40s: above the 30s SMTP socket timeout, below the 60s compose stop_grace_period', () => {
+    expect(DRAIN_TIMEOUT_MS).toBe(40_000);
+  });
+
+  describe('drain timing (fake timers)', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    /** One escrow.locked message in flight whose handler runs until `finish()`. */
+    async function oneInFlight() {
       const { consumer, service, open } = setup();
       await consumer.onModuleInit();
       const channel = new FakeChannel();
       await open(channel);
+      let finish!: () => void;
       service.escrowLocked.mockImplementation(
-        () => new Promise<void>(() => undefined),
+        () => new Promise<void>((resolve) => (finish = resolve)),
       );
-      channel.deliver(
+      const msg = channel.deliver(
         'notification-svc.escrow.locked',
         PAYLOADS['notification-svc.escrow.locked'].payload,
       );
       await jest.advanceTimersByTimeAsync(0);
+      let drained = false;
+      const shutdown = consumer
+        .beforeApplicationShutdown()
+        .then(() => (drained = true));
+      return {
+        consumer,
+        channel,
+        msg,
+        shutdown,
+        finish: () => finish(),
+        drained: () => drained,
+      };
+    }
 
-      const shutdown = consumer.beforeApplicationShutdown();
-      await jest.advanceTimersByTimeAsync(DRAIN_TIMEOUT_MS);
+    it('returns as soon as the last message is acked, long before the timeout', async () => {
+      const { channel, msg, shutdown, finish, drained } = await oneInFlight();
+
+      await jest.advanceTimersByTimeAsync(25_000); // e.g. a slow SMTP send
+      expect(drained()).toBe(false);
+
+      finish();
+      await jest.advanceTimersByTimeAsync(0);
       await shutdown;
 
-      expect(channel.acked).toEqual([]);
-      expect(consumer.inFlightCount).toBe(1);
-      expect(warn).toHaveBeenCalledWith(
+      expect(drained()).toBe(true);
+      expect(channel.acked).toEqual([msg]);
+      expect(warn).not.toHaveBeenCalledWith(
         expect.stringContaining('still in flight'),
       );
-    } finally {
-      jest.useRealTimers();
-    }
+    });
+
+    it('stops waiting after exactly the drain timeout and leaves the message unacked', async () => {
+      const { consumer, channel, shutdown, drained } = await oneInFlight();
+
+      await jest.advanceTimersByTimeAsync(DRAIN_TIMEOUT_MS - 1);
+      expect(drained()).toBe(false);
+
+      await jest.advanceTimersByTimeAsync(1);
+      await shutdown;
+
+      // Neither acked nor nacked: the channel closes next (AmqpService) and
+      // the broker redelivers the message.
+      expect(channel.acked).toEqual([]);
+      expect(channel.nacked).toEqual([]);
+      expect(consumer.inFlightCount).toBe(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('still in flight after 40000ms'),
+      );
+    });
   });
 
   it('does not attach to a channel that opens during shutdown', async () => {
