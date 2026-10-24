@@ -1,14 +1,70 @@
 name: CI
 
+# push only for main: pull requests are covered by pull_request, so a PR push no longer runs CI twice.
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  build-and-test:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      java: ${{ steps.modules.outputs.java }}
+      node: ${{ steps.modules.outputs.node }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # "all" = anything every module builds on; a change there runs every job.
+          filters: |
+            all:
+              - 'backend/pom.xml'
+              - 'backend/shared/java-eventing/**'
+              - 'contracts/**'
+              - '.github/workflows/**'
+            api-gateway: 'backend/api-gateway/**'
+            user-service: 'backend/user-service/**'
+            product-service: 'backend/product-service/**'
+            contract-service: 'backend/contract-service/**'
+            escrow-service: 'backend/escrow-service/**'
+            notification-service: 'backend/notification-service/**'
+            reputation-service: 'backend/reputation-service/**'
+            inspection-service: 'backend/inspection-service/**'
+            node:
+              - 'backend/shared/node-eventing/**'
+              - 'backend/notification-service-nest/**'
+
+      - id: modules
+        env:
+          CHANGES: ${{ steps.filter.outputs.changes }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          all='["shared/java-eventing","api-gateway","user-service","product-service","contract-service","escrow-service","notification-service","reputation-service","inspection-service"]'
+          if [ "$EVENT" = "push" ] || echo "$CHANGES" | jq -e 'index("all")' > /dev/null; then
+            java="$all"
+            node=true
+          else
+            java=$(jq -cn --argjson all "$all" --argjson changed "$CHANGES" '$all - ($all - $changed)')
+            node=$(echo "$CHANGES" | jq 'index("node") != null')
+          fi
+          echo "java=$java" >> "$GITHUB_OUTPUT"
+          echo "node=$node" >> "$GITHUB_OUTPUT"
+          echo "Java modules: $java"
+          echo "Node: $node"
+
+  java:
+    needs: changes
+    if: needs.changes.outputs.java != '[]'
+    name: java (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.changes.outputs.java) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -20,11 +76,19 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build and run unit tests
+      # Services resolve the shared library from the local repo, so install it (and the parent pom) first.
+      - name: Install shared modules
         working-directory: backend
-        run: mvn clean verify -DskipITs --no-transfer-progress
+        run: mvn -B -q -pl shared/java-eventing -am install -DskipTests --no-transfer-progress
+
+      # -amd also tests every module that depends on this one.
+      - name: Build and test
+        working-directory: backend
+        run: mvn -B -pl ${{ matrix.module }} -amd verify --no-transfer-progress
 
   notification-service-node:
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -53,3 +117,18 @@ jobs:
           npm run lint:check
           npm test
           npm run build
+
+  # The only required check on main. Jobs skipped by the path filter count as passed;
+  # a failed or cancelled job fails the gate.
+  ci-gate:
+    needs: [changes, java, notification-service-node]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | jq -e 'any(. == "failure" or . == "cancelled")' > /dev/null; then
+            exit 1
+          fi
