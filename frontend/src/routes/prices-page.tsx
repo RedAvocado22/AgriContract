@@ -150,7 +150,7 @@ function PricesPage() {
                   <Tooltip
                     contentStyle={{ borderRadius: "8px", border: "0.5px solid var(--color-border)", fontSize: "13px", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                     itemStyle={{ color: "var(--color-primary)", fontWeight: 500 }}
-                    formatter={(val: number) => [`${val.toLocaleString("vi-VN")} ₫/kg`, "Giá"]}
+                    formatter={(val) => [`${Number(val).toLocaleString("vi-VN")} ₫/kg`, "Giá"]}
                   />
                   <ReferenceLine y={data.average} stroke="var(--color-text-muted)" strokeDasharray="4 4" />
                   <Area

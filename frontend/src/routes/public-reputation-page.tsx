@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom"
+import { Link } from "react-router-dom"
 
 import { Footer } from "@/shared/ui/footer"
 import { LineChartCard } from "@/shared/ui/line-chart-card"
@@ -50,8 +50,7 @@ const SELLER_DATA = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 function PublicReputationPage() {
-  const { userId } = useParams()
-  // Trong thực tế sẽ fetch data bằng userId, hiện tại dùng mock
+  // Trong thực tế sẽ fetch data theo userId từ useParams(), hiện tại dùng mock
   const data = SELLER_DATA
 
   return (
