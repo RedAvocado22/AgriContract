@@ -256,7 +256,7 @@ paths:
         - {name: breachCaseId, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BreachCaseResolutionRequest'}}}}
-      responses: {'204': {description: AttributionDecision persisted. remedy.finalized is published immediately for no-fault or refund/release-only remedies and for contract-level cases (milestoneId null, never contestable); a milestone-level fault decision with sanctions waits for contestDeadline (milestone-escrow 6.4 and GB-50). Terminal lifecycle waits for reconciliation.}, '400': {$ref: '#/components/responses/BadRequest'}, '401': {$ref: '#/components/responses/Unauthorized'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
+      responses: {'204': {description: 'AttributionDecision persisted. remedy.finalized is published immediately for no-fault or refund/release-only remedies and for contract-level cases (milestoneId null, never contestable); a milestone-level fault decision with sanctions waits for contestDeadline (milestone-escrow 6.4 and GB-50). Terminal lifecycle waits for reconciliation.'}, '400': {$ref: '#/components/responses/BadRequest'}, '401': {$ref: '#/components/responses/Unauthorized'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
   /api/v1/contracts/{contractId}/breach-cases/{breachCaseId}/contest:
     x-service-owner: contract-service
     post:

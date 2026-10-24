@@ -227,7 +227,7 @@ paths:
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
       responses:
         "201": { description: Manual price recorded }
-        "403": { description: Not OPERATOR (no ADMIN fallback, data-governance 5.4) }
+        "403": { description: "Not OPERATOR (no ADMIN fallback, data-governance 5.4)" }
 
   # ---------- analytics-service (dashboard reads, Admin/Association) ----------
   /api/v1/analytics/terminations:
@@ -292,7 +292,7 @@ paths:
       responses:
         "201": { description: Report recorded and signed }
         "400": { description: Malformed report submission }
-        "403": { description: Not the INSPECTOR of the active Level 1.5 assignment for this milestone, or eligibility (KYC/license expiry) failed (inspection design 2.5) }
+        "403": { description: "Not the INSPECTOR of the active Level 1.5 assignment for this milestone, or eligibility (KYC/license expiry) failed (inspection design 2.5)" }
         "409": { description: Report already signed (UNIQUE report_id) }
         "503": { description: Eligibility dependency (user-service) unavailable; fail closed per error catalog }
 
