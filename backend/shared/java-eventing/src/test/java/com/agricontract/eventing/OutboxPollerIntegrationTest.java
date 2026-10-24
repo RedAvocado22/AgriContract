@@ -156,7 +156,7 @@ class OutboxPollerIntegrationTest {
     }
 
     @Test
-    void poll_mixedBatch_updatesExactlyTheRowThatWasSent() {
+    void poll_failedRow_stopsTheBatchAndLeavesLaterRowsUntouched() {
         EventEnvelope first = append("contract.signed");
         EventEnvelope unroutable = append("contract.unbound");
         EventEnvelope third = append("contract.signed");
@@ -166,8 +166,30 @@ class OutboxPollerIntegrationTest {
         assertThat(row(first).get("status")).isEqualTo("PUBLISHED");
         assertThat(row(unroutable).get("status")).isEqualTo("PENDING");
         assertThat(row(unroutable).get("attempts")).isEqualTo(1);
-        assertThat(row(third).get("status")).isEqualTo("PUBLISHED");
-        assertThat(drain()).extracting(this::parse).containsExactlyInAnyOrder(first, third);
+        assertThat(row(third).get("status")).isEqualTo("PENDING");
+        assertThat(row(third).get("attempts")).as("never attempted").isEqualTo(0);
+        assertThat(row(third).get("last_error")).isNull();
+        assertThat(drain()).extracting(this::parse).containsExactly(first);
+    }
+
+    @Test
+    void poll_afterFailedRowIsFixed_restIsSentInOrder() {
+        EventEnvelope blocked = append("contract.unbound");
+        EventEnvelope next = append("contract.signed");
+        OutboxPoller poller = poller(50);
+        poller.poll();
+        assertThat(drain()).isEmpty();
+
+        // Operator adds the missing binding; the held-back row and everything after it go out in id order.
+        new RabbitAdmin(connectionFactory).declareBinding(
+                BindingBuilder.bind(new Queue(QUEUE)).to(new TopicExchange(EXCHANGE)).with("contract.unbound"));
+        try {
+            poller.poll();
+            assertThat(drain()).extracting(this::parse).containsExactly(blocked, next);
+        } finally {
+            new RabbitAdmin(connectionFactory).removeBinding(
+                    BindingBuilder.bind(new Queue(QUEUE)).to(new TopicExchange(EXCHANGE)).with("contract.unbound"));
+        }
     }
 
     @Test
