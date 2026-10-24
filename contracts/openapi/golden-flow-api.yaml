@@ -522,6 +522,20 @@ paths:
       parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RejectUserRequest'}}}}
       responses: {'2XX': {description: Rejected; exact success status is not frozen.}, '403': {$ref: '#/components/responses/Forbidden'}}
+  /api/v1/admin/users/{userId}/role:
+    x-service-owner: user-service
+    put:
+      operationId: assignUserRole
+      x-roles: [ADMIN]
+      description: >-
+        ADMIN-only account role management (data-governance design 5.2/5.4). One role per
+        account. A direct OPERATOR to ARBITRATOR change, or the reverse, is rejected with
+        409 ROLE_SEPARATION_VIOLATION so one person cannot propose and then approve the same
+        maker-checker action. Re-assigning the current role is a no-op. ADMIN holds no
+        OPERATOR or ARBITRATOR permission through this endpoint or any other (no fallback).
+      parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AssignUserRoleRequest'}}}}
+      responses: {'2XX': {description: Role assigned; exact success status is not frozen.}, '400': {$ref: '#/components/responses/BadRequest'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
   /internal/v1/users/{userId}:
     x-service-owner: user-service
     get:
@@ -1176,6 +1190,11 @@ components:
       required: [reason]
       properties: {reason: {type: string, minLength: 1}}
       additionalProperties: false
+    AssignUserRoleRequest:
+      type: object
+      required: [role]
+      properties: {role: {enum: [BUYER, SELLER, ADMIN, INSPECTOR, OPERATOR, ARBITRATOR]}}
+      additionalProperties: false
     OtpEmailRequest:
       type: object
       required: [requestId, recipientUserId, recipientEmail, contractId, otpCode, signedContentHash, expiresAt]
@@ -1398,3 +1417,4 @@ x-reference-only:
     - /api/v1/admin/users
     - /api/v1/admin/users/{userId}/verify
     - /api/v1/admin/users/{userId}/reject
+    - /api/v1/admin/users/{userId}/role
