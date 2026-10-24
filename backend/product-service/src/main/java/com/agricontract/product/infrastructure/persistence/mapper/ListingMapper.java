@@ -3,6 +3,7 @@ package com.agricontract.product.infrastructure.persistence.mapper;
 import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.ListingId;
+import com.agricontract.product.domain.model.vo.ListingPlot;
 import com.agricontract.product.domain.model.vo.Money;
 import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.model.vo.Quantity;
@@ -12,6 +13,7 @@ import org.mapstruct.Mapper;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface ListingMapper {
@@ -50,10 +52,11 @@ public interface ListingMapper {
                 .deliveryDeadline(listing.getDeliveryDeadline())
                 .status(listing.getStatus())
                 .listingVersionToken(listing.getVersionToken())
+                .registryEntryIds(listing.getPlots().stream().map(p -> p.sourceRegistryEntryId().value()).toList())
                 .build();
     }
 
-    default Listing toDomain(ListingJpaEntity entity) {
+    default Listing toDomain(ListingJpaEntity entity, List<ListingPlot> plots) {
         return Listing.reconstruct(
                 new ListingId(entity.getListingId()),
                 entity.getSellerId(),
@@ -66,7 +69,8 @@ public interface ListingMapper {
                 new Money(entity.getPriceFloor(), entity.getCurrency()),
                 entity.getDeliveryDeadline(),
                 entity.getStatus(),
-                entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().toInstant(ZoneOffset.UTC)
+                entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().toInstant(ZoneOffset.UTC),
+                plots
         );
     }
 

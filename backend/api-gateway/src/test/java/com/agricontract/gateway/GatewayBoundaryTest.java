@@ -293,6 +293,20 @@ class GatewayBoundaryTest {
         assertThat(received.getPath()).isEqualTo("/api/v1/categories");
     }
 
+    @Test
+    void plotRoute_isForwardedToProductService() throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(201));
+
+        client.post().uri("/api/v1/plots")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
+                .exchange()
+                .expectStatus().isCreated();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getPath()).isEqualTo("/api/v1/plots");
+    }
+
     // Identity: every canonical application role survives, alone or combined
 
     @ParameterizedTest
