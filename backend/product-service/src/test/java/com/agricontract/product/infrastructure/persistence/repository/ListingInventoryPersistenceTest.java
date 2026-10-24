@@ -6,6 +6,8 @@ import com.agricontract.product.domain.model.vo.*;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperImpl;
+import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapperImpl;
+import com.agricontract.product.testsupport.PlotFixtures;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapperImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +41,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ListingRepositoryImpl.class, ReservationRepositoryImpl.class,
-        ListingMapperImpl.class, ReservationMapperImpl.class})
+        ListingMapperImpl.class, ReservationMapperImpl.class, PlotRegistryMapperImpl.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Testcontainers(disabledWithoutDocker = true)
 class ListingInventoryPersistenceTest {
@@ -56,11 +58,12 @@ class ListingInventoryPersistenceTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("DELETE FROM listing_reservations");
-        jdbcTemplate.update("DELETE FROM listings");
+        PlotFixtures.deletePlotsAndListings(jdbcTemplate);
+        PlotFixtures.insertRegistryEntry(jdbcTemplate, PlotFixtures.PLOT_ID, "seller-1");
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
                 "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31)));
+                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
+                PlotFixtures.onePlot()));
     }
 
     @Test

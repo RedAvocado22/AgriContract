@@ -1,7 +1,7 @@
 meta {
   name: POST /api/v1/listings (create listing)
   type: http
-  seq: 7
+  seq: 8
 }
 
 post {
@@ -23,8 +23,15 @@ body:json {
     "quantityUnit": "kg",
     "priceFloor": 15000.00,
     "currency": "VND",
-    "deliveryDeadline": "2026-09-30"
+    "deliveryDeadline": "2026-09-30",
+    "registryEntryIds": ["{{plot_id}}"]
   }
+}
+
+script:pre-request {
+  // the plot from 06b is PENDING until the geo check timeout; run product-service with
+  // PLOT_GEO_VERIFICATION_TIMEOUT_HOURS=0 and PLOT_GEO_VERIFICATION_TIMEOUT_CHECK_MS=1000, then give the job a moment
+  await new Promise((resolve) => setTimeout(resolve, 1500));
 }
 
 script:post-response {
@@ -61,5 +68,9 @@ tests {
 
   test("status should be ACTIVE", function() {
     expect(res.getBody().data.status).to.equal("ACTIVE");
+  });
+
+  test("listing names the registry plot it comes from", function() {
+    expect(res.getBody().data.registryEntryIds).to.deep.equal([bru.getEnvVar("plot_id")]);
   });
 }
