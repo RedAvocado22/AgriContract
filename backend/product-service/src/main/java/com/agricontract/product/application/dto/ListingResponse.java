@@ -1,6 +1,8 @@
 package com.agricontract.product.application.dto;
 
 import com.agricontract.product.domain.model.Listing;
+import com.agricontract.product.domain.model.vo.Commodity;
+import com.agricontract.product.domain.model.vo.ListingGoods;
 import com.agricontract.product.domain.model.vo.ListingStatus;
 import lombok.Builder;
 
@@ -24,9 +26,24 @@ public record ListingResponse(
         LocalDate deliveryDeadline,
         ListingStatus status,
         String listingVersionToken,    // opaque; contract-service echoes it to reserve
-        List<String> registryEntryIds  // registry plots the goods come from; empty for legacy listings
+        List<String> registryEntryIds, // registry plots the goods come from; empty for legacy listings
+        // coffee goods (contract ListingResponse); null on legacy listings. The buyer sees here what a contract
+        // will freeze into its goods snapshot (design §8c).
+        String categoryId,
+        Commodity commodity,
+        String regionText,
+        CoffeeQualitySpecDto declaredQualitySpec,
+        boolean legacyQualitySpecMissing,
+        Integer cropYear,                // read-only, from the product
+        String harvestSeason,            // read-only, from the product
+        List<String> certifications,     // read-only, from the product; seller commitments, not verified
+        String packagingDeclaration,
+        String warehouseLocation,
+        LocalDate estimatedAvailabilityDate,
+        String traceabilityEvidencePackageId
 ) {
     public static ListingResponse from(Listing listing) {
+        ListingGoods goods = listing.getGoods();
         return ListingResponse.builder()
                 .listingId(listing.getListingId().value())
                 .sellerId(listing.getSellerId())
@@ -43,6 +60,18 @@ public record ListingResponse(
                 .status(listing.getStatus())
                 .listingVersionToken(listing.getVersionToken())
                 .registryEntryIds(listing.getPlots().stream().map(p -> p.sourceRegistryEntryId().value()).toList())
+                .categoryId(goods.categoryId() == null ? null : goods.categoryId().value())
+                .commodity(goods.commodity())
+                .regionText(goods.regionText())
+                .declaredQualitySpec(CoffeeQualitySpecDto.from(goods.declaredQualitySpec()))
+                .legacyQualitySpecMissing(listing.isLegacyQualitySpecMissing())
+                .cropYear(goods.cropYear())
+                .harvestSeason(goods.harvestSeason())
+                .certifications(goods.certifications())
+                .packagingDeclaration(goods.packagingDeclaration())
+                .warehouseLocation(goods.warehouseLocation())
+                .estimatedAvailabilityDate(goods.estimatedAvailabilityDate())
+                .traceabilityEvidencePackageId(goods.traceabilityEvidencePackageId())
                 .build();
     }
 }

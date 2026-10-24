@@ -5,6 +5,7 @@ import com.agricontract.product.domain.event.CategoryRejectedEvent;
 import com.agricontract.product.domain.event.DomainEvent;
 import com.agricontract.product.domain.model.vo.CategoryId;
 import com.agricontract.product.domain.model.vo.CategoryStatus;
+import com.agricontract.product.domain.model.vo.Commodity;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -47,6 +48,8 @@ class CategoryTest {
         category.approve();
 
         assertThat(category.getStatus()).isEqualTo(CategoryStatus.APPROVED);
+        assertThat(category.getCommodity()).isEqualTo(Commodity.COFFEE);
+        assertThat(category.isApprovedCoffee()).isTrue();
         List<DomainEvent> events = category.pullDomainEvents();
         assertThat(events).hasSize(1);
         assertThat(events.get(0)).isInstanceOf(CategoryApprovedEvent.class);

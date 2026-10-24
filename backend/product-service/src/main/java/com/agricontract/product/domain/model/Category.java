@@ -5,6 +5,7 @@ import com.agricontract.product.domain.event.CategoryRejectedEvent;
 import com.agricontract.product.domain.event.DomainEvent;
 import com.agricontract.product.domain.model.vo.CategoryId;
 import com.agricontract.product.domain.model.vo.CategoryStatus;
+import com.agricontract.product.domain.model.vo.Commodity;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ public class Category {
     private String rejectionReason;
     private String proposedBy;
     private String proposedByEmail;
+    // set on approval; null for categories approved before Phase 2, which cannot back new products or listings
+    private Commodity commodity;
 
     private final List<DomainEvent> domainEvents = new ArrayList<>();
 
@@ -30,7 +33,7 @@ public class Category {
 
     public static Category reconstruct(CategoryId categoryId, String name, String normalizedName,
                                         CategoryStatus status, String rejectionReason,
-                                        String proposedBy, String proposedByEmail) {
+                                        String proposedBy, String proposedByEmail, Commodity commodity) {
         Category category = new Category();
         category.categoryId = categoryId;
         category.name = name;
@@ -39,6 +42,7 @@ public class Category {
         category.rejectionReason = rejectionReason;
         category.proposedBy = proposedBy;
         category.proposedByEmail = proposedByEmail;
+        category.commodity = commodity;
         return category;
     }
 
@@ -65,6 +69,8 @@ public class Category {
             throw new IllegalStateException("Category status must be PENDING");
         }
         this.status = CategoryStatus.APPROVED;
+        // the only Phase 2 commodity (design §9): approval is where the category is mapped, once
+        this.commodity = Commodity.COFFEE;
         this.domainEvents.add(new CategoryApprovedEvent(this.categoryId.value(), this.name, this.proposedByEmail));
     }
 
@@ -78,6 +84,11 @@ public class Category {
         this.status = CategoryStatus.REJECTED;
         this.rejectionReason = reason;
         this.domainEvents.add(new CategoryRejectedEvent(this.categoryId.value(), this.name, this.proposedByEmail, reason));
+    }
+
+    // New products and listings need an approved coffee category (design §1, matrix 22).
+    public boolean isApprovedCoffee() {
+        return status == CategoryStatus.APPROVED && commodity == Commodity.COFFEE;
     }
 
     public List<DomainEvent> pullDomainEvents() {

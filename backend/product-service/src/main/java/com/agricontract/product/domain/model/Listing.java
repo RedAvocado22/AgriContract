@@ -30,6 +30,8 @@ public class Listing {
     private Instant updatedAt;
     // copies of the registry plots the goods come from, taken at creation (design §2.4); empty only for legacy rows
     private List<ListingPlot> plots;
+    // the coffee goods a contract will snapshot; fields are null on legacy rows
+    private ListingGoods goods;
 
     private Listing() {
     }
@@ -38,7 +40,7 @@ public class Listing {
                                       ProductId productId, String productName, String coverImageUrl,
                                       Quantity quantity, BigDecimal quantityAvailable, BigDecimal minOrderQuantity,
                                       Money priceFloor, LocalDate deliveryDeadline, ListingStatus status,
-                                      Instant updatedAt, List<ListingPlot> plots) {
+                                      Instant updatedAt, List<ListingPlot> plots, ListingGoods goods) {
         Listing listing = new Listing();
         listing.listingId = listingId;
         listing.sellerId = sellerId;
@@ -53,6 +55,7 @@ public class Listing {
         listing.status = status;
         listing.updatedAt = updatedAt;
         listing.plots = List.copyOf(plots);
+        listing.goods = goods;
 
         return listing;
     }
@@ -65,7 +68,7 @@ public class Listing {
     public static Listing create(ListingId listingId, String sellerId,
                                  ProductId productId, String productName, String coverImageUrl,
                                  Quantity quantity, BigDecimal minOrderQuantity, Money priceFloor,
-                                 LocalDate deliveryDeadline, List<ListingPlot> plots) {
+                                 LocalDate deliveryDeadline, List<ListingPlot> plots, ListingGoods goods) {
         if (minOrderQuantity != null
                 && (minOrderQuantity.signum() <= 0 || minOrderQuantity.compareTo(quantity.value()) > 0)) {
             throw new IllegalArgumentException("minOrderQuantity must be positive and not exceed quantity");
@@ -76,6 +79,7 @@ public class Listing {
         if (plots.stream().map(ListingPlot::sourceRegistryEntryId).distinct().count() != plots.size()) {
             throw new IllegalArgumentException("A plot can be referenced only once per listing");
         }
+        requirePhase2Goods(goods);
 
         Listing listing = new Listing();
         listing.listingId = listingId;
@@ -90,8 +94,30 @@ public class Listing {
         listing.deliveryDeadline = deliveryDeadline;
         listing.status = ListingStatus.ACTIVE;
         listing.plots = List.copyOf(plots);
+        listing.goods = goods;
 
         return listing;
+    }
+
+    // A new listing must carry what a contract goods snapshot needs (design §8b, matrix 22).
+    private static void requirePhase2Goods(ListingGoods goods) {
+        if (goods == null || goods.categoryId() == null) {
+            throw new IllegalArgumentException("A listing needs the category of its product");
+        }
+        if (goods.commodity() != Commodity.COFFEE) {
+            throw new IllegalArgumentException("Phase 2 accepts COFFEE listings only");
+        }
+        if (goods.regionText() == null || goods.regionText().isBlank()) {
+            throw new IllegalArgumentException("regionText must not be blank");
+        }
+        if (goods.declaredQualitySpec() == null) {
+            throw new IllegalArgumentException("A coffee listing must declare its quality spec");
+        }
+    }
+
+    // Legacy rows may have no quality spec until their next edit or republish (contract ListingResponse).
+    public boolean isLegacyQualitySpecMissing() {
+        return goods == null || goods.declaredQualitySpec() == null;
     }
 
     /**

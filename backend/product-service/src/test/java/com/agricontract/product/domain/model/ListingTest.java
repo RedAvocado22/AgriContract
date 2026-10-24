@@ -1,6 +1,7 @@
 package com.agricontract.product.domain.model;
 
 import com.agricontract.product.domain.model.vo.*;
+import com.agricontract.product.testsupport.GoodsFixtures;
 import com.agricontract.product.testsupport.PlotFixtures;
 import org.junit.jupiter.api.Test;
 
@@ -21,14 +22,14 @@ class ListingTest {
         return Listing.create(new ListingId("listing-1"), "seller-1", new ProductId("product-1"),
                 "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"),
                 minOrderQuantity, new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot());
+                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods());
     }
 
     private static Listing reconstruct(BigDecimal available, BigDecimal min, ListingStatus status) {
         return Listing.reconstruct(new ListingId("listing-1"), "seller-1", new ProductId("product-1"),
                 "Ca phe Robusta", "", new Quantity(new BigDecimal("100"), "kg"), available, min,
                 new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31), status, UPDATED_AT,
-                List.of());
+                List.of(), ListingGoods.legacy());
     }
 
     @Test

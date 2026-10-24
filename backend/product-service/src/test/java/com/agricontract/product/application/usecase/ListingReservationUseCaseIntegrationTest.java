@@ -12,6 +12,7 @@ import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperImpl;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapperImpl;
+import com.agricontract.product.testsupport.GoodsFixtures;
 import com.agricontract.product.testsupport.PlotFixtures;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapperImpl;
 import com.agricontract.product.infrastructure.persistence.repository.ListingRepositoryImpl;
@@ -73,7 +74,7 @@ class ListingReservationUseCaseIntegrationTest {
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
                 "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"),
                 new BigDecimal("10"), new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot()));
+                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
     }
 
     // ---------- reserve ----------

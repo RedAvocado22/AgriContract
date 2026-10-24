@@ -34,6 +34,16 @@ public class ProductJpaEntity {
     @Column(columnDefinition = "JSON", nullable = false)
     private String images;
 
+    @Column(name = "crop_year")
+    private Integer cropYear;
+
+    @Column(name = "harvest_season", length = 100)
+    private String harvestSeason;
+
+    // JSON array of strings; null = not declared
+    @Column(columnDefinition = "JSON")
+    private String certifications;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

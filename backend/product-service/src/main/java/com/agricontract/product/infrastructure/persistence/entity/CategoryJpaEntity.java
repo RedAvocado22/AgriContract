@@ -1,6 +1,7 @@
 package com.agricontract.product.infrastructure.persistence.entity;
 
 import com.agricontract.product.domain.model.vo.CategoryStatus;
+import com.agricontract.product.domain.model.vo.Commodity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -41,6 +42,10 @@ public class CategoryJpaEntity {
 
     @Column(name = "proposed_by_email", nullable = false, length = 255)
     private String proposedByEmail;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Commodity commodity;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
