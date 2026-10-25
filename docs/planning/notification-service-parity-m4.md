@@ -1,7 +1,7 @@
 ---
 name: notification-service-parity-m4
 description: "Báo cáo parity M4: notification-service Java (Spring Boot) và NestJS chạy trên cùng broker, DB và MailHog. Bruno 00–19 và 5 tình huống ngoài Bruno."
-status: "D-1 đã sửa và kiểm chứng lại (§3.1, §4). D-2…D-5 đã quyết định (§4). D-6 chưa chấp nhận: có chỗ khai báo `/actuator/info` cần xem (§4). M4 chưa tick."
+status: "D-1 đã sửa và kiểm chứng lại (§3.1, §4). D-2…D-5 đã quyết định (§4). D-6 chưa chấp nhận: có chỗ khai báo `/actuator/info` cần xem (§4). E2E contract/escrow đã chạy trên môi trường riêng (§5.2). M4 chưa tick."
 metadata:
   type: report
   plan: "planning/notification-service-nestjs-migration.md §4, §6 M4, §7"
@@ -23,7 +23,7 @@ metadata:
 | Tình huống 2 (thiếu field)                                   | Khác như đã chấp nhận trong §6, nhưng hành vi thật của Java **khác với mô tả trong plan** (D-4)                                                                                     |
 | Tình huống 4 (`docker stop` giữa chừng)                      | Lượt đầu: biến thể 4b làm **mất mail** (D-1). **Sau sửa D-1: đạt, giống Java** (§3.1): message được redeliver, 2 mail, không `FAILED`, không `PENDING`, DLQ 0 |
 | Sửa D-1, kiểm chứng lại (§3.1, §4)                           | D-1a, D-1b, D-1c đạt. Tình huống 3, 4, 5 đạt. Bruno 00–19 Lượt B chạy lại: giống lần trước (18/20, 32/39, 14 dòng `SENT`, 14 mail, DLQ 0) |
-| End-to-end `bruno/contract`, `bruno/escrow` (plan M4 bullet 3) | **Chưa chạy**, đang bị chặn (§5.2)                                                                                                                                                 |
+| End-to-end `bruno/contract`, `bruno/escrow` (plan M4 bullet 3) | **Đạt** trên môi trường riêng (§5.2): 54/54 request, 86/86 test, 16 mail khớp event, 16 dòng `SENT`. 2 message trong DLQ notification do collection publish payload thiếu `eventId` (đúng thay đổi đã đồng ý) |
 
 D-1 đã sửa (§4, commit trong PR #206). D-2, D-3, D-5 chấp nhận, D-4 đã sửa trong plan. D-6 **chưa chấp nhận** (§4, mục "Quyết định"). Chưa tick M4 trong plan §6.
 
@@ -272,20 +272,38 @@ Cả 7 chỗ là rule cho phép gọi không cần xác thực vào `/actuator/i
 
 17 và 19 search MailHog theo `notif_category_*_id` (`categoryId`). Template `category.approved`/`category.rejected` (Java và Nest giống nhau) **không** chứa `categoryId`, nên search luôn ra `count = 0`. Request 16 đã lưu `notif_category_approved_name` nhưng 17 không dùng. Đề xuất sửa collection, search theo tên danh mục, ở một PR riêng (ngoài phạm vi M4).
 
-### 5.2. End-to-end chưa chạy: queue của service khác đang giữ event giả
+### 5.2. End-to-end `bruno/contract`, `bruno/escrow` trên môi trường riêng (25/10/2026, 05:05–05:10 UTC)
 
-Exchange `agricontract.contracts` và `agricontract.escrow` còn bind tới queue của escrow-service và contract-service. Mỗi lần Bruno hay tình huống publish thì các queue này cũng nhận một bản. Sau hai lượt, các queue này đang giữ:
+Broker dùng chung vẫn giữ event giả trong `escrow-svc.*`/`contract-svc.*` (từ hai lượt Bruno notification). Các queue đó **không bị purge hay đụng tới**. E2E chạy trên một stack riêng:
 
-```text
-contract-svc.escrow.locked      2
-contract-svc.escrow.released    2
-escrow-svc.contract.cancelled   2
-escrow-svc.contract.delivered   4
-escrow-svc.contract.signed     15
-escrow-svc.contract.signed.dlq  1   (có từ trước M4)
-```
+- Compose project `agri-e2e` với một file override tạm (không commit, đã xoá). Project name riêng cho volume và network mới (`agri-e2e_*`, DB trống, broker trống). Override đổi `container_name` thành `e2e-*` và port publish (`ports: !override`). Tên service giữ nguyên nên `depends_on` và DNS trong network không đổi.
+- Port: keycloak `18180`, rabbitmq `5673`/`15673`, mailhog `1026`/`8026`, user/product/contract/escrow/notification-db `13307`–`13311`, api-gateway `18080`, contract-service `18083` (Bruno 04/05 gọi thẳng), notification-service `18085`. Container và port của stack dùng chung không bị dùng.
+- Keycloak import `infra/keycloak/agricontract-realm.json` (`start-dev --import-realm`). 4 DB seed bằng `scripts/seed/01…04` (giống `run-e2e.sh`), chạy vào container `e2e-*`.
+- Image build từ `cc3613d` (code service giống `34b790c`): gateway, user, product, contract, escrow, notification-service Nest (`cd7d31aca5cb`). Không chạy Java notification-service (xem cuối mục).
+- `local.bru` trỏ tạm sang các port trên, đã `git restore` sau khi chạy.
 
-Brief M4 không cho đụng tới các queue này. Nếu khởi động escrow-service và contract-service để chạy `bruno/contract` và `bruno/escrow`, hai service sẽ xử lý các event giả (`contractId` như `notif-signed-…`, `s4-nest`) và ghi vào `escrow_db`/`contract_db`. Cần quyết định trước khi chạy e2e: purge các queue này, hoặc chấp nhận side effect.
+| Hạng mục                         | `bruno/contract` | `bruno/escrow` | Tổng     |
+| -------------------------------- | ---------------- | -------------- | -------- |
+| Request pass/fail                | 47/0             | 7/0            | 54/0     |
+| Test                             | 76/76            | 10/10          | 86/86    |
+| Mail MailHog (cộng dồn)          | 15               | +1             | 16       |
+| `notification_logs`              | 15 `SENT`        | +1 `SENT`      | 16 `SENT`, 0 `FAILED`, 0 `PENDING`, `retry_count` max 0 |
+| DLQ `notification-svc.*`         | 1                | +1             | 2        |
+| DLQ khác                         | 0                | `contract-svc.escrow.locked.dlq` 1 | 1 |
+
+**Mail khớp với event thật.** Đối chiếu outbox `contract_domain_events`/`escrow_domain_events` với `notification_logs`: mọi event có handler đều ra đúng số mail, đúng người nhận. `contract.signed` 2, `escrow.locked` 1 + 1 (escrow 07), `contract.delivered` 1, `escrow.released` 2, `contract.disputed` 3 (admin, seller, buyer, đúng thứ tự), `contract.cancelled` 2 × 2, `escrow.penalized` 1 (`BUYER` → buyer1) + 1 (`SELLER` → seller1). Event không có handler (`contract.offered`, `partially_signed`, `activated`, `settled`, `negotiating`, `escrow.buyer_locked`, `escrow.refunded`) không ra mail. Arbitrate (contract 45) không phát event mà notification nghe.
+
+**Ba message trong DLQ, không cái nào là lỗi service:**
+
+| DLQ                                       | Nguồn                                                                                                  | Phân loại                                                                                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notification-svc.escrow.released.dlq` 1  | contract 26 publish tay `escrow.released` với payload chỉ có `contractId` (test idempotency của contract-service) | **Collection**. Thiếu `eventId` nên Nest vào DLQ ngay: đúng thay đổi có chủ đích đã đồng ý (field thiếu → DLQ). Java sẽ bỏ qua và ack, không mail                     |
+| `notification-svc.contract.signed.dlq` 1  | escrow 03 publish tay `contract.signed` không có `eventId` (để escrow-service tạo escrow)               | **Collection**, như trên                                                                                                                                                               |
+| `contract-svc.escrow.locked.dlq` 1        | `escrow.locked` của `test-contract-…` từ escrow 07: contract-service không có contract này (`ContractNotFoundException`) | **Collection**: escrow 03 dựng contract giả chỉ có ở escrow-service. Không liên quan tới notification                                                                       |
+
+Muốn DLQ notification bằng 0 ở e2e thì contract 26 và escrow 03 cần thêm `eventId` (sửa collection, ngoài phạm vi M4, chưa sửa).
+
+Java notification-service không chạy ở lượt này. Hai message vào DLQ ở trên là khác biệt "field thiếu" đã chấp nhận, phần còn lại là luồng chuẩn đã so khớp từng mail với Java ở §2 và §7.3.
 
 ### 5.3. MailHog lưu mail trong bộ nhớ
 
@@ -305,7 +323,7 @@ Image `mailhog/mailhog` mặc định không lưu mail ra đĩa (volume `mailhog
 - [ ] §4.8 Ack thủ công và graceful shutdown: redeliver đạt. Lượt đầu Nest bị SIGKILL (D-1). **Sau sửa: thoát với exit 0 trong 6.9–27.8s, tình huống 4 giống Java (§3.1)**
 - [ ] Bruno 00–19 giống nhau (17 và 19 fail ở cả hai bên do collection, §5.1)
 - [ ] 5 tình huống ngoài Bruno, cả hai bên (§3)
-- [ ] End-to-end contract/escrow (§5.2): **chưa chạy**
+- [ ] End-to-end contract/escrow (§5.2): 54/54 request, 16 mail, 16 `SENT`. DLQ notification 2, do collection (payload thiếu `eventId`)
 - [ ] Các khác biệt D-2…D-6: D-2, D-3, D-5 chấp nhận; D-4 đã sửa trong plan; D-6 **chưa chấp nhận**, chờ xem kết quả grep (§4, mục "Quyết định")
 - [ ] Hai thay đổi có chủ đích mới từ sửa D-1 (gửi trùng khi crash; không gửi trùng do tranh chấp claim, §4 D-1)
 
