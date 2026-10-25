@@ -1,7 +1,7 @@
 ---
 name: notification-service-parity-m4
 description: "Báo cáo parity M4: notification-service Java (Spring Boot) và NestJS chạy trên cùng broker, DB và MailHog. Bruno 00–19 và 5 tình huống ngoài Bruno."
-status: "D-1 đã sửa và kiểm chứng lại (§3.1, §4). D-2…D-5 đã quyết định (§4). D-6 chưa chấp nhận: có chỗ khai báo `/actuator/info` cần xem (§4). E2E contract/escrow đã chạy trên môi trường riêng (§5.2). M4 chưa tick."
+status: "D-1 đã sửa và kiểm chứng lại (§3.1, §4). D-2…D-6 đã quyết định (§4). E2E contract/escrow đã chạy trên môi trường riêng (§5.2). M4 chưa tick."
 metadata:
   type: report
   plan: "planning/notification-service-nestjs-migration.md §4, §6 M4, §7"
@@ -25,7 +25,7 @@ metadata:
 | Sửa D-1, kiểm chứng lại (§3.1, §4)                           | D-1a, D-1b, D-1c đạt. Tình huống 3, 4, 5 đạt. Bruno 00–19 Lượt B chạy lại: giống lần trước (18/20, 32/39, 14 dòng `SENT`, 14 mail, DLQ 0) |
 | End-to-end `bruno/contract`, `bruno/escrow` (plan M4 bullet 3) | **Đạt** trên môi trường riêng (§5.2): 54/54 request, 86/86 test, 16 mail khớp event, 16 dòng `SENT`. 2 message trong DLQ notification do collection publish payload thiếu `eventId` (đúng thay đổi đã đồng ý) |
 
-D-1 đã sửa (§4, commit trong PR #206). D-2, D-3, D-5 chấp nhận, D-4 đã sửa trong plan. D-6 **chưa chấp nhận** (§4, mục "Quyết định"). Chưa tick M4 trong plan §6.
+D-1 đã sửa (§4, commit trong PR #206). D-2, D-3, D-5 chấp nhận, D-4 đã sửa trong plan. D-6 chấp nhận sau khi kiểm các chỗ khai báo `/actuator/info` (§4, mục "Quyết định"). Chưa tick M4 trong plan §6.
 
 ## 1. Môi trường
 
@@ -243,7 +243,7 @@ Java mở `health, info` (`management.endpoints.web.exposure.include`). Nest ch�
 | D-3 | **Chấp nhận**, cải thiện có chủ đích | Nest đưa JSON lỗi vào DLQ ngay, không retry. Đã thêm vào danh sách "Thay đổi hành vi có chủ đích" của plan §4                                                 |
 | D-4 | **Đã xong**                          | Câu chữ trong plan §4 và §10 mục 2 đã sửa theo hành vi thật của Java (commit `34b790c`)                                                                        |
 | D-5 | **Chấp nhận**                        | Chỉ ảnh hưởng thời điểm log cảnh báo đầu tiên                                                                                                                 |
-| D-6 | **Chưa chấp nhận**                   | Chỉ chấp nhận khi không có chỗ nào gọi `/actuator/info`. `git grep` (trừ báo cáo này) **có kết quả**, nên dừng lại chờ người review xem. Danh sách bên dưới     |
+| D-6 | **Chấp nhận** | Điều kiện: không có chỗ nào gọi `/actuator/info` của notification-service. `git grep` (trừ báo cáo này) có 7 kết quả (bên dưới), không cái nào là chỗ gọi. Chấp nhận ngày 25/10/2026 |
 
 Kết quả `git grep -n "actuator/info" -- ':!docs/planning/notification-service-parity-m4.md'` ngày 25/10/2026:
 
@@ -264,7 +264,7 @@ docs/phase_2/design/api-gateway-phase2-design.md:54
     | `/actuator/health`, `/actuator/info` | Gateway | Public operational probe; không expose env/config |
 ```
 
-Cả 7 chỗ là rule cho phép gọi không cần xác thực vào `/actuator/info` **của chính service đó** (gateway, contract, escrow, product, reputation, user). Không chỗ nào gọi `/actuator/info` của notification-service: gateway không có route tới actuator của notification-service, còn compose, CI và `HEALTHCHECK` chỉ dùng `/actuator/health`. Có coi các chỗ này là "không phải chỗ gọi" để chấp nhận D-6 hay không là việc của người review.
+Cả 7 chỗ là rule cho phép gọi không cần xác thực vào `/actuator/info` **của chính service đó** (gateway, contract, escrow, product, reputation, user). Không chỗ nào gọi `/actuator/info` của notification-service: gateway không có route tới actuator của notification-service, còn compose, CI và `HEALTHCHECK` chỉ dùng `/actuator/health`. Vì vậy D-6 được chấp nhận (25/10/2026). Nest không cần thêm `/actuator/info`.
 
 ## 5. Vấn đề của test, không phải của service
 
@@ -324,7 +324,7 @@ Image `mailhog/mailhog` mặc định không lưu mail ra đĩa (volume `mailhog
 - [ ] Bruno 00–19 giống nhau (17 và 19 fail ở cả hai bên do collection, §5.1)
 - [ ] 5 tình huống ngoài Bruno, cả hai bên (§3)
 - [ ] End-to-end contract/escrow (§5.2): 54/54 request, 16 mail, 16 `SENT`. DLQ notification 2, do collection (payload thiếu `eventId`)
-- [ ] Các khác biệt D-2…D-6: D-2, D-3, D-5 chấp nhận; D-4 đã sửa trong plan; D-6 **chưa chấp nhận**, chờ xem kết quả grep (§4, mục "Quyết định")
+- [ ] Các khác biệt D-2…D-6: D-2, D-3, D-5 chấp nhận; D-4 đã sửa trong plan; D-6 chấp nhận: grep có kết quả nhưng không có chỗ gọi tới notification-service (§4, mục "Quyết định")
 - [ ] Hai thay đổi có chủ đích mới từ sửa D-1 (gửi trùng khi crash; không gửi trùng do tranh chấp claim, §4 D-1)
 
 | Vai trò  | Tên | Ngày | Chữ ký / approve PR |
