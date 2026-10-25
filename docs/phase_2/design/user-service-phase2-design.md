@@ -101,6 +101,7 @@ Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào 
 - **Một account một role** (cột `role` đơn trị) — tổ hợp `OPERATOR` + `ARBITRATOR` không biểu diễn được trong `user_db`. Lỗ hổng còn lại là **đổi thẳng** `OPERATOR` ↔ `ARBITRATOR` (người vừa propose đổi role rồi tự approve) → **409 `ROLE_SEPARATION_VIOLATION`**, rule nằm ở domain (`UserProfile.assignRole`). Cần người khác thì dùng account khác. Gán lại đúng role hiện tại → no-op.
 - Token mang cả 2 role cũng bị chặn: `HeaderAuthenticationFilter` trả 403 cho **mọi request** có `X-User-Role` (realm roles từ JWT) chứa cả `OPERATOR` và `ARBITRATOR` — gồm cả `register`, nên không lặng lẽ chọn role đầu tiên.
 - **Không ADMIN fallback:** ADMIN chỉ gán role, không được gọi KYC (§4.2) hay bất kỳ action OPERATOR/ARBITRATOR nào trong user-service (governance §5.2/§5.4).
+- **Không tự đổi role (chốt 25/10/2026, #215):** actor = target → **403**, kể cả gán lại đúng role hiện tại; mỗi lần đổi role ghi `actorId` (từ principal, không từ header thô) cùng role cũ/mới và thời điểm. Chặn một ADMIN tự chuyển sang ARBITRATOR/OPERATOR rồi hành động trên chính hệ thống mình quản trị.
 - **Known limitation:** endpoint chỉ đổi role trong `user_db`, chưa đồng bộ realm role sang Keycloak (cần Keycloak admin client — follow-up). Tới lúc đó ADMIN gán realm role trên Keycloak bằng tay và realm export không seed account nào mang cả 2 role.
 
 ### 4.3 Internal API — tuyệt đối không route qua Gateway

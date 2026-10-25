@@ -544,6 +544,8 @@ paths:
         409 ROLE_SEPARATION_VIOLATION so one person cannot propose and then approve the same
         maker-checker action. Re-assigning the current role is a no-op. ADMIN holds no
         OPERATOR or ARBITRATOR permission through this endpoint or any other (no fallback).
+        An ADMIN cannot change its own role (403, checked before the no-op rule). Every role change records the acting
+        user from the authenticated principal.
       parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AssignUserRoleRequest'}}}}
       responses: {'2XX': {description: Role assigned; exact success status is not frozen.}, '400': {$ref: '#/components/responses/BadRequest'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
