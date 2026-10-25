@@ -329,10 +329,10 @@ Image `mailhog/mailhog` mặc định không lưu mail ra đĩa (volume `mailhog
 - [x] Các khác biệt D-2…D-6: D-2, D-3, D-5 chấp nhận; D-4 đã sửa trong plan; D-6 chấp nhận: grep có kết quả nhưng không có chỗ gọi tới notification-service (§4, mục "Quyết định")
 - [x] Hai thay đổi có chủ đích mới từ sửa D-1 (gửi trùng khi crash; không gửi trùng do tranh chấp claim, §4 D-1)
 
-| Vai trò  | Tên               | Ngày      | Chữ ký / approve PR |
-| -------- | ----------------- | --------- | ------------------- |
-| Reviewer | Nguyen Minh Cuong | 25/102026 | approved            |
-| Owner P3 | Nguyen Minh Cuong | 2510/2026 | approved            |
+| Vai trò  | Tên               | Ngày       | Chữ ký / approve PR |
+| -------- | ----------------- | ---------- | ------------------- |
+| Reviewer | Nguyen Minh Cuong | 25/102026  | approved            |
+| Owner P3 | Nguyen Minh Cuong | 25/10/2026 | approved            |
 
 ## 7. Output thô
 
