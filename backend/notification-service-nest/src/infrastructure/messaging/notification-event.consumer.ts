@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   type BeforeApplicationShutdown,
   type OnModuleInit,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
 } from '@agricontract/eventing';
 import type { Channel, ConsumeMessage } from 'amqplib';
 import {
+  ClaimWaitAbortedError,
   NotificationError,
   failureCode,
 } from '../../application/notification-errors';
@@ -32,6 +34,12 @@ import { TOPOLOGY, queueName } from './topology';
  * SENT recipients are skipped and the dead claim is taken over after its lease.
  */
 export const DRAIN_TIMEOUT_MS = 40_000;
+
+/**
+ * Aborted by the consumer when shutdown begins; its signal ends the claim
+ * wait of NotificationSender, so a waiting message is parked, not drained.
+ */
+export const SHUTDOWN_CONTROLLER = Symbol('SHUTDOWN_CONTROLLER');
 
 /** Asked at the start of every attempt whether it may run. */
 export interface AttemptGate {
@@ -56,6 +64,9 @@ export class QueueConsumer implements MessageConsumer {
    * errors with vetted messages pass through: the parsers' NonRetryableError
    * (field names and types) and NotificationError (event id and code). Any
    * other error is replaced by its code, keeping it retryable.
+   *
+   * A claim wait ended by shutdown is parked like a retry: the delivery
+   * holding the claim may still fail, so this message must come back.
    */
   async handleMessage(body: Buffer): Promise<DeliveryOutcome> {
     const held = this.gate?.hold(body);
@@ -63,6 +74,10 @@ export class QueueConsumer implements MessageConsumer {
     try {
       await this.handle(body);
     } catch (err) {
+      if (err instanceof ClaimWaitAbortedError) {
+        const parked = this.gate?.hold(body);
+        if (parked) return parked;
+      }
       if (
         err instanceof NonRetryableError ||
         err instanceof NotificationError
@@ -112,6 +127,9 @@ export class NotificationEventConsumer
   constructor(
     private readonly amqp: AmqpService,
     @Inject(LEGACY_ROUTES) private readonly routes: LegacyRoutes,
+    @Optional()
+    @Inject(SHUTDOWN_CONTROLLER)
+    private readonly shutdown?: AbortController,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -164,10 +182,12 @@ export class NotificationEventConsumer
    * the channel and MysqlService the pool): stop starting attempts (gate),
    * cancel every consumer, then wait until every message already delivered is
    * acked, nacked or parked. An attempt running now finishes; a message in
-   * its retry backoff is parked when the backoff ends.
+   * its retry backoff is parked when the backoff ends, one waiting for
+   * another delivery's claim at once (SHUTDOWN_CONTROLLER).
    */
   async beforeApplicationShutdown(): Promise<void> {
     this.stopping = true;
+    this.shutdown?.abort();
     const channel = this.channel;
     const tags = this.consumerTags;
     this.consumerTags = [];
