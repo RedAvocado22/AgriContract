@@ -1,7 +1,7 @@
 ---
 name: notification-service-nestjs-migration
 description: "Kế hoạch chuyển notification-service từ Spring Boot (Java 21) sang NestJS (TypeScript) — parity Phase 1 trước, Phase 2 viết thẳng trên Nest."
-status: "IN PROGRESS: M0–M3 xong, M4 đang làm (PR #206 draft), M5 chưa làm"
+status: "IN PROGRESS: M0–M4 xong (M4: PR #206, checklist parity đã ký), M5 chưa làm"
 metadata:
   type: plan
   owner: "P3 (Node) — xem team-assignment-plan.md"
@@ -260,13 +260,13 @@ Tiêu chí cũ "tương đương hoặc hơn Java" không kiểm được, vì J
 
 ### M4 — Parity test (1–2 ngày)
 
-- [ ] Chạy toàn bộ `backend/bruno/notification-service/` (00–19) với **Java**, ghi lại kết quả. Dừng Java, chạy lại với **Nest** trên cùng broker và DB. Kết quả phải giống nhau, kể cả case duplicate/idempotency (02–03).
-- [ ] Test tay các tình huống Bruno chưa phủ:
+- [x] Chạy toàn bộ `backend/bruno/notification-service/` (00–19) với **Java**, ghi lại kết quả. Dừng Java, chạy lại với **Nest** trên cùng broker và DB. Kết quả phải giống nhau, kể cả case duplicate/idempotency (02–03).
+- [x] Test tay các tình huống Bruno chưa phủ:
   - Tắt MailHog: message retry 3 lần rồi vào DLQ, log `FAILED`, DLQ monitor cảnh báo.
   - Publish JSON lỗi: vào DLQ ngay.
   - Restart RabbitMQ trong lúc chạy: service không crash, consume lại.
   - `docker stop` giữa chừng: message chưa ack được redeliver; không gửi trùng ngoài cửa sổ đã ghi ở §4.
-- [ ] Chạy luồng contract/escrow end-to-end (`backend/bruno/contract`, `escrow`) và kiểm tra MailHog nhận đủ mail.
+- [x] Chạy luồng contract/escrow end-to-end (`backend/bruno/contract`, `escrow`) và kiểm tra MailHog nhận đủ mail.
 
 **Xong khi:** có checklist parity ký xác nhận (đính trong PR).
 
