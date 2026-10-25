@@ -106,6 +106,7 @@ Mỗi dòng phải có test (unit hoặc Bruno) trước khi cutover.
 **Thay đổi hành vi có chủ đích:**
 
 - (Đã đồng ý 16/10/2026.) Java chỉ ném `InvalidEventPayloadException` khi field **sai kiểu**. Field **thiếu** (null): Java bỏ qua người nhận thiếu email, gửi cho những người còn lại, ack. Nest vào DLQ ngay (validate các field bắt buộc là string không rỗng).
+- (D-3 parity M4, 25/10/2026.) **JSON lỗi vào DLQ ngay, không retry.** Java đưa `MessageConversionException` qua retry interceptor (chỉ `InvalidEventPayloadException` là non-retryable), nên thử 3 lần trong khoảng 3 giây rồi mới vào DLQ. Nest vào DLQ ngay. Kết quả cuối giống nhau: 1 message trong DLQ, không mail, không log.
 - (Sửa D-1, 25/10/2026.) **Có thể gửi trùng khi crash** đúng lúc giữa lúc SMTP đã chấp nhận mail và lúc ghi `SENT`: dòng vẫn `PENDING`, message được redeliver, claim bị lấy lại sau lease và mail được gửi lần nữa. Java cũng có rủi ro này. Không loại bỏ hoàn toàn được nếu không có outbox hoặc idempotency phía nhà cung cấp mail.
 - (Sửa D-1, 25/10/2026.) **Nest không gửi trùng do tranh chấp claim**: khi hai delivery cùng `(event_id, email)` chạy đồng thời, đúng một bên gửi, bên kia chờ claim rồi thấy `SENT`. Java chỉ chặn được lần `INSERT` đầu tiên (trùng khoá thì bỏ qua). Khi dòng đã có sẵn ở `PENDING` (một delivery đang gửi) hoặc `FAILED`, `ProcessNotificationUseCaseImpl.sendNotification` tìm thấy dòng, `save` cập nhật nó mà không lỗi rồi gửi. Vì vậy hai delivery đồng thời có thể cùng gửi. Đây là khác biệt có lợi.
 
