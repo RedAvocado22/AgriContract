@@ -29,7 +29,9 @@ paths:
       description: >-
         Source product-service design §2.2. KML_IMPORT (POLYGON) or MANUAL_PIN
         (POINT only). Geo-risk verification runs async; a plot with
-        geoVerificationStatus=PENDING cannot back a listing until CHECKED.
+        geoVerificationStatus=PENDING cannot back a listing. Once the check has an
+        outcome (CHECKED or UNVERIFIED) the plot can back a listing, subject to the
+        geo-risk guards of product-service design §2.2.4.
       x-owner: product-service
       x-auth: SELLER
       parameters:
@@ -48,7 +50,8 @@ paths:
         Source product-service design §4. Fails closed when user-service is
         unavailable or actor is not KYC-valid / reputation-locked. Rejected when
         the selected plot is still geoVerificationStatus=PENDING. Every new
-        listing must be COFFEE and must reference at least one checked plot. New rows
+        listing must be COFFEE and must reference at least one plot whose
+        geoVerificationStatus is CHECKED or UNVERIFIED (not PENDING). New rows
         initialize server-owned quantityAvailable from offeredQuantity; clients
         cannot write the inventory counter.
       x-owner: product-service
