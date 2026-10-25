@@ -47,6 +47,26 @@ class EventEnvelopeCodecTest {
     }
 
     @Test
+    void level15RequestPreservesRequiredNullableActorWithoutInventingMissingFields() throws Exception {
+        var payload = new java.util.LinkedHashMap<String, Object>();
+        payload.put("contractId", EVENT_ID);
+        payload.put("milestoneId", "1349fbf6-44b6-450c-b01d-4b5abaf7c328");
+        payload.put("reason", "DISPUTE_ROUTED");
+        payload.put("reportDueBusinessDays", 2);
+        payload.put("initiatedByActorId", null);
+        payload.put("requestedAt", "2026-10-23T03:00:00Z");
+        var event = new EventEnvelope(UUID.fromString(EVENT_ID), "inspection.level1_5_requested", 1,
+                Instant.parse("2026-10-23T03:00:00Z"), "contract-service", EVENT_ID, null, null, null, payload);
+        JsonNode wire = plain.readTree(codec.toJson(event));
+        assertThat(wire.path("payload").has("initiatedByActorId")).isTrue();
+        assertThat(wire.path("payload").get("initiatedByActorId").isNull()).isTrue();
+        assertThat(wire.has("subject")).isFalse();
+        assertThat(codec.parse(bytes(codec.toJson(event))).payload()).containsKey("initiatedByActorId");
+        payload.remove("initiatedByActorId");
+        assertThat(plain.readTree(codec.toJson(event)).path("payload").has("initiatedByActorId")).isFalse();
+    }
+
+    @Test
     void toJson_nullOptionalFields_areAbsentNotNull() throws Exception {
         JsonNode json = plain.readTree(codec.toJson(envelope(null, null)));
 

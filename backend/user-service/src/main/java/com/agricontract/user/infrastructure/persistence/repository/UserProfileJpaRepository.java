@@ -9,6 +9,14 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserProfileJpaRepository extends JpaRepository<UserProfileJpaEntity, Long> {
+    @org.springframework.data.jpa.repository.Query("""
+            select u.userId from UserProfileJpaEntity u
+            where u.role = com.agricontract.user.domain.model.vo.Role.INSPECTOR
+              and u.verificationStatus = com.agricontract.user.domain.model.vo.VerificationStatus.VERIFIED
+              and (u.authorizationExpiresAt is null or u.authorizationExpiresAt > :now)
+            order by u.userId
+            """)
+    List<String> findEligibleInspectorIds(@org.springframework.data.repository.query.Param("now") java.time.Instant now);
     Optional<UserProfileJpaEntity> findByUserId(String userId);
 
     boolean existsByUserId(String userId);

@@ -1,4 +1,15 @@
-# Inspection service foundation — issue 112
+# Inspection service
+
+Issue #160 adds automatic Level 1.5 assignment consumption, timeout/reselection,
+and the transactional close boundary. See [ISSUE_160.md](ISSUE_160.md) for current
+configuration, migrations, verification and the acceptance matrix.
+`INSPECTION_VIETNAM_HOLIDAYS` is required (comma-separated ISO dates, maintained annually).
+The private eligible pool endpoint is owned by user-service and uses `X-Internal-Secret`.
+
+## Issue #112 foundation baseline
+
+The remainder records the original scaffold scope and its historical deferrals;
+the #160 document supersedes the assignment creation/lifecycle deferrals below.
 
 Implements the user-approved scope: scaffold, local Level 1.5 assignment persistence,
 inspector eligibility and owner-service authorization. No business API, assignment

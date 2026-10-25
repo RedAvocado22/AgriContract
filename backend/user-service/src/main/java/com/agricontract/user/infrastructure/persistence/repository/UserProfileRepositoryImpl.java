@@ -29,6 +29,11 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     private final UserProfileMapper mapper;
 
     @Override
+    public List<String> findEligibleInspectorIds(java.time.Instant now) {
+        return jpaRepository.findEligibleInspectorIds(now);
+    }
+
+    @Override
     @Transactional
     public UserProfile save(UserProfile userProfile) {
         try {
