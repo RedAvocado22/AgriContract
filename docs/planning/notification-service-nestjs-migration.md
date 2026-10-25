@@ -81,8 +81,11 @@ Mỗi dòng phải có test (unit hoặc Bruno) trước khi cutover.
       - Dòng thành `SENT`: bỏ qua người nhận này, không gửi.
       - Dòng thành `FAILED`, hoặc claim hết lease (bên giữ đã chết): lấy claim và gửi.
       - Hết 50 giây mà claim vẫn sống: **throw lỗi retryable**, không ack. Nếu ack thì mail sẽ mất khi bên đang giữ claim bị lỗi.
+      - Shutdown bắt đầu trong lúc chờ: dừng chờ ngay, xem lại dòng một lần (thấy `SENT` thì bỏ qua). Claim vẫn sống thì throw `ClaimWaitAbortedError` và consumer **park** message như một lần retry (mục 8.3). Nhờ vậy lần chờ không kéo dài quá drain 40 giây.
 
-      Vì chờ 50 giây lớn hơn lease 45 giây, claim của một delivery đã chết luôn được lấy lại trong thời gian chờ (sửa D-1 trong báo cáo parity M4).
+      Vì chờ 50 giây lớn hơn lease 45 giây, claim của một delivery đã chết luôn được lấy lại trong thời gian chờ (sửa D-1 trong báo cáo parity M4). Không giảm `CLAIM_WAIT_MS` xuống dưới lease được.
+
+      Cái giá: trong lúc chờ, message chiếm một slot prefetch (10) của consumer queue đó, tối đa 50 giây. Chỉ delivery trùng mới phải chờ (broker redeliver trong khi delivery đầu của cùng event vẫn đang gửi), nên hiếm. Kết quả cuối vẫn đúng (review PR #206).
    3. Gửi mail ngoài transaction. Trong lúc gửi, **heartbeat** mỗi 15 giây cập nhật `updated_at = UTC_TIMESTAMP(6)` của dòng (chỉ khi còn `PENDING`), nên claim của lần gửi đang sống không bao giờ quá lease. Heartbeat dừng khi gửi xong, dù thành công hay lỗi. Heartbeat lỗi thì log error (chỉ `eventId` và mã lỗi) và việc gửi vẫn tiếp tục. Thành công thì `SENT`. Lỗi thì `FAILED`, `retry_count + 1` (tính trong SQL), rồi throw để cả message được retry. Người nhận đã `SENT` sẽ bị bỏ qua ở lần retry.
    4. Log chỉ chứa `eventId` và mã lỗi, không chứa email hay nội dung payload.
 
@@ -97,7 +100,7 @@ Mỗi dòng phải có test (unit hoặc Bruno) trước khi cutover.
 8. Ack/nack thủ công (`noAck: false`). Graceful shutdown, theo thứ tự:
    1. `enableShutdownHooks([], { useProcessExit: true })`: process thoát ngay sau các hook. Node là PID 1 trong container nên bỏ qua signal mà Nest gửi lại cho chính nó; thiếu tuỳ chọn này thì process chạy tiếp sau khi pool đã đóng.
    2. `onModuleDestroy`: ngừng reconnect RabbitMQ.
-   3. `beforeApplicationShutdown`: từ lúc này **không bắt đầu lần thử mới**. Lần retry tới hạn sau backoff (hoặc delivery đến ngay trước khi cancel) bị **park**: không chạy handler, không claim DB, không ack, không nack. Message giữ unacked và được broker redeliver khi channel đóng, giống Java. Sau đó cancel consumer và đợi các lần thử đang chạy xong, **tối đa 40 giây** (lớn hơn SMTP timeout 30 giây). Drain không chờ message đã park.
+   3. `beforeApplicationShutdown`: từ lúc này **không bắt đầu lần thử mới**. Lần retry tới hạn sau backoff (hoặc delivery đến ngay trước khi cancel) bị **park**: không chạy handler, không claim DB, không ack, không nack. Message giữ unacked và được broker redeliver khi channel đóng, giống Java. Message đang **chờ claim** (mục 3.2) cũng bị park ngay: consumer abort `SHUTDOWN_CONTROLLER`, signal của nó cắt lần chờ trong `NotificationSender`. Sau đó cancel consumer và đợi các lần thử đang chạy xong, **tối đa 40 giây** (lớn hơn SMTP timeout 30 giây). Drain không chờ message đã park.
    4. Hết 40 giây mà vẫn còn lần gửi đang chạy: không ack, đóng channel, broker redeliver.
    5. `onApplicationShutdown`: đóng channel, connection, rồi pool (sau khi drain xong hoặc hết hạn).
 
