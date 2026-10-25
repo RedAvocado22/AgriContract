@@ -8,6 +8,7 @@ import {
   NotificationStatus,
 } from '../domain/notification-log';
 import {
+  ClaimWaitAbortedError,
   NotificationDeliveryError,
   SendInProgressError,
 } from './notification-errors';
@@ -17,12 +18,15 @@ import {
   CLAIM_POLL_MS,
   CLAIM_WAIT_MS,
   NotificationSender,
+  type NotificationSenderOptions,
 } from './notification-sender';
 
 describe('NotificationSender.send (plan §4.3)', () => {
   let logs: InMemoryNotificationLogRepository;
   let email: FakeEmailPort;
   let sender: NotificationSender;
+  /** The fake clock below, as sender options. */
+  let fakeClock: NotificationSenderOptions;
   /** Fake clock of the claim wait: each sleep advances it and the repository clock, then runs onSleep(n). */
   let clock: {
     t: number;
@@ -34,7 +38,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
     logs = new InMemoryNotificationLogRepository();
     email = new FakeEmailPort();
     clock = { t: 0, sleeps: [] };
-    sender = new NotificationSender(logs, email, {
+    fakeClock = {
       now: () => clock.t,
       sleep: async (ms) => {
         clock.sleeps.push(ms);
@@ -42,7 +46,8 @@ describe('NotificationSender.send (plan §4.3)', () => {
         logs.now += ms;
         await clock.onSleep?.(clock.sleeps.length);
       },
-    });
+    };
+    sender = new NotificationSender(logs, email, fakeClock);
   });
 
   it('sends and records SENT with the recipient email as user', async () => {
@@ -230,6 +235,63 @@ describe('NotificationSender.send (plan §4.3)', () => {
       expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
         NotificationStatus.PENDING,
       );
+    });
+
+    describe('shutdown during the wait (review of #206)', () => {
+      let shutdown: AbortController;
+
+      beforeEach(() => {
+        shutdown = new AbortController();
+        sender = new NotificationSender(logs, email, {
+          ...fakeClock,
+          shutdown: shutdown.signal,
+        });
+      });
+
+      it('holder still alive: one more look, then a ClaimWaitAbortedError without sending', async () => {
+        clock.onSleep = (n) => {
+          void logs.heartbeat('evt-1', 'a@example.test');
+          if (n === 3) shutdown.abort();
+        };
+
+        const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+
+        await expect(failure).rejects.toBeInstanceOf(ClaimWaitAbortedError);
+        await expect(failure).rejects.toThrow(
+          'Event evt-1: shutdown began while another delivery was sending this email',
+        );
+        expect(clock.sleeps).toHaveLength(3);
+        expect(email.sent).toEqual([]);
+        expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
+          NotificationStatus.PENDING,
+        );
+      });
+
+      it('SENT on the last look: skips the recipient, no error', async () => {
+        clock.onSleep = (n) => {
+          if (n !== 3) return;
+          void logs.markSent('evt-1', 'a@example.test');
+          shutdown.abort();
+        };
+
+        await sender.send('evt-1', 'a@example.test', 'S', 'B');
+
+        expect(clock.sleeps).toHaveLength(3);
+        expect(email.sent).toEqual([]);
+      });
+
+      it('the default sleep ends as soon as shutdown begins, not after the 1s poll', async () => {
+        sender = new NotificationSender(logs, email, {
+          shutdown: shutdown.signal,
+        });
+        const started = performance.now();
+
+        const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+        setTimeout(() => shutdown.abort(), 20);
+
+        await expect(failure).rejects.toBeInstanceOf(ClaimWaitAbortedError);
+        expect(performance.now() - started).toBeLessThan(CLAIM_POLL_MS / 2);
+      });
     });
   });
 

@@ -21,6 +21,19 @@ export class SendInProgressError extends NotificationError {
   }
 }
 
+/**
+ * Shutdown began while waiting for another delivery's live claim. The
+ * consumer parks the message (no ack, no nack) so the broker redelivers it
+ * after the restart; outside shutdown it is retryable like SendInProgressError.
+ */
+export class ClaimWaitAbortedError extends NotificationError {
+  constructor(readonly eventId: string) {
+    super(
+      `Event ${eventId}: shutdown began while another delivery was sending this email`,
+    );
+  }
+}
+
 /** Retryable: the email or its log write failed; `code` names the cause. */
 export class NotificationDeliveryError extends NotificationError {
   constructor(

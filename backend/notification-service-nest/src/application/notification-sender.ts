@@ -1,8 +1,10 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import {
   NotificationChannel,
   NotificationLog,
 } from '../domain/notification-log';
 import {
+  ClaimWaitAbortedError,
   NotificationDeliveryError,
   SendInProgressError,
   failureCode,
@@ -31,6 +33,12 @@ export const CLAIM_HEARTBEAT_MS = 15_000;
  * How long a delivery waits for another delivery's live claim to end before
  * giving up with a retryable error: above the lease, so the claim of a
  * delivery that died is always taken over within the wait.
+ *
+ * The waiting message holds its consumer's prefetch slot for that long. Only
+ * a duplicate delivery waits (a redelivery while the first delivery of the
+ * same event still sends), so this is rare; the wait ends at once when the
+ * service stops (NotificationSenderOptions.shutdown), so it never outlives
+ * the shutdown drain.
  */
 export const CLAIM_WAIT_MS = 50_000;
 
@@ -46,8 +54,10 @@ export interface NotificationSenderOptions {
   logger?: SenderLogger;
   /** Monotonic clock in ms for the claim wait; replaced in tests. */
   now?: () => number;
-  /** Pause between two looks at a claimed row; replaced in tests. */
-  sleep?: (ms: number) => Promise<void>;
+  /** Pause between two looks at a claimed row, cut short by `signal`; replaced in tests. */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  /** Aborted when the service stops: a claim wait then ends with ClaimWaitAbortedError. */
+  shutdown?: AbortSignal;
 }
 
 /**
@@ -57,7 +67,8 @@ export interface NotificationSenderOptions {
 export class NotificationSender {
   private readonly logger: SenderLogger;
   private readonly now: () => number;
-  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
+  private readonly shutdown?: AbortSignal;
 
   constructor(
     private readonly logs: NotificationLogRepository,
@@ -68,7 +79,8 @@ export class NotificationSender {
     this.now = options.now ?? (() => performance.now());
     this.sleep =
       options.sleep ??
-      ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+      ((ms, signal) => delay(ms, undefined, { signal }).catch(() => undefined));
+    this.shutdown = options.shutdown;
   }
 
   /**
@@ -79,7 +91,9 @@ export class NotificationSender {
    *    FAILED or an expired claim is taken over and sent. Still claimed after
    *    the wait: throw a retryable error, so the message comes back after the
    *    backoff. Acking instead would lose the email if the other delivery
-   *    then fails. The message stays unacked while waiting.
+   *    then fails. The message stays unacked while waiting. Shutdown ends
+   *    the wait after one more look: ClaimWaitAbortedError, and the consumer
+   *    parks the message for redelivery.
    * 3. Send outside any transaction, refreshing the claim every
    *    CLAIM_HEARTBEAT_MS until the send ends, then record SENT, or FAILED
    *    with retry_count + 1 and rethrow so the whole message is retried
@@ -139,8 +153,9 @@ export class NotificationSender {
         this.logs.claim(log, CLAIM_LEASE_MS),
       );
       if (claim !== 'IN_PROGRESS') return claim;
+      if (this.shutdown?.aborted) throw new ClaimWaitAbortedError(log.eventId);
       if (this.now() >= deadline) throw new SendInProgressError(log.eventId);
-      await this.sleep(CLAIM_POLL_MS);
+      await this.sleep(CLAIM_POLL_MS, this.shutdown);
     }
   }
 

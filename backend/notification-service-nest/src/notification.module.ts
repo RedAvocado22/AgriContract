@@ -33,7 +33,10 @@ import {
   type NotificationUseCases,
 } from './infrastructure/messaging/legacy-routes';
 import { MessagingModule } from './infrastructure/messaging/messaging.module';
-import { NotificationEventConsumer } from './infrastructure/messaging/notification-event.consumer';
+import {
+  NotificationEventConsumer,
+  SHUTDOWN_CONTROLLER,
+} from './infrastructure/messaging/notification-event.consumer';
 import { MysqlNotificationLogRepository } from './infrastructure/persistence/notification-log.mysql-repository';
 import { PersistenceModule } from './infrastructure/persistence/persistence.module';
 
@@ -80,12 +83,18 @@ const USE_CASES = {
           adminEmail: config.get('adminEmail', { infer: true }),
         }) satisfies NotificationSettings,
     },
+    { provide: SHUTDOWN_CONTROLLER, useFactory: () => new AbortController() },
     {
       provide: NotificationSender,
-      inject: [NOTIFICATION_LOG_REPOSITORY, EMAIL_PORT],
-      useFactory: (logs: NotificationLogRepository, email: EmailPort) =>
+      inject: [NOTIFICATION_LOG_REPOSITORY, EMAIL_PORT, SHUTDOWN_CONTROLLER],
+      useFactory: (
+        logs: NotificationLogRepository,
+        email: EmailPort,
+        shutdown: AbortController,
+      ) =>
         new NotificationSender(logs, email, {
           logger: new Logger(NotificationSender.name),
+          shutdown: shutdown.signal,
         }),
     },
     useCaseOf(NotifyContractSignedUseCase),

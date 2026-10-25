@@ -6,6 +6,7 @@ import {
   type AmqpMessageLike,
 } from '@agricontract/eventing';
 import type { Channel } from 'amqplib';
+import { ClaimWaitAbortedError } from '../../application/notification-errors';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
 import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
 import {
@@ -82,11 +83,16 @@ function setup() {
   const useCases = Object.fromEntries(
     HANDLERS.map((h) => [h, { execute: service[h] }]),
   ) as unknown as NotificationUseCases;
-  const consumer = new NotificationEventConsumer(amqp, legacyRoutes(useCases));
+  const shutdownController = new AbortController();
+  const consumer = new NotificationEventConsumer(
+    amqp,
+    legacyRoutes(useCases),
+    shutdownController,
+  );
   const open = async (channel: FakeChannel) => {
     for (const cb of readyCallbacks) await cb(channel as unknown as Channel);
   };
-  return { consumer, service, open };
+  return { consumer, service, open, shutdownSignal: shutdownController.signal };
 }
 
 /** Lets the delivery promises chained by consumeEvents run. */
@@ -387,7 +393,7 @@ describe('NotificationEventConsumer at shutdown: no new attempt starts (fake tim
   });
 
   async function started() {
-    const { consumer, service, open } = setup();
+    const { consumer, service, open, shutdownSignal } = setup();
     await consumer.onModuleInit();
     const channel = new FakeChannel();
     await open(channel);
@@ -403,6 +409,7 @@ describe('NotificationEventConsumer at shutdown: no new attempt starts (fake tim
       channel,
       handler: service.contractSigned,
       shutdown,
+      shutdownSignal,
       drained: () => drained,
     };
   }
@@ -504,6 +511,37 @@ describe('NotificationEventConsumer at shutdown: no new attempt starts (fake tim
 
     expect(handler).not.toHaveBeenCalled();
     expect(consumer.parkedCount).toBe(1);
+    expect(channel.acked).toEqual([]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it("a message waiting for another delivery's claim is parked at once: the wait ends, no ack, no nack", async () => {
+    const { consumer, channel, handler, shutdown, shutdownSignal, drained } =
+      await started();
+    // NotificationSender's claim wait: ends with ClaimWaitAbortedError when the signal aborts.
+    handler.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) =>
+          shutdownSignal.addEventListener('abort', () =>
+            reject(new ClaimWaitAbortedError('e1')),
+          ),
+        ),
+    );
+    channel.deliver(QUEUE, PAYLOAD);
+    await jest.advanceTimersByTimeAsync(0);
+
+    const done = shutdown();
+    await jest.advanceTimersByTimeAsync(0);
+    await done;
+
+    expect(shutdownSignal.aborted).toBe(true);
+    expect(drained()).toBe(true); // at once, not after the 40s drain timeout
+    expect(consumer.parkedCount).toBe(1);
+    expect(channel.acked).toEqual([]);
+    expect(channel.nacked).toEqual([]);
+
+    await jest.advanceTimersByTimeAsync(10 * DRAIN_TIMEOUT_MS);
+    expect(handler).toHaveBeenCalledTimes(1);
     expect(channel.acked).toEqual([]);
     expect(channel.nacked).toEqual([]);
   });
