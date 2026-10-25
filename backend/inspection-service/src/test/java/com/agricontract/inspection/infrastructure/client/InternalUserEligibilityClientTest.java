@@ -64,6 +64,41 @@ class InternalUserEligibilityClientTest {
                 "http://127.0.0.1:" + server.getAddress().getPort(), "test-service-secret", 500, 500);
     }
 
+    @Test
+    void poolUsesPrivateServiceEndpointAndMinimalIdentityResponse() {
+        response = "[{\"userId\":\"" + ID + "\"}]";
+        assertThat(client.loadEligibleInspectors()).containsExactly(ID);
+        assertThat(requestedPath.get()).isEqualTo("/internal/v1/users/inspectors/eligible");
+        assertThat(internalSecret.get()).isEqualTo("test-service-secret");
+    }
+
+    @Test
+    void emptyAuthoritativePoolIsValid() {
+        response = "[]";
+        assertThat(client.loadEligibleInspectors()).isEmpty();
+    }
+
+    @Test
+    void malformedPoolFailsClosedInsteadOfBecomingEmpty() {
+        response = "[{\"userId\":\"not-a-uuid\"}]";
+        expectedCategory = "malformed_response";
+        assertThatThrownBy(client::loadEligibleInspectors).isInstanceOf(EligibilityUnavailableException.class);
+    }
+
+    @Test
+    void unavailablePoolIsNotReportedAsEmpty() {
+        status = 503;
+        expectedCategory = "dependency_http";
+        assertThatThrownBy(client::loadEligibleInspectors).isInstanceOf(EligibilityUnavailableException.class);
+    }
+
+    @Test
+    void duplicatedPoolIdsCannotBiasSelection() {
+        response = "[{\"userId\":\"" + ID + "\"},{\"userId\":\"" + ID + "\"}]";
+        expectedCategory = "malformed_response";
+        assertThatThrownBy(client::loadEligibleInspectors).isInstanceOf(EligibilityUnavailableException.class);
+    }
+
     @AfterEach
     void stopStub() {
         if (responseGate != null) responseGate.countDown();

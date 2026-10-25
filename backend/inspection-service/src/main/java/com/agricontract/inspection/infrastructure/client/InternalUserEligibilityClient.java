@@ -89,6 +89,37 @@ public class InternalUserEligibilityClient implements InspectorEligibilityPort {
         }
     }
 
+    @Override
+    public java.util.List<String> loadEligibleInspectors() {
+        try {
+            JsonNode body = client.get().uri("/internal/v1/users/inspectors/eligible")
+                    .exchange((request, response) -> {
+                        if (!response.getStatusCode().is2xxSuccessful())
+                            throw new InvalidEligibility("dependency_http");
+                        var type = response.getHeaders().getContentType();
+                        if (type == null || !MediaType.APPLICATION_JSON.isCompatibleWith(type))
+                            throw new InvalidEligibility("malformed_response");
+                        return mapper.readTree(response.getBody());
+                    });
+            if (body == null || !body.isArray()) throw new InvalidEligibility("malformed_response");
+            var ids = new java.util.LinkedHashSet<String>();
+            for (JsonNode item : body) {
+                if (!item.isObject() || item.size() != 1) throw new InvalidEligibility("malformed_response");
+                String id = requiredText(item, "userId");
+                String canonical = java.util.UUID.fromString(id).toString();
+                if (!canonical.equalsIgnoreCase(id) || !ids.add(canonical))
+                    throw new InvalidEligibility("malformed_response");
+            }
+            return java.util.List.copyOf(ids);
+        } catch (InvalidEligibility failure) {
+            throw unavailable(failure.category);
+        } catch (ResourceAccessException failure) {
+            throw unavailable("transport");
+        } catch (RuntimeException failure) {
+            throw unavailable("malformed_response");
+        }
+    }
+
     private static EligibilityUnavailableException unavailable(String category) {
         // Only bounded, locally defined categories: never pass the exception or remote data to the logger.
         LOG.warn("eligibility_dependency_failure category={}", category);
