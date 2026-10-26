@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>bank-service-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">bank-service</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 25 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Domain Model · LedgerEntry</a></li><li class="toc__top"><a href="#sec-2b"><span class="toc__number">§2b</span> Bất biến kế toán</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Event Flow</a></li><li class="toc__sub"><a href="#sec-3-1"><span class="toc__number">§3.1</span> Clean-path · milestone.settled</a></li><li class="toc__sub"><a href="#sec-3-2"><span class="toc__number">§3.2</span> Deposit · remedy.finalized</a></li><li class="toc__sub"><a href="#sec-3-3"><span class="toc__number">§3.3</span> Provisional Settlement Level 2</a></li><li class="toc__sub"><a href="#sec-3-4"><span class="toc__number">§3.4</span> bank.large_transaction_flagged</a></li><li class="toc__sub"><a href="#sec-3-4b"><span class="toc__number">§3.4b</span> analytics.structuring_pattern_detected</a></li><li class="toc__sub"><a href="#sec-3-5"><span class="toc__number">§3.5</span> Emergency Lock</a></li><li class="toc__deep"><a href="#sec-3-5-1"><span class="toc__number">§3.5.1</span> Endpoints &amp; auth</a></li><li class="toc__deep"><a href="#sec-3-5-2"><span class="toc__number">§3.5.2</span> Chống replay</a></li><li class="toc__deep"><a href="#sec-3-5-3"><span class="toc__number">§3.5.3</span> Gate · system_lock</a></li><li class="toc__deep"><a href="#sec-3-5-4"><span class="toc__number">§3.5.4</span> Freeze &amp; notify</a></li><li class="toc__deep"><a href="#sec-3-5-5"><span class="toc__number">§3.5.5</span> Unlock</a></li><li class="toc__deep"><a href="#sec-3-5-6"><span class="toc__number">§3.5.6</span> Public key &amp; rotation</a></li><li class="toc__deep"><a href="#sec-3-5-7"><span class="toc__number">§3.5.7</span> Lock/unlock audit</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Idempotency</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> EscrowAccount / EscrowMilestone</a></li><li class="toc__top"><a href="#sec-5b"><span class="toc__number">§5b</span> Reconciliation &amp; statement</a></li><li class="toc__sub"><a href="#sec-5b-1"><span class="toc__number">§5b.1</span> LedgerAuditReconciliationJob</a></li><li class="toc__sub"><a href="#sec-5b-2"><span class="toc__number">§5b.2</span> Statement export</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Database</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Known limitations</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Status</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main">
+<header class="doc-header"><div class="eyebrow">Core money flow / 02</div><h1>Bank-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-19">19/10/2026</time></span><a href="../bank-service-phase2-design.md">Mở Markdown · 376 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6-4" title="milestone-escrow-phase2-design.md §6.4">milestone-escrow §6.4</a><a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2-4" title="hash-chain-phase2-design.md §2.4">hash-chain §2.4</a><a class="xref" data-pending="" data-source="../api-gateway-phase2-design.md" href="api-gateway-phase2-design.html#sec-3-5" title="api-gateway-phase2-design.md §3.5">api-gateway §3.5</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header>
+<div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul>
+<li>Chỉ escrow-service phát <code>bank.*_requested</code>; chờ <code>bank.*_completed</code>/<code>bank.*_failed</code> trước khi đổi state.</li>
+<li><code>ledger_entry</code> append-only; số dư = SUM có dấu, không lưu balance riêng trong <code>EscrowAccount</code>/<code>EscrowMilestone</code>.</li>
+<li><code>sourceEventId</code> = request <code>eventId</code>; replay chỉ re-publish confirmation. <code>UNIQUE(source_event_id)</code> và <code>UNIQUE(remedy_leg_id)</code> chặn ghi trùng.</li>
+<li>VND, <code>DECIMAL(18,2)</code>, HALF_UP ở contract-service; bank chỉ nhận amount dương, omit command zero, không dùng amount âm.</li>
+<li>Tiền termination chỉ qua <code>remedy.finalized.remedyLegs</code>, attribution theo <code>finalBreachingRole</code>; <code>contract.terminated</code> và <code>breach.reported</code> không kích ledger.</li>
+<li><code>SystemLock</code> global: có <code>system_lock</code> ACTIVE → không ghi ledger, phát <code>bank.*_failed</code>; unlock phải có chữ ký External Verifier.</li>
+<li><code>bank.large_transaction_flagged</code> phát ở adapter khi transfer thực ≥500.000.000 VNĐ; không phát per-<code>LedgerEntry</code>, không hold.</li>
+<li>Terminal ⇒ remaining lock = <code>0.00</code>; reconciliation mismatch chỉ alert, không auto-fix.</li>
+</ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1">
+<h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> bank-service Phase 2 chỉ giữ <strong>đúng 1 chức năng</strong> — legal custody hợp pháp cho tiền (mock). Platform (escrow-service) không tự giữ tiền, chỉ ra lệnh; bank-service là nơi tiền thực sự nằm. Nghị định 52/2024, Điều 8, Khoản 7 cấm cung ứng trung gian thanh toán không phép.</p></div>
+<div class="callout callout--scope"><span class="callout__label">KHÔNG LÀM</span><p><strong>Không làm:</strong> bank-service không phải arbitrator; vai trò này thuộc INSPECTOR 3-tier + symmetric escalation (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-5" title="milestone-escrow-phase2-design.md §5">milestone-escrow §5</a>).</p></div>
+<details class="why"><summary>Vì sao</summary><p>Arbitrator cần độc lập, trách nhiệm pháp lý và không skin-in-the-game; mock bank không đáp ứng 3 điều kiện này vì không có ngân hàng thật được NHNN giám sát.</p></details>
+<div class="callout callout--scope"><span class="callout__label">KHÔNG LÀM</span><p><strong>Không làm:</strong> không tích hợp ngân hàng thật trong Phase 2. Interface phải cho phép thay implementation bằng API ngân hàng thật mà escrow-service không sửa business logic (xem <a href="#sec-3" title="bank-service-phase2-design.md §3">§3</a>).</p></div>
+</section>
+<section aria-labelledby="heading-sec-2" class="section" id="sec-2">
+<h2 id="heading-sec-2"><span class="sec-num">§2</span> Domain Model — Ledger, không phải Account-per-Contract <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<details class="why"><summary>Vì sao</summary><p>Account-per-contract tạo race lúc provisioning: account phải tồn tại trước khi lock nhưng trigger tạo account lại nằm sau thời điểm cần lock.</p></details>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — mô hình FBO/Omnibus:</strong> chỉ <strong>1 chỗ giữ tiền chung</strong> (mock, không cần model chi tiết; tổng luôn khớp tổng ledger). Chi tiết sở hữu nằm trong <strong><code>LedgerEntry</code></strong>, append-only, không sửa/xoá sau khi ghi, cùng nguyên tắc <code>audit_record</code> ở hash-chain design.</p></div>
+<p>Số dư (buyer còn bao nhiêu, đang khoá bao nhiêu cho hợp đồng nào) <strong>không lưu sẵn</strong> ở đâu cả — luôn là <strong>kết quả cộng dồn</strong> từ các dòng <code>LedgerEntry</code> liên quan, tính lúc cần, không đọc 1 ô có sẵn rồi hy vọng nó đúng.</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th>Field</th>
+<th>Loại</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>entryId</code></td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>sourceEventId</code></td>
+<td>UUID</td>
+<td>ID của event gốc kích hoạt entry này (từ Outbox message escrow-service gửi sang) — dùng làm idempotency key, xem <a href="#sec-4" title="bank-service-phase2-design.md §4">§4</a></td>
+</tr>
+<tr>
+<td class="identifier"><code>contractId</code></td>
+<td>UUID</td>
+<td>Bắt buộc — tách hợp đồng này với hợp đồng khác</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestoneId</code></td>
+<td>UUID, nullable</td>
+<td><strong>NULL nếu là cọc cấp Contract</strong> (<code>buyerDepositRate</code> hoặc <code>sellerDepositRate</code> — khoá 1 lần lúc SIGNED, không thuộc milestone nào — release/seize qua <code>remedy.finalized</code> legs), có giá trị nếu là <code>batchAmount</code> của 1 milestone cụ thể (<code>milestone.settled</code>/remedy legs) — 2 loại khoá này đá vào 2 field khác nhau của <code>ContractTerms</code> (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-2-1" title="milestone-escrow-phase2-design.md §2.1">milestone-escrow §2.1</a>), không được gộp chung</td>
+</tr>
+<tr>
+<td class="identifier"><code>userId</code></td>
+<td>UUID</td>
+<td>Buyer hoặc seller, tuỳ <code>entryType</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>entryType</code></td>
+<td>Enum</td>
+<td><code>LOCK_BUYER_DEPOSIT</code> | <code>LOCK_SELLER_DEPOSIT</code> | <code>LOCK_MILESTONE</code> | <code>RELEASE_TO_SELLER</code> | <code>REFUND_TO_BUYER</code> | <code>DEPOSIT_FORFEITURE</code> | <code>CONTRACTUAL_PENALTY</code> | <code>DAMAGES_COMPENSATION</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>fundType</code></td>
+<td>Enum</td>
+<td><code>BUYER_DEPOSIT</code> | <code>SELLER_DEPOSIT</code> | <code>MILESTONE_PAYMENT</code> — <code>entryType</code> một mình trộn operation với semantics: <code>RELEASE_TO_SELLER</code> vừa có thể là <strong>tiền bán hàng</strong> (fund = MILESTONE_PAYMENT) vừa có thể là <strong>trả lại cọc của chính seller</strong> (fund = SELLER_DEPOSIT). Statement export (<a href="#sec-5b-2" title="bank-service-phase2-design.md §5b.2">§5b.2</a>) và <code>LedgerAuditReconciliationJob</code> (<a href="#sec-5b-1" title="bank-service-phase2-design.md §5b.1">§5b.1</a>) cần biết tiền thuộc quỹ nào mà không đoán semantics từ <code>entryType</code> + <code>milestoneId</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>remedyDecisionId</code></td>
+<td>UUID, nullable</td>
+<td>Trỏ về <code>remedy.finalized.remedyDecisionId</code> sinh ra entry này — <code>NULL</code> cho lock/release thường (không phải chế tài). Cho phép reconcile "một quyết định → đúng một bộ legs" (<a class="xref" data-pending="" data-source="../verification-matrix-phase2.md" href="verification-matrix-phase2.html#sec-2" title="verification-matrix-phase2.md §2 · matrix 11o">matrix 11o</a>) và statement giải thích được từng khoản seize thuộc phán quyết nào</td>
+</tr>
+<tr>
+<td class="identifier"><code>amount</code></td>
+<td>Money</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>createdAt</code></td>
+<td>Timestamp</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>UNIQUE(sourceEventId)</code> — chặn duplicate xử lý cùng 1 event 2 lần (xem <a href="#sec-4" title="bank-service-phase2-design.md §4">§4</a>).</p>
+<details class="why"><summary>Vì sao</summary><p><code>LOCK_BUYER_DEPOSIT</code>/<code>LOCK_SELLER_DEPOSIT</code> cho phép ledger tự phân biệt 2 khoản cọc có <code>milestoneId = NULL</code>, không cần tra <code>userId</code> sang contract-service.</p></details>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — 3 chế tài tiền, trần pháp lý riêng</strong> (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-2-1b" title="milestone-escrow-phase2-design.md §2.1b">milestone-escrow §2.1b</a>):</p></div>
+<ul>
+<li><code>DEPOSIT_FORFEITURE</code> — mất cọc (BLDS 2015 Điều 328, <strong>không</strong> cap 8%). Seize <code>buyerDepositRate</code>/<code>sellerDepositRate</code> khi bên đó là <code>finalBreachingRole</code>.</li>
+<li><code>CONTRACTUAL_PENALTY</code> — phạt vi phạm (LTM 2005 Điều 300–301, <strong>cap 8% giá trị phần nghĩa vụ bị vi phạm</strong> — validate ở contract-service lúc <code>sign()</code> qua <code>LegalProfile</code>, bank chỉ ghi số đã tính). Seize theo <code>buyerPenaltyRate</code>/<code>sellerPenaltyRate</code> × batchAmount phần bị vi phạm.</li>
+<li><code>DAMAGES_COMPENSATION</code> — bồi thường thiệt hại (LTM Điều 302, không cap nhưng phải chứng minh thiệt hại thật; điều kiện theo <code>damagesPolicy</code> của LegalProfile (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-2-1b" title="milestone-escrow-phase2-design.md §2.1b">milestone-escrow §2.1b</a> — với <code>COMMERCIAL_CUMULATIVE_IF_PROVEN</code> chỉ cần phán quyết/bằng chứng thiệt hại) — không tự sinh từ tỷ lệ).</li>
+</ul>
+<p><code>REFUND_TO_BUYER</code>/<code>RELEASE_TO_SELLER</code> sẵn có tiếp tục dùng cho mọi hoàn tiền <strong>không mang tính phạt</strong> (cọc về chủ khi mutual/FM/technical-fail, refund leg activation/funding fail) — không đẻ tên mới cho nghĩa đã có. <strong>Bank vẫn "dumb"</strong>: contract-service (remedy calculator, sau <code>remedy.finalized</code>) tính legs + chịu trách nhiệm cap/chống-double-recovery; escrow-service validate conservation; bank chỉ ghi entry theo <code>entryType</code> + amount dương nhận được — đúng phân vai <a href="#sec-3-3" title="bank-service-phase2-design.md §3.3">§3.3</a> đã có.</p>
+</section>
+<section aria-labelledby="heading-sec-2b" class="section" id="sec-2b">
+<h2 id="heading-sec-2b"><span class="sec-num">§2b</span> Bất biến kế toán của ledger <a aria-label="Sao chép liên kết tới §2b" class="anchor" href="#sec-2b">#</a></h2>
+<ol>
+<li>
+<p><strong>Đơn vị tiền — 1 currency, không đa tệ trong scope.</strong> Mọi <code>amount</code> là <strong>VND</strong> (ISO 4217 <code>VND</code>). Không có field currency per-entry vì hệ chỉ 1 tệ; nếu sau này đa tệ thì thêm <code>currency</code> cấp <code>contract</code> (immutable per contract) — ghi Known Limitation, không làm bây giờ.</p>
+</li>
+<li>
+<p><strong>Scale &amp; làm tròn — cố định, tính một nơi.</strong> <code>amount</code> lưu <code>DECIMAL(18,2)</code> (khớp money pattern <code>^[0-9]+\.[0-9]{2}$</code> ở event schema), scale = 2, luôn <strong>HALF_UP</strong>. <strong>Làm tròn chỉ xảy ra ở <code>contract-service</code></strong> khi tính <code>remedyLegs</code>/<code>actualAmount</code> (nơi có đủ <code>ContractTerms</code>); bank nhận số đã tính sẵn và <strong>không tự nhân/chia lại</strong> (<a href="#sec-3-1" title="bank-service-phase2-design.md §3.1">§3.1</a>/<a href="#sec-3-2" title="bank-service-phase2-design.md §3.2">§3.2</a>) — nên không có 2 nơi làm tròn lệch nhau.</p>
+</li>
+<li>
+<p><strong>Mô hình "tài khoản" — pooled theo contract, không double-entry cổ điển.</strong> Ledger KHÔNG có cặp <code>fromAccount/toAccount</code> per row; nó là sổ append-only trong đó mỗi entry mang <code>entryType</code> (chiều: LOCK_* nạp vào pool giữ hộ; RELEASE/REFUND/FORFEITURE/PENALTY/DAMAGES rút khỏi pool) + <code>fundType</code> + <code>contractId</code>/<code>milestoneId</code> (scope). "Tài khoản" chính là <strong>pool tiền phong toả theo <code>contractId</code></strong>; escrow-service (không phải bank) là nơi validate <strong>conservation</strong> cho từng leg trước khi phát command (<a href="#sec-3" title="bank-service-phase2-design.md §3">§3</a>, <a href="#sec-5" title="bank-service-phase2-design.md §5">§5</a>).</p>
+</li>
+<li>
+<p><strong>Số dư = SUM có dấu, không lưu balance rời.</strong> Balance của 1 contract = <code>SUM(amount × sign(entryType))</code> trên các entry của <code>contractId</code> đó (LOCK dấu +, RELEASE/REFUND/FORFEITURE/… dấu −). <strong>Không</strong> persist cột balance cạnh ledger (đã nêu <a href="#sec-5" title="bank-service-phase2-design.md §5">§5</a> "tránh dual-write"). Với quy mô đồ án (vài nghìn entry) <code>SUM</code> + 2 index chạy dưới 50ms (<a href="#sec-6" title="bank-service-phase2-design.md §6">§Database</a>) — không cần snapshot.</p>
+</li>
+<li>
+<p><strong>Không âm, không zero.</strong> Mọi bank command <code>amount</code> <strong>strictly positive</strong> (<a href="#sec-3" title="bank-service-phase2-design.md §3">§3</a>); command zero bị omit; reversal biểu diễn bằng entry <code>entryType</code> ngược dấu với amount dương, <strong>không</strong> dùng amount âm. Pool 1 contract không bao giờ rút quá phần đã lock (RELEASE/REFUND/FORFEITURE tổng ≤ tổng LOCK) — đây chính là conservation escrow enforce trước khi phát leg; bank là "dumb writer" tin số đã validate.</p>
+</li>
+<li>
+<p><strong>Isolation — bằng append-only + unique key, không cần row-lock.</strong> Vì ledger chỉ <strong>INSERT</strong> (không UPDATE in-place), không có lost-update giữa 2 writer. Chống ghi trùng bằng <code>UNIQUE(source_event_id)</code> cho command replay và <code>UNIQUE(remedy_leg_id)</code> cho từng money-leg (<a href="#sec-4" title="bank-service-phase2-design.md §4">§4</a> Idempotency) — 2 request đồng thời cùng key → 1 thắng, 1 bị DB từ chối, không cần <code>SELECT FOR UPDATE</code>. Balance đọc bằng <code>SUM</code> tại query-time nên luôn phản ánh tập entry đã commit.</p>
+</li>
+<li>
+<p><strong>Terminal ⇒ remaining lock = 0.</strong> Bất biến "contract terminal ⇒ tổng lock = 0" (<a class="xref" data-pending="" data-source="../verification-matrix-phase2.md" href="verification-matrix-phase2.html#sec-2" title="verification-matrix-phase2.md §2 · verification matrix #8">verification matrix #8</a>) là điều kiện đóng: <code>SUM(LOCK) − SUM(RELEASE+REFUND+FORFEITURE+PENALTY+DAMAGES) = 0.00</code> cho <code>contractId</code> trước khi contract-service commit terminal + <code>LedgerAuditReconciliationJob</code> (<a href="#sec-5b-1" title="bank-service-phase2-design.md §5b.1">§5b.1</a>) là lưới bắt lệch.</p>
+</li>
+</ol>
+</section>
+<section aria-labelledby="heading-sec-3" class="section" id="sec-3">
+<h2 id="heading-sec-3"><span class="sec-num">§3</span> Interaction với escrow-service — Event Flow <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> escrow-service là <strong>actor duy nhất</strong> gọi bank-service — contract-service không bao giờ nói chuyện trực tiếp với bank-service, giữ nguyên ranh giới đã có ("contract-service quản lý delivery state, escrow-service quản lý tiền", <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-2-3" title="milestone-escrow-phase2-design.md §2.3">milestone-escrow §2.3</a>).</p></div>
+<p><strong>Không fire-and-forget — đợi confirmation, cùng pattern <code>EscrowEventConsumer</code> Phase 1 đã dùng</strong> (contract-service đợi <code>escrow.buyer_locked</code> mới <code>activate()</code>, không tự set trước):</p>
+<figure class="code" data-lang="text"><pre><code>escrow-service → bank-service:  bank.lock_requested        (contractId, milestoneId?, userId, amount, sourceEventId)
+bank-service   → escrow-service: bank.lock_completed        (thành công → escrow-service set state LOCKED)
+                                  bank.lock_failed           (thất bại → escrow-service giữ nguyên state, xử lý theo nhánh fail)
+</code></pre></figure><figure aria-label="Lock: escrow đợi bank confirmation" class="flow"><figcaption class="caption">bank.lock_requested → confirmation</figcaption><pre class="mermaid">sequenceDiagram
+    participant E as escrow-service
+    participant B as bank-service
+    E-&gt;&gt;B: bank.lock_requested
+    alt Thành công
+        B--&gt;&gt;E: bank.lock_completed
+        Note over E: set state LOCKED
+    else Thất bại
+        B--&gt;&gt;E: bank.lock_failed
+        Note over E: giữ nguyên state, xử lý nhánh fail
+    end
+</pre></figure>
+<p>Cùng pattern cho <code>release</code>, <code>seize</code>, <code>refund</code> — 4 loại request/confirmation, không cặp nào set state trước khi có confirmation.</p>
+<p>Canonical event names for all four pairs are frozen here:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th>Request</th>
+<th>Completed</th>
+<th>Failed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>bank.lock_requested</code></td>
+<td class="identifier"><code>bank.lock_completed</code></td>
+<td class="identifier"><code>bank.lock_failed</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>bank.release_requested</code></td>
+<td class="identifier"><code>bank.release_completed</code></td>
+<td class="identifier"><code>bank.release_failed</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>bank.seize_requested</code></td>
+<td class="identifier"><code>bank.seize_completed</code></td>
+<td class="identifier"><code>bank.seize_failed</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>bank.refund_requested</code></td>
+<td class="identifier"><code>bank.refund_completed</code></td>
+<td class="identifier"><code>bank.refund_failed</code></td>
+</tr>
+</tbody>
+</table></div>
+<details class="why"><summary>Vì sao</summary><p>Chỉ đổi state sau confirmation để tránh escrow <code>LOCKED</code> khi bank lock thất bại; nếu đổi trước, hai bên lệch state giống lỗi dual-write của <code>ApplicationEvent</code> non-durable ở Phase 1.</p></details>
+</section>
+<section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1">
+<h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> Ledger entries từ clean-path Delta 1/2 pro-rata — <code>milestone.settled</code> <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
+<p><code>batchAmount</code> khoá full theo <code>committedQuantity × effectiveUnitPrice</code> tại funding request, trong đó effective price là accepted adjustment hoặc fallback <code>agreedPrice</code> (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6-2" title="milestone-escrow-phase2-design.md §6.2">milestone-escrow §6.2</a> / <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6c" title="milestone-escrow-phase2-design.md §6c">milestone-escrow §6c</a>). Nhưng Delta 1/Delta 2 pro-rata (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-4" title="milestone-escrow-phase2-design.md §4">milestone-escrow §4</a>) có thể khiến số tiền thật seller đáng nhận <strong>thấp hơn</strong> <code>batchAmount</code> đã khoá — phần chênh lệch phải trả lại buyer, không được im lặng giữ trong pooled account.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> payload <code>milestone.settled</code> mang <code>lockedAmount</code> (= <code>batchAmount</code> gốc) và <code>actualAmount</code> (= số tiền thật sau Delta 1/2). escrow-service nhận event, tự tính <code>diff = lockedAmount - actualAmount</code>:</p></div>
+<figure class="code" data-lang="text"><pre><code>Nếu diff &gt; 0:
+    bank.release_requested   (contractId, milestoneId, userId=sellerId, amount=actualAmount, entryType=RELEASE_TO_SELLER, sourceEventId) nếu actualAmount &gt; 0
+    bank.refund_requested    (contractId, milestoneId, userId=buyerId,  amount=diff,          entryType=REFUND_TO_BUYER,  sourceEventId khác) vì diff &gt; 0
+Nếu diff == 0 (giao đủ, không shortfall):
+    bank.release_requested   (contractId, milestoneId, userId=sellerId, amount=actualAmount, entryType=RELEASE_TO_SELLER, sourceEventId) nếu actualAmount &gt; 0
+</code></pre></figure>
+<p>Mỗi request có <code>sourceEventId</code> riêng (idempotency key, <a href="#sec-4" title="bank-service-phase2-design.md §4">§4</a>) dù cùng phát sinh từ 1 <code>milestone.settled</code> — 2 <code>LedgerEntry</code> là 2 hành động tiền độc lập, không phải 1 hành động ghi 2 dòng.</p>
+<p>Quality dispute không dùng nhánh này. Final quality resolution chỉ đến qua <code>remedy.finalized</code>; escrow-service reject/dedup mọi trường hợp cùng resolution còn phát <code>milestone.settled</code>. Với quality remedy, conservation kiểm riêng theo <code>fundType</code>: tổng legs <code>MILESTONE_PAYMENT</code> đúng <code>batchAmount</code>; <code>CONTRACTUAL_PENALTY</code> và <code>SELLER_DEPOSIT</code> forfeiture đối soát nguồn riêng, không cộng vào batch. Bank không thêm enum quality-specific và không tự tính penalty base; contract-service cung cấp số dựa trên <code>effectiveUnitPrice × committedQuantity</code> của milestone reject.</p>
+</section>
+<section aria-labelledby="heading-sec-3-2" class="section" id="sec-3-2">
+<h3 id="heading-sec-3-2"><span class="sec-num">§3.2</span> Ledger entries cho <code>buyerDepositRate</code>/<code>sellerDepositRate</code> — termination outcome qua <code>remedy.finalized</code> <a aria-label="Sao chép liên kết tới §3.2" class="anchor" href="#sec-3-2">#</a></h3>
+<p><code>buyerDepositRate</code> là khoá cấp Contract, không gắn milestone nào — money consequence đi qua <code>remedy.finalized</code> cấp Contract (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6-7" title="milestone-escrow-phase2-design.md §6.7">milestone-escrow §6.7</a> / <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-7-2" title="milestone-escrow-phase2-design.md §7.2">milestone-escrow §7.2</a>). <strong>Bất biến:</strong> người bấm nút chấm dứt ≠ người vi phạm; ledger seize theo <strong><code>finalBreachingRole</code></strong> đã attribution (<code>BreachCase</code> <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6-4" title="milestone-escrow-phase2-design.md §6.4">milestone-escrow §6.4</a>), không suy từ ai khởi xướng:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th>Nhánh termination (outcome — kích qua <code>remedy.finalized.remedyLegs</code>)</th>
+<th><code>entryType</code> cho <code>buyerDepositRate</code></th>
+<th><code>entryType</code> cho <code>sellerDepositRate</code> (nếu &gt; 0)</th>
+<th><code>milestoneId</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Normal completion outcome</td>
+<td class="identifier"><code>REFUND_TO_BUYER</code></td>
+<td class="identifier"><code>RELEASE_TO_SELLER</code></td>
+<td class="identifier"><code>NULL</code></td>
+</tr>
+<tr>
+<td>No-fault termination outcome (<code>finalBreachingRole=NULL</code> — mutual/FM/replacement/technical)</td>
+<td class="identifier"><code>REFUND_TO_BUYER</code></td>
+<td><code>RELEASE_TO_SELLER</code> (về chủ, không seize)</td>
+<td class="identifier"><code>NULL</code></td>
+</tr>
+<tr>
+<td>Seller-attributed termination outcome (<code>finalBreachingRole=SELLER</code>)</td>
+<td class="identifier"><code>REFUND_TO_BUYER</code></td>
+<td><code>DEPOSIT_FORFEITURE</code> (offset vào penalty debt)</td>
+<td class="identifier"><code>NULL</code></td>
+</tr>
+<tr>
+<td>Buyer-attributed termination outcome (<code>finalBreachingRole=BUYER</code>)</td>
+<td><code>DEPOSIT_FORFEITURE</code> (chuyển seller)</td>
+<td class="identifier"><code>RELEASE_TO_SELLER</code></td>
+<td class="identifier"><code>NULL</code></td>
+</tr>
+</tbody>
+</table></div>
+<div class="callout callout--invariant"><span class="callout__label">BẤT BIẾN</span><p><strong>Bất biến — phân vai event:</strong> bảng trên mô tả <em>kết quả ledger</em> theo nhánh; nhưng <strong>đường kích duy nhất</strong> cho mọi lệnh tiền termination là <code>remedy.finalized</code> (escrow đọc <code>remedyLegs</code> — mỗi leg mang <code>{remedyLegId, remedyType, fundType, amount, role}</code> (khớp schema <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-7-2" title="milestone-escrow-phase2-design.md §7.2">milestone-escrow §7.2</a>) — rồi phát <code>bank.*_requested</code> kèm <code>remedyDecisionId</code> + <code>remedyLegId</code> từng leg (dedup ở <code>remedy_leg_id UNIQUE</code>, <a href="#sec-6" title="bank-service-phase2-design.md §6">§6</a> DDL)). <code>contract.terminated</code> KHÔNG kích lệnh tiền nào — nếu cả 2 event cùng kích, <code>sourceEventId</code> khác nhau làm idempotency không chặn được seize/refund trùng. <code>breach.reported</code> không có consumer nào ở tầng tiền (allegation chưa attribution). Vòng đời <code>buyerDepositRate</code>: <code>LOCK_BUYER_DEPOSIT</code> lúc <code>SIGNED</code> → một trong các entry trên. <code>sellerDepositRate</code> tương tự với <code>LOCK_SELLER_DEPOSIT</code>.</p></div>
+<p>Milestone funding lock (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6b" title="milestone-escrow-phase2-design.md §6b">milestone-escrow §6b</a>) dùng <code>bank.lock_requested</code>/<code>lock_failed</code>; không cần API/<code>entryType</code> mới. Retry/fail policy thuộc escrow-service.</p>
+</section>
+<section aria-labelledby="heading-sec-3-3" class="section" id="sec-3-3">
+<h3 id="heading-sec-3-3"><span class="sec-num">§3.3</span> Ledger entries từ Provisional Settlement Level 2 — 3 event <a aria-label="Sao chép liên kết tới §3.3" class="anchor" href="#sec-3-3">#</a></h3>
+<p><a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-3-2" title="milestone-escrow-phase2-design.md §3.2">milestone-escrow §3.2</a> định nghĩa 3 event provisional (<code>milestone.level2_provisional_settled</code> / <code>..._buffer_reconciled</code> / <code>..._terminal_settled</code>) và mechanics tiền 3 bước. Dùng <code>RELEASE_TO_SELLER</code>/<code>REFUND_TO_BUYER</code>, mỗi động tác 1 <code>sourceEventId</code> riêng (cùng pattern <a href="#sec-3-1" title="bank-service-phase2-design.md §3.1">§3.1</a>).</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th>Event nhận</th>
+<th>Ký hiệu (xem <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-3-2" title="milestone-escrow-phase2-design.md §3.2">milestone-escrow §3.2</a>)</th>
+<th><code>LedgerEntry</code> bắn ra</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>milestone.level2_provisional_settled</code></td>
+<td>Payload explicit <code>sellerReleaseAmount</code>, <code>remainingLockedAmount</code>; no buyer refund</td>
+<td>Emit one positive <code>RELEASE_TO_SELLER(sellerReleaseAmount)</code> command; omit if zero</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.level2_buffer_reconciled</code></td>
+<td>Payload explicit <code>sellerAdditionalReleaseAmount</code>, <code>buyerRefundAmount</code>, <code>overReleaseAmount</code></td>
+<td>Emit positive release/refund commands only; never turn <code>overReleaseAmount</code> into a negative command</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.level2_terminal_settled</code></td>
+<td>Payload explicit terminal seller/refund legs</td>
+<td>Emit positive release/refund commands only</td>
+</tr>
+</tbody>
+</table></div>
+<p>Payload mỗi event mang sẵn số tiền đã tính; contract-service tính money legs, escrow-service validates conservation and emits commands, bank-service chỉ ghi ledger theo amount nhận được, không tự tính lại <code>X15</code>/<code>X2</code>/<code>rate</code>. Mọi bank command amount phải strictly positive; zero command bị omit và reversal không dùng negative amount.</p>
+</section>
+<section aria-labelledby="heading-sec-3-4" class="section" id="sec-3-4">
+<h3 id="heading-sec-3-4"><span class="sec-num">§3.4</span> <code>bank.large_transaction_flagged</code> — báo cáo giao dịch giá trị lớn, không hold <a aria-label="Sao chép liên kết tới §3.4" class="anchor" href="#sec-3-4">#</a></h3>
+<details class="why"><summary>Vì sao</summary><p>Nghĩa vụ báo cáo giao dịch giá trị lớn thuộc tổ chức tài chính giữ tiền (Luật PCRT 2022 Điều 4, Thông tư 27/2025/TT-NHNN); bank-service ghi nhận và tạo audit trail, không hold ( <a class="xref" data-pending="" data-source="../reputation-service-phase2-design.md" href="reputation-service-phase2-design.html#sec-8" title="reputation-service-phase2-design.md §8">reputation-service §8</a>).</p></details>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — ngưỡng và điểm phát:</strong> signal phát tại <strong>bank-adapter boundary khi mock/real rail thực sự thực hiện transfer</strong> ≥ <strong>500.000.000 VNĐ (giao dịch chuyển tiền điện tử trong nước)</strong> → publish <code>bank.large_transaction_flagged</code>, không phát per-<code>LedgerEntry</code>. Các operation của <code>ledger_entry</code> (lock/release/refund) là chuyển khoản giữa các tài khoản ngân hàng — theo <strong>Điều 9 Thông tư 27/2025/TT-NHNN</strong>, ngưỡng 500 triệu; 1.000 USD nếu có bên quốc tế tham gia (không áp dụng trong scope mock 1 pooled account nội địa).</p></div>
+<div class="callout callout--warning"><span class="callout__label">CẢNH BÁO</span><p><strong>Cảnh báo:</strong> không dùng ngưỡng 400 triệu ở Điều 6 TT27/2025/TT-NHNN, kế thừa QĐ 11/2023/QĐ-TTg: đây là ngưỡng giao dịch giá trị lớn phải báo cáo chung, chủ yếu ngữ cảnh nộp/rút tiền mặt.</p></div>
+<details class="why"><summary>Vì sao</summary><p>Nghĩa vụ báo cáo gắn với giao dịch chuyển tiền thực; phát per-<code>LedgerEntry</code> sẽ flag lặp cùng dòng tiền qua <code>LOCK_MILESTONE</code> → <code>RELEASE_TO_SELLER</code>/<code>REFUND_TO_BUYER</code>/<code>DEPOSIT_FORFEITURE</code>.</p></details>
+<p><strong>Cơ chế:</strong> tại bank-adapter boundary, khi mock/real rail ghi nhận một <strong>giao dịch chuyển tiền thực</strong> đã được thực hiện, adapter đánh giá ngưỡng và publish <code>bank.large_transaction_flagged</code> nếu đủ điều kiện; không hold, không chờ Admin và không phát theo từng bút toán nội bộ <code>LedgerEntry</code>. Payload: <code>{transferId, relatedEntryId?, contractId, userId, amount, transferType, occurredAt}</code>. Consumer: reputation-service (composite fraud score, không phải trigger hold độc lập — xem <a class="xref" data-pending="" data-source="../reputation-service-phase2-design.md" href="reputation-service-phase2-design.html#sec-8" title="reputation-service-phase2-design.md §8">reputation-service §8</a>) và audit-service (bằng chứng cho nghĩa vụ báo cáo nếu sau này tích hợp ngân hàng thật). Thực tế ngân hàng thật vẫn cho giao dịch chạy rồi báo cáo Cục Phòng, chống rửa tiền trong 1 ngày làm việc (dữ liệu điện tử) — không đóng băng giao dịch chỉ vì vượt ngưỡng.</p>
+</section>
+<section aria-labelledby="heading-sec-3-4b" class="section" id="sec-3-4b">
+<h3 id="heading-sec-3-4b"><span class="sec-num">§3.4b</span> Consume <code>analytics.structuring_pattern_detected</code> — báo cáo giao dịch khả nghi <a aria-label="Sao chép liên kết tới §3.4b" class="anchor" href="#sec-3-4b">#</a></h3>
+<p><strong>Phân biệt với <a href="#sec-3-4" title="bank-service-phase2-design.md §3.4">§3.4</a> — 2 nghĩa vụ báo cáo khác nhau, đừng gộp:</strong> <a href="#sec-3-4" title="bank-service-phase2-design.md §3.4">§3.4</a> là báo cáo <strong>giao dịch giá trị lớn</strong> (ngưỡng đơn ≥500 triệu, bank-service phát hiện tại bank-adapter boundary của giao dịch chuyển tiền thực). Mục này là báo cáo <strong>giao dịch khả nghi</strong> (structuring — hành vi rải mỏng nhiều giao dịch/hợp đồng dưới ngưỡng để né <a href="#sec-3-4" title="bank-service-phase2-design.md §3.4">§3.4</a>). Structuring không thể phát hiện từ một transfer đơn lẻ — chỉ thấy khi nhìn cộng dồn qua thời gian trên data warehouse. <code>analytics-service.AmlPatternScanJob</code> (batch, <a class="xref" data-pending="" data-source="../analytics-service-phase2-design.md" href="analytics-service-phase2-design.html#sec-3-5" title="analytics-service-phase2-design.md §3.5">analytics-service §3.5</a>) làm việc đó và publish <code>analytics.structuring_pattern_detected</code>.</p>
+<details class="why"><summary>Vì sao</summary><p>Nghĩa vụ STR thuộc tổ chức tài chính giữ tiền (Luật PCRT 2022 Điều 4, Điều 26); phát hiện mà không báo cáo cơ quan là lỗi tuân thủ. <code>reputation-service</code> xử lý nội bộ (set cặp <code>ELEVATED_RISK</code>, chặn giao dịch tương lai, <a class="xref" data-pending="" data-source="../reputation-service-phase2-design.md" href="reputation-service-phase2-design.html#sec-8" title="reputation-service-phase2-design.md §8">reputation-service §8</a>), bank-service lo nghĩa vụ ra ngoài: 2 consumer độc lập, không phụ thuộc nhau.</p></details>
+<p><strong>Cơ chế:</strong> consume <code>analytics.structuring_pattern_detected</code> (payload <code>{buyerId, sellerId, contractIds[], nearThresholdCount, windowStart, windowEnd, detectedAt}</code>) → tạo <code>SuspiciousTransactionReport</code> (bản ghi nội bộ, append-only, cùng tinh thần <code>ledger_entry</code>) + publish <code>bank.suspicious_report_created {eventId, buyerId, sellerId, windowEnd, reportHash, occurredAt}</code> cho audit-service nối chain (<code>source_type: STRUCTURING_REPORT</code>; <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2-4" title="hash-chain-phase2-design.md §2.4">hash-chain §2.4</a>, bank không INSERT thẳng <code>audit_record</code>) làm bằng chứng due diligence. <strong>Không hold</strong> gì ở đây (batch chạy hồi cứu, các giao dịch trong <code>contractIds[]</code> đã settle — không có gì để hold; việc chặn giao dịch <em>tương lai</em> của cặp là của <code>ELEVATED_RISK</code> bên reputation). Idempotent theo <code>(buyerId, sellerId, windowEnd)</code> — batch chạy lại cùng cửa sổ không đẻ báo cáo trùng.</p>
+<p><code>AmlPatternScanJob</code> (structuring) thêm dedup <code>patternKey = hash(buyerId, sellerId, sortedContractIds)</code> UNIQUE trên bảng report: quét lại cùng cửa sổ 90 ngày mỗi ngày chỉ tạo report MỚI khi cluster có contract mới hoặc risk revision tăng; không publish lại đúng một cluster cũ.</p>
+<div class="callout callout--scope"><span class="callout__label">KHÔNG LÀM</span><p><strong>Không làm — cổng báo cáo thật:</strong> chưa tích hợp cổng Cục PCRT; <code>SuspiciousTransactionReport</code> append-only sẵn sàng export đúng field STR, tích hợp sau bằng adapter, không đổi business logic.</p></div>
+</section>
+<section aria-labelledby="heading-sec-3-5" class="section" id="sec-3-5">
+<h3 id="heading-sec-3-5"><span class="sec-num">§3.5</span> Emergency Lock — Zero-Trust Kill Switch cho External Verifier <a aria-label="Sao chép liên kết tới §3.5" class="anchor" href="#sec-3-5">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> External Verifier tự query hash để đối soát độc lập và tự đóng băng toàn hệ thống khi phát hiện lệch; không phụ thuộc job trong platform.</p></div>
+<details class="why"><summary>Vì sao</summary><p><code>VerifyChainJob</code> chạy trong platform nên Admin có thể sửa DB rồi vô hiệu hoá hoặc lờ job; kill switch thu hẹp giới hạn trusted-operator ở  <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-6" title="hash-chain-phase2-design.md §6">hash-chain §6</a>.</p></details>
+<p><strong>Ai là External Verifier — KHÔNG cột cứng vào VICOFA:</strong> đây là <strong>tổ chức mua &amp; vận hành platform</strong> (Software Buyer — dùng đúng thuật ngữ đã có ở <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-5-2" title="hash-chain-phase2-design.md §5.2">hash-chain §5.2</a>), có thể là VICOFA, VRA, VINACAS, hoặc doanh nghiệp thu mua uy tín bất kỳ tuỳ deployment. Cơ chế chạy y hệt bất kể ai đóng vai — VICOFA chỉ là ví dụ minh hoạ thực tế nhất (đang có liên kết ngành), <strong>không phải điều kiện bắt buộc</strong> để cơ chế hoạt động. Mọi field/event/config dưới đây đặt tên generic (<code>verifierOrgId</code>, <code>EXTERNAL_VERIFIER_*</code>), không hardcode tên riêng tổ chức nào.</p>
+<details class="why"><summary>Vì sao</summary><p>Admin có thể đọc DB/env để lấy API key hoặc JWT signing secret; hai endpoint lock/unlock phải dùng chữ ký bất đối xứng. External Verifier giữ private key trong hạ tầng của họ, platform chỉ giữ public key để verify, không tạo được chữ ký.</p></details>
+</section>
+<section aria-labelledby="heading-sec-3-5-1" class="section" id="sec-3-5-1">
+<h4 id="heading-sec-3-5-1"><span class="sec-num">§3.5.1</span> Ba đường, phân biệt rõ đọc vs thay-đổi-trạng-thái <a aria-label="Sao chép liên kết tới §3.5.1" class="anchor" href="#sec-3-5-1">#</a></h4>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th>Đường</th>
+<th>Method</th>
+<th>Auth</th>
+<th>Bản chất</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Query hash đối soát</td>
+<td class="identifier"><code>GET /api/v1/security/audit-hash?contractId=...</code></td>
+<td>Nhẹ (<code>X-Api-Key</code> + rate limit)</td>
+<td><strong>Chỉ đọc</strong> — hash không phải bí mật, không cần chữ ký. <strong>Đường này do audit-service serve</strong> (chủ data <code>audit_record</code>, <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-4-4" title="hash-chain-phase2-design.md §4.4">hash-chain §4.4</a>); liệt kê ở đây để giữ bức tranh "3 đường của External Verifier", bank-service chỉ implement 2 đường lock/unlock</td>
+</tr>
+<tr>
+<td>Emergency lock</td>
+<td class="identifier"><code>POST /api/v1/security/emergency-lock</code></td>
+<td><strong>Chữ ký bất đối xứng</strong> External Verifier</td>
+<td><strong>Đổi trạng thái</strong> (đóng băng tiền) — bắt buộc asymmetric</td>
+</tr>
+<tr>
+<td>Emergency unlock</td>
+<td class="identifier"><code>POST /api/v1/security/emergency-unlock</code></td>
+<td><strong>Chữ ký bất đối xứng</strong> External Verifier</td>
+<td><strong>Đổi trạng thái</strong> (mở băng) — mirror với lock, không có đường tắt cho Admin</td>
+</tr>
+</tbody>
+</table></div>
+<details class="why"><summary>Vì sao</summary><p>Query hash không đổi trạng thái nên chỉ cần auth nhẹ; lock/unlock đổi trạng thái tiền nên phải asymmetric, tránh lộ secret đối xứng cho Admin.</p></details>
+</section>
+<section aria-labelledby="heading-sec-3-5-2" class="section" id="sec-3-5-2">
+<h4 id="heading-sec-3-5-2"><span class="sec-num">§3.5.2</span> Chống replay attack (lock &amp; unlock) <a aria-label="Sao chép liên kết tới §3.5.2" class="anchor" href="#sec-3-5-2">#</a></h4>
+<p>Payload bắt buộc mang <code>timestamp</code> + <code>nonce</code>, và <strong>cả hai nằm trong chuỗi được ký</strong>, không để rời ngoài header:</p>
+<figure class="code" data-lang="text"><pre><code>signedPayload = { action: "LOCK" | "UNLOCK", reason, timestamp, nonce }
+signature     = ES256(RFC8785_canonical_json(signedPayload), verifierPrivateKey)
+</code></pre></figure>
+<p>HTTP body:</p>
+<figure class="code" data-lang="json"><pre><code>{
+  "keyId": "public-key-sha256-fingerprint",
+  "signedPayload": {
+    "action": "LOCK | UNLOCK",
+    "reason": "string",
+    "timestamp": "ISO-8601",
+    "nonce": "UUID"
+  },
+  "signature": "base64url"
+}
+</code></pre></figure>
+<p>Use ES256 (ECDSA P-256 with SHA-256) over RFC 8785 canonical JSON of <code>signedPayload</code>. The action must match the endpoint; mismatch is <code>EXTERNAL_SIGNATURE_INVALID</code>. Platform verify: (1) <code>keyId</code> resolves to the registered public key; (2) signature verifies; (3) <code>timestamp</code> is within ±300 seconds; (4) <code>nonce</code> is persisted and unique. Rejection codes are fixed: <code>EXTERNAL_SIGNATURE_INVALID</code>/<code>EXTERNAL_KEY_UNKNOWN</code> -&gt; 401; <code>SIGNATURE_TIMESTAMP_OUT_OF_WINDOW</code>/<code>NONCE_REPLAYED</code> -&gt; 401/409 respectively; <code>SYSTEM_ALREADY_LOCKED</code>/<code>SYSTEM_NOT_LOCKED</code> -&gt; 409.</p>
+</section>
+<section aria-labelledby="heading-sec-3-5-3" class="section" id="sec-3-5-3">
+<h4 id="heading-sec-3-5-3"><span class="sec-num">§3.5.3</span> Gate — chốt chặn duy nhất, tận dụng "escrow-service là actor duy nhất" <a aria-label="Sao chép liên kết tới §3.5.3" class="anchor" href="#sec-3-5-3">#</a></h4>
+<p>Vì escrow-service là <strong>actor duy nhất</strong> gọi bank-service (<a href="#sec-3" title="bank-service-phase2-design.md §3">§3</a>), không cần sửa contract-service/escrow-service để "đóng băng toàn hệ thống" — chỉ cần <strong>1 chốt chặn ngay đầu bank-service</strong>: trước khi xử lý bất kỳ <code>bank.lock_requested</code>/<code>release_requested</code>/<code>seize_requested</code>/<code>refund_requested</code> nào, check <code>SELECT 1 FROM system_lock WHERE status='ACTIVE'</code>. Có row ACTIVE → <strong>không ghi ledger</strong>, publish <code>bank.*_failed</code> tương ứng (đúng pattern request/confirmation <a href="#sec-3" title="bank-service-phase2-design.md §3">§3</a>, không cần state mới). escrow-service/contract-service không cần biết gì về freeze — chúng chỉ thấy <code>bank.*_failed</code> và tự xử theo nhánh fail sẵn có.</p>
+<p><strong>Quyết định scope:</strong> <code>SystemLock</code> là global all-or-nothing kill switch <strong>có chủ đích</strong>, không phải phần scoped-lock bị thiếu. Khi active, nó đóng băng toàn bộ lock/release/seize/refund vì tại thời điểm phát hiện tamper chưa có cơ sở tin cậy để khoanh vùng một bank, contract hay ledger subset.</p>
+</section>
+<section aria-labelledby="heading-sec-3-5-4" class="section" id="sec-3-5-4">
+<h4 id="heading-sec-3-5-4"><span class="sec-num">§3.5.4</span> Tách freeze (kỹ thuật) khỏi notify (con người) — giữ nguyên tinh thần <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-5-2" title="hash-chain-phase2-design.md §5.2">hash-chain §5.2</a> <a aria-label="Sao chép liên kết tới §3.5.4" class="anchor" href="#sec-3-5-4">#</a></h4>
+<ul>
+<li><strong>Freeze:</strong> tự động, tức thì, toàn cục, không ai duyệt. Freeze toàn cục (không phải chỉ 1 contract) vì tamper 1 điểm trong chain nghĩa là không còn tin được record nào khác cho tới khi điều tra xong — không có cơ sở khoanh vùng lúc mới phát hiện.</li>
+<li><strong>Notify tự động:</strong> chỉ 2 nơi — Admin (điều tra kỹ thuật) + External Verifier (xác nhận đã nhận lệnh). <strong>KHÔNG</strong> tự động email buyer/seller thật của từng hợp đồng — giữ đúng quyết định <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-5-2" title="hash-chain-phase2-design.md §5.2">hash-chain §5.2</a>: chỉ báo buyer/seller sau khi Admin khoanh vùng đúng <code>contract_id</code> bị ảnh hưởng, tránh hoảng loạn oan cho hàng loạt hợp đồng không liên quan.</li>
+<li><strong>Cơ chế:</strong> sau khi lock/unlock commit, bank-service publish <code>notification.security_lock_changed_requested</code> mang Admin + External Verifier contacts, action, reason, timestamp và sourceEventId. Không gọi mail provider trực tiếp. Song song, publish domain event <code>bank.security_lock_changed {eventId, action: LOCKED|UNLOCKED, verifierOrgId, reason, signedPayload, occurredAt}</code> — audit-service consume để nối chain (<a href="#sec-3-5-7" title="bank-service-phase2-design.md §3.5.7">§3.5.7</a>, source_type theo action; <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2-4" title="hash-chain-phase2-design.md §2.4">hash-chain §2.4</a>). Notification command và domain event tách vai như mọi chỗ khác.</li>
+</ul>
+</section>
+<section aria-labelledby="heading-sec-3-5-5" class="section" id="sec-3-5-5">
+<h4 id="heading-sec-3-5-5"><span class="sec-num">§3.5.5</span> Unlock — mirror lock, không ngoại lệ cho Admin <a aria-label="Sao chép liên kết tới §3.5.5" class="anchor" href="#sec-3-5-5">#</a></h4>
+<p>Admin <strong>không có</strong> API/quyền nào set <code>system_lock.status='RELEASED'</code> trực tiếp. Muốn mở băng bắt buộc có request unlock <strong>ký bởi External Verifier</strong> (cùng cơ chế <a href="#sec-3-5-2" title="bank-service-phase2-design.md §3.5.2">§3.5.2</a>). Quy trình: Admin điều tra xong → báo External Verifier (ngoài hệ thống) → họ xem xét, đồng ý thì tự ký request unlock. Platform không tự động unlock trong <strong>bất kỳ</strong> trường hợp nào, kể cả false-positive đã chứng minh — vẫn cần chữ ký thật. Một khi có 1 ngoại lệ cho Admin (dù lý do chính đáng), cơ chế mất hết ý nghĩa vì Admin chính là bên đang phòng.</p>
+</section>
+<section aria-labelledby="heading-sec-3-5-6" class="section" id="sec-3-5-6">
+<h4 id="heading-sec-3-5-6"><span class="sec-num">§3.5.6</span> Public key của External Verifier — root-of-trust không nằm trong tầm Admin runtime <a aria-label="Sao chép liên kết tới §3.5.6" class="anchor" href="#sec-3-5-6">#</a></h4>
+<p>Public key <strong>không</strong> được lưu chỗ Admin sửa được lúc chạy (DB config table / env var). Ba lớp bảo vệ root-of-trust:</p>
+<details class="why"><summary>Vì sao</summary><p>Nếu Admin đổi public key bằng key của mình, họ có thể giả External Verifier; nếu đổi sang key khác, cảnh báo thật sẽ verify fail.</p></details>
+<ol>
+<li><strong>Genesis key baked deploy-time:</strong> public key ban đầu nằm trong config đi theo build artifact / secret do bên vận hành hạ tầng quản lý — <strong>không phải</strong> "Admin" (vai trò nghiệp vụ có quyền chui DB/env runtime). Đây là 2 vai trò khác nhau; Admin runtime không có quyền redeploy hay đổi secret hạ tầng.</li>
+<li><strong>Mọi lần rotation là 1 event anchor vào hash chain:</strong> đăng ký/đổi public key = <code>source_type = 'EXTERNAL_VERIFIER_KEY_REGISTERED'</code> mới trong <code>audit_record</code> (<a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2" title="hash-chain-phase2-design.md §2">hash-chain §2</a>), <strong>và</strong> gửi email fingerprint key thẳng vào hộp thư External Verifier lúc đăng ký — ngoài tầm platform y hệt email anchor lúc <code>sign()</code>. Admin lén đổi giá trị config → lệch với record đã anchor trong chain (<code>VerifyChainJob</code> bắt được) và lệch với fingerprint External Verifier tự giữ.
+Email fingerprint đi qua <code>notification.verifier_key_anchor_requested</code> do bank-service publish sau khi rotation hợp lệ được ghi nhận. Ghi chain đi qua domain event <code>bank.verifier_key_registered {eventId, publicKeyFingerprint, rotationSignedByOldKey?, occurredAt}</code> (audit-service là consumer, <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2-4" title="hash-chain-phase2-design.md §2.4">hash-chain §2.4</a>).</li>
+<li><strong>Rotation hợp lệ phải ký bởi key CŨ:</strong> muốn đổi sang public key mới, cần message ký bởi private key <strong>đang có hiệu lực</strong> ("tôi xác nhận đổi sang public key = XYZ"). Admin không có private key nào của External Verifier → không tạo được rotation hợp lệ, chỉ đổi được giá trị DB thô và giá trị đó sẽ lệch chain/email như lớp 2.</li>
+</ol>
+</section>
+<section aria-labelledby="heading-sec-3-5-7" class="section" id="sec-3-5-7">
+<h4 id="heading-sec-3-5-7"><span class="sec-num">§3.5.7</span> Lock &amp; unlock cũng vào hash chain <a aria-label="Sao chép liên kết tới §3.5.7" class="anchor" href="#sec-3-5-7">#</a></h4>
+<p>Cả 2 hành động vào <code>audit_record</code> như <code>source_type</code> mới (<code>SECURITY_LOCK_TRIGGERED</code> / <code>SECURITY_UNLOCK_TRIGGERED</code>) — đúng tiêu chí Event Catalog (<a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2" title="hash-chain-phase2-design.md §2">hash-chain §2</a>: "quyết định có thể bị tranh chấp làm bằng chứng sau này"). Kill switch tự nó cũng phải tamper-evident, không chỉ tiền mới cần.</p>
+</section>
+<section aria-labelledby="heading-sec-4" class="section" id="sec-4">
+<h2 id="heading-sec-4"><span class="sec-num">§4</span> Idempotency <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<details class="why"><summary>Vì sao</summary><p>RabbitMQ at-least-once có thể giao cùng <code>bank.lock_requested</code> hai lần khi retry hoặc consumer restart; thiếu dedup sẽ khoá/trừ tiền hai lần.</p></details>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — idempotency key = <code>sourceEventId</code> = request envelope <code>eventId</code>.</strong> Escrow-service tạo đúng một outbox event cho mỗi bank command; <code>eventId</code> của <code>bank.*_requested</code> được copy nguyên vào payload <code>sourceEventId</code>. Bank-service deduplicate ledger bằng <code>sourceEventId</code>/<code>eventId</code>, không dùng compound business key. Result event có <code>eventId</code> mới, giữ nguyên <code>sourceEventId</code>, <code>correlationId</code> của workflow và <code>causationId = request eventId</code>. Replay phải giữ nguyên request <code>eventId</code> và payload; result duplicate chỉ re-publish confirmation, không insert ledger lần hai.</p></div>
+<p><strong>Xử lý duplicate:</strong> nhận <code>bank.lock_requested</code> với <code>sourceEventId</code> đã tồn tại trong <code>ledger_entry</code> → <strong>không insert lại</strong>, nhưng <strong>vẫn re-publish confirmation</strong> tương ứng (không silent-drop) — vì lý do consumer gửi lại có thể là do confirmation lần trước bị mất trên đường về, không chỉ vì request bị gửi lại. Silent-drop sẽ khiến escrow-service treo mãi chờ confirmation không bao giờ tới.</p>
+</section>
+<section aria-labelledby="heading-sec-5" class="section" id="sec-5">
+<h2 id="heading-sec-5"><span class="sec-num">§5</span> Quan hệ với <code>EscrowAccount</code>/<code>EscrowMilestone</code> (escrow-service) — tránh dual-write <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>EscrowAccount</code>/<code>EscrowMilestone</code> (đã có ở <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-2-3" title="milestone-escrow-phase2-design.md §2.3">milestone-escrow §2.3</a>) <strong>không tự lưu lại số tiền thật</strong> phải đồng bộ tay với bank-service. Phân tách rõ:</p></div>
+<ul>
+<li><strong>Số tiền "đã thoả thuận"</strong> (bao nhiêu cần khoá) — contract-level deposit được suy từ signed nominal terms; milestone <code>batchAmount</code> được cố định khi funding request chọn <code>effectiveUnitPrice</code> (<a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-2-1" title="milestone-escrow-phase2-design.md §2.1">milestone-escrow §2.1</a> / <a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6c" title="milestone-escrow-phase2-design.md §6c">milestone-escrow §6c</a>). Bank nhận số canonical đã tính, không tự recompute hay lưu một competing balance.</li>
+<li><strong>Số tiền "thật đã di chuyển"</strong> — sự thật duy nhất nằm ở <code>ledger_entry</code> bên bank-service.</li>
+<li><code>EscrowAccount</code>/<code>EscrowMilestone</code> chỉ giữ <strong>state</strong> (<code>LOCKED</code>/<code>RELEASED</code>/<code>PENALIZED</code>...), không giữ thêm 1 con số tiền riêng nào phải giữ đồng bộ tay với bank-service — nếu giữ, đó chính là dual-write problem, chỉ là biến thể mới của lỗi đã học.</li>
+</ul>
+</section>
+<section aria-labelledby="heading-sec-5b" class="section" id="sec-5b">
+<h2 id="heading-sec-5b"><span class="sec-num">§5b</span> Ledger ↔ Audit Chain Reconciliation + Statement Export <a aria-label="Sao chép liên kết tới §5b" class="anchor" href="#sec-5b">#</a></h2>
+</section>
+<section aria-labelledby="heading-sec-5b-1" class="section" id="sec-5b-1">
+<h3 id="heading-sec-5b-1"><span class="sec-num">§5b.1</span> <code>LedgerAuditReconciliationJob</code> — đối chiếu SỐ TIỀN, lấp lớp check còn thiếu <a aria-label="Sao chép liên kết tới §5b.1" class="anchor" href="#sec-5b-1">#</a></h3>
+<details class="why"><summary>Vì sao</summary><p>Bank reconciliation chỉ soát ledger nội bộ, chain verify (weekly + watchdog <a href="#sec-3-5">§3.5</a>) chỉ chứng minh record không bị sửa, escrow projection theo ledger; cả 3 không chứng minh ledger khớp số tiền đã anchor. Job phải so tiền đã release với <code>milestone.settled</code> để phát hiện lệch.</p></details>
+<ul>
+<li>Job <code>@Scheduled</code> (hằng ngày, sau OTS window): với mỗi milestone <code>SETTLED</code> trong kỳ, so <code>sum(ledger entries RELEASE/SEIZE theo milestoneId)</code> vs <code>settledAmount</code>/<code>seizedAmount</code> trong <code>audit_record.content</code> (content minimal hoá vẫn giữ số liệu cần verify — <a class="xref" data-pending="" data-source="../data-governance-phase2-design.md" href="data-governance-phase2-design.html#sec-6" title="data-governance-phase2-design.md §6">data-governance §6</a>, nên đủ dữ liệu để so).</li>
+<li>Đọc audit record qua internal API read-only mới của audit-service (<a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-4-5" title="hash-chain-phase2-design.md §4.5">hash-chain §4.5</a>): <code>GET /internal/v1/audit/records?contractId&amp;sourceType&amp;from&amp;to</code> — service-to-service secret, <strong>không route Gateway</strong>.</li>
+<li><strong>Mismatch → alert, KHÔNG auto-fix:</strong> publish <code>notification.reconciliation_mismatch_requested</code> (Admin only) + metric. Đường sửa duy nhất là reversal entry có attribution (<a href="#sec-2b" title="bank-service-phase2-design.md §2b">§nguyên tắc ledger</a>) — job không có quyền ghi.</li>
+<li>Job fail/audit-service unavailable → alert vận hành, không block dòng tiền (đây là lớp phát hiện, không phải gate).</li>
+</ul>
+</section>
+<section aria-labelledby="heading-sec-5b-2" class="section" id="sec-5b-2">
+<h3 id="heading-sec-5b-2"><span class="sec-num">§5b.2</span> Statement export cho Buyer/Seller — bank vẫn không lộ ra ngoài <a aria-label="Sao chép liên kết tới §5b.2" class="anchor" href="#sec-5b-2">#</a></h3>
+<p>Buyer/Seller tải bảng kê bút toán liên quan tới mình (cọc khoá, release/seize từng milestone, hoàn cọc) dạng CSV/PDF làm chứng từ cho kế toán của họ — platform <strong>không</strong> làm kế toán hộ, <strong>không</strong> xuất hoá đơn (Seller tự xuất theo NĐ123).</p>
+<ul>
+<li>Mặt tiền là <strong>escrow-service</strong>: <code>GET /api/v1/escrows/statements?from&amp;to</code> (nằm dưới route <code>/api/v1/escrows/**</code> sẵn có, ownership check theo participant) → Feign nội bộ <code>GET /internal/v1/bank/ledger?participantId&amp;from&amp;to</code> (read-only, service secret, không route Gateway — bổ sung vào nhóm internal APIs sẵn có) → render file. Bank-service giữ nguyên không có external route (<a class="xref" data-pending="" data-source="../api-gateway-phase2-design.md" href="api-gateway-phase2-design.html#sec-3-5" title="api-gateway-phase2-design.md §3.5">api-gateway §3.5</a>).</li>
+<li>Read-only, số liệu luôn theo ledger → không dual-write, không state/event mới.</li>
+</ul>
+</section>
+<section aria-labelledby="heading-sec-6" class="section" id="sec-6">
+<h2 id="heading-sec-6"><span class="sec-num">§6</span> Database <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE ledger_entry (
+    entry_id          CHAR(36) PRIMARY KEY,
+    source_event_id    CHAR(36) NOT NULL UNIQUE,   -- idempotency key, xem §4
+    contract_id        CHAR(36) NOT NULL,
+    milestone_id       CHAR(36) NULL,               -- NULL = cọc cấp Contract (buyer hoặc seller, phân biệt qua entry_type — sửa 08/07/2026, xem §2), có giá trị = batchAmount của milestone đó
+    user_id            CHAR(36) NOT NULL,
+    entry_type         VARCHAR(30) NOT NULL,    -- LOCK_BUYER_DEPOSIT | LOCK_SELLER_DEPOSIT | LOCK_MILESTONE | RELEASE_TO_SELLER | REFUND_TO_BUYER | DEPOSIT_FORFEITURE | CONTRACTUAL_PENALTY | DAMAGES_COMPENSATION (19/07/2026 — tách SEIZE_PENALTY, §2; VARCHAR nới 30 cho DAMAGES_COMPENSATION)
+    fund_type          VARCHAR(30) NOT NULL,    -- 19/07 lần 4: BUYER_DEPOSIT | SELLER_DEPOSIT | MILESTONE_PAYMENT (§2 — DDL bị bỏ quên khi thêm field domain)
+    remedy_decision_id CHAR(36) NULL,           -- 19/07 lần 4: group + reconciliation theo quyết định; NULL cho lock/release thường
+    remedy_leg_id      CHAR(36) NULL UNIQUE,    -- 19/07 lần 4: ĐƠN VỊ DEDUP đúng — một decision hợp lệ sinh NHIỀU legs nên
+                                                -- remedy_decision_id không thể UNIQUE trong ledger; mỗi leg của remedyLegs
+                                                -- mang remedyLegId, replay leg → UNIQUE chặn. "Một decision → đúng một BỘ legs"
+                                                -- enforce bằng remedy_leg_id UNIQUE + reconcile group theo remedy_decision_id
+    amount             DECIMAL(18,2) NOT NULL,
+    created_at         TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_ledger_entry_contract ON ledger_entry(contract_id, milestone_id);
+CREATE INDEX idx_ledger_entry_user ON ledger_entry(user_id);
+-- Không có bảng "account" riêng — số dư luôn derive từ SUM(amount) lọc theo contract_id/milestone_id/user_id/entry_type.
+</code></pre></figure>
+<p><strong>Kill switch — <code>system_lock</code> + <code>used_nonce</code> (<a href="#sec-3-5" title="bank-service-phase2-design.md §3.5">§3.5</a>):</strong></p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE system_lock (
+    lock_id         CHAR(36) PRIMARY KEY,
+    status          VARCHAR(20) NOT NULL,    -- 'ACTIVE' | 'RELEASED'
+    verifier_org_id CHAR(36) NOT NULL,           -- External Verifier (Software Buyer) đã trigger — generic, không hardcode tên tổ chức
+    reason          TEXT,
+    triggered_at    TIMESTAMP NOT NULL,
+    released_at     TIMESTAMP NULL
+);
+-- Gate check §3.5.3: SELECT 1 FROM system_lock WHERE status='ACTIVE' trước mọi bank.*_requested.
+
+CREATE TABLE used_nonce (
+    nonce       VARCHAR(64) PRIMARY KEY,      -- chống replay §3.5.2
+    seen_at     TIMESTAMP NOT NULL DEFAULT now()
+);
+-- Dọn định kỳ nonce quá cửa sổ timestamp cho phép (±300s) — không cần giữ mãi.
+</code></pre></figure>
+<div class="callout callout--scope"><span class="callout__label">KHÔNG LÀM</span><p><strong>Không làm — <code>wallet_snapshot</code>:</strong> known scaling path, không build trong Phase 2.</p></div>
+<details class="why"><summary>Vì sao</summary><p>Vài trăm hợp đồng × vài milestone chỉ tạo vài nghìn <code>ledger_entry</code>; <code>SUM(amount)</code> với 2 index chạy dưới 50ms nên chưa cần snapshot, cùng cách <code>VerifyChainJob</code> xử lý chi phí O(n) ở <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-5-1" title="hash-chain-phase2-design.md §5.1">hash-chain §5.1</a>.</p></details>
+<ul>
+<li><strong>Vấn đề nếu chain phình:</strong> derive số dư qua <code>SUM()</code> là O(n) theo số entry của contract/user — với hàng triệu giao dịch (kịch bản productize dài hạn, không phải scope hiện tại) sẽ chậm dần.</li>
+<li><strong>Hướng fix — Snapshotting:</strong> chốt sổ số dư định kỳ vào <code>wallet_snapshot(scope_key, total, cutoff_entry_id, snapshotted_at)</code>. Balance query = <code>snapshot.total + SUM(amount WHERE entry_id &gt; snapshot.cutoff_entry_id)</code> — chỉ cộng phần mới sau snapshot.</li>
+<li><strong>Ràng buộc để không thành dual-write (<a href="#sec-5" title="bank-service-phase2-design.md §5">§5</a>):</strong> snapshot phải là <strong>derived, single-writer, idempotent</strong> — đúng 1 job tự tính lại từ <code>ledger_entry</code> (không service nào khác ghi tay vào), cutoff dùng <code>cutoff_entry_id</code> (không dùng timestamp — timestamp có race ở biên). Snapshot chỉ là bản tính sẵn tự vá lại được từ <code>ledger_entry</code> bất cứ lúc nào, không phải nguồn số dư thứ hai phải đồng bộ tay.</li>
+<li><strong>Không code trong Phase 2</strong> — chỉ ghi nhận hướng snapshot và ràng buộc chống dual-write.</li>
+</ul>
+</section>
+<section aria-labelledby="heading-sec-7" class="section" id="sec-7">
+<h2 id="heading-sec-7"><span class="sec-num">§7</span> Known Limitations / Out of Scope (có chủ đích) <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<ul class="limitations"><li><strong>Scoped emergency lock.</strong> Phase 2 chỉ có global <code>SystemLock</code> all-or-nothing; freeze theo bank/contract/milestone cần design riêng về trust boundary, selector được ký và hành vi phần tiền ngoài scope.</li><li><strong>Không tích hợp API ngân hàng thật.</strong> Mock xuyên suốt Phase 2 vì không ngân hàng nào ký API cho đồ án; interface event <a href="#sec-3">§3</a> cho phép thay implementation bên trong bank-service khi tích hợp thật mà escrow-service không đổi 1 dòng.</li><li><strong>Không làm arbitrator.</strong> INSPECTOR licensed org đáp ứng điều kiện độc lập/trách nhiệm pháp lý trong giới hạn Phase 2; mock bank không đảm nhiệm vai này.</li><li><strong>Sẵn sàng tích hợp ngân hàng.</strong> Phase 2 thiết kế interface để thay implementation, không thực hiện tích hợp thật.</li><li><strong>Multi-bank (Agribank vs BIDV).</strong> Không model multi-bank; mock giả định 1 pooled account duy nhất.</li><li><strong>Accounting đầy đủ / hoá đơn điện tử.</strong> Mua bán là giữa Buyer–Seller và Seller tự xuất hoá đơn theo NĐ123; platform chỉ cung cấp statement export <a href="#sec-5b-2">§5b.2</a> + ledger 10 năm, kế toán của platform chưa có gì để hạch toán vì chưa có fee model.</li><li><strong>Kill switch phụ thuộc External Verifier và private key an toàn (<a href="#sec-3-5">§3.5</a>).</strong> Deployment phải có Software Buyer giữ private key trong hạ tầng của họ (bất kỳ tổ chức mua platform nào, không cột cứng VICOFA) và genesis public key baked deploy-time ngoài tầm Admin runtime (<a href="#sec-3-5-6">§3.5.6</a>); lộ private key hoặc verifier thông đồng với Admin làm cơ chế mất tác dụng, là giới hạn trusted-operator (<a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-6" title="hash-chain-phase2-design.md §6">hash-chain §6</a>), không phải lỗi thực thi.</li></ul>
+</section>
+<section aria-labelledby="heading-sec-8" class="section" id="sec-8">
+<h2 id="heading-sec-8"><span class="sec-num">§8</span> Status — Bank-service Design <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<p><strong>DESIGNED — chưa code.</strong> Ledger mechanics và Kill Switch (<a href="#sec-3-5" title="bank-service-phase2-design.md §3.5">§3.5</a>) đã đóng thiết kế, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>ledger_entry</code> là nguồn sự thật về tiền; escrow-service là actor duy nhất phát bank command và đợi confirmation trước khi đổi state. <code>sourceEventId</code> chống replay command, <code>remedy_leg_id UNIQUE</code> chống lặp money-leg; <code>contract.settled</code>/<code>contract.terminated</code> không kích ledger.</p></div>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">21/07/2026</span><p><a href="#sec-2b">§2b</a> ghi tường minh 7 bất biến kế toán để thống nhất cách code VND, scale 2/HALF_UP, SUM có dấu, amount dương, unique key và remaining lock = 0 khi terminal.</p></li><li><span class="changelog__date">19/07/2026 · lần 4</span><p>Đổi tiêu đề <a href="#sec-3-2">§3.2</a> từ “Event nhận <code>contract.terminated</code>” sang termination outcome qua <code>remedy.finalized</code>/<code>remedyLegs</code>, đồng thời bổ sung DDL <code>fund_type</code>, <code>remedy_decision_id</code>, <code>remedy_leg_id UNIQUE</code> và VARCHAR(30) để tránh consumer sai, dedup sai đơn vị và thiếu field đã chốt.</p></li><li><span class="changelog__date">19/07/2026 · lần 3</span><p>Chuyển <code>bank.large_transaction_flagged</code> từ per-<code>LedgerEntry</code> sang bank-adapter boundary khi transfer thực và thêm dedup <code>patternKey = hash(buyerId, sellerId, sortedContractIds)</code> cho <code>AmlPatternScanJob</code> quét cửa sổ 90 ngày để tránh flag/report trùng khi dòng tiền hoặc cluster chưa đổi.</p></li><li><span class="changelog__date">19/07/2026 · lần 2</span><p>Thêm <code>fundType</code> và <code>remedyDecisionId</code> nullable để phân biệt tiền hàng với trả cọc seller, reconcile một decision với một bộ legs; chốt <code>contract.terminated</code> không kích lệnh tiền để tránh double-consume khi <code>sourceEventId</code> khác nhau.</p></li><li><span class="changelog__date">19/07/2026</span><p>Tách <code>SEIZE_PENALTY</code> thành <code>DEPOSIT_FORFEITURE</code>/<code>CONTRACTUAL_PENALTY</code>/<code>DAMAGES_COMPENSATION</code>, đổi attribution từ <code>initiatedBy</code> sang <code>finalBreachingRole</code> và dùng duy nhất <code>remedy.finalized.remedyLegs</code> cho hậu quả tiền để áp đúng trần BLDS 328/LTM 301/LTM 302, chống double recovery và không quy lỗi theo người khởi xướng; <code>finalBreachingRole = NULL</code> (mutual/FM/supersede/technical) → mọi cọc về đúng chủ, không seize.</p></li><li><span class="changelog__date">18/07/2026</span><p>Bổ sung <a href="#sec-5b">§5b</a> đối soát ledger với audit chain và statement export CSV/PDF; accounting/hoá đơn điện tử nằm ngoài scope vì platform chỉ cung cấp chứng từ, Seller tự xuất theo NĐ123.</p></li><li><span class="changelog__date">17/07/2026</span><p>Chuyển <code>audit-hash</code> về audit-service và chốt transport <code>bank.security_lock_changed</code>, <code>bank.verifier_key_registered</code>, <code>bank.suspicious_report_created</code> để bank không INSERT trực tiếp <code>audit_record</code> và mỗi event có consumer audit-service rõ ràng.</p></li><li><span class="changelog__date">13/07/2026</span><p>Đóng review Kill Switch và đồng bộ <code>EXTERNAL_VERIFIER_KEY_REGISTERED</code>, <code>SECURITY_LOCK_TRIGGERED</code>/<code>_UNLOCK_</code> với <a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2-3" title="hash-chain-phase2-design.md §2.3">hash-chain §2.3</a> để thống nhất freeze/unlock, genesis key deploy-time và rotation ký bởi key cũ, sẵn sàng promote SDS/Architecture.</p></li><li><span class="changelog__date">10/07/2026</span><p>Thêm consumer <code>analytics.structuring_pattern_detected</code>, <code>SuspiciousTransactionReport</code> append-only và audit <code>source_type: STRUCTURING_REPORT</code> để thực hiện nghĩa vụ STR (Luật PCRT 2022 Điều 4/Điều 26), tách khỏi báo cáo giá trị lớn, không hold và idempotent theo <code>(buyerId, sellerId, windowEnd)</code>.</p></li><li><span class="changelog__date">08/07/2026 · chiều</span><p>Thêm <a href="#sec-3-5">§3.5</a> Emergency Lock, <code>system_lock</code>/<code>used_nonce</code> và ghi nhận <code>wallet_snapshot</code> ngoài scope để External Verifier tự đối soát/đóng băng qua chữ ký bất đối xứng, giảm phụ thuộc job bên trong platform.</p></li><li><span class="changelog__date">08/07/2026 · sáng</span><p>Tách <code>LOCK_DEPOSIT</code> thành <code>LOCK_BUYER_DEPOSIT</code>/<code>LOCK_SELLER_DEPOSIT</code> (B6), thay vì thêm <code>deposit_party</code>, vì comment (<code>milestoneId=NULL</code>) = <code>buyerDepositRate</code> sai từ 06/07/2026 khi có <code>sellerDepositRate</code> optional và ledger cần tự giải thích được mà không tra <code>userId</code> sang contract-service.</p></li><li><span class="changelog__date">08/07/2026 · sáng</span><p>Bổ sung mapping Provisional Settlement Level 2 (A3) và <code>bank.large_transaction_flagged</code> (A5), bỏ hold cứng <code>CONFIRM_CLEAN</code> của <a class="xref" data-pending="" data-source="../reputation-service-phase2-design.md" href="reputation-service-phase2-design.html#sec-8" title="reputation-service-phase2-design.md §8">reputation §8</a> bản trước, để đúng chủ thể báo cáo và ngưỡng 500 triệu theo Điều 9 TT27/2025/TT-NHNN (giữ từ 2007), đã được nguồn ghi VERIFIED ngày 08/07/2026.</p></li><li><span class="changelog__date">04/07/2026</span><p>Bổ sung <a href="#sec-3-1">§3.1</a> Delta 1/2 (<code>lockedAmount</code>/<code>actualAmount</code>, cặp release/refund khi <code>diff &gt; 0</code>) và <a href="#sec-3-2">§3.2</a> deposit cấp Contract để map đủ ledger mechanics với <code>milestoneId = NULL</code>; bản hiện hành dùng <code>remedy.finalized.remedyLegs</code>, còn <code>contract.settled</code>/<code>contract.terminated</code> chỉ mang trạng thái/audit/analytics/notification.</p></li><li><span class="changelog__date">03/07/2026</span><p>Chốt mock legal custody, FBO/Omnibus thay account-per-contract, <code>LedgerEntry</code> append-only, <code>sourceEventId</code> làm idempotency key và escrow-service đợi confirmation để tránh race provisioning, ghi tiền trùng và dual-write với <code>EscrowAccount</code>/<code>EscrowMilestone</code>.</p></li><li><span class="changelog__date">03/07/2026</span><p>Vai ngân hàng-arbitrator trong <code>AgriContract_02_GiaiPhap_MoHinh_v5.docx</code> §3.3 bị superseded bởi INSPECTOR 3-tier; roadmap <code>AgriContract_02</code> §4.2 được định vị thành sẵn sàng tích hợp vì mock bank không thoả điều kiện arbitrator và đồ án không tích hợp ngân hàng thật (nguồn dẫn <code>decisions.md</code>, <code>[2026-07-03] Ngân hàng-arbitrator (docx v5 §3.3) — superseded bởi INSPECTOR 3-tier</code>).</p></li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes">
+<h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul>
+<li><strong>Domain và DDL chưa đồng bộ danh sách field.</strong> <a href="#sec-2">§2</a> chưa liệt kê <code>remedyLegId</code>, trong khi <a href="#sec-3-2">§3.2</a>/<a href="#sec-6">§6</a> dùng <code>remedy_leg_id UNIQUE</code>; giữ nguyên bảng domain và DDL nguồn.</li>
+<li><strong>Thuật ngữ đối soát chưa đồng bộ enum.</strong> <a href="#sec-5b-1">§5b.1</a> vẫn ghi <code>sum(ledger entries RELEASE/SEIZE theo milestoneId)</code> so với <code>settledAmount</code>/<code>seizedAmount</code>; <a href="#sec-2">§2</a> đã tách 3 remedyType, <a href="#sec-3-2">§3.2</a>/<a href="#sec-8">§8</a> chốt đường tiền remedy, chưa có mapping đối soát chi tiết tương ứng ở <a href="#sec-5b-1">§5b.1</a>.</li>
+<li><strong>Dedup report có hai mô tả cần làm rõ quan hệ.</strong> <a href="#sec-3-4b">§3.4b</a> dùng <code>(buyerId, sellerId, windowEnd)</code>; review lần 3 ở <a href="#sec-8">§8</a> thêm <code>patternKey = hash(buyerId, sellerId, sortedContractIds)</code> UNIQUE nhưng vẫn nói report mới khi risk revision tăng, trong khi revision không nằm trong biểu thức key.</li>
+<li><strong>Phạm vi “không có external route”.</strong> <a href="#sec-5b-2">§5b.2</a> ghi bank không có external route; <a href="#sec-3-5-1">§3.5.1</a> vẫn liệt kê hai endpoint External Verifier. Cần làm rõ phạm vi phát biểu, không tự đổi route.</li>
+<li><strong>Snapshot cutoff.</strong> <a href="#sec-6">§6</a> nêu <code>entry_id &gt; snapshot.cutoff_entry_id</code> nhưng DDL chỉ xác định <code>entry_id</code> là UUID/CHAR(36), chưa quy định thứ tự tăng theo commit để làm cutoff; giữ nguyên hướng thiết kế ngoài scope.</li>
+<li><strong>Tham chiếu nguồn chưa có file tương ứng.</strong> <code>services.md</code>, <code>decisions.md</code> và <code>AgriContract_02_GiaiPhap_MoHinh_v5.docx</code> không tìm thấy trong repo hiện tại; không tự trỏ sang tài liệu khác phiên bản.</li>
+<li><strong>Ngày cập nhật.</strong> Frontmatter và dòng cuối bank ghi tới 19/07/2026, nhưng <a href="#sec-2b">§2b</a> ghi 21/07/2026; ngày ở header/index lấy lần sửa file gần nhất trong Git, 19/10/2026.</li>
+</ul></aside>
+<footer class="doc-footer"><a href="../bank-service-phase2-design.md">bank-service-phase2-design.md</a> · Nguồn quyết định</footer>
+</main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-19">19/10/2026</time></p><a href="../bank-service-phase2-design.md">Markdown · 376 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" data-pending="" data-source="../milestone-escrow-phase2-design.md" href="milestone-escrow-phase2-design.html#sec-6-4" title="milestone-escrow-phase2-design.md §6.4">milestone-escrow §6.4</a><a class="xref" data-pending="" data-source="../hash-chain-phase2-design.md" href="hash-chain-phase2-design.html#sec-2-4" title="hash-chain-phase2-design.md §2.4">hash-chain §2.4</a><a class="xref" data-pending="" data-source="../api-gateway-phase2-design.md" href="api-gateway-phase2-design.html#sec-3-5" title="api-gateway-phase2-design.md §3.5">api-gateway §3.5</a><p class="caption">[MD]: trang HTML chưa dựng ở bước mẫu; click mở nguồn Markdown.</p></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

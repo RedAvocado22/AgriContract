@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>data-governance-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">data-governance</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 20 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Nguyên tắc</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Data Ownership Matrix</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Data Classification</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Role Model — ADMIN / OPERATOR / ARBITRATOR (Phase 2, làm thật)</a></li><li class="toc__sub"><a href="#sec-5-1"><span class="toc__number">§5.1</span> Vấn đề</a></li><li class="toc__sub"><a href="#sec-5-2"><span class="toc__number">§5.2</span> Đường cắt: theo bản chất quyết định, không cắt theo service</a></li><li class="toc__sub"><a href="#sec-5-3"><span class="toc__number">§5.3</span> Maker-checker — đúng 2 điểm, không rải</a></li><li class="toc__sub"><a href="#sec-5-4"><span class="toc__number">§5.4</span> Permission matrix (theo use case thật)</a></li><li class="toc__sub"><a href="#sec-5-5"><span class="toc__number">§5.5</span> Delta kỹ thuật (cost thật nằm ở đây)</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Immutability vs Quyền xoá — cách 2 thứ sống chung</a></li><li class="toc__sub"><a href="#sec-6b"><span class="toc__number">§6b</span> Phạm vi chứng minh của từng lớp bằng chứng</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> AML Tipping-off Exemption</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Retention Matrix + Read-audit</a></li><li class="toc__top"><a href="#sec-8b"><span class="toc__number">§8b</span> DLQ &amp; Event Replay Runbook</a></li><li class="toc__top"><a href="#sec-8c"><span class="toc__number">§8c</span> Backup &amp; Disaster Recovery tối thiểu</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> ND13/2023/NĐ-CP &amp; Cross-border</a></li><li class="toc__top"><a href="#sec-10"><span class="toc__number">§10</span> Delta cần sync vào docs khác</a></li><li class="toc__top"><a href="#sec-11"><span class="toc__number">§11</span> Known Limitations / Out of Scope</a></li><li class="toc__top"><a href="#sec-12"><span class="toc__number">§12</span> Status — Data Governance Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Cross-cutting</div><h1>Data governance</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../data-governance-phase2-design.md">Mở Markdown · 254 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a><a class="xref" href="api-gateway-phase2-design.html" title="api-gateway-phase2-design.md">api-gateway</a><a class="xref" href="reputation-service-phase2-design.html" title="reputation-service-phase2-design.md">reputation-service</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="inspection-phase2-design.html" title="inspection-phase2-design.md">inspection</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Mỗi data domain đúng 1 system of record; bản sao không bao giờ là nguồn và không sửa để "chữa" nguồn.</li><li>Role staff: OPERATOR (vận hành, no-fault), ARBITRATOR (phán xử tiền/uy tín), ADMIN (quản trị hệ thống). Không fallback.</li><li>Một account không được giữ đồng thời <code>OPERATOR</code> + <code>ARBITRATOR</code>.</li><li>Không role nào sửa ledger, hợp đồng đã ký, <code>audit_record</code>, <code>Signature</code>, snapshot đã anchor; sai thì ghi bản điều chỉnh mới.</li><li>Maker-checker chỉ 2 điểm reputation: unlock sớm, clear <code>ELEVATED_RISK</code> (OPERATOR propose → ARBITRATOR approve).</li><li>Replay DLQ luôn giữ <code>eventId</code> gốc; nhóm tiền/security/evidence cần OPERATOR propose → ADMIN approve.</li><li>AML (<code>ELEVATED_RISK</code>, <code>SuspiciousTransactionReport</code>) loại khỏi mọi DTO user chạm được; đọc Restricted phải read-audit.</li><li>Sau restore đụng tiền/bằng chứng: chặn traffic tới khi <code>VerifyChainJob</code> + <code>LedgerAuditReconciliationJob</code> pass.</li></ul></div><div class="section"><blockquote>
+<p><strong>Sync SRS v1.6 (12/10/2026):</strong> thêm role <code>ARBITRATOR</code> (quyết định breach case / force majeure / remedy, khởi tạo Level 2, approve maker-checker reputation); <strong>bỏ hoàn toàn ADMIN fallback</strong>; <code>RetryDepositLock</code> / <code>RetryMilestoneFunding</code> / <code>MarkActivationFailed</code> chuyển sang <code>OPERATOR</code>. ADMIN chỉ còn account/role, audit, security, analytics, cấu hình và approve replay DLQ nhóm tiền/security/evidence (GB-48). Doc này vẫn là source of truth role model — các doc khác sync theo §10.</p>
+</blockquote>
+</div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p>AgriContract xử lý nhiều nhóm dữ liệu nhạy cảm: hợp đồng + chữ ký điện tử, hồ sơ KYC/giấy uỷ quyền, số dư và giao dịch, report giám định, dữ liệu vùng trồng/EUDR, điểm uy tín và dữ liệu export cho bên thứ ba. Các quyết định governance thực ra đã tồn tại rải rác trong 13 design docs (database-per-service, không FK xuyên DB, append-only ledger/chain, tách public/internal DTO, không log OTP/PII, retention EUDR 5 năm, orphan file 1 tuần) — doc này <strong>gom chúng thành 1 framework thống nhất</strong>, bổ sung phần chưa có owner (role model vận hành, quyền xoá vs immutability, AML tipping-off, retention matrix, ND13), và là source of truth cho mọi câu hỏi "ai được làm gì với dữ liệu nào, giữ bao lâu".</p>
+<p><strong>Không nằm trong scope (có chủ đích, tránh over-engineer):</strong> không có <code>data-governance-service</code>, không data catalog/MDM platform, không hội đồng governance giả lập, không workflow phê duyệt nhiều tầng cho mọi field. Framing: <em>AgriContract không xây nền tảng Data Governance độc lập; hệ thống áp dụng một governance framework nhẹ, xác định rõ data ownership, system of record, quyền truy cập, tính bất biến và vòng đời dữ liệu cho từng data domain.</em></p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Nguyên tắc <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<ol>
+<li>Mỗi data domain có đúng <strong>1 system of record</strong> — service khác chỉ giữ bản sao/projection, bản sao không bao giờ là nguồn chính thức và không được sửa để "chữa" nguồn.</li>
+<li><strong>Least privilege theo use case</strong>, không theo chức danh: quyền cấp cho hành động cụ thể, service sở hữu use case enforce (Gateway chỉ gate coarse-grained — nhất quán api-gateway §4).</li>
+<li><strong>Dữ liệu bất biến không ai sửa được</strong> — kể cả ADMIN: ledger, <code>audit_record</code>, hợp đồng đã <code>SIGNED</code>, <code>Signature</code>, snapshot đã anchor. Sai thì ghi bản ghi điều chỉnh mới có attribution, không UPDATE bản cũ (pattern reversal entry của bank-service).</li>
+<li>Mọi hành động nhạy cảm (ghi <em>và đọc</em> dữ liệu Restricted) đều được <strong>attribute + audit</strong>.</li>
+<li>Hành động rủi ro cao nhất dùng <strong>maker-checker</strong> (2 người, 2 role) — kéo dài triết lý "không gatekeeper đơn lẻ" đã có ở emergency unlock/verify-failure xuống tầng vận hành.</li>
+<li>Retention theo mục đích nghiệp vụ/pháp lý có căn cứ, hết retention thì xoá hoặc ẩn danh hoá — "giữ mãi mãi" phải là quyết định tường minh, không phải mặc định do quên.</li>
+<li><strong>Quyền hạ tầng ≠ business authority (Technical Custodian):</strong> developer/DevOps/DBA vận hành database, storage, backup, secrets, monitoring — nhưng cầm root DB <strong>không</strong> cho quyền sửa hợp đồng, ledger hay lịch sử duyệt; sửa tay ngoài application layer là vi phạm governance, phát hiện bằng chain verify (đây chính là threat model hash chain được thiết kế để bắt — hash-chain §1).</li>
+<li><strong>Trách nhiệm dữ liệu thuộc người tạo ra nó:</strong> Buyer/Seller chịu trách nhiệm tính đúng của thông tin họ khai (tọa độ plot, hồ sơ pháp nhân, khối lượng khai báo); tổ chức giám định chịu trách nhiệm nội dung report họ phát hành; ngân hàng chịu trách nhiệm số dư thật. Platform chịu trách nhiệm <strong>quy trình</strong> — validate, moderate, geo-eval, audit, bảo toàn bằng chứng — không đảm bảo tính đúng tuyệt đối của dữ liệu ngoài thực địa. ("Ai chịu trách nhiệm khi tọa độ sai?" → Seller khai sai chịu trách nhiệm khai báo; platform chịu trách nhiệm đã chạy đúng validation/moderation và giữ được bằng chứng ai khai, khi nào.)</li>
+</ol>
+<p><strong>Threat model đính kèm nguyên tắc 7 — malicious/compromised infrastructure administrator :</strong> người kiểm soát hạ tầng không cần sửa DB tay — có thể thay image đang deploy, sửa env/secret mount, patch logic verify thành <code>return true</code>, hoặc chạy bản app bỏ qua check. KMS/HSM giữ khoá không bị trích xuất nhưng không ngăn app độc hại được cấp quyền gọi ký sai; multi-signature chỉ có nghĩa khi các signer thuộc trust domain độc lập. Mitigation Phase 2 (đều đã có chỗ đứng trong design): two-person rule <code>proposedBy != approvedBy</code>; secret không bake trong image (env/secret store); production image pin theo digest; protected branch + CI approval; emergency action có nonce/expiry/action-type/target (bank §3.5); mọi verify fail/success đều vào audit; application DB account không có UPDATE/DELETE trên ledger/<code>audit_record</code>/<code>lock_entry</code>; External Verifier + OTS anchor là trust domain nằm NGOÀI hạ tầng platform — lớp phát hiện cuối cùng mà infra admin không với tới. <strong>Limitation ghi thẳng:</strong> prototype không bảo vệ hoàn toàn trước kẻ kiểm soát đồng thời CI/CD + runtime + database + key policy; production cần KMS/HSM độc lập, separation of duties hạ tầng và deployment attestation. Không claim "zero-trust tuyệt đối".</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Data Ownership Matrix <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<p>Nguyên tắc map actor: platform vận hành thật chỉ có <strong>ADMIN, OPERATOR, ARBITRATOR (§5), INSPECTOR, External Verifier, System</strong>. Các chức danh tổ chức (Compliance Officer, Risk Owner, Finance, Platform Owner...) là <strong>logical responsibilities trong mô hình vận hành mục tiêu</strong>, không phải account role Keycloak. <em>(Sửa 12/10/2026: bỏ contingency "giữ 1 role ADMIN nếu thiếu thời gian" ghi ngày 18/07 — SRS v1.6 đã chốt 3 role staff tách biệt, không role nào đứng thay role nào. Đổi role label vẫn rẻ vì enforcement thiết kế theo use case, nhưng không còn phương án gộp.)</em></p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Data domain</th>
+<th scope="col">System of record</th>
+<th scope="col">Update authority (Phase 2)</th>
+<th scope="col">Bản sao/consumer được phép</th>
+<th scope="col">Bản sao dùng để</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>User profile / KYC / thẩm quyền</td>
+<td>user-service</td>
+<td>OPERATOR duyệt/reject; user tự sửa profile của mình</td>
+<td>Feign <code>InternalUserInfo</code> cho contract/product/escrow</td>
+<td>Gate <code>sign()</code>/listing; <strong>không</strong> trả PII ra public DTO (KI-3)</td>
+</tr>
+<tr>
+<td>Hợp đồng, milestone, Signature</td>
+<td>contract-service</td>
+<td>Chỉ state machine; đã <code>SIGNED</code> → bất biến, không role nào sửa terms</td>
+<td>analytics (<code>dim_contract</code>), audit (hash), escrow (số cọc qua event)</td>
+<td>Báo cáo / verify / khoá tiền — không sửa ngược trạng thái</td>
+</tr>
+<tr>
+<td>Breach case / force majeure / remedy decision</td>
+<td>milestone-escrow-service</td>
+<td>ARBITRATOR quyết định (attribution + remedy); System/INSPECTOR/MUTUAL theo <code>decisionSource</code></td>
+<td>audit (hash), reputation (qua <code>remedy.finalized</code>), notification</td>
+<td>Thi hành hậu quả tiền/uy tín — không sửa ngược quyết định đã finalize</td>
+</tr>
+<tr>
+<td>Tiền / ledger / escrow</td>
+<td>bank-service (ledger là nguồn thật duy nhất)</td>
+<td><strong>Không sửa thủ công</strong> — chỉ command events; sai → reversal entry. OPERATOR chỉ kích retry no-fault (<code>RetryDepositLock</code>/<code>RetryMilestoneFunding</code>)</td>
+<td>escrow-service (projection trạng thái, không giữ con số làm nguồn)</td>
+<td>Điều phối luồng; đối soát luôn theo ledger</td>
+</tr>
+<tr>
+<td>Inspection report + inspector_signature</td>
+<td>inspection-service</td>
+<td>INSPECTOR submit; OPERATOR review PENDING_REVIEW/intake; ARBITRATOR khởi tạo Level 2; <code>reportHash</code> bất biến từ ingest</td>
+<td>audit (hash qua <code>inspection.report_confirmed</code>)</td>
+<td>Nối chain</td>
+</tr>
+<tr>
+<td>Plot / geo / EUDR nguồn</td>
+<td>product-service</td>
+<td>SELLER khai; OPERATOR moderate; geo-eval System</td>
+<td>audit-service (EUDR report generate + lưu 5 năm — <strong>report thuộc audit</strong>)</td>
+<td>Bằng chứng compliance</td>
+</tr>
+<tr>
+<td>Reputation / lock / AML risk</td>
+<td>reputation-service</td>
+<td>System-generated theo công thức; <strong>2 ngoại lệ thủ công đi maker-checker §5.3</strong>: unlock sớm, clear <code>ELEVATED_RISK</code></td>
+<td>user-service (<code>lockedUntil</code> projection), analytics</td>
+<td>Enforce nhanh; nguồn quyết định vẫn ở reputation</td>
+</tr>
+<tr>
+<td>Audit chain / OTS proof</td>
+<td>audit-service (writer duy nhất — hash-chain §2.4)</td>
+<td><strong>Không ai</strong> — append-only, verify jobs là read</td>
+<td>notification (đính proof), External Verifier (đối soát hash)</td>
+<td>Bằng chứng độc lập</td>
+</tr>
+<tr>
+<td>Notification log</td>
+<td>notification-service</td>
+<td>System; template version trong code, Admin không sửa runtime</td>
+<td>—</td>
+<td>Bằng chứng "đã gửi gì, bản nào"</td>
+</tr>
+<tr>
+<td>Giá tham chiếu</td>
+<td>pricing-service</td>
+<td>System scrape; OPERATOR nhập manual có attribution (<code>OPERATOR_MANUAL</code>)</td>
+<td>contract (chốt giá), analytics</td>
+<td>Tham chiếu — hợp đồng lưu snapshot giá riêng</td>
+</tr>
+<tr>
+<td>Analytics warehouse</td>
+<td>analytics-service</td>
+<td>Không ai sửa tay — <strong>catch-up từ queue backlog sau outage ngắn; cold rebuild toàn lịch sử CHƯA hỗ trợ</strong> (sửa 18/07/2026 — RabbitMQ không phải event archive vô hạn, analytics tự ghi rõ không có backfill)</td>
+<td>—</td>
+<td>Read model + derived-signal producer (AML): không sửa ngược domain, không trên critical path</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Data Classification <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Mức</th>
+<th scope="col">Định nghĩa</th>
+<th scope="col">Ví dụ trong hệ</th>
+<th scope="col">Quy tắc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Public</strong></td>
+<td>Ai cũng xem được, không cần auth</td>
+<td>Giá tham chiếu, listing public, catalog</td>
+<td>Không chứa PII/contact</td>
+</tr>
+<tr>
+<td><strong>Internal</strong></td>
+<td>User đã đăng nhập / nội bộ platform</td>
+<td>Public-summary reputation (authenticated từ 17/07), analytics tổng hợp, <code>PublicUserResponse</code></td>
+<td>Không email/phone/address</td>
+</tr>
+<tr>
+<td><strong>Confidential</strong></td>
+<td>Đúng participant + role vận hành theo case</td>
+<td>Hợp đồng + terms, offer, milestone evidence, breach case, profile đầy đủ</td>
+<td>Ownership check ở service; đọc bởi OPERATOR/ARBITRATOR/ADMIN phải theo case đang xử lý</td>
+</tr>
+<tr>
+<td><strong>Restricted</strong></td>
+<td>Truy cập tối thiểu, mọi lần <strong>đọc</strong> đều log</td>
+<td>Hồ sơ KYC + giấy tờ, số dư/ledger, OTP artifacts, <code>SuspiciousTransactionReport</code>, <code>ELEVATED_RISK</code>, private key material</td>
+<td>§7 tipping-off; §8 read-audit; không bao giờ ra khỏi service qua public DTO</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Role Model — <code>ADMIN</code> / <code>OPERATOR</code> / <code>ARBITRATOR</code> (Phase 2, làm thật) <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+</section><section aria-labelledby="heading-sec-5-1" class="section" id="sec-5-1"><h3 id="heading-sec-5-1"><span class="sec-num">§5.1</span> Vấn đề <a aria-label="Sao chép liên kết tới §5.1" class="anchor" href="#sec-5-1">#</a></h3>
+<p>Bản đầu ADMIN ôm toàn bộ vận hành: KYC, review report, moderate, giá manual, unlock, AML, security, quyết định vi phạm. Hệ quả: (1) blast radius 1 account ADMIN bị compromise = toàn hệ thống; (2) mọi ADMIN thấy mọi thứ; (3) cost mua chuộc = mua đúng 1 người; (4) người quản trị kỹ thuật lại cầm quyền phán xử tiền giữa 2 bên — xung đột vai trò. Attribution thì hệ đã có sẵn (<code>verifiedByActorId</code> — tên mới 18/07, các trường proposedBy/approvedBy... đều vào chain) — cái thiếu là <strong>least privilege + separation of duties</strong>.</p>
+</section><section aria-labelledby="heading-sec-5-2" class="section" id="sec-5-2"><h3 id="heading-sec-5-2"><span class="sec-num">§5.2</span> Đường cắt: theo bản chất quyết định, không cắt theo service <a aria-label="Sao chép liên kết tới §5.2" class="anchor" href="#sec-5-2">#</a></h3>
+<ul>
+<li><strong>OPERATOR</strong> — nghiệp vụ hằng ngày, đảo ngược được hoặc no-fault, có hàng đợi: duyệt/reject KYC; review external report <code>PENDING_REVIEW</code>, xác nhận case ID, upload report thủ công, xử lý email intake lỗi; moderate category/listing/product; nhập giá manual (<code>OPERATOR_MANUAL</code>); <strong><code>RetryDepositLock</code> / <code>RetryMilestoneFunding</code> / <code>MarkActivationFailed</code></strong> (sửa 12/10/2026 — trước là ADMIN; cả 3 đều no-fault, không phạt ai, không chuyển tiền giữa 2 bên, <code>MarkActivationFailed</code> vẫn cần 2 bên xác nhận — khớp UC29/UC39 SRS v1.6); propose unlock sớm / clear <code>ELEVATED_RISK</code>; propose replay DLQ.</li>
+<li><strong>ARBITRATOR</strong>  — phán xử có hậu quả tiền/uy tín giữa 2 bên: quyết định <code>BreachCase</code> (attribution + remedy), quyết định force majeure, khởi tạo Level 2 inspection (<code>InitiateLevel2Inspection</code>), approve/reject maker-checker reputation (§5.3).</li>
+<li><strong>ADMIN</strong> — quản trị hệ thống, không phán xử nghiệp vụ: quản lý role/account (Keycloak), export bằng chứng <code>/admin/audit/**</code>, đọc <code>/admin/security/**</code>, analytics, cấu hình hệ thống, approve replay DLQ nhóm tiền/security/evidence do OPERATOR đề xuất (§8b — GB-48, ngoại lệ tiền duy nhất của ADMIN và chỉ là replay kỹ thuật), quyết định mở traffic sau restore (§8c).</li>
+<li><strong>Không role nào</strong> sửa ledger, hợp đồng đã ký, <code>audit_record</code>, <code>Signature</code>, snapshot đã anchor.</li>
+<li>INSPECTOR và External Verifier <strong>giữ nguyên</strong> như design hiện tại — không đụng.</li>
+</ul>
+<p><strong>Không có fallback (sửa 12/10/2026 — bỏ câu "ADMIN được làm mọi việc của OPERATOR"):</strong> mỗi role staff chỉ giữ action của chức năng mình; ADMIN không làm thay OPERATOR/ARBITRATOR và ngược lại. Một account <strong>không</strong> được gán đồng thời <code>OPERATOR</code> + <code>ARBITRATOR</code> (user-service chặn ở API gán role) — nếu không, một người tự propose rồi tự approve qua 2 role.</p>
+</section><section aria-labelledby="heading-sec-5-3" class="section" id="sec-5-3"><h3 id="heading-sec-5-3"><span class="sec-num">§5.3</span> Maker-checker — đúng 2 điểm, không rải <a aria-label="Sao chép liên kết tới §5.3" class="anchor" href="#sec-5-3">#</a></h3>
+<p>Chỉ áp cho 2 hành động chí mạng của reputation (nơi duy nhất "system-generated" bị người can thiệp):</p>
+<figure class="code" data-lang="text"><pre><code>OPERATOR propose (reason bắt buộc) → trạng thái PROPOSED
+        → ARBITRATOR approve → thực thi + publish event như hiện tại
+        → ARBITRATOR reject  → đóng đề xuất, ghi lý do
+Cả propose lẫn approve/reject đều vào audit chain (payload event mang cả 2 ID).
+</code></pre></figure>
+<ol>
+<li><strong>Unlock sớm</strong> (<code>UnlockEarlyUseCase</code> — reputation §7): propose/approve thay vì 1 người đơn phương; payload <code>reputation.unlocked</code> mang <code>proposedByOperatorId</code> + <code>approvedByArbitratorId</code>.</li>
+<li><strong>Clear <code>ELEVATED_RISK</code></strong> (reputation §8 mục 6): tương tự; <code>reputation.elevated_risk_cleared</code> mang cả 2 ID — khớp luôn yêu cầu "defensible closure" chuẩn AML.</li>
+</ol>
+<p>Muốn gian phải mua <strong>hai người khác nhau đúng cặp</strong>, cả 2 để vết trên chain — đây mới là thứ tăng cost mua chuộc; role label một mình không tăng. <strong>Chốt:</strong> đây là <strong>strict role separation</strong> — chỉ OPERATOR propose, chỉ ARBITRATOR approve/reject; ràng buộc <code>proposedBy != approvedBy</code> vẫn enforce ở service + persist trong <code>governance_action_request</code> (reputation §7) làm lưới thứ hai. ADMIN không tham gia luồng này. KYC thường <strong>không</strong> maker-checker (1 OPERATOR đủ — bắt 2 chữ ký mọi hồ sơ là chết vận hành team 4-5 người); nâng lên maker-checker cho KYC tổ chức giá trị lớn là enhancement, ghi Known Limitation. Quyết định breach case <strong>không</strong> maker-checker nội bộ (chốt 12/10/2026): 1 ARBITRATOR quyết, nhưng quyết định có lỗi + chế tài chỉ có hiệu lực sau contest window 2 ngày làm việc; bên bị phạt contest → Level 1.5 độc lập (GB-50, milestone-escrow §6.4). Lý do: breach có đối thủ tự kháng nên người kiểm thứ hai là bên ngoài platform; reputation unlock/clear AML không có ai thiệt trực tiếp để kháng nên cần người duyệt thứ hai nội bộ.</p>
+</section><section aria-labelledby="heading-sec-5-4" class="section" id="sec-5-4"><h3 id="heading-sec-5-4"><span class="sec-num">§5.4</span> Permission matrix (theo use case thật) <a aria-label="Sao chép liên kết tới §5.4" class="anchor" href="#sec-5-4">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Use case</th>
+<th scope="col">Buyer/Seller</th>
+<th scope="col">OPERATOR</th>
+<th scope="col">ARBITRATOR</th>
+<th scope="col">ADMIN</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Xem dữ liệu của chính mình (<code>/me</code>, contracts, escrow...)</td>
+<td>✅</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Export statement bút toán của chính mình (bank §5b.2)</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Duyệt/reject KYC (<code>/admin/users</code> KYC actions)</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Review report <code>PENDING_REVIEW</code>, xác nhận case ID, upload thủ công, email intake lỗi</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Khởi tạo Level 2 inspection (<code>InitiateLevel2Inspection</code>)</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Moderate category/product/listing; giá manual</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><code>RetryDepositLock</code> / <code>RetryMilestoneFunding</code> / <code>MarkActivationFailed</code></td>
+<td>Xác nhận (MarkActivationFailed)</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Báo vi phạm / claim force majeure</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Quyết định <code>BreachCase</code> (attribution + remedy), quyết định force majeure</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Unlock sớm / clear <code>ELEVATED_RISK</code></td>
+<td>❌</td>
+<td>Propose</td>
+<td>Approve/Reject</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Replay DLQ nhóm tiền/security/evidence (§8b)</td>
+<td>❌</td>
+<td>Propose</td>
+<td>❌</td>
+<td>Approve</td>
+</tr>
+<tr>
+<td>Export bằng chứng (<code>/admin/audit/**</code>), đọc <code>/admin/security/**</code>, analytics</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Quản lý role/account (Keycloak)</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Sửa ledger / hợp đồng đã ký / <code>audit_record</code> / <code>Signature</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Emergency lock/unlock hệ thống</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌ (chỉ External Verifier — bank §3.5)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Không có cột "fallback": ô ❌ là ❌ thật, kể cả với ADMIN.</p>
+</section><section aria-labelledby="heading-sec-5-5" class="section" id="sec-5-5"><h3 id="heading-sec-5-5"><span class="sec-num">§5.5</span> Delta kỹ thuật (cost thật nằm ở đây) <a aria-label="Sao chép liên kết tới §5.5" class="anchor" href="#sec-5-5">#</a></h3>
+<ol>
+<li>Keycloak: realm role <code>OPERATOR</code> + <code>ARBITRATOR</code>.</li>
+<li>user-service: enum role <code>BUYER|SELLER|ADMIN|INSPECTOR|OPERATOR|ARBITRATOR</code> + migration; API gán role chặn tổ hợp <code>OPERATOR</code>+<code>ARBITRATOR</code> (<code>user-service-phase2-design.md</code> §2/§6).</li>
+<li>Gateway §3.3: mỗi nhóm path nhận <strong>đúng 1 role staff</strong> — không còn dạng <code>ADMIN|OPERATOR</code>.</li>
+<li>Service enforce fine-grained: user-service (KYC → OPERATOR), inspection (review/intake → OPERATOR, initiate Level 2 → ARBITRATOR), product (moderate → OPERATOR), pricing (manual → OPERATOR), milestone-escrow (breach/FM decision → ARBITRATOR; activation/funding retry → OPERATOR), reputation (<code>PROPOSED</code> + propose OPERATOR / approve ARBITRATOR).</li>
+<li><code>decisionSource</code> enum toàn hệ: <code>SYSTEM|ARBITRATOR|INSPECTOR_L1_5|INSPECTOR_L2|MUTUAL</code> (bỏ giá trị <code>ADMIN</code>).</li>
+<li>Không đụng luồng Buyer/Seller/INSPECTOR/External Verifier nào.</li>
+</ol>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Immutability vs Quyền xoá — cách 2 thứ sống chung <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<p><strong>Nguyên tắc: chain giữ hash, không giữ PII; dữ liệu gốc ở service DB và có vòng đời.</strong></p>
+<ul>
+<li><strong>Chốt: <code>audit_record.content</code> minimal hoá</strong> — chỉ ID (contractId, userId dạng UUID pseudonymous), số liệu cần verify (amount, quantity, hash con) và metadata sự kiện; <strong>không</strong> contact info, không tên tổ chức, không địa chỉ. UUID không tự tra ngược ra người nếu không truy cập user_db → xoá/ẩn danh hoá bản gốc ở user-service làm đứt liên kết cho truy cập thông thường, chain vẫn verify nguyên vẹn (hash không đổi). <strong>Nói thẳng (18/07/2026): đây là pseudonymisation, CHƯA phải anonymisation hoàn toàn</strong> — cùng userId còn tồn tại trong contract/bank/reputation DB và event payload lưu trữ; ai chiếm được nhiều DB về kỹ thuật vẫn nối lại được. Mapping ND13 (§9) và mọi câu trả lời hội đồng phải dùng đúng chữ pseudonymisation, không claim quá. Sync vào hash-chain §3.</li>
+<li>Xoá file/bản gốc <strong>không bao giờ</strong> kéo theo xoá <code>audit_record</code> — record chứng minh "sự kiện đã xảy ra với nội dung có hash X", không phụ thuộc bản gốc còn tồn tại; mất bản gốc chỉ mất khả năng re-derive.</li>
+<li>Email anchor đã rời platform — không thu hồi được, defend bằng lawful basis: nghĩa vụ lưu chứng từ giao dịch (Luật Kế toán ~10 năm) + phục vụ thời hiệu tranh chấp thương mại, không phải consent.</li>
+<li>User đóng tài khoản: contact info ẩn danh hoá sau retention (§8), nhưng dữ liệu gắn hợp đồng/ledger/AML giữ theo hàng riêng của nó — quyền xoá của chủ thể dữ liệu <strong>không phủ</strong> dữ liệu platform buộc giữ theo nghĩa vụ pháp lý (ND13 cũng thừa nhận ngoại lệ này).</li>
+</ul>
+</section><section aria-labelledby="heading-sec-6b" class="section" id="sec-6b"><h3 id="heading-sec-6b"><span class="sec-num">§6b</span> Phạm vi chứng minh của từng lớp bằng chứng <a aria-label="Sao chép liên kết tới §6b" class="anchor" href="#sec-6b">#</a></h3>
+<p>Tách "bằng chứng pháp lý mạnh" khỏi "tự động thắng tranh chấp" — bảng này là câu trả lời chuẩn khi hội đồng/đối tác hỏi "hash chain chứng minh được gì":</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Thành phần</th>
+<th scope="col">Chứng minh được</th>
+<th scope="col">KHÔNG chứng minh được</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hash file / audit chain</td>
+<td>File/record không bị đổi sau thời điểm ghi nhận</td>
+<td>Nội dung là đúng sự thật</td>
+</tr>
+<tr>
+<td>OTP email + step-up</td>
+<td>Người có quyền truy cập email + password tại thời điểm ký</td>
+<td>Người đó chắc chắn còn thẩm quyền pháp lý (gate KYC/authorization thu hẹp, không loại trừ tuyệt đối)</td>
+</tr>
+<tr>
+<td>OTS timestamp</td>
+<td>Dữ liệu tồn tại trước thời điểm anchor</td>
+<td>Giao dịch không có gian lận</td>
+</tr>
+<tr>
+<td>Inspection report</td>
+<td>Ý kiến chuyên môn của đơn vị giám định, toàn vẹn từ lúc ingest</td>
+<td>Phán quyết pháp lý cuối cùng</td>
+</tr>
+</tbody>
+</table></div>
+<p>Hệ thống bảo toàn bằng chứng và nâng chất lượng bằng chứng — trọng tài/toà mới là nơi phán quyết. Đây cũng là lý do EUDR output gọi là <strong>"EUDR evidence package / DDS-supporting export"</strong>, không claim là Due Diligence Statement hoàn chỉnh (nghĩa vụ risk assessment/mitigation/submission thuộc operator/trader tại EU — product doc, cập nhật cùng ngày).</p>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> AML Tipping-off Exemption <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<p><code>SuspiciousTransactionReport</code>, <code>ELEVATED_RISK</code> và structuring signals là dữ liệu <strong>về</strong> user mà user <strong>không được biết</strong> — báo cho đối tượng biết mình đang bị nghi ngờ (tipping-off) là vi phạm nguyên tắc AML và vô hiệu hoá detection. Quy tắc:</p>
+<ul>
+<li>Mọi luồng "user xem/export dữ liệu về mình" (hiện tại: <code>/me</code>, credit export có consent; tương lai: data-subject access request theo ND13) <strong>loại trừ tường minh</strong> nhóm này.</li>
+<li><code>ELEVATED_RISK</code> không xuất hiện trong public-summary, credit export, hay bất kỳ DTO nào user chạm được; hành vi hệ thống với cặp bị cờ không khác biệt quan sát được từ phía user (đã đúng theo reputation §8 — ghi thành quy tắc governance).</li>
+<li>Chỉ OPERATOR (propose) + ARBITRATOR (approve) trong luồng maker-checker §5.3 chạm nhóm này; ADMIN không đọc; mọi lần đọc log theo §8.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Retention Matrix + Read-audit <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Dữ liệu</th>
+<th scope="col">Giữ</th>
+<th scope="col">Căn cứ</th>
+<th scope="col">Hết hạn thì</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hợp đồng + Signature + snapshot + evidence quyết toán</td>
+<td>10 năm sau khi hợp đồng đóng</td>
+<td>Chứng từ kế toán + thời hiệu tranh chấp</td>
+<td>Archive → ẩn danh hoá tham chiếu cá nhân</td>
+</tr>
+<tr>
+<td>Ledger bank-service</td>
+<td>10 năm</td>
+<td>Chứng từ tài chính</td>
+<td>Archive, không xoá</td>
+</tr>
+<tr>
+<td>Audit chain + OTS proof</td>
+<td>Vĩnh viễn</td>
+<td>Hash-only sau §6, không còn PII</td>
+<td>— (quyết định tường minh, không phải mặc định)</td>
+</tr>
+<tr>
+<td>Hồ sơ KYC + giấy uỷ quyền</td>
+<td>5 năm sau khi quan hệ chấm dứt</td>
+<td>Chuẩn lưu trữ định danh AML</td>
+<td>Xoá file, giữ metadata quyết định (ai duyệt, khi nào)</td>
+</tr>
+<tr>
+<td><code>SuspiciousTransactionReport</code> / AML records</td>
+<td>5 năm</td>
+<td>Chuẩn AML</td>
+<td>Xoá</td>
+</tr>
+<tr>
+<td>EUDR report</td>
+<td>5 năm (đã chốt)</td>
+<td>EUDR</td>
+<td>Xoá</td>
+</tr>
+<tr>
+<td>Notification log evidence (anchor/OTS/security)</td>
+<td>Theo hợp đồng liên quan (10 năm)</td>
+<td>Bằng chứng "đã gửi bản nào"</td>
+<td>Cùng vòng đời hợp đồng</td>
+</tr>
+<tr>
+<td>Notification log thường</td>
+<td>2 năm</td>
+<td>Vận hành/đối soát</td>
+<td>Xoá</td>
+</tr>
+<tr>
+<td>OTP artifacts (<code>signature_otp</code> hash, attempts)</td>
+<td>90 ngày sau expiry</td>
+<td>Chỉ phục vụ điều tra gian lận gần</td>
+<td>Xoá</td>
+</tr>
+<tr>
+<td>Contact info account đã đóng</td>
+<td>Ẩn danh hoá sau 5 năm</td>
+<td>Không còn mục đích</td>
+<td>Trừ phần dính hàng có retention dài hơn</td>
+</tr>
+<tr>
+<td>File orphan chưa gắn nghiệp vụ</td>
+<td>1 tuần (đã chốt file-service)</td>
+<td>Không có mục đích</td>
+<td>Xoá</td>
+</tr>
+<tr>
+<td>Message broker (chứa email routing)</td>
+<td>TTL ≤ 14 ngày</td>
+<td>PII trong broker là chấp nhận có chủ đích</td>
+<td>Broker tự expire</td>
+</tr>
+<tr>
+<td>Analytics warehouse</td>
+<td>Backup daily như MySQL khác (catch-up queue chỉ bù outage ngắn, cold rebuild chưa hỗ trợ nên mất DB = mất lịch sử dashboard)</td>
+<td>Read model</td>
+<td>Ẩn danh hoá dimension theo nguồn</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Read-audit cho Restricted (bổ sung — control rẻ hơn compartment hoá):</strong> mỗi lần OPERATOR/ARBITRATOR/ADMIN <strong>mở</strong> hồ sơ KYC, ledger detail, hay AML record → ghi log <code>{actorId, role, resourceType, resourceId, timestamp, caseContext?}</code> tại service sở hữu. Không cần chain, log thường + retention 2 năm là đủ deterrence; "mọi staff biết hết" được trị bằng vết đọc, không phải bằng phân quyền đọc phức tạp.</p>
+</section><section aria-labelledby="heading-sec-8b" class="section" id="sec-8b"><h2 id="heading-sec-8b"><span class="sec-num">§8b</span> DLQ &amp; Event Replay Runbook <a aria-label="Sao chép liên kết tới §8b" class="anchor" href="#sec-8b">#</a></h2>
+<p>Hệ đã có retry + DLX + Outbox + idempotency ở từng service; mục này chốt <strong>quy trình vận hành</strong> khi message rơi vào DLQ — trước đây chưa doc nào ghi ai làm gì.</p>
+<p><strong>Nguyên tắc replay:</strong> replay luôn dùng <strong><code>eventId</code> gốc</strong> — replay là redelivery, không phải event mới. Idempotency toàn hệ key theo <code>eventId</code> (bank §4, <code>user_event_idempotency</code>, dedup notification <code>(event_id, recipient_email, notification_type)</code>), nên consumer đã xử lý sẽ skip an toàn; sinh <code>eventId</code> mới là tạo nghiệp vụ mới → chính là con đường giải ngân hai lần. Cấm sửa payload khi replay; payload sai thuộc nhóm 2 dưới đây.</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Nhóm message trong DLQ</th>
+<th scope="col">Nhận diện</th>
+<th scope="col">Ai xử lý</th>
+<th scope="col">Cách xử lý</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Transient hết retry</strong> (consumer down, timeout, deadlock)</td>
+<td>Lỗi hạ tầng, payload hợp lệ</td>
+<td>OPERATOR</td>
+<td>Replay <code>eventId</code> gốc sau khi nguyên nhân hết (alert/metric xác nhận); không cần approve</td>
+</tr>
+<tr>
+<td><strong>Permanent/validation</strong> (schema lệch, dữ liệu tham chiếu không tồn tại)</td>
+<td>Fail ngay không retry</td>
+<td>Developer chẩn đoán → OPERATOR replay</td>
+<td>KHÔNG replay nguyên trạng — fix code/data trước (deploy consumer sửa, hoặc hành động nghiệp vụ tạo dữ liệu thiếu), rồi replay <code>eventId</code> gốc</td>
+</tr>
+<tr>
+<td><strong>Tiền / security / evidence</strong> (<code>bank.*</code>, <code>escrow.*</code>, <strong><code>remedy.*</code> + <code>breach.*</code> + <code>contract.terminated</code> — bổ sung 19/07/2026</strong>, audit ingest, security lock, OTP/anchor mail)</td>
+<td>Theo routing key</td>
+<td>OPERATOR đề xuất → <strong>ADMIN approve</strong> (GB-48 SRS v1.6; two-person rule cùng tinh thần §5.3, <code>proposedBy != approvedBy</code>)</td>
+<td>Trước replay: check trạng thái aggregate đích (đã lock/release chưa, notification đã <code>SENT</code> chưa) — idempotency là lưới, không phải lý do bỏ check. <em>Lý do bổ sung 19/07: <code>remedy.finalized</code> là nguồn kích DUY NHẤT cho mọi seize/forfeiture/reputation-lock (milestone-escrow §7.2) — event tiền nặng nhất hệ; <code>breach.reported</code>/<code>contract.terminated</code> là evidence vào hash chain. Bảng nhận diện theo routing key lập 18/07 trước khi các event này tồn tại nên không match nhóm nào → replay lọt xuống nhóm transient không cần approve.</em> Approve replay là duyệt <strong>redelivery kỹ thuật</strong>, không phải quyết định nghiệp vụ — ADMIN không đổi nội dung quyết định của ARBITRATOR.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Sau replay, kiểm tra gì:</strong> trạng thái aggregate đích khớp kỳ vọng (milestone/escrow/ledger entry tồn tại đúng 1 lần; notification <code>SENT</code>); với nhóm tiền, <code>LedgerAuditReconciliationJob</code> (bank §5b.1) là lưới sau cùng bắt lệch số. Replay và kết quả đều ghi log vận hành có attribution (ai, khi nào, eventId).</p>
+<p><strong>Không xử lý được → <code>PARKED</code>:</strong> khi developer xác nhận event không còn xử lý được đúng nghĩa (dữ liệu nguồn đã đổi, event lỗi thời so với trạng thái hiện tại) — đánh dấu PARKED + lý do + attribution, <strong>giữ message</strong> theo retention log vận hành (2 năm), không xoá. Hệ quả nghiệp vụ (nếu có) xử lý bù bằng hành động nghiệp vụ có attribution — <strong>tuyệt đối không sửa DB tay</strong> (nguyên tắc 7). DLQ nhóm security/evidence tạo operational alert ngay khi rơi vào (đã chốt ở notification §5) — OPERATOR theo dõi queue hằng ngày, không đợi ai hỏi.</p>
+</section><section aria-labelledby="heading-sec-8c" class="section" id="sec-8c"><h2 id="heading-sec-8c"><span class="sec-num">§8c</span> Backup &amp; Disaster Recovery tối thiểu <a aria-label="Sao chép liên kết tới §8c" class="anchor" href="#sec-8c">#</a></h2>
+<p>NFR đã có fault tolerance/observability nhưng chưa đặc tả backup/restore. Policy tối thiểu — không multi-region, chỉ policy + demo restore trên môi trường test:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Thành phần</th>
+<th scope="col">Backup</th>
+<th scope="col">RPO</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MySQL từng service</td>
+<td>Full daily (mysqldump/xtrabackup)</td>
+<td>24h</td>
+<td>Mỗi service backup DB của mình — đúng database-per-service</td>
+</tr>
+<tr>
+<td><code>bank_db</code> + <code>audit_db</code></td>
+<td>Daily + <strong>binlog liên tục</strong></td>
+<td>≤ 15 phút</td>
+<td>Tiền + bằng chứng: ưu tiên phục hồi cao nhất, mất ít nhất</td>
+</tr>
+<tr>
+<td>MinIO</td>
+<td>Bucket mirror/versioning daily</td>
+<td>24h</td>
+<td><code>storageHash</code> trong DB là công cụ verify file sau restore</td>
+</tr>
+<tr>
+<td>Keycloak</td>
+<td>Realm export JSON theo config repo</td>
+<td>Theo lần đổi config</td>
+<td>User demo seed lại được; production export định kỳ</td>
+</tr>
+<tr>
+<td>RabbitMQ</td>
+<td><strong>Không backup message</strong></td>
+<td>—</td>
+<td>Message transient có chủ đích — <strong>Outbox là nguồn phát lại</strong>: sau restore, outbox poller resend event chưa confirm, consumer idempotency (eventId) nuốt trùng lặp an toàn</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>RTO đề xuất:</strong> 4h cho toàn hệ (đồ án: demo được restore 1 môi trường test trong buổi).</p>
+<p><strong>Quy tắc restore — phần quan trọng hơn backup:</strong></p>
+<ol>
+<li><strong>Thứ tự ưu tiên:</strong> <code>bank_db</code>/<code>audit_db</code> trước → user/contract/escrow → còn lại. Analytics restore từ backup như DB khác (catch-up queue chỉ bù outage ngắn, không thay được backup; cold rebuild toàn lịch sử chưa hỗ trợ).</li>
+<li><strong>Không restore riêng lẻ <code>bank_db</code> hoặc <code>escrow_db</code>:</strong> backup các DB không cùng point-in-time; restore 1 mình DB tiền tạo lệch cross-service im lặng. Sau BẤT KỲ restore nào đụng tiền/bằng chứng: hệ ở trạng thái maintenance <strong>ở tầng deployment/gateway</strong> (service chưa nhận traffic — KHÔNG dùng <code>system_lock</code>: theo bank §3.5.5 lock/unlock chỉ External Verifier ký được, không có đường Admin tự bật; nếu deployment có verifier phối hợp thì lock verifier là lớp cộng thêm, không phải điều kiện), chạy <code>VerifyChainJob</code> (chain integrity) + <code>LedgerAuditReconciliationJob</code> (bank §5b.1 — ledger ↔ chain) <strong>pass rồi mới mở traffic</strong>.</li>
+<li><strong>Restore test định kỳ:</strong> mỗi tháng (tối thiểu 1 lần trước bảo vệ) restore backup mới nhất vào môi trường test + chạy 2 job verify — backup chưa từng restore thử là backup chưa tồn tại.</li>
+<li>Restore là thao tác Technical Custodian nhưng quyết định "mở lại traffic sau restore đụng tiền" là ADMIN (quản trị hệ thống — nguyên tắc 7), ghi log attribution.</li>
+</ol>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> ND13/2023/NĐ-CP &amp; Cross-border <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<ul>
+<li><strong>Lawful basis theo nhóm xử lý:</strong> KYC/thẩm quyền = nghĩa vụ pháp lý + thực hiện hợp đồng; ledger/chứng từ = nghĩa vụ pháp lý; credit export cho tổ chức tín dụng = <strong>consent tường minh</strong> (đã đúng theo reputation design); AML = nghĩa vụ pháp lý (kèm exemption §7). Không có xử lý mục đích marketing → không cần consent marketing.</li>
+<li><strong>Quyền chủ thể dữ liệu:</strong> xem (<code>/me</code> + tương lai DSAR, trừ §7), sửa (profile PENDING/resubmit), xoá (theo §6 — có ngoại lệ nghĩa vụ pháp lý), rút consent (credit export ngừng từ thời điểm rút, không hồi tố bản đã export).</li>
+<li><strong>Cross-border:</strong> SendGrid outbound → email chứa PII + snapshot hợp đồng chảy qua hạ tầng US — ghi nhận là chuyển dữ liệu ra nước ngoài theo ND13; scope đồ án ghi Known Limitation + hướng production (đánh giá tác động chuyển giao / chọn region provider). OTS lên Bitcoin sạch — chỉ hash.</li>
+<li>Hồ sơ đánh giá tác động xử lý dữ liệu chính thức: ngoài scope đồ án; doc này là bản map kỹ thuật để làm nhanh khi cần.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-10" class="section" id="sec-10"><h2 id="heading-sec-10"><span class="sec-num">§10</span> Delta cần sync vào docs khác <a aria-label="Sao chép liên kết tới §10" class="anchor" href="#sec-10">#</a></h2>
+<p><strong>Đợt 12/10/2026 — sync SRS v1.6 (thay các dòng role của đợt 18/07):</strong></p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Doc</th>
+<th scope="col">Delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>user-service §2/§4.2/§6</td>
+<td>Enum role thêm <code>ARBITRATOR</code>; KYC API chỉ <code>OPERATOR</code>; chặn gán <code>OPERATOR</code>+<code>ARBITRATOR</code> cùng account; migration MODIFY</td>
+</tr>
+<tr>
+<td>api-gateway §3.3</td>
+<td>Mỗi path 1 role staff; breach/FM/reputation-approve → <code>ARBITRATOR</code>; activation/funding retry → <code>OPERATOR</code>; audit/security/accounts/analytics/replay-approve → <code>ADMIN</code>; bỏ fallback</td>
+</tr>
+<tr>
+<td>reputation §7/§8</td>
+<td>Approver = <code>ARBITRATOR</code>; payload <code>approvedByArbitratorId</code> / <code>clearedByArbitratorId</code></td>
+</tr>
+<tr>
+<td>milestone-escrow</td>
+<td>BreachCase/FM decision → <code>ARBITRATOR</code>; <code>decisionSource</code> bỏ <code>ADMIN</code> thêm <code>ARBITRATOR</code>; activation recovery → <code>OPERATOR</code></td>
+</tr>
+<tr>
+<td>inspection §3.4/§3.6</td>
+<td><code>InitiateLevel2Inspection</code> → <code>ARBITRATOR</code>; review/intake/upload → <code>OPERATOR</code></td>
+</tr>
+<tr>
+<td>verification-matrix</td>
+<td>Case role mới: OPERATOR không vào route ARBITRATOR/ADMIN; ARBITRATOR không vào route ADMIN; ADMIN không vào route nghiệp vụ (không fallback)</td>
+</tr>
+<tr>
+<td>SDS / Architecture docx, contracts/*.yaml</td>
+<td>Actor table, security column OpenAPI, enum role/<code>decisionSource</code> — sync ở lần regenerate kế tiếp</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Đợt 18/07/2026 (phần không đụng role, vẫn hiệu lực):</strong></p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Doc</th>
+<th scope="col">Delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hash-chain §3</td>
+<td><code>audit_record.content</code> minimal hoá — không PII, chỉ ID/số liệu/hash</td>
+</tr>
+<tr>
+<td>product/pricing</td>
+<td>Use case vận hành nhận OPERATOR — sửa lúc implement, không đổi flow</td>
+</tr>
+<tr>
+<td>bank §5b / hash-chain §4.5 / notification §4 / milestone-escrow §8b</td>
+<td>LedgerAuditReconciliationJob (đối chiếu tiền ledger ↔ chain) + statement export + enhancement logistics</td>
+</tr>
+<tr>
+<td>Mọi service có consumer</td>
+<td>Áp DLQ/replay runbook §8b lúc implement — replay theo eventId gốc, nhóm tiền/security cần ADMIN approve; không đổi event contract nào</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-11" class="section" id="sec-11"><h2 id="heading-sec-11"><span class="sec-num">§11</span> Known Limitations / Out of Scope <a aria-label="Sao chép liên kết tới §11" class="anchor" href="#sec-11">#</a></h2>
+<ul class="limitations">
+<li>Maker-checker cho KYC tổ chức giá trị lớn — enhancement.</li>
+<li>Compartment hoá quyền <em>đọc</em> theo case (OPERATOR/ARBITRATOR chỉ thấy hồ sơ được gán) — enhancement; Phase 2 dùng read-audit §8.</li>
+<li>DSAR endpoint tự phục vụ, hồ sơ ND13 chính thức, đánh giá cross-border chính thức — production.</li>
+<li>Chức danh tổ chức (Compliance/Risk/Finance) — organizational evolution, không phải role hệ thống Phase 2.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-12" class="section" id="sec-12"><h2 id="heading-sec-12"><span class="sec-num">§12</span> Status — Data Governance Design <a aria-label="Sao chép liên kết tới §12" class="anchor" href="#sec-12">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> framework nhẹ trong docs, không service riêng. Ownership matrix map về actor thật; <code>OPERATOR</code> + <code>ARBITRATOR</code> là <strong>kết quả của governance analysis</strong> và làm thật Phase 2; không có fallback giữa các role staff; maker-checker đúng 2 điểm reputation (OPERATOR → ARBITRATOR); <code>audit_record.content</code> minimal hoá để quyền xoá và immutability sống chung; AML tipping-off exemption tường minh; retention matrix có căn cứ + read-audit cho Restricted; map ND13 ở mức đồ án. Bổ sung 18/07: nguyên tắc Technical Custodian (quyền hạ tầng ≠ business authority) + trách nhiệm người tạo dữ liệu. Sửa 12/10: sync role model theo SRS v1.6, bỏ contingency gộp role.</p></div>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>Sync SRS v1.6: thêm ARBITRATOR, bỏ ADMIN fallback, retry activation/funding sang OPERATOR, <code>decisionSource</code> bỏ <code>ADMIN</code>.</p>
+</li><li><span class="changelog__date">19/07/2026</span><p>Thêm <code>remedy.*</code>, <code>breach.*</code>, <code>contract.terminated</code> vào nhóm replay cần ADMIN approve.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Lập framework: ownership matrix, classification, <code>audit_record.content</code> minimal hoá, retention, DLQ runbook, backup/DR, Technical Custodian.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li>Chưa ghi nhận điểm mâu thuẫn cần chú thích trong lần chuyển bản đọc này.</li></ul></aside><footer class="doc-footer"><a href="../data-governance-phase2-design.md">data-governance-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../data-governance-phase2-design.md">Markdown · 254 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a><a class="xref" href="api-gateway-phase2-design.html" title="api-gateway-phase2-design.md">api-gateway</a><a class="xref" href="reputation-service-phase2-design.html" title="reputation-service-phase2-design.md">reputation-service</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="inspection-phase2-design.html" title="inspection-phase2-design.md">inspection</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

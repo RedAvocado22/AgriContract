@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>reputation-service-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">reputation-service</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 22 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Domain Model</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> Lock Ledger (bất biến — insert-only)</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> Reputation Score (view sống — không lưu riêng)</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Input Events</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Multiplier Formulas</a></li><li class="toc__sub"><a href="#sec-4-1"><span class="toc__number">§4.1</span> trackRecordMultiplier — KHÔNG có time window</a></li><li class="toc__sub"><a href="#sec-4-2"><span class="toc__number">§4.2</span> repeatOffenseMultiplier — CÓ time window 24 tháng</a></li><li class="toc__sub"><a href="#sec-4-3"><span class="toc__number">§4.3</span> Gate breachReasonCode — reputation chỉ phạt hành vi cố ý</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Insert-only &amp; Reputation Score — chi tiết bổ sung</a></li><li class="toc__sub"><a href="#sec-5-1"><span class="toc__number">§5.1</span> Vì sao Lock Ledger phải insert-only</a></li><li class="toc__sub"><a href="#sec-5-2"><span class="toc__number">§5.2</span> Vì sao Reputation Score là view sống, không lưu bảng riêng</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Tích hợp liên service</a></li><li class="toc__sub"><a href="#sec-6-1"><span class="toc__number">§6.1</span> user-service — enforcement</a></li><li class="toc__sub"><a href="#sec-6-1b"><span class="toc__number">§6.1b</span> Đối xứng hoá — buyer reputation hiển thị cho seller</a></li><li class="toc__sub"><a href="#sec-6-2"><span class="toc__number">§6.2</span> product-service — tìm kiếm/lọc listing</a></li><li class="toc__sub"><a href="#sec-6-3"><span class="toc__number">§6.3</span> Credit reference export</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Use Case Changes</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> AML / Anti-fraud</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> Out of Scope (có chủ đích, không phải thiếu sót)</a></li><li class="toc__top"><a href="#sec-10"><span class="toc__number">§10</span> Known Issues (phát hiện qua đối chiếu code Phase 1 — không block thiết kế này, cần nhớ khi implement)</a></li><li class="toc__top"><a href="#sec-11"><span class="toc__number">§11</span> Status — Reputation-service Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>Reputation-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../reputation-service-phase2-design.md">Mở Markdown · 377 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="bank-service-phase2-design.html" title="bank-service-phase2-design.md">bank-service</a><a class="xref" href="inspection-phase2-design.html" title="inspection-phase2-design.md">inspection</a><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>3 vai: lock ledger bất biến, reputation score (view sống), credit reference export.</li><li>Input negative DUY NHẤT là <code>remedy.finalized</code> với <code>reputationEligible = true</code>; không consume <code>contract.terminated</code>.</li><li><code>lock_entry</code> insert-only (DB user chỉ <code>INSERT</code>/<code>SELECT</code>); <code>source_event_id</code> và <code>remedy_decision_id</code> đều UNIQUE.</li><li>Unlock sớm là <code>lock_override_event</code> append-only, không UPDATE <code>lock_entry</code>; maker-checker OPERATOR → ARBITRATOR.</li><li><code>lockDurationDays = 30 × repeatOffense × trackRecord × zeroProgress</code>, snapshot lúc tính; doc này là source of truth công thức.</li><li>Lock chỉ chặn tạo mới (<code>CreateListing</code>/offer/<code>sign()</code>, fail-closed), không hồi tố hợp đồng đang chạy.</li><li><code>public-summary</code>: <code>score = null</code> khi chưa có lịch sử, không có 404; không trả <code>contract_id</code>/multiplier.</li><li>AML Phase 2 không hold giao dịch; chỉ ghi nhận tín hiệu và set <code>ELEVATED_RISK</code>.</li></ul></div><div class="section"><blockquote>
+<p><strong>Sync SRS v1.6 (12/10/2026):</strong> maker-checker unlock sớm / clear <code>ELEVATED_RISK</code> = <strong>OPERATOR propose → ARBITRATOR approve/reject</strong> (không còn ADMIN); payload đổi <code>approvedByAdminId</code> → <code>approvedByArbitratorId</code>, <code>clearedByAdminId</code> → <code>clearedByArbitratorId</code>. Không có Admin fallback (data-governance §5). <strong>Chốt AML Phase 2 (12/10/2026, khớp SRS v1.6 GB-47 "No transaction is held because of the flag"):</strong> hold đồng bộ ở <code>CONFIRM_CLEAN</code> (§8 mục 2) và inspection đột xuất do nghi ngờ pattern (§8 mục 3) <strong>ra khỏi Phase 2</strong> — chuyển Future Work. Phase 2 chỉ: <code>bank.large_transaction_flagged</code> + composite signals được ghi nhận làm tín hiệu; batch <code>AmlPatternScanJob</code> set <code>ELEVATED_RISK</code> (projection-only) + bank-service lập báo cáo giao dịch đáng ngờ. Lý do: nghĩa vụ báo cáo PCRT thuộc bank (Luật PCRT 2022 Điều 4), platform phát hiện + ghi nhận + chuyển tiếp là đạt bar "có biện pháp quản trị rủi ro"; hold đồng bộ cần thêm settlement guard + review UC + role mà SRS không có, làm dở thì vừa giết happy path vừa không defend được. Mục 2-3 bên dưới giữ làm thiết kế Future Work.</p>
+</blockquote>
+</div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>services.md</code> mô tả <code>reputation-service</code> là "pure event-driven read model" — mô tả này chỉ đúng 1 phần, không phải sai hoàn toàn. Đúng nguyên tắc đã dùng ở <code>inspection-phase2-design.md</code> §3.1 (framework gốc không giữ quyết định chi tiết, doc sau override mà không cần sửa lại services.md): <code>reputation-service</code> thực chất gánh <strong>3 vai trò khác bản chất</strong>, không phải 1 domain đơn thuần:</p></div>
+<ol>
+<li><strong>Lock ledger</strong> — bất biến, ghi 1 lần, phục vụ lockout enforcement (milestone-escrow §6). Đây là phần <em>không</em> thể là pure read model.</li>
+<li><strong>Reputation score</strong> — view sống, tính lại được, phục vụ đánh giá đối tác hai chiều trước khi ký.</li>
+<li><strong>Credit reference</strong> — export cho bên thứ 3 (khả năng cao nhất: VARI, xem §6.3), vai trò bổ trợ.</li>
+</ol>
+<p>Không tách 3 vai trò này thành 3 service riêng trong Phase 2 (over-engineer so với quy mô đồ án) — nhưng thiết kế domain model phải phản ánh đúng 3 loại dữ liệu khác nhau, không gộp chung logic.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Domain Model <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> Lock Ledger (bất biến — insert-only) <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<p><strong>Scope lock chốt cho Phase 2:</strong> lock là <strong>user-level</strong>, keyed duy nhất theo <code>userId</code>. Một <code>userId</code> đại diện một pháp nhân trong Phase 2; mọi eligibility gate của user đó cùng nhìn một effective lock. Không tách lock theo commodity, listing, chi nhánh hay vai trò giao dịch.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>lockDurationDays</code> snapshot cứng lúc tính, không recompute lại sau đó — kể cả khi input dùng để tính nó (<code>trackRecordMultiplier</code>) đổi giá trị sau này. Lý do: đây là bằng chứng pháp lý (Luật TM 2005 Điều 302, penalty debt dùng làm căn cứ truy đòi qua VIAC/toà nếu có tranh chấp) — 1 con số có thể tự đổi sau khi ghi thì không còn giá trị làm bằng chứng.</p></div>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>entryId</code></td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>sourceEventId</code></td>
+<td>UUID</td>
+<td>Idempotency key cấp event. <strong>19/07 lần 2:</strong> nguồn duy nhất là <code>remedy.finalized</code>; thêm cột <code>remedy_decision_id</code> UNIQUE — chốt nghiệp vụ "một quyết định ≤ 1 lock" đứng ở tầng DB, mạnh hơn dedup theo eventId (redelivery cùng event thì eventId chặn; 2 event khác nhau cùng quyết định thì <code>remedy_decision_id</code> chặn).</td>
+</tr>
+<tr>
+<td class="identifier"><code>contractId</code></td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>userId</code></td>
+<td>UUID</td>
+<td>Người bị khoá (buyer hoặc seller, tuỳ <code>penalizedRole</code>)</td>
+</tr>
+<tr>
+<td class="identifier"><code>penalizedRole</code></td>
+<td>Enum (<code>BUYER</code>, <code>SELLER</code>)</td>
+<td>1 event duy nhất phân biệt qua field này, không tách 2 event riêng — công thức <code>lockDurationDays</code> áp dụng y hệt cho cả 2 bên, chỉ đổi input rate</td>
+</tr>
+<tr>
+<td class="identifier"><code>baseDays</code></td>
+<td>Int</td>
+<td>Mặc định 30</td>
+</tr>
+<tr>
+<td class="identifier"><code>repeatOffenseMultiplier</code></td>
+<td>Decimal</td>
+<td>1x/2x/3x — chỉ đếm vi phạm trong cửa sổ <code>repeatOffenseLookbackMonths</code> gần nhất, xem §4.2</td>
+</tr>
+<tr>
+<td class="identifier"><code>trackRecordMultiplier</code></td>
+<td>Decimal</td>
+<td>0.7x/1.0x/1.3x, gated ngưỡng 5 hợp đồng, KHÔNG có time window, xem §4.1</td>
+</tr>
+<tr>
+<td class="identifier"><code>lockDurationDays</code></td>
+<td>Int</td>
+<td>= <code>baseDays × repeatOffenseMultiplier × trackRecordMultiplier</code>, snapshot lúc tính</td>
+</tr>
+<tr>
+<td class="identifier"><code>lockedUntil</code></td>
+<td>Timestamp</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>createdAt</code></td>
+<td>Timestamp</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE lock_entry (
+    entry_id                CHAR(36) PRIMARY KEY,
+    source_event_id          CHAR(36) NOT NULL UNIQUE,
+    remedy_decision_id       CHAR(36) NOT NULL UNIQUE,  -- 19/07 lần 4: invariant "một quyết định ≤ 1 lock" (matrix 11o)
+                                                       -- phải đứng ở SCHEMA, không chỉ ở prose — source_event_id chặn
+                                                       -- redeliver cùng event, cột này chặn 2 event KHÁC nhau cùng decision
+    contract_id              CHAR(36) NOT NULL,
+    user_id                  CHAR(36) NOT NULL,
+    penalized_role           VARCHAR(10) NOT NULL,   -- BUYER | SELLER
+    base_days                INT NOT NULL DEFAULT 30,
+    repeat_offense_multiplier DECIMAL(3,2) NOT NULL,
+    track_record_multiplier  DECIMAL(3,2) NOT NULL,
+    zero_progress_multiplier DECIMAL(3,2) NOT NULL,  -- SỬA 18/07/2026: công thức §5 có 4 input mà snapshot
+                                                     -- chỉ lưu 3 — record không tự đứng được làm bằng chứng
+                                                     -- nếu thiếu 1 input; giờ đủ 4
+    lock_duration_days       INT NOT NULL,
+    locked_until             TIMESTAMP NOT NULL,
+    created_at                TIMESTAMP NOT NULL DEFAULT now()
+    -- SỬA 18/07/2026: BỎ cột status/unlock_reason — chúng buộc UPDATE, mâu thuẫn trực tiếp
+    -- với DB permission INSERT+SELECT đã chốt 04/07. lock_entry giờ bất biến THẬT:
+    --   EXPIRED  = derive (locked_until &lt; now())
+    --   UNLOCKED_EARLY = derive (tồn tại lock_override_event hợp lệ trỏ entry này)
+
+);
+CREATE INDEX idx_lock_entry_user ON lock_entry(user_id);
+</code></pre></figure>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — Insert-only, enforce ở tầng DB permission:</strong> DB user của <code>reputation-service</code> chỉ có quyền <code>INSERT</code> + <code>SELECT</code> trên <code>lock_entry</code> (và <code>lock_override_event</code>), không có <code>UPDATE</code>/<code>DELETE</code>. (18/07: bản cũ tự mâu thuẫn — <code>UnlockEarlyUseCase</code> set <code>status</code>/<code>unlock_reason</code> tức là UPDATE; giờ unlock là 1 event append-only riêng, xem schema.)</p></div>
+<figure class="code" data-lang="sql"><pre><code>-- SỬA 18/07/2026: unlock sớm là SỰ KIỆN append-only, không phải UPDATE lên lock_entry
+CREATE TABLE lock_override_event (
+    event_id        CHAR(36) PRIMARY KEY,
+    lock_entry_id    CHAR(36) NOT NULL REFERENCES lock_entry(entry_id),
+    override_type    VARCHAR(20) NOT NULL,     -- 'UNLOCK_EARLY'
+    reason           TEXT NOT NULL,
+    proposed_by      CHAR(36) NOT NULL,            -- two-person rule, governance §5.3
+    approved_by      CHAR(36) NOT NULL,            -- ARBITRATOR (12/10/2026), != proposed_by
+    created_at       TIMESTAMP NOT NULL DEFAULT now()
+);
+-- Effective lock của user = MAX(locked_until) trên các lock_entry chưa hết hạn
+-- và KHÔNG có override hợp lệ.
+
+-- Maker-checker có model thật (18/07/2026 — trước chỉ có prose governance §5.3):
+CREATE TABLE governance_action_request (
+    request_id     CHAR(36) PRIMARY KEY,
+    action_type     VARCHAR(30) NOT NULL,      -- 'UNLOCK_EARLY' | 'CLEAR_ELEVATED_RISK'
+    target_id       VARCHAR(100) NOT NULL,     -- lockEntryId | "buyerId:sellerId"
+    status          VARCHAR(15) NOT NULL,      -- PROPOSED | APPROVED | REJECTED
+    reason          TEXT NOT NULL,
+    proposed_by     CHAR(36) NOT NULL,
+    approved_by     CHAR(36) NULL,
+    proposed_at     TIMESTAMP NOT NULL DEFAULT now(),
+    decided_at      TIMESTAMP NULL
+);
+
+-- Pair AML state có chỗ persist (18/07/2026 — ELEVATED_RISK trước đây không có bảng nào giữ):
+CREATE TABLE pair_risk_state (
+    buyer_id        CHAR(36) NOT NULL,
+    seller_id       CHAR(36) NOT NULL,
+    status          VARCHAR(20) NOT NULL,      -- NORMAL | ELEVATED_RISK
+    detected_at     TIMESTAMP NULL,
+    review_due_at   TIMESTAMP NULL,            -- detected_at + elevatedRiskReviewMonths
+    source_event_id CHAR(36) NULL,
+    PRIMARY KEY (buyer_id, seller_id)
+);
+-- pair_risk_state là projection có UPDATE (không phải evidence ledger); lịch sử
+-- defensible nằm ở governance_action_request + audit chain (AML_RISK_CLEARED).
+</code></pre></figure>
+<p><strong>API maker-checker (18/07/2026):</strong> <code>POST /api/v1/admin/reputation/actions/propose</code> (OPERATOR) · <code>POST /api/v1/admin/reputation/actions/{id}/approve</code> · <code>POST .../{id}/reject</code> (ARBITRATOR, service enforce <code>approved_by != proposed_by</code>; sửa 12/10/2026 theo SRS v1.6 — ADMIN không còn trong luồng này). Gateway route tách tương ứng (gateway §3.3). Lý do không tin ở tầng application code: "không bao giờ xoá" là lời hứa yếu nếu chỉ dựa vào việc code không gọi hàm xoá — 1 dòng code sai ở đâu đó trong tương lai có thể phá vỡ mà không ai biết. Chặn ở DB permission thì kể cả bug code cũng không phá được. Cùng nguyên tắc <code>audit-service</code> đã áp (services.md gap #5).</p>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> Reputation Score (view sống — không lưu riêng) <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<p>Không có bảng riêng lưu sẵn <strong>con số score</strong> — score vẫn derive lúc query (§5.2). Nhưng  "tính trực tiếp từ event" là prose không chạy được: event không nằm trong RAM vĩnh viễn, RabbitMQ không phải historical database — restart/ack xong là mất dữ liệu để tính completion count. Phải persist <strong>immutable facts</strong> (không phải score):</p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE completed_contract_fact (
+  contract_id      CHAR(36) PRIMARY KEY,
+  buyer_id         CHAR(36) NOT NULL,
+  seller_id        CHAR(36) NOT NULL,
+  settled_at       DATETIME(6) NOT NULL,
+  source_event_id  CHAR(36) NOT NULL UNIQUE   -- từ contract.settled, dedup redelivery
+);
+CREATE TABLE dispute_outcome_fact (
+  milestone_id        CHAR(36) PRIMARY KEY,
+  contract_id         CHAR(36) NOT NULL,
+  flagged_by_user_id  CHAR(36) NOT NULL,
+  resolution_favors   VARCHAR(10) NOT NULL,    -- BUYER | SELLER
+  resolved_at         DATETIME(6) NOT NULL,
+  source_event_id     CHAR(36) NOT NULL UNIQUE -- từ milestone.dispute_resolved
+);
+</code></pre></figure>
+<p>Truy vấn (completion count, clean rate, tỷ lệ flag-rồi-thua) tính từ <code>lock_entry</code> + 2 bảng facts này tại thời điểm cần — insert-only, cùng triết lý ledger, không dual-write score.</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Input Events <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Event</th>
+<th scope="col">Loại</th>
+<th scope="col">Nguồn</th>
+<th scope="col">Trạng thái</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>remedy.finalized</code> (<strong>canonical negative input</strong>)</td>
+<td>Negative</td>
+<td><code>contract-service</code> — bắn khi <code>AttributionDecision</code> được chốt, gồm <code>buyerId</code>, <code>sellerId</code>, <code>finalBreachingRole</code>, <code>breachReasonCode</code>, <code>decisionSource</code> và <code>remedyDecisionId</code></td>
+<td><strong>Gate cứng:</strong> chỉ tạo <code>lock_entry</code> khi <code>reputationEligible = true</code>; map <code>finalBreachingRole</code> to <code>buyerId</code>/<code>sellerId</code> from the same event, never by lookup or role inference. Idempotency theo <code>remedyDecisionId</code>; allegation (<code>breach.reported</code>) không phải input.</td>
+</tr>
+<tr>
+<td>~~<code>contract.terminated</code>~~ (<strong>GỠ khỏi input chế tài — 19/07 lần 2</strong>)</td>
+<td>—</td>
+<td>—</td>
+<td><strong>Reputation KHÔNG consume <code>contract.terminated</code> nữa.</strong> Trước đó cả <code>remedy.finalized</code> lẫn <code>contract.terminated</code> cùng là input negative → cùng một breach có thể sinh <strong>2 <code>lock_entry</code></strong> (sourceEventId khác nhau, UNIQUE không chặn được). <code>remedy.finalized</code> là nguồn DUY NHẤT (dòng trên); <code>contract.terminated</code> chỉ đi audit/analytics/notification (milestone-escrow §7.2).</td>
+</tr>
+<tr>
+<td class="identifier"><code>contract.settled</code></td>
+<td>Positive</td>
+<td><code>contract-service</code> (<code>ContractSettledEvent</code>)</td>
+<td>Guard <code>Contract.settle()</code> chạy từ <code>ACTIVE</code>; reputation ghi immutable completion fact. Escrow không consume event này for money; normal settlement legs arrive through <code>remedy.finalized</code>.</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.dispute_resolved</code></td>
+<td>Tín hiệu hành vi (flag-abuse)</td>
+<td><code>contract-service</code> — payload gồm <code>contractId</code>, <code>milestoneId</code>, <code>flaggedByUserId</code>, <code>resolutionFavors</code></td>
+<td>Consumer inserts <code>dispute_outcome_fact</code> directly from canonical IDs; no participant lookup.</td>
+</tr>
+<tr>
+<td class="identifier"><code>bank.large_transaction_flagged</code></td>
+<td>Tín hiệu AML (1 phần input composite score)</td>
+<td><code>bank-service</code> (<code>bank-service-phase2-design.md</code> §3.4)</td>
+<td>Không tự trigger hold — chỉ hold khi đi kèm ≥1 tín hiệu hành vi khác, xem §8 mục 2.</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Multiplier Formulas <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<p><strong>⟢ SOURCE OF TRUTH cho công thức <code>lockDurationDays</code> là mục này (reputation-service §4).</strong> Trước đây công thức được "chốt" ở <code>milestone-escrow-phase2-design.md</code> §6.1 và copy sang đây — nay đảo lại đúng chủ sở hữu: <code>reputation-service</code> là nơi tính và implement công thức này, nên nó chốt số ở đây. <code>milestone-escrow</code> §6.3.1 (số mục mới 19/07/2026, cũ §6.1) chỉ giữ <strong>input/trigger</strong>: <code>remedy.finalized</code> với <code>reputationEligible = true</code> sau final attribution, vì sao tách penalty debt khỏi số ngày khoá, và tham chiếu về mục này cho baseline. Nếu 2 file lệch nhau về con số → bản ở đây thắng.</p>
+<figure class="code" data-lang="text"><pre><code>lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier
+</code></pre></figure>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Multiplier</th>
+<th scope="col">Giá trị</th>
+<th scope="col">Điều kiện</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>baseDays</code></td>
+<td class="numeric">30</td>
+<td>Cố định</td>
+</tr>
+<tr>
+<td class="identifier"><code>repeatOffenseMultiplier</code></td>
+<td>1x / 2x / 3x</td>
+<td>Lần vi phạm thứ mấy trong <code>repeatOffenseLookbackMonths</code> gần nhất (§4.2)</td>
+</tr>
+<tr>
+<td class="identifier"><code>trackRecordMultiplier</code></td>
+<td>0.7x / 1.0x / 1.3x</td>
+<td>Dưới 5 hợp đồng hoàn thành: mặc định 1.0x. Đủ 5 trở lên: tính theo % sạch thật (0.7x nếu track record tốt, 1.3x nếu kém) — không time window (§4.1)</td>
+</tr>
+<tr>
+<td class="identifier"><code>zeroProgressMultiplier</code></td>
+<td>1.5x / 1.0x</td>
+<td><strong>Mới (08/07/2026); siết điều kiện 19/07/2026:</strong> 1.5x khi breach lúc <strong>0 milestone nào từng <code>SETTLED</code></strong> <strong>VÀ</strong> <code>breachReasonCode</code> thuộc nhóm strategic (§4.3) — ký xong bỏ ngay <em>một cách cố ý</em> mới là tín hiệu xấu nhất + ma sát disintermediation. <strong>KHÔNG áp</strong> khi zero-progress do mutual/FM/activation-failure/buyer-caused (những đường này vốn không tạo <code>lock_entry</code> cho bên kia — §3, §4.3). 1.0x cho mọi trường hợp còn lại. Trigger chốt tại <code>milestone-escrow-phase2-design.md</code> §6.3.1.</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-4-1" class="section" id="sec-4-1"><h3 id="heading-sec-4-1"><span class="sec-num">§4.1</span> <code>trackRecordMultiplier</code> — KHÔNG có time window <a aria-label="Sao chép liên kết tới §4.1" class="anchor" href="#sec-4-1">#</a></h3>
+<p>Đo hoạt động <strong>tích cực</strong> (hợp đồng hoàn thành sạch) — mùa vụ nông sản tự nhiên tạo khoảng trống dài giữa các hợp đồng (không phải dấu hiệu seller nghỉ giao dịch có vấn đề gì), nên không áp time window, chỉ áp ngưỡng số lượng tối thiểu (5 hợp đồng).</p>
+</section><section aria-labelledby="heading-sec-4-2" class="section" id="sec-4-2"><h3 id="heading-sec-4-2"><span class="sec-num">§4.2</span> <code>repeatOffenseMultiplier</code> — CÓ time window 24 tháng <a aria-label="Sao chép liên kết tới §4.2" class="anchor" href="#sec-4-2">#</a></h3>
+<p>Đo hành vi <strong>tiêu cực</strong> (vi phạm) — ngược lại với §4.1, khoảng cách dài giữa 2 lần vi phạm mang ý nghĩa thật (seller đã sửa hành vi), nên chỉ đếm vi phạm trong 24 tháng gần nhất, không cộng dồn vĩnh viễn.</p>
+</section><section aria-labelledby="heading-sec-4-3" class="section" id="sec-4-3"><h3 id="heading-sec-4-3"><span class="sec-num">§4.3</span> Gate <code>breachReasonCode</code> — reputation chỉ phạt hành vi cố ý <a aria-label="Sao chép liên kết tới §4.3" class="anchor" href="#sec-4-3">#</a></h3>
+<p>Lý do tồn tại của gate: cùng một <em>kết quả</em> (không giao / giao thiếu / hợp đồng chấm dứt) có nhiều <em>nguyên nhân</em> khác nhau về lỗi (milestone-escrow §6.4.1); reputation là hình phạt hành vi nên chỉ áp cho nguyên nhân <strong>cố ý/chiến lược</strong>:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col"><code>breachReasonCode</code> (từ <code>remedy.finalized</code>)</th>
+<th scope="col">Tạo <code>lock_entry</code>?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SIDE_SELLING</code>, <code>NON_DELIVERY</code> (cố ý), <code>LATE_DELIVERY</code> (không lý do), <code>WRONGFUL_REJECTION</code>, <code>FUNDING_FAILURE</code> (buyer, sau cure window), <code>FAILURE_TO_RECEIVE</code>, <code>LATE_PAYMENT</code></td>
+<td><strong>Có</strong> — đúng role bị kết luận</td>
+</tr>
+<tr>
+<td class="identifier"><code>PRODUCTION_SHOCK_NON_FM</code></td>
+<td><strong>KHÔNG lock</strong> (<code>reputationEligible = false</code> luôn) — sốc sản lượng chưa đủ FM pháp lý nhưng không phải cố ý phá. Penalty tiền là chuyện riêng của flag <code>penaltyEligible</code> (LegalProfile/phán quyết quyết, milestone-escrow §6.4.1) — 2 quyết định độc lập, reputation không suy từ việc có/không có penalty</td>
+</tr>
+<tr>
+<td><code>FORCE_MAJEURE</code>, <code>MUTUAL_EXIT</code>, <code>ACTIVATION_FAILURE</code></td>
+<td><strong>KHÔNG</strong> — no-fault, <code>finalBreachingRole = NULL</code>, event không tới được tầng này</td>
+</tr>
+<tr>
+<td>Allegation bị bác (case <code>RESOLVED</code> với <code>finalBreachingRole = NULL</code>)</td>
+<td><strong>KHÔNG</strong> cho bên bị cáo buộc; tỷ lệ flag-rồi-thua của bên cáo buộc vẫn đếm qua <code>milestone.dispute_resolved</code> (§6.1b)</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Insert-only &amp; Reputation Score — chi tiết bổ sung <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+</section><section aria-labelledby="heading-sec-5-1" class="section" id="sec-5-1"><h3 id="heading-sec-5-1"><span class="sec-num">§5.1</span> Vì sao Lock Ledger phải insert-only <a aria-label="Sao chép liên kết tới §5.1" class="anchor" href="#sec-5-1">#</a></h3>
+<p>Xem §2.1 — bằng chứng pháp lý, DB permission enforce, không tin code.</p>
+</section><section aria-labelledby="heading-sec-5-2" class="section" id="sec-5-2"><h3 id="heading-sec-5-2"><span class="sec-num">§5.2</span> Vì sao Reputation Score là view sống, không lưu bảng riêng <a aria-label="Sao chép liên kết tới §5.2" class="anchor" href="#sec-5-2">#</a></h3>
+<p>Tính lại mỗi lần cần từ <code>lock_entry</code> + <code>completed_contract_fact</code> + <code>dispute_outcome_fact</code> — tránh dual-write giữa "con số cache" và các immutable facts insert-only, đúng bài học đã rút ở <code>bank-service</code> §5 (cache số tiền là dual-write, cache state flag thì ổn).</p>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Tích hợp liên service <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+</section><section aria-labelledby="heading-sec-6-1" class="section" id="sec-6-1"><h3 id="heading-sec-6-1"><span class="sec-num">§6.1</span> <code>user-service</code> — enforcement <a aria-label="Sao chép liên kết tới §6.1" class="anchor" href="#sec-6-1">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> không thể chặn ở tầng Gateway/Keycloak — Keycloak chỉ cấp JWT (identity + role), không biết business lock state. <code>UserContextInjectionFilter</code> (api-gateway) không gọi <code>user-service</code> để hỏi trạng thái — verify thuần chữ ký JWT.</p></div>
+<p>Check phải nằm ở đúng use case tạo nghĩa vụ mới:</p>
+<ul>
+<li><strong><code>CreateListing</code> (product-service) / tạo offer</strong> — <strong>fail-closed (sửa 18/07/2026, round 2 — đồng bộ user-service §3):</strong> user-service down → 503; fail-open cũ cho người đang khoá lách đúng lúc dependency chết. Feign client tới <code>user-service</code> cần thêm mới.</li>
+<li><strong><code>sign()</code> (contract-service)</strong> — fail-closed, bắt buộc. Đã có sẵn <code>UserPort</code>/<code>UserServiceClient</code> (Feign) — chỉ cần thêm <code>lockedUntil</code> vào response <code>UserInfo</code> + <code>@CircuitBreaker</code> với fallback throw (services.md gap #1, <strong>ưu tiên đóng gap này trước tất cả Feign call khác trong Phase 2</strong> — chốt 04/07/2026 ở <code>inspection-phase2-design.md</code>/session review: <code>sign()</code> fail-closed nằm trên đường ký hợp đồng, <code>user-service</code> down không có breaker sẽ chặn toàn bộ platform ký hợp đồng, không phải lỗi cục bộ 1 case).</li>
+</ul>
+<p>Lý do 2 tầng không thừa nhau: khoá chỉ chặn <strong>tạo mới</strong>, không hồi tố hợp đồng đã ACTIVE/SIGNED (milestone-escrow §6.3.1 mục 2 — số mục mới 19/07/2026). Seller sạch lúc tạo offer, dính khoá giữa chừng đàm phán — chỉ <code>sign()</code> check lại mới bắt được; <code>CreateListing</code>-only sẽ bỏ sót case này.</p>
+<p><code>reputation-service</code> publish event (<code>reputation.locked</code>/<code>reputation.unlocked</code>), <code>user-service</code> cache 1 field trên <code>UserProfile</code> (không gọi sync mỗi lần cần check) — tránh dual-write, đúng bài học đã rút từ <code>bank-service</code> §5 (cache state flag là ổn, cache số tiền mới là dual-write).</p>
+</section><section aria-labelledby="heading-sec-6-1b" class="section" id="sec-6-1b"><h3 id="heading-sec-6-1b"><span class="sec-num">§6.1b</span> Đối xứng hoá — buyer reputation hiển thị cho seller <a aria-label="Sao chép liên kết tới §6.1b" class="anchor" href="#sec-6-1b">#</a></h3>
+<p><strong>Vấn đề:</strong> mọi tín hiệu minh bạch đã xây (<code>verificationLevel</code>, <code>geoRiskLevel</code> bên <code>product-service</code>, reputation score ở đây) đều một chiều <strong>buyer-xem-seller</strong>. Seller không có tín hiệu nào để đánh giá buyer trước khi ký (buyer có hay bùng không, có hay lạm dụng <code>FLAG_ISSUE</code> ép seller vào dispute không). Với luận điểm "bảo vệ bên yếu" xuyên suốt dự án, đây là chỗ hội đồng dễ hỏi: <em>"seller được gì để tự bảo vệ, ngoài việc bị chấm điểm?"</em></p>
+<p><strong>Tin tốt: dữ liệu đã có sẵn, chỉ thiếu chiều hiển thị.</strong> <code>lock_entry</code> (§2.1) <strong>đã</strong> insert-only cho cả <code>penalizedRole = BUYER</code> lẫn <code>SELLER</code> từ đầu — dữ liệu "buyer này từng bùng mấy lần, lock bao lâu" đã tồn tại, không cần cơ chế mới. Chỉ cần:</p>
+<ol>
+<li>
+<p><strong>Endpoint mới <code>GET /api/v1/reputation/{userId}/public-summary</code></strong> — query theo đúng <code>userId</code> (không phân biệt buyer hay seller gọi), trả reputation score + lock history cho user đã đăng nhập (<strong>17/07/2026:</strong> authenticated qua Gateway, không còn public no-auth — mọi bên cần xem đối tác đều đã login, hạ exposure scraping lock-history; vẫn không cần consent như <code>credit-export</code> §6.3, vì đây là thông tin đối tác cần biết <em>trước khi</em> quyết định ký, không phải hồ sơ tín dụng riêng tư). Seller dùng endpoint này để xem uy tín buyer trước khi nhận offer/đàm phán — đối xứng thật với việc buyer xem seller lúc chọn listing.
+<strong>Response contract <code>ReputationPublicSummary</code> (chốt 12/10/2026 — đóng gap phát hiện lúc implement #113):</strong></p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Kiểu</th>
+<th scope="col">Quy tắc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>userId</code></td>
+<td>uuid</td>
+<td>Echo path param.</td>
+</tr>
+<tr>
+<td class="identifier"><code>score</code></td>
+<td>number | <code>null</code></td>
+<td><code>null</code> khi <code>completed + locks = 0</code> (chưa có lịch sử — <strong>không</strong> trả 0, user mới không bị phạt vì mới). Ngược lại <code>score = round(100 × completed / (completed + locks))</code>, trong đó <code>completed</code> = số row <code>completed_contract_fact</code> có <code>buyer_id = userId</code> hoặc <code>seller_id = userId</code>, <code>locks</code> = số row <code>lock_entry</code> có <code>user_id = userId</code> (tính cả entry đã <code>UNLOCKED_EARLY</code> — unlock sớm rút ngắn hình phạt, không xoá sự kiện vi phạm). Chỉ đọc từ 2 bảng insert-only nên cùng dữ liệu luôn ra cùng số (reproducible). Tín hiệu flag-rồi-thua (<code>dispute_outcome_fact</code>) <strong>chưa</strong> vào score baseline — bổ sung ở #145, khi đổi công thức phải ghi lại ở đây kèm ngày.</td>
+</tr>
+<tr>
+<td class="identifier"><code>locked</code></td>
+<td>boolean</td>
+<td><code>true</code> khi tồn tại <code>lock_entry</code> có <code>locked_until &gt; now()</code> và không có <code>lock_override_event</code> hợp lệ trỏ tới (cùng định nghĩa effective lock §2.1).</td>
+</tr>
+<tr>
+<td class="identifier"><code>lockHistory</code></td>
+<td>array</td>
+<td>Mỗi phần tử <code>{lockedAt, lockedUntil, lockDurationDays, penalizedRole, status}</code> — <code>lockedAt</code> = <code>lock_entry.created_at</code>, <code>status ∈ {ACTIVE, EXPIRED, UNLOCKED_EARLY}</code> derive theo §2.1. Sắp xếp <code>lockedAt</code> giảm dần. <strong>Không</strong> trả <code>contract_id</code>, <code>remedy_decision_id</code>, các multiplier hay <code>reason</code> của override — lộ quan hệ làm ăn/nội bộ governance, đối tác không cần để quyết định ký.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Không có 404.</strong> <code>reputation-service</code> không giữ bảng user nên không biết <code>userId</code> có tồn tại hay không; user chưa có fact nào trả <code>200 {score: null, locked: false, lockHistory: []}</code>. Trả 404 cho "chưa có fact" vừa sai nghĩa (không phải user không tồn tại) vừa cho phép dò userId nào từng bị khoá. <code>userId</code> sai format → 400 theo error catalog.</p>
+</li>
+<li>
+<p><strong>Framing lại <code>buyerDepositRate</code>/<code>sellerDepositRate</code> là công cụ 2 chiều theo mức tin tưởng</strong> (đã đúng về cơ chế ở <code>milestone-escrow-phase2-design.md</code> §2.1/§6.3.1, chỉ cần nói rõ ra): seller mới, gặp buyer lạ, xem <code>public-summary</code> thấy buyer có track record xấu → seller có quyền đàm phán <code>buyerDepositRate</code> cao hơn default 5% trong band <code>[3%, 10%]</code> lúc <code>NEGOTIATING</code> — không phải chỉ buyer mới có quyền đòi cọc seller.</p>
+</li>
+</ol>
+<p><strong>Tín hiệu mới — chống buyer lạm dụng <code>FLAG_ISSUE</code> vô cớ :</strong> lỗ thật seller chưa được bảo vệ — buyer có thể flag bừa để ép seller vào dispute/kéo dài mà không mất gì (chi phí giám định do bên thua chịu, §8 milestone-escrow, nhưng buyer có thể chấp nhận rủi ro đó để gây áp lực). Thêm 1 input event mới:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Event</th>
+<th scope="col">Loại</th>
+<th scope="col">Nguồn</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>milestone.dispute_resolved</code></td>
+<td>Tín hiệu hành vi</td>
+<td><code>contract-service</code> — payload <code>{contractId, milestoneId, flaggedBy: BUYER, flaggedByUserId, resolutionFavors: BUYER|SELLER}</code></td>
+<td><code>reputation-service</code> đếm tỷ lệ <code>resolutionFavors = SELLER</code> trên tổng số lần buyer đó từng <code>FLAG_ISSUE</code>; IDs đã canonical nên không cần lookup</td>
+</tr>
+</tbody>
+</table></div>
+<p>Dùng đúng bộ máy reputation đã có (view sống — score derive lúc query từ <code>lock_entry</code> + facts tables §2.2, không lưu sẵn score, §5.2) — chỉ thêm 1 loại tín hiệu đầu vào (<code>dispute_outcome_fact</code>), không phải cơ chế mới.</p>
+<p><strong>Tổng kết B4:</strong> đối xứng hoá reputation (dữ liệu đã có, chỉ thêm chiều hiển thị) + framing 2 deposit rate là công cụ 2 chiều (đã đúng cơ chế, chỉ cần nói rõ) + tín hiệu chống flag-abuse (nhỏ, tái dùng hạ tầng sẵn có). Không phải known-limitation cần chấp nhận — là hoàn chỉnh hoá luận điểm gốc "bảo vệ bên yếu thế" cho đúng cả 2 chiều.</p>
+</section><section aria-labelledby="heading-sec-6-2" class="section" id="sec-6-2"><h3 id="heading-sec-6-2"><span class="sec-num">§6.2</span> <code>product-service</code> — tìm kiếm/lọc listing <a aria-label="Sao chép liên kết tới §6.2" class="anchor" href="#sec-6-2">#</a></h3>
+<p><code>product-service</code> sở hữu truy vấn tìm kiếm/lọc listing bằng các query parameter trên dữ liệu sản phẩm. <code>reputation-service</code> không sở hữu listing index hoặc ranking; điểm uy tín được cung cấp qua <code>GET /api/v1/reputation/{userId}/public-summary</code> ở bước xem đối tác/đàm phán trước khi ký.</p>
+</section><section aria-labelledby="heading-sec-6-3" class="section" id="sec-6-3"><h3 id="heading-sec-6-3"><span class="sec-num">§6.3</span> Credit reference export <a aria-label="Sao chép liên kết tới §6.3" class="anchor" href="#sec-6-3">#</a></h3>
+<p><strong>Research (04/07/2026):</strong> CIC (Trung tâm Thông tin Tín dụng Quốc gia) không áp dụng trực tiếp — seller trên platform không có lịch sử vay ngân hàng để CIC đối chiếu. Hướng đúng: <strong>VARI</strong> (Chương trình xếp hạng tín nhiệm doanh nghiệp nông nghiệp Việt Nam, www.vari.org.vn) — tổ chức trung gian đã tồn tại sẵn cho đúng ngành, đóng vai trò "người đọc dữ liệu platform rồi đưa cho ngân hàng", không cần platform tự thuyết phục từng ngân hàng riêng lẻ. Có tín hiệu chính sách ủng hộ: Luật Hỗ trợ DNVVN (sửa đổi) đang xây dựng cơ chế sandbox cho vay dựa trên dữ liệu/dòng tiền.</p>
+<p><strong>Định vị lại vai trò (04/07/2026):</strong> <code>reputation-service</code> export là <strong>reference/reputation attestation</strong>, không phải nguồn chấm điểm tín dụng chính — reputation (đáng tin để giao dịch tiếp) và cash-flow data (đủ tiền trả nợ) đo 2 chuyện khác nhau, không thay thế nhau.</p>
+<p>Thiết kế:</p>
+<ul>
+<li>Endpoint riêng <code>GET /api/v1/reputation/{userId}/credit-export</code>, JSON theo 4 nhóm phổ quát (lịch sử thanh toán đúng hạn, quy mô/tần suất giao dịch, vi phạm/nợ xấu, thâm niên hoạt động — bao gồm <code>firstContractDate</code>/<code>activeMonthsSpan</code>, không chỉ đếm số lượng).</li>
+<li><strong>Chỉ chạy khi seller chủ động yêu cầu</strong> (consent rõ ràng), không phải endpoint mở tự động đẩy dữ liệu ra ngoài — đúng cơ chế CIC vận hành (người vay tự tra cứu mang đi).</li>
+<li><strong>Gate theo counterparty diversity</strong> trước khi cho export — seller chỉ giao dịch với 1-2 đối tác dù đủ 5+ hợp đồng "sạch" cũng không đủ điều kiện, giảm động cơ tạo hợp đồng giả để làm đẹp hồ sơ vay vốn (xem §7).</li>
+</ul>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Use Case Changes <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<ul>
+<li><strong><code>ProcessLockoutUseCase</code></strong> — consume <strong><code>remedy.finalized</code> DUY NHẤT</strong> (bản trước còn ghi "/ <code>contract.terminated</code>", mâu thuẫn trực tiếp với §3 đã gỡ terminated khỏi input chế tài); chỉ chạy khi <code>reputationEligible = true</code> (không tự suy từ reason — §4.3); idempotent theo <code>remedyDecisionId</code> (<code>remedy_decision_id UNIQUE</code>, §2.1); tính <code>repeatOffenseMultiplier</code> + <code>trackRecordMultiplier</code> + <code>zeroProgressMultiplier</code>, ghi <code>lock_entry</code> mới (insert-only), publish <code>reputation.locked</code>.</li>
+<li><strong><code>UnlockEarlyUseCase</code></strong> — chạy khi <code>governance_action_request</code> được APPROVE (two-person rule §7-schema): <strong>INSERT <code>lock_override_event</code></strong> (không UPDATE <code>lock_entry</code> — sửa 18/07/2026, bảng đó bất biến), <strong>tính lại effective lock còn lại của user từ các <code>lock_entry</code> chưa hết hạn và chưa có override</strong>, rồi publish <code>reputation.unlocked {eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}</code> — <code>lockRevision</code> (18/07/2026) là sequence tăng dần per user do reputation cấp (đếm event lock/unlock đã phát cho user), user-service persist để ordering sống qua restart; <code>reputation.locked</code> cũng mang field này. <strong>Sửa 17/07/2026:</strong> payload cũ chỉ mang <code>unlockedAt</code>, khiến projection bên user-service "clear" mù và mở khoá nhầm khi user có nhiều lock chồng nhau — source of truth phải tự tính, projection chỉ set theo (xem <code>user-service-phase2-design.md</code> §2.2). <code>reputation.locked</code> cũng thêm <code>occurredAt</code> cùng lý do ordering. Dùng cho nhánh 2, 3 ở §5. <strong>Maker-checker (18/07/2026, governance §5.3):</strong> unlock sớm không còn đơn phương — OPERATOR propose (reason bắt buộc, trạng thái <code>PROPOSED</code>) → ARBITRATOR approve/reject (sửa 12/10/2026 — trước là ADMIN); <code>proposedBy != approvedBy</code> vẫn enforce. Payload thêm <code>proposedByOperatorId</code> + <code>approvedByArbitratorId</code>; cả propose lẫn approve vào audit chain.</li>
+<li><strong><code>CheckLockStatusUseCase</code></strong> — expose cho <code>user-service</code> gọi qua Feign (§6.1), trả <code>lockedUntil</code> hiện tại của 1 <code>userId</code>.</li>
+<li><strong><code>GetCreditExportUseCase</code></strong> — seller tự trigger (consent-based, §6.3), check counterparty diversity gate trước khi trả JSON export.</li>
+<li><strong><code>FlagSuspiciousPatternUseCase</code></strong> — tính composite fraud score (§8), theo cặp buyer-seller/account, publish event hold khi vượt ngưỡng. <strong>Cập nhật:</strong> tách 2 nhóm — tín hiệu tương đối (cần lịch sử, hold giao dịch kế tiếp) và tín hiệu tuyệt đối (ngưỡng luật định 500 triệu, hold ngay trên chính giao dịch, kể cả giao dịch đầu tiên của account mới). <strong>Sửa:</strong> consume thêm <code>bank.large_transaction_flagged</code> (<code>bank-service-phase2-design.md</code> §3.4) làm 1 input, không phải trigger hold độc lập — hold chỉ kích hoạt khi ngưỡng tuyệt đối <strong>đi kèm</strong> ≥1 tín hiệu hành vi khác (track record mỏng / zero-variance / counterparty mới), tránh hold thuần theo giá trị giết happy path — xem §8 mục 2.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> AML / Anti-fraud <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<p><strong>Bối cảnh:</strong> Doc2 §5.2 Rủi ro 4 (nền tảng bị lợi dụng tạo giao dịch khống để rửa tiền) đã có biện pháp — KYC + INSPECTOR xác nhận hàng hoá thực tế. Nhưng biện pháp này <strong>chỉ kích hoạt khi có tranh chấp</strong> (<code>FLAG_ISSUE</code> → <code>CONTESTED</code>, milestone-escrow §3.2). Giao dịch thông đồng (2 bên hợp tác, không ai dispute) không bao giờ chạm INSPECTOR — lỗ hổng cấu trúc, không phải thiếu sót nhỏ. Credit export (§6.3) làm rủi ro này nặng hơn — hợp đồng giả không chỉ làm đẹp reputation mà còn hợp thức hoá dòng tiền bẩn thành lịch sử "sạch" dùng xin vay thật.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong></p></div>
+<ol>
+<li><strong>Composite fraud score</strong>, không dựa vào 1 signal đơn — kết hợp:
+<ul>
+<li>Tín hiệu luật định (Điều 29 Nghị định 52/2024, dẫn Luật Phòng chống rửa tiền 2022): structuring (nhiều giao dịch gần mức giá trị lớn phải báo cáo), đột biến doanh số giao dịch, tốc độ khởi tạo giao dịch nhanh bất thường.</li>
+<li>Tín hiệu tự suy luận từ đặc thù nông sản: counterparty concentration (tỷ lệ tập trung đối tác), zero-variance pattern (<code>sellerDeclaredWeight</code> khớp tuyệt đối <code>buyerReceivedWeight</code> lặp lại nhiều lần — nông sản thật luôn có hao hụt tự nhiên).</li>
+<li>Tính theo <strong>cặp buyer-seller hoặc account</strong>, không theo từng contract lẻ — pattern cần lịch sử lặp lại mới thấy được.</li>
+</ul>
+</li>
+</ol>
+<p><strong>Cập nhật — tách 2 nhóm tín hiệu, không gộp chung 1 rổ:</strong> rà lại kỹ hơn phát hiện "đột biến doanh số" (mục 1 trên) tự nó ngầm định phải có <strong>baseline lịch sử của chính account đó</strong> để so sánh — account mới tinh, giao dịch đầu tiên, không có gì để so, nên dù giá trị giao dịch có lớn cỡ nào, nó không "đột biến" theo đúng nghĩa thống kê. Đây chính là gốc rễ giới hạn cấu trúc đã nêu ở mục 2 dưới (chỉ hold giao dịch kế tiếp) — không sửa được bằng đổi threshold, vì vấn đề không nằm ở <em>vị trí</em> ngưỡng mà ở việc <em>không có dữ liệu lịch sử để chấm điểm ngay từ đầu</em>.</p>
+<p>Giải pháp: thêm <strong>nhóm tín hiệu tuyệt đối, không cần lịch sử</strong> — song song với nhóm tương đối ở mục 1, không thay thế:</p>
+<ul>
+<li><strong>Ngưỡng giá trị tuyệt đối theo luật định</strong> — giao dịch chuyển khoản từ 500 triệu đồng trở lên (Điều 9 Thông tư 27/2025/TT-NHNN, "giao dịch chuyển tiền điện tử", hiệu lực 01/11/2025 — ngưỡng này giữ nguyên từ 2007, không phải số mới) thuộc nhóm phải báo cáo, bất kể account có lịch sử hay không — đây là con số so với luật, không phải so với chính account đó ngày hôm qua.</li>
+<li><strong>Trigger ngay trên chính giao dịch đó</strong>, không chờ "giao dịch kế tiếp" như nhóm tín hiệu tương đối — vì không cần baseline để đánh giá, nhóm này có thể áp dụng ngay cả cho giao dịch đầu tiên của account hoàn toàn mới.</li>
+<li><strong>Không thay thế nhóm tương đối</strong> — 2 nhóm giải 2 loại rủi ro khác nhau: nhóm tương đối bắt fraud tích luỹ nhiều giao dịch nhỏ qua thời gian (giá trị vẫn dưới ngưỡng tuyệt đối); nhóm tuyệt đối bắt đúng kịch bản "đánh nhanh rút gọn" (one-shot, tài khoản giả, 1 hợp đồng khủng rồi bỏ) mà nhóm tương đối theo định nghĩa không bắt được lần đầu.</li>
+<li><strong>Sửa — nguồn phát hiện dời sang bank-service:</strong> <code>reputation-service</code> không tự query <code>ledger_entry</code> để so giá trị — <code>bank-service</code> (bên giữ tiền thật, đúng chủ thể pháp lý theo Luật PCRT 2022 Điều 4) publish <code>bank.large_transaction_flagged</code> tại <strong>bank-adapter boundary cho giao dịch chuyển tiền thực</strong> ≥ 500 triệu, không phát per-<code>LedgerEntry</code>. <code>reputation-service</code> consume event này làm 1 trong các input cho composite score, không phải tự trigger hold độc lập — xem mục 2 dưới.</li>
+</ul>
+<ol start="2">
+<li>
+<p><strong>Sửa — ngưỡng tuyệt đối một mình không còn đủ để hold, phải đi kèm ≥1 tín hiệu hành vi khác:</strong> bản 06/07/2026 để giá trị tuyệt đối tự nó trigger <code>CONFIRM_CLEAN</code> hold, không điều kiện gì thêm. Vấn đề phát hiện khi rà cross-check với ví dụ hợp đồng thật ở Doc02 (100-1000 tấn cà phê, tương đương 13,5-135 tỷ VNĐ, đối chiếu giá Robusta thị trường ~92.000-97.000đ/kg) — <strong>gần như 100% hợp đồng thật của platform vượt xa 500 triệu chỉ vì khối lượng thương mại lớn</strong>, không liên quan gì tới hành vi khả nghi. Hold cứng theo giá trị đơn thuần sẽ khiến phần lớn giao dịch điển hình bị treo chờ Admin duyệt — giết chết đúng selling point lõi "escrow tự thực thi, release tự động, không ai can thiệp" (Doc02 §3.3, §8), biến Admin thành nút cổ chai cho mọi giao dịch lớn, ngược triết lý neutral-party.</p>
+<p><strong><code>CONFIRM_CLEAN</code> hold đồng bộ</strong>, chuyển chờ Admin duyệt thay vì auto-<code>SETTLED</code>, chỉ áp khi: <strong>(ngưỡng tuyệt đối ≥500 triệu, từ <code>bank.large_transaction_flagged</code>) AND (≥1 tín hiệu hành vi khác)</strong> — ví dụ: account có <code>&lt; N</code> hợp đồng hoàn thành (chưa đủ track record), <strong>OR</strong> zero-variance pattern (mục 1 phần tương đối), <strong>OR</strong> counterparty hoàn toàn mới (chưa từng giao dịch với nhau). Bắt đúng kịch bản one-shot fraud thật (account mới + hợp đồng khủng = to <em>và</em> vô danh), <strong>không</strong> phạt cặp buyer-seller có track record sạch đang giao dịch bình thường ở quy mô thương mại thật.</p>
+<p><strong>Với nhóm tín hiệu tương đối (không đổi):</strong> hold chỉ áp cho giao dịch <strong>kế tiếp</strong> của đúng cặp bị flag, không hồi tố hợp đồng đã <code>SETTLED</code>, không vạ lây cặp khác. Chính giao dịch làm score vượt ngưỡng <strong>không</strong> bị hold — chỉ giao dịch tiếp theo mới bị (giới hạn cấu trúc của detect dựa trên pattern lặp lại, đã xác nhận 04/07/2026, không đổi). <strong>Với nhóm tín hiệu tuyệt đối + điều kiện hành vi :</strong> hold áp ngay trên <strong>chính giao dịch đang vượt ngưỡng VÀ có tín hiệu hành vi đi kèm</strong> — vẫn đóng đúng phần gap "one-shot fraud", nhưng không còn đánh đồng "giao dịch lớn" với "giao dịch khả nghi".</p>
+</li>
+<li>
+<p><strong>Admin trigger inspection đột xuất</strong> khi nghi ngờ, nhưng <strong>không tự chọn tổ chức inspect</strong> — hệ thống random từ danh sách đã vet sẵn (đồng nhất cơ chế Level 1.5 hiện có: Vinacontrol/Quatest, route tự động, không phải chọn tay). Tránh tái tạo đúng lỗ hổng đang có ở Level 2 (<code>level2InspectorOrg</code> negotiate tự do — xem KI-2).</p>
+</li>
+<li>
+<p><strong>Chi phí inspection do nghi ngờ pattern = platform chịu</strong>, không đổ cho buyer/seller. Lý do: nghĩa vụ Điều 29 NĐ 52/2024 là nghĩa vụ của platform, không phải user; tránh phạt oan false positive, đặc biệt nhóm HTX nhỏ vốn có counterparty concentration cao tự nhiên (không phải dấu hiệu gian lận).</p>
+</li>
+<li>
+<p><strong>Mục tiêu thiết kế = đạt bar "có biện pháp quản trị rủi ro"</strong> (Điều 29 NĐ 52/2024) — không phải bắt 100% fraud (bất khả thi với collusion đủ nguồn lực). Audit trail bất biến (§2.1 insert-only) là bằng chứng due diligence nếu bị điều tra, không phải cơ chế ngăn chặn tuyệt đối.</p>
+</li>
+<li>
+<p><strong>Mới (10/07/2026) — tầng batch bắt structuring chậm + trạng thái <code>ELEVATED_RISK</code> (Enhanced Due Diligence):</strong> 2 tầng ở mục 1-2 chạy realtime và đều chỉ với tay tới <strong>giao dịch kế tiếp</strong> — không bắt được kẻ rải mỏng nhiều hợp đồng ~490 triệu (dưới ngưỡng tuyệt đối) giãn cách nhiều tháng (ngoài cửa sổ tương đối). Đây chính là gap ghi ở §9. Đóng bằng tầng batch trên data warehouse: <code>analytics-service.AmlPatternScanJob</code> (<code>analytics-service-phase2-design.md</code> §3.5) quét cụm near-threshold theo cặp buyer-seller (band <code>[475tr, 500tr)</code>, min 5 hợp đồng, lookback 90 ngày) và publish <code>analytics.structuring_pattern_detected</code>.</p>
+<p><strong><code>reputation-service</code> consume event này → set cặp buyer-seller sang trạng thái <code>ELEVATED_RISK</code>.</strong> Đây là điểm khác biệt cốt lõi so với cơ chế hold ở mục 2, phải nắm rõ để không implement nhầm:</p>
+<ul>
+<li><strong><code>ELEVATED_RISK</code> là một <em>state</em> bền của cặp, KHÔNG phải trigger hold một-lần.</strong> Cơ chế hold ở mục 1-2 là <em>forward-looking</em>: pattern đang diễn ra → chặn mắt xích kế tiếp. Batch thì <em>backward-looking</em>: nhìn lại 90 ngày, pattern <strong>đã xong</strong>, tiền các hợp đồng cũ đã settle — không có gì để hold ngược, và "hold đúng giao dịch kế tiếp" là vô nghĩa vì cặp có thể đã im nhiều tháng. Thay vào đó, batch <strong>kết luận về cả cặp</strong> và nhuộm trạng thái.</li>
+<li><strong>Phase 2 freeze: <code>ELEVATED_RISK</code> là projection-only.</strong> Reputation-service persist và expose trạng thái cặp cho Admin/analytics; Phase 2 <strong>không</strong> chặn auto-settlement và không route sang synchronous review, vì contract/milestone design chưa có settlement guard/review use case hoặc transport/error contract tương ứng. Claim enforcement cũ được bỏ khỏi Phase 2 thay vì ngầm phát minh workflow mới.</li>
+<li>Gate composite realtime ở mục 2 giữ nguyên cho các giao dịch lẻ đã có contract. Pair-state enforcement là Future Work chỉ được bật sau một design freeze riêng xác định service owner, settlement guard, review state/use case và request/error contract.</li>
+<li><strong>Bắt buộc có clear-path + expiry (nếu thiếu = nhà tù không án):</strong> gỡ <code>ELEVATED_RISK</code> → <code>NORMAL</code> qua maker-checker OPERATOR → ARBITRATOR, <strong>ghi lý do vào audit-service hash chain</strong> (defensible closure — chuẩn AML: thanh tra soi đúng việc quyết định đóng case có được ghi lại và defend được không). Transport (<strong>17/07/2026</strong>): publish <code>reputation.elevated_risk_cleared {eventId, buyerId, sellerId, clearedByArbitratorId, reason, occurredAt}</code> — audit-service consume, <code>source_type = AML_RISK_CLEARED</code> (hash-chain §2.4); reputation-service không INSERT thẳng <code>audit_record</code>. <strong>Maker-checker (18/07/2026, governance §5.3):</strong> clear đi luồng OPERATOR propose → ARBITRATOR approve như unlock sớm ; payload event mang cả <code>proposedByOperatorId</code> + <code>approvedByArbitratorId</code> — defensible closure đúng nghĩa: 2 người, 2 role, 2 vết trên chain. Và tự động rà: cặp không tái phạm sau <code>elevatedRiskReviewMonths</code> (chốt <strong>6 tháng</strong>, <code>application.yml</code>, chỉnh được) → hạ về <code>NORMAL</code>. Không có expiry thì cặp làm ăn thật (bị false-positive) bị soi vĩnh viễn.</li>
+</ul>
+<p><strong>Nghĩa vụ báo cáo cơ quan (KHÔNG được bỏ):</strong> trong khung AML, phát hiện structuring mà không báo cáo tự nó là lỗi tuân thủ. <code>analytics.structuring_pattern_detected</code> còn có consumer thứ 2 là <strong><code>bank-service</code></strong> — bên báo cáo giao dịch khả nghi cho cơ quan (Cục PCRT, đúng chủ thể pháp lý giữ tiền theo Luật PCRT 2022 Điều 4). <code>reputation-service</code> giữ pair-state projection và governance clear/expiry; <code>bank-service</code> lo nghĩa vụ <em>ra ngoài</em> (khai báo cơ quan). 2 nhánh song song, độc lập — consumer bên <code>bank-service</code> cần thêm vào <code>bank-service-phase2-design.md</code>.</p>
+</li>
+</ol>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> Out of Scope (có chủ đích, không phải thiếu sót) <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<ul class="limitations">
+<li><strong>Reputation lock theo commodity/branch:</strong> Phase 2 cố ý dùng user-level scope; tổ chức nhiều chi nhánh hoặc cần eligibility khác nhau theo commodity phải có identity/org model riêng trước khi thu hẹp scope lock.</li>
+<li><strong>Tích hợp thật với VARI hoặc bất kỳ ngân hàng nào</strong> (§6.3) — chưa ký kết, chưa có đối tác thật. Thiết kế sẵn interface export (<code>GetCreditExportUseCase</code>) để nếu sau này có đối tác thật, chỉ cần thêm adapter, không đổi business logic. Cùng tinh thần <code>bank-service</code> doc đã làm với vai trò arbitrator.</li>
+<li><strong>Multi-currency</strong> — không cần, platform chỉ giao dịch VNĐ.</li>
+<li><strong>Giải quyết dứt điểm ngân sách chi phí inspection</strong> (§8 mục 4) — chỉ model đúng field (<code>triggerType</code>, <code>costBearer</code>) trong <code>InspectionRequest</code> (thuộc <code>inspection-service</code>, không phải <code>reputation-service</code>), không giải quyết nguồn ngân sách thật trong đồ án.</li>
+<li><strong>KI-2, KI-3</strong> (§10) — đã phát hiện, chưa fix trong session này, không thuộc phạm vi thiết kế <code>reputation-service</code> (KI-2 thuộc <code>inspection-service</code>, KI-3 thuộc <code>user-service</code>). <strong>KI-1 đã đóng — xem §10.</strong></li>
+<li><strong>Đòn bẩy kinh tế thay thế cho <code>lock_entry</code> lockout ở năm đầu vận hành (bảo hiểm, gắn quyền lợi hội viên VICOFA...)</strong> — đã verify (04/07/2026): điều lệ công khai của VICOFA (<code>vicofa.org.vn</code>) chỉ cho phép khai trừ/đình chỉ hội viên khi vi phạm ảnh hưởng tới uy tín/tài sản/tài chính <strong>của chính VICOFA</strong> hoặc vi phạm quy chế <strong>của VICOFA</strong> — không có điều khoản nào gắn hành vi phá hợp đồng thương mại ghi nhận qua 1 hệ thống bên ngoài. Không phải giả định lửng lơ — đây là 1 câu hỏi cụ thể có thể mang đi hỏi thăm qua kênh sẵn có (NHL, business validation outreach): VICOFA có sẵn sàng ban hành quy chế mới gắn dữ liệu <code>lock_entry</code> vào hệ quả hội viên (quota, đoàn xúc tiến...), tách biệt khỏi việc phân xử đúng-sai trong tranh chấp cụ thể (giữ neutrality đã chốt ở <code>bank-service-phase2-design.md</code>) hay không — nhưng nằm ngoài khả năng đồ án tự xác nhận hay quyết định. Giữ nguyên <code>lock_entry</code>/<code>lockDurationDays</code> hiện tại làm baseline, không thiết kế thêm cơ chế phụ thuộc 1 giả định thể chế chưa xác nhận.</li>
+<li><strong>One-shot fraud dưới ngưỡng tuyệt đối (mới, 06/07/2026; thu hẹp 10/07/2026)</strong> — nhóm tín hiệu tuyệt đối (§8 mục 1) chỉ đóng gap cho giao dịch <strong>vượt</strong> 500 triệu đồng. <strong>Cập nhật:</strong> phần structuring chậm <em>có lặp lại</em> (nhiều hợp đồng near-threshold cùng cặp qua nhiều tháng) <strong>nay đã đóng</strong> bằng tầng batch + <code>ELEVATED_RISK</code> (§8 mục 6). Residual còn lại, không đóng được bằng bất kỳ công cụ pattern-based nào (ghi rõ, honest):
+<ul>
+<li><strong>Vài mảnh đầu trước khi pattern thành hình</strong> — batch chỉ thấy cụm sau khi đủ ≥5 hợp đồng đã settle; các hợp đồng đầu (dưới ngưỡng min-count) chắc chắn lọt, tiền đã đi. Đây là giới hạn <em>toán học</em> của detect dựa trên pattern lặp: pattern cần tối thiểu nhiều điểm mới thành hình, không có "điểm 0".</li>
+<li><strong>One-shot nhỏ lẻ thật sự</strong> — 1 giao dịch giả giá trị vừa/nhỏ, đầu tiên của account mới, rồi biến mất: dưới ngưỡng tuyệt đối (không chạm nhóm 1), không baseline (không chạm nhóm tương đối), không đủ cụm (không chạm batch). Bất khả với mọi công cụ pattern-based — nằm cùng nhóm limitation trusted-operator đã chấp nhận (§8 mục 5).</li>
+</ul>
+</li>
+</ul>
+</section><section aria-labelledby="heading-sec-10" class="section" id="sec-10"><h2 id="heading-sec-10"><span class="sec-num">§10</span> Known Issues (phát hiện qua đối chiếu code Phase 1 — không block thiết kế này, cần nhớ khi implement) <a aria-label="Sao chép liên kết tới §10" class="anchor" href="#sec-10">#</a></h2>
+<p><strong>KI-1 — ĐÃ FIX (04/07/2026), không còn treo.</strong> Vấn đề gốc: <code>Contract.settle()</code> (contract-service) chỉ chạy được nếu status hiện tại là <code>DELIVERED</code> — di sản two-phase lock Phase 1. <code>completeAllMilestones()</code> (method thay thế Phase 2) sẽ gọi <code>settle()</code> khi Contract đang <code>ACTIVE</code> (không bao giờ đạt <code>DELIVERED</code> nữa) → throw ngay. Kéo theo dead path: <code>confirmDelivery()</code>, <code>ContractDeliveredEvent</code>/<code>"contract.delivered"</code>, consumer ở <code>escrow-service.ContractEventConsumer</code> và <code>notification-service.NotificationEventConsumer</code>.</p>
+<p>Fix + dead-path cleanup đã chốt tại <code>milestone-escrow-phase2-design.md</code> §3.1 (guard sửa để chạy từ <code>ACTIVE</code>). Reputation consumes <code>contract.settled</code> only for positive completion facts; deposit release is represented by <code>remedy.finalized</code> legs. <code>§3</code> của file này đã cập nhật theo.</p>
+<p><strong>KI-2 — ĐÃ FIX (04/07/2026), không còn treo.</strong> Vấn đề gốc: buyer/seller tự thoả thuận chọn tổ chức Level 2 lúc <code>sign()</code> hoàn toàn tự do, không allowlist — 2 bên thông đồng có thể tự chọn tổ chức dễ dãi/tự dựng.</p>
+<p>Fix đã chốt tại <code>inspection-phase2-design.md</code> §3.2: allowlist 3 nhóm (major quốc tế hardcode / trong nước verify qua BoA-VIAS / "lạ" thì Admin duyệt case-by-case, private, không lưu danh sách dùng chung), verify qua accreditation certificate number tra đúng cơ quan công nhận quốc gia. Tự động hoá tra cứu API BoA/ILAC để sau — deferred có chủ đích.</p>
+<p><strong>KI-3 — [RESOLVED 16/07/2026] <code>GET /api/v1/users/{userId}</code> (user-service) lộ <code>email</code>.</strong> Đã đóng bởi <code>user-service-phase2-design.md</code> §4.1: <code>PublicUserResponse</code> không email/phone/address, contact chỉ qua <code>/me</code> và internal API. Giữ đoạn dưới làm lịch sử phát hiện. IDOR đã fix <code>phone</code>/<code>address</code> nhưng <code>UserInfoResponse</code> vẫn còn field <code>email</code>. Endpoint cũng không có role/ownership check — bất kỳ user nào qua Gateway đều gọi được, không riêng service nội bộ. Không thuộc phạm vi <code>reputation-service</code> nhưng phát hiện lúc verify code liên quan Feign integration (§6.1) nên ghi lại đây. <strong>Yêu cầu fix lúc phát hiện (ĐÃ THỰC HIỆN ở user-service §4.1 — 16/07/2026):</strong> bỏ <code>email</code> khỏi DTO ra Gateway (chỉ giữ ở kênh service-to-service nếu cần), thêm ownership/role check — chỉ chính chủ <code>userId</code> hoặc service nội bộ (mTLS/service token) mới gọi được, đúng pattern proxy-qua-service-sở-hữu ở <code>file-service-phase2-design.md</code> §5. Không block đóng session reputation-service (bug nằm ở service khác).</p>
+</section><section aria-labelledby="heading-sec-11" class="section" id="sec-11"><h2 id="heading-sec-11"><span class="sec-num">§11</span> Status — Reputation-service Design <a aria-label="Sao chép liên kết tới §11" class="anchor" href="#sec-11">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> Lock ledger insert-only, <code>lockDurationDays</code> snapshot bất biến. <code>trackRecordMultiplier</code> không time-decay (đo hoạt động tích cực, mùa vụ nông sản làm gap tự nhiên). <code>repeatOffenseMultiplier</code> có time window 24 tháng (đo hành vi tiêu cực, gap dài mang nghĩa thật). Enforcement qua use-case level (<code>sign()</code> fail-closed — ưu tiên đóng circuit-breaker gap ở đây trước, <code>CreateListing</code> cũng fail-closed từ 18/07/2026 — mọi gate eligibility cùng policy), không qua Gateway. Credit export định vị lại thành reference attestation, đối tác khả thi nhất là VARI, gate theo counterparty diversity. AML: composite score đa tín hiệu (luật định + suy luận), hold đồng bộ ở <code>CONFIRM_CLEAN</code> áp cho giao dịch kế tiếp (chấp nhận giao dịch làm lộ pattern không bị hold — giới hạn cấu trúc, đã xác nhận lại 04/07/2026), Admin trigger nhưng không tự chọn inspector, chi phí platform chịu.</p></div>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — tách 2 nhóm tín hiệu AML (§8, §7):</strong> phát hiện "đột biến doanh số" (tín hiệu tương đối) không thể đánh giá được trên account chưa có lịch sử — không phải lỗi threshold, mà là thiếu baseline để so sánh. Thêm nhóm tín hiệu <strong>tuyệt đối</strong> song song: ngưỡng giá trị chuyển khoản theo luật định (500 triệu đồng, Thông tư 27/2025/TT-NHNN) trigger <code>CONFIRM_CLEAN</code> hold <strong>ngay trên chính giao dịch</strong>, không cần chờ giao dịch kế tiếp như nhóm tương đối — đóng đúng phần gap "one-shot fraud" (tài khoản giả, 1 hợp đồng khủng, rút rồi bỏ) mà composite score cũ chỉ bắt được từ giao dịch thứ 2 trở đi. <strong>Không đóng toàn bộ giới hạn cấu trúc cũ</strong> — one-shot fraud dưới ngưỡng 500 triệu vẫn còn nguyên gap, ghi rõ ở §9.</p></div>
+<p><strong>Không còn Known Issue treo :</strong> KI-3 đã RESOLVED bởi user-service §4.1 (16/07). <strong>KI-1 và KI-2 đã đóng</strong> (§10) — fix KI-1 nằm ở <code>milestone-escrow-phase2-design.md</code>, fix KI-2 nằm ở <code>inspection-phase2-design.md</code> §3.2.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — rà soát end-to-end, 2 điểm PHẢI SỬA áp dụng vào file này:</strong></p></div>
+<ul>
+<li><strong>A5</strong> — ngưỡng tuyệt đối 500 triệu (Điều 9 TT27/2025/TT-NHNN, giao dịch chuyển tiền điện tử — số này <strong>vẫn đúng, không đổi</strong>, đã verify lại độc lập) không còn tự nó trigger hold. Detection dời sang <code>bank-service</code> (<code>bank.large_transaction_flagged</code>, đúng chủ thể pháp lý — bank giữ tiền, không phải platform). Hold chỉ kích hoạt khi ngưỡng tuyệt đối <strong>đi kèm</strong> ≥1 tín hiệu hành vi khác (track record mỏng/zero-variance/counterparty mới) — trước đó giá trị đơn thuần đã trigger hold, khiến gần như mọi hợp đồng thật (13,5-135 tỷ VNĐ theo ví dụ Doc02) bị treo chờ Admin, giết chết selling point "escrow tự thực thi" (§8).</li>
+<li><strong>B4</strong> — reputation trước đây một chiều (buyer xem seller, seller không có công cụ tự bảo vệ). Đối xứng hoá: expose reputation của buyer cho seller xem trước khi ký (dữ liệu <code>lock_entry</code> đã insert-only cho cả 2 role từ đầu, chỉ thiếu chiều hiển thị); thêm tín hiệu chống buyer lạm dụng <code>FLAG_ISSUE</code> vô cớ (tỷ lệ flag-rồi-thua/rút) — xem §6.1, §7 mục mới.</li>
+</ul>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — tầng batch AML + <code>ELEVATED_RISK</code> (§8 mục 6, §9):</strong> <code>analytics-service.AmlPatternScanJob</code> (batch 90 ngày, cụm near-threshold) publish <code>analytics.structuring_pattern_detected</code> → <code>reputation-service</code> consume → set cặp <code>ELEVATED_RISK</code> bền, có clear-path + expiry (<code>elevatedRiskReviewMonths</code> = 6 tháng) và audit. Trong Phase 2 đây là <strong>projection-only</strong>; không chặn settlement cho tới khi có settlement-review contract được freeze ở phase sau. Nghĩa vụ báo cáo cơ quan tách sang <code>bank-service</code> (consumer thứ 2 của cùng event). Residual còn lại (vài mảnh đầu chưa đủ cụm + one-shot nhỏ lẻ thật) là giới hạn toán học của pattern-based detection, ghi honest ở §9.</p></div>
+<p><strong>Cập nhật:</strong> (1) <code>reputation.unlocked</code> payload đổi — mang <code>effectiveLockedUntil</code> (nullable) tính lại từ các <code>lock_entry</code> còn <code>LOCKED</code> + <code>occurredAt</code> (cả locked lẫn unlocked) — đóng bug projection user-service mở khoá nhầm khi user có nhiều lock chồng nhau (§7). (2) Gỡ <code>ELEVATED_RISK</code> publish <code>reputation.elevated_risk_cleared</code> cho audit chain, <code>source_type = AML_RISK_CLEARED</code> (§8 mục 6, hash-chain §2.4). (3) <code>public-summary</code> chuyển authenticated ở Gateway (§6.1b).</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — consume theo attribution (đợt 6, từ file research ScholarFirst):</strong></p></div>
+<ul>
+<li><strong>Input negative đổi nguồn (§3):</strong> <code>remedy.finalized</code> là input negative <strong>DUY NHẤT</strong>, thay cho <code>milestone.cancelled_with_penalty</code>/<code>contract.cancelled</code> trực tiếp. <code>contract.terminated</code> chỉ phục vụ audit/analytics/notification, không tạo lock. Người bấm nút chấm dứt ≠ người vi phạm — reputation chỉ phạt theo attribution cuối, không theo <code>requestedBy</code>. <code>breach.reported</code> (allegation) KHÔNG BAO GIỜ là input.</li>
+<li><strong>Gate <code>breachReasonCode</code> (§4.3):</strong> chỉ nhóm strategic tạo <code>lock_entry</code>; <code>PRODUCTION_SHOCK_NON_FM</code> không lock; mutual/FM/activation/allegation-bị-bác không lock. <code>zeroProgressMultiplier</code> siết điều kiện — chỉ áp strategic zero-progress.</li>
+<li><strong>Review lần 2 (19/07):</strong> gỡ <code>contract.terminated</code> khỏi input chế tài (double-lock risk — 2 event, 2 sourceEventId, UNIQUE không chặn); gate đổi sang đọc <code>reputationEligible</code> flag từ payload thay tự suy reason; thêm <code>remedy_decision_id</code> UNIQUE ở <code>lock_entry</code> — một quyết định ≤ 1 lock đứng ở tầng DB.</li>
+<li>Đối xứng giữ nguyên: buyer bị lock qua cùng cơ chế khi <code>finalBreachingRole = BUYER</code> (<code>FUNDING_FAILURE</code> sau cure window là Rổ A, máy tự attribution — milestone-escrow §6b).</li>
+</ul>
+<p>Reputation-service — <strong>ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong> Không có điểm treo số liệu: ngưỡng 500 triệu là số luật định thật; <code>elevatedRiskReviewMonths</code> chốt 6 tháng (<code>application.yml</code>, tinh chỉnh được khi có dữ liệu vận hành thật). KI-3 (<code>email</code> IDOR) đã RESOLVED bởi user-service §4.1 — 18/07/2026. VICOFA lever giữ ở Known Limitation §9 (giả định thể chế ngoài scope đồ án).</p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>Maker-checker đổi approver sang ARBITRATOR; hold <code>CONFIRM_CLEAN</code> và inspection đột xuất chuyển Future Work; chốt response <code>public-summary</code>.</p>
+</li><li><span class="changelog__date">19/07/2026</span><p><code>remedy.finalized</code> là input negative duy nhất, gate <code>reputationEligible</code>, <code>remedy_decision_id</code> UNIQUE, gate <code>breachReasonCode</code>.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Bỏ <code>status</code>/<code>unlock_reason</code> khỏi <code>lock_entry</code>, thêm <code>lock_override_event</code>, <code>governance_action_request</code>, <code>pair_risk_state</code>, <code>lockRevision</code>.</p>
+</li><li><span class="changelog__date">08/07/2026</span><p>Hold tuyệt đối cần tín hiệu hành vi; đối xứng buyer/seller; tín hiệu chống flag-abuse.</p>
+</li><li><span class="changelog__date">06/07/2026</span><p>Thêm nhóm tín hiệu AML tuyệt đối theo ngưỡng 500 triệu.</p>
+</li><li><span class="changelog__date">04/07/2026</span><p>Design session.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li>§3 bảng input và §7 <code>FlagSuspiciousPatternUseCase</code> vẫn mô tả hold khi đủ tín hiệu; note đầu doc (12/10) đã đưa hold ra khỏi Phase 2.</li></ul></aside><footer class="doc-footer"><a href="../reputation-service-phase2-design.md">reputation-service-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../reputation-service-phase2-design.md">Markdown · 377 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="bank-service-phase2-design.html" title="bank-service-phase2-design.md">bank-service</a><a class="xref" href="inspection-phase2-design.html" title="inspection-phase2-design.md">inspection</a><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

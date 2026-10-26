@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>pricing-service-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">pricing-service</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 10 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Domain Model — PriceQuote</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Ingestion</a></li><li class="toc__sub"><a href="#sec-3-1"><span class="toc__number">§3.1</span> VNSAT scraping (COFFEE)</a></li><li class="toc__sub"><a href="#sec-3-2"><span class="toc__number">§3.2</span> Operator manual fallback (COFFEE)</a></li><li class="toc__sub"><a href="#sec-3-3"><span class="toc__number">§3.3</span> Scheduled job</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Read API</a></li><li class="toc__sub"><a href="#sec-4-1"><span class="toc__number">§4.1</span> Boundary với signed price band</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Known Limitations / Out of Scope (có chủ đích)</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Status — Pricing-service Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>Pricing-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../pricing-service-phase2-design.md">Mở Markdown · 144 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="product-phase2-design.html" title="product-phase2-design.md">product</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Chỉ <code>COFFEE</code> tại Việt Nam; ingest external VNSAT hoặc manual OPERATOR, không internal-average.</li><li><code>price_history</code> append-only là nguồn thật; ghi Redis sau MySQL commit, cache miss query MySQL rồi vá cache.</li><li>Redis <code>price:coffee:{province}:{itemSlug}</code> không TTL; <code>stale</code> theo <code>capturedAt</code>, coffee 14 ngày từ config.</li><li>POST VNSAT phải mang cookie và toàn bộ form, gồm <code>tu_ngay</code>/<code>den_ngay</code>; thiếu field có thể 500.</li><li>Ingest fail ghi <code>price_ingestion_failure</code>, không throw tiếp, không xoá cache cũ.</li><li>Advisory-only: không block create/sign/funding/settlement, không funding command, không lấy latest price khi funding.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<blockquote>
+<p><strong>Role vận hành:</strong> review/moderate/nhập liệu hằng ngày/theo dõi alert thuộc OPERATOR; ADMIN không fallback. Matrix: <code>data-governance-phase2-design.md</code> §5.4; flow/state/schema không đổi.</p>
+</blockquote>
+<blockquote>
+<p><strong>Scope Phase 2:</strong> chỉ giao dịch nội địa Việt Nam cho <code>COFFEE</code>; mọi ghi mới, job ingest, API và màn hình vận hành từ chối commodity khác.</p>
+</blockquote>
+<div class="callout callout--scope"><span class="callout__label">KHÔNG LÀM</span><p><strong>Không làm:</strong> không tính giá tham chiếu từ <code>agreedPrice</code> trung bình contract <code>SETTLED</code> nội bộ.</p></div>
+<details class="why"><summary>Vì sao</summary><p>Data nội bộ sparse; buyer lớn có thể dùng vài giao dịch ép giá tạo tham chiếu giả gây bất lợi cho HTX (AgriContract_01 §1.3).</p>
+</details>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt: pricing-service chỉ ingest external market reference price, không tự tính gì từ data nội bộ.</strong></p></div>
+<p><strong>Nguồn dữ liệu Phase 2:</strong></p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Commodity</th>
+<th scope="col">Nguồn</th>
+<th scope="col">Cơ chế</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>COFFEE</code></td>
+<td><code>thitruongnongsan.gov.vn</code> (VNSAT — Bộ Nông nghiệp &amp; Môi trường)</td>
+<td>Scrape tự động, theo tỉnh</td>
+</tr>
+</tbody>
+</table></div>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt về rủi ro pháp lý:</strong> scope đồ án, non-commercial, không productize — chấp nhận rủi ro scraping chưa xin phép chính thức. Nếu sau này thương mại hoá thật (bán cho VICOFA/VRA theo đúng business model), cần đàm phán data licensing chính thức hoặc xin nguồn cấp API trực tiếp từ Bộ NN&amp;MT.</p></div>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Domain Model — <code>PriceQuote</code> <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>id</code></td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>commodity</code></td>
+<td>Const <code>COFFEE</code></td>
+<td>API và persistence Phase 2 từ chối mọi giá trị khác</td>
+</tr>
+<tr>
+<td class="identifier"><code>itemName</code></td>
+<td>VARCHAR(255)</td>
+<td>Tên mặt hàng cà phê theo đúng string nguồn, ví dụ "Cà phê Robusta nhân xô"</td>
+</tr>
+<tr>
+<td class="identifier"><code>province</code></td>
+<td>VARCHAR</td>
+<td>VNSAT tách giá cà phê theo tỉnh (Đắk Lắk, Gia Lai, Lâm Đồng...)</td>
+</tr>
+<tr>
+<td class="identifier"><code>price</code></td>
+<td>DECIMAL</td>
+<td>VNĐ/kg</td>
+</tr>
+<tr>
+<td class="identifier"><code>source</code></td>
+<td>Enum (<code>VNSAT_SCRAPE</code>, <code>OPERATOR_MANUAL</code>)</td>
+<td>Code đã có <code>ADMIN_MANUAL</code> thì đổi enum + migration <code>UPDATE price_history SET source='OPERATOR_MANUAL' WHERE source='ADMIN_MANUAL'</code> — chỉ đổi nhãn nguồn, không đổi giá, attribution người nhập vẫn giữ nguyên</td>
+</tr>
+<tr>
+<td class="identifier"><code>capturedAt</code></td>
+<td>DATE</td>
+<td>Ngày giá <strong>thật sự áp dụng</strong> theo nguồn (cột "Ngày" trong bảng VNSAT)</td>
+</tr>
+<tr>
+<td class="identifier"><code>ingestedAt</code></td>
+<td>TIMESTAMP</td>
+<td>Lúc hệ thống lấy được — có thể trễ hơn <code>capturedAt</code> do VNSAT publish không đều</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>MySQL là nguồn sự thật (<code>price_history</code>, append-only), Redis chỉ là cache — không phải ngược lại.</strong> Giữ lịch sử để phục vụ biểu đồ giá sau này (VNSAT không đảm bảo cho query lại xa về trước).</p>
+<p><strong>Redis key:</strong> <code>price:coffee:{province}:{itemSlug}</code> (VD <code>price:coffee:dak-lak:ca-phe-robusta-nhan-xo</code>) — <code>itemSlug</code> = normalize <code>itemName</code> (bỏ dấu, lowercase, khoảng trắng → gạch ngang).</p>
+<p><strong>Không set TTL cứng.</strong> Độ cũ tính động bằng so <code>capturedAt</code> với <code>now()</code> khi trả response.</p>
+<details class="why"><summary>Vì sao</summary><p>Key hết hạn khi ingest fail sẽ làm mất giá tham chiếu; giữ giá gần nhất kèm cảnh báo cho phép đọc tiếp khi nguồn lỗi.</p>
+</details>
+<p><strong><code>stale</code> threshold</strong> được cấu hình trong <code>application.yml</code>, không hardcode trong code:</p>
+<figure class="code" data-lang="yaml"><pre><code>pricing:
+  stale-threshold-days:
+    coffee: 14   # lag quan sát thực tế ~9 ngày (26/6 lúc check 5/7), +buffer
+</code></pre></figure>
+<p>VNSAT publish theo batch không đều, không phải daily thật dù giao diện trông như vậy. Ngưỡng trên phản ánh lag cà phê đã quan sát cộng buffer; khi nguồn lỗi, hệ thống giữ bản gần nhất và hiển thị rõ thời điểm cập nhật.</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Ingestion <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+</section><section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1"><h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> VNSAT scraping (<code>COFFEE</code>) <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
+<p><strong>Nguồn kỹ thuật:</strong> <code>thitruongnongsan.gov.vn/vn/nguonwmy.aspx</code> — ASP.NET WebForms, không có REST API JSON. Cùng 1 URL vừa serve HTML vừa nhận lại chính request POST (postback pattern).</p>
+<p><strong>Cơ chế 2 bước, dùng Jsoup <code>Connection</code> (không phải RestTemplate/WebClient — Jsoup gộp sẵn cookie-jar + HTML parser trong 1 object, đúng việc cho kiểu postback này):</strong></p>
+<ol>
+<li>GET <code>nguonwmy.aspx</code> → parse <code>__VIEWSTATE</code>, <code>__EVENTVALIDATION</code>, <code>__VIEWSTATEGENERATOR</code> từ hidden input.</li>
+<li>POST lại cùng URL, mang cookie từ bước 1, kèm <strong>toàn bộ</strong> field của form gốc — không chỉ field mình "quan tâm":
+<ul>
+<li><code>__VIEWSTATE</code>, <code>__EVENTVALIDATION</code>, <code>__VIEWSTATEGENERATOR</code> (từ bước 1)</li>
+<li><code>ctl00$maincontent$tu_ngay</code>, <code>ctl00$maincontent$den_ngay</code> (bắt buộc — thiếu gây 500, xem §3.2)</li>
+<li><code>ctl00$maincontent$Ngành_hàng</code> (<code>"Cà phê"</code>)</li>
+<li><code>ctl00$maincontent$Theo_thời_gian</code> (<code>"ngay"</code>)</li>
+<li><code>ctl00$maincontent$Xem</code> (<code>"Xem"</code>)</li>
+</ul>
+</li>
+<li>Response POST là HTML chứa bảng kết quả (<code>#ctl00_maincontent_GridView1</code>) — parse bằng Jsoup CSS selector, mỗi <code>&lt;tr&gt;</code> → 1 <code>PriceQuote</code> (tên mặt hàng, thị trường/tỉnh, ngày, giá).</li>
+</ol>
+</section><section aria-labelledby="heading-sec-3-2" class="section" id="sec-3-2"><h3 id="heading-sec-3-2"><span class="sec-num">§3.2</span> Operator manual fallback (<code>COFFEE</code>) <a aria-label="Sao chép liên kết tới §3.2" class="anchor" href="#sec-3-2">#</a></h3>
+<p><code>POST /api/v1/prices/manual</code> (role OPERATOR) chỉ nhận <code>commodity = COFFEE</code>, dùng khi nguồn VNSAT gián đoạn hoặc cần hiệu chỉnh có kiểm soát. Request bắt buộc tỉnh, ngày áp dụng, nguồn tham chiếu và lý do; ghi append-only vào <code>price_history</code> với <code>source = OPERATOR_MANUAL</code>, rồi update Redis sau commit. Không sửa/xoá bản giá cũ.</p>
+</section><section aria-labelledby="heading-sec-3-3" class="section" id="sec-3-3"><h3 id="heading-sec-3-3"><span class="sec-num">§3.3</span> Scheduled job <a aria-label="Sao chép liên kết tới §3.3" class="anchor" href="#sec-3-3">#</a></h3>
+<p><code>VnsatPriceIngestionJob</code> (<code>@Scheduled</code>, daily — cần <code>@EnableScheduling</code> bật ở config, không tự động có sẵn) chỉ ingest <code>COFFEE</code>.</p>
+<p><strong>Fail handling:</strong> exception (parse lỗi, mất mạng, site đổi layout, 500) → insert <code>price_ingestion_failure</code>, <strong>không throw tiếp</strong> — job phải sống sót, không kéo sập scheduler. Không xoá cache Redis cũ khi fail.</p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE price_ingestion_failure (
+    id              CHAR(36) PRIMARY KEY,
+    commodity       VARCHAR(20) NOT NULL,
+    failure_reason  TEXT NOT NULL,
+    detected_at     TIMESTAMP NOT NULL DEFAULT now()
+);
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Read API <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<p><code>GET /api/v1/prices/{commodity}/{province}?item={itemSlug}</code> — public, không cần auth (thông tin tham khảo, không phải business data nhạy cảm). <code>{commodity}</code> bắt buộc là <code>COFFEE</code>; <code>item</code> optional và được suy ra khi nguồn chỉ có một dòng cà phê phù hợp.</p>
+<p><code>GET /api/v1/prices/{commodity}/{province}/items</code> — liệt kê toàn bộ <code>itemName</code> có sẵn cho tỉnh đó, phục vụ autocomplete gợi ý bên <code>product-service</code> lúc seller nhập <code>varietyName</code> (không bắt buộc khớp, xem §5).</p>
+<p><strong>Cache-aside chuẩn:</strong> đọc Redis trước. Miss (key chưa từng có, hoặc Redis mất data do restart không persistence/evict) → query <code>price_history</code> (<code>ORDER BY capturedAt DESC LIMIT 1</code> theo <code>commodity + province</code>), trả về, đồng thời ghi lại Redis để lần sau hit. MySQL luôn là nguồn thật; Redis là bản sao nhanh tự vá lại được từ MySQL bất cứ lúc nào — không phải 2 nguồn ngang hàng.</p>
+<p>Ingest job ghi MySQL trong transaction, Redis ngay sau khi commit — không phải ghi Redis rồi để API tự đồng bộ lại từ MySQL.</p>
+<p><strong>Không denormalize giá vào Contract/Listing.</strong> Giữ đúng nguyên tắc "chỉ mang tính tham khảo" — tránh trở thành con số bị lợi dụng trong đàm phán (xem §1).</p>
+</section><section aria-labelledby="heading-sec-4-1" class="section" id="sec-4-1"><h3 id="heading-sec-4-1"><span class="sec-num">§4.1</span> Boundary với signed price band <a aria-label="Sao chép liên kết tới §4.1" class="anchor" href="#sec-4-1">#</a></h3>
+<p>Pricing-service <strong>advisory-only</strong>. UI có thể hiển thị <code>PriceQuote</code> khi hai bên nhập <code>agreedPrice</code>/<code>priceBand</code>, nhưng contract-service không gọi pricing-service trong create/sign/funding/settlement và không lưu <code>quoteId</code> như một điều kiện thực thi. Source stale, unavailable hoặc không match <code>varietyName</code> không được block contract.</p>
+<p>Milestone price adjustment trong band là workflow của contract-service: hai bên authenticated propose/accept một giá đã nằm trong biên ký trước. Pricing-service không propose tự động, không xác nhận giá, không publish funding command và không trở thành dependency của escrow. Đặc biệt, không có nhánh "lấy latest market price lúc funding" — hành vi đó sẽ biến advisory data thành index pricing ngoài signed rule.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Known Limitations / Out of Scope (có chủ đích) <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<ul class="limitations">
+<li><strong>Scraping <code>thitruongnongsan.gov.vn</code> chưa xin phép chính thức từ Bộ NN&amp;MT</strong> — chấp nhận được cho scope đồ án non-commercial. Nếu productize thật (bán cho VICOFA/VRA theo business model đã định), cần đàm phán data licensing hoặc xin cấp API trực tiếp.</li>
+<li><strong>HTML/ASP.NET postback dễ vỡ khi nguồn đổi layout hoặc field name</strong> — không có cơ chế tự phát hiện, chỉ dựa vào exception khi parse fail → <code>price_ingestion_failure</code>.</li>
+<li><strong>Không có cơ chế phát hiện chủ động "nguồn đã ngừng cập nhật hẳn"</strong> — vì dữ liệu lịch sử VNSAT cho thấy publish đều hàng tháng qua các năm, rủi ro nguồn chết hẳn thấp so với công sức thêm cơ chế theo dõi. Chỉ dựa vào ngưỡng <code>stale</code> tĩnh theo lag quan sát được.</li>
+<li><strong>Commodity ngoài cà phê là roadmap, không phải Phase 2.</strong> Nếu mở rộng sau này phải thiết kế lại nguồn, đơn vị, tỷ giá, độ tươi dữ liệu và quality schema; không được tái kích hoạt chỉ bằng cách mở enum.</li>
+<li><strong><code>stale-threshold-days</code> dựa trên 1 lần quan sát lag thực tế, không phải trung bình dài hạn</strong> — có thể cần điều chỉnh lại sau khi chạy thật vài tuần/tháng.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Status — Pricing-service Design <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> pricing-service Phase 2 chỉ nhận <code>COFFEE</code> tại Việt Nam, ingest giá tham khảo ngoài từ VNSAT và có manual fallback có lý do/audit. Bỏ hẳn internal aggregation vì data sparse và rủi ro bị lợi dụng làm giá giả. MySQL append-only là nguồn thật, Redis cache không TTL, <code>stale</code> tính động. Không denormalize giá vào Contract — giữ tính tham khảo thuần tuý.</p></div>
+<p>Pricing-service — <strong>đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong></p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>Sync OPERATOR, đổi <code>ADMIN_MANUAL</code> → <code>OPERATOR_MANUAL</code> với migration giữ giá/attribution để đúng role SRS v1.6.</p>
+</li><li><span class="changelog__date">07/10/2026</span><p>Khoá Việt Nam + <code>COFFEE</code>; gạo/cao su/điều thành roadmap vì mở commodity cần thiết kế lại nguồn, đơn vị, tỷ giá, freshness và quality schema.</p>
+</li><li><span class="changelog__date">23/07/2026</span><p>Chốt advisory-only với signed price band để quote không trở thành điều kiện thực thi hay index pricing ngoài signed rule.</p>
+</li><li><span class="changelog__date">05/07/2026</span><p>Chọn <code>thitruongnongsan.gov.vn</code> thay <code>giacaphe.com</code>; repo <code>nguyenthanh222/Agricultural-Price-Monitor</code> xác nhận scrape <code>nguonwmy.aspx</code> khả thi, không tái dùng code vì Python/MongoDB không khớp Spring/MySQL.</p>
+</li><li><span class="changelog__date">05/07/2026</span><p>POST chỉ <code>Ngành_hàng</code>, thiếu <code>tu_ngay</code>/<code>den_ngay</code> gây 500; cà phê/rau quả từng tránh code path lỗi nên chốt gửi đủ form WebForms.</p>
+</li><li><span class="changelog__date">05/07/2026</span><p>Bỏ <code>price_source_health</code>/<code>consecutive_stale_runs</code> vì VNSAT publish hàng tháng; <code>stale-threshold-days</code> lấy từ 1 lần quan sát lag cộng buffer, không phải trung bình dài hạn.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li><strong>Cache key và query.</strong> Key có <code>itemSlug</code>, nhưng query miss §4 chỉ ghi <code>commodity + province</code>; chưa chỉ rõ lọc mặt hàng khi tỉnh có nhiều quote.</li><li><strong>Số bước scrape.</strong> §3.1 ghi “2 bước” nhưng liệt kê 3 bước GET, POST, parse; giữ nguyên nguồn.</li></ul></aside><footer class="doc-footer"><a href="../pricing-service-phase2-design.md">pricing-service-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../pricing-service-phase2-design.md">Markdown · 144 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="product-phase2-design.html" title="product-phase2-design.md">product</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

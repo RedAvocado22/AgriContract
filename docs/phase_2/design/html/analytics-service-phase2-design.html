@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>analytics-service-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">analytics-service</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 18 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Domain Model — CQRS Read Models</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> Bảng Dimension (Tái tạo local state)</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> Sự đánh đổi: Real-time vs Pre-computed</a></li><li class="toc__sub"><a href="#sec-2-3"><span class="toc__number">§2.3</span> Idempotency Log (Ràng buộc bắt buộc cho Analytics)</a></li><li class="toc__sub"><a href="#sec-2-4"><span class="toc__number">§2.4</span> Bảng staging cho has_force_majeure (mới, 06/07/2026 — bug fix race condition)</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Ingest Pipeline</a></li><li class="toc__sub"><a href="#sec-3-1"><span class="toc__number">§3.1</span> Nhóm Event "Contract Signed" — populate Dimension</a></li><li class="toc__sub"><a href="#sec-3-2"><span class="toc__number">§3.2</span> Nhóm Event "Milestone Escrow"</a></li><li class="toc__sub"><a href="#sec-3-3"><span class="toc__number">§3.3</span> Nhóm Event "Contract Level — Settlement/Termination" (đổi tên 19/07/2026)</a></li><li class="toc__sub"><a href="#sec-3-4"><span class="toc__number">§3.4</span> Batch Job @Scheduled (Pre-compute)</a></li><li class="toc__sub"><a href="#sec-3-5"><span class="toc__number">§3.5</span> Batch Job AML — AmlPatternScanJob (mới, 10/07/2026 — đóng gap structuring chậm §9 reputation-service)</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> API Endpoints</a></li><li class="toc__sub"><a href="#sec-4-1"><span class="toc__number">§4.1</span> Báo cáo Termination theo Ngành hàng (SỬA 19/07/2026 — thay "Tỷ lệ phá hợp đồng" gộp)</a></li><li class="toc__sub"><a href="#sec-4-2"><span class="toc__number">§4.2</span> Hiệu quả Milestone Escrow (Escrow Effectiveness)</a></li><li class="toc__sub"><a href="#sec-4-3"><span class="toc__number">§4.3</span> Xu hướng Bất khả kháng (Force Majeure Trends)</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Known Limitations (Giới hạn có chủ đích)</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Status — Analytics-service Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>Analytics-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-19">19/10/2026</time></span><a href="../analytics-service-phase2-design.md">Mở Markdown · 319 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="reputation-service-phase2-design.html" title="reputation-service-phase2-design.md">reputation-service</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Event-driven projection + derived-signal producer: không trên critical path, không gọi sync ngược core service.</li><li>Write mới chỉ <code>COFFEE</code>; <code>commodity</code> đọc từ <code>Category.commodity</code> qua <code>contract.signed</code>.</li><li>Fact tables append-only + <code>agg_monthly_commodity_stats</code> tính lại bởi batch, không real-time.</li><li>Dedup theo <code>analytics_idempotency_log</code>.</li><li><code>fact_contract_termination</code> tách <code>termination_type</code> / <code>requested_by</code> / <code>final_breaching_role</code>; không lấy người bấm nút làm người vi phạm.</li><li><code>MonthlyAggregationJob</code> 1:00 AM: recompute nguyên các bucket tháng bị cửa sổ <code>[D-7, D-1]</code> chạm, SET ghi đè, không <code>+=</code>.</li><li><code>AmlPatternScanJob</code> riêng: band <code>[475tr, 500tr)</code>, ≥5 hợp đồng/cặp, lookback 90 ngày → <code>analytics.structuring_pattern_detected</code>.</li><li>Không backfill lịch sử; catch-up chỉ từ queue backlog sau outage ngắn.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p><strong>Scope override chốt 06/10/2026:</strong> projection cho write mới chỉ nhận hợp đồng nội địa Việt Nam có <code>commodity = COFFEE</code>. Cột <code>commodity</code> vẫn được giữ để đọc/rebuild dữ liệu legacy, nhưng API/dashboard Phase 2 không quảng bá <code>RICE</code>, <code>RUBBER</code>, <code>CASHEW</code> là scope đang hỗ trợ.</p>
+<p><strong>Analytics-service là event-driven projection kiêm derived-signal producer</strong> (đổi cách gọi 18/07/2026 — "pure consumer" cũ hết đúng từ khi <code>AmlPatternScanJob</code> publish <code>analytics.structuring_pattern_detected</code>; 2 bất biến THẬT của thiết kế: <strong>không nằm trên transaction critical path</strong> và <strong>không gọi đồng bộ (REST/Feign) ngược về core service</strong>). Nó không sở hữu bất kỳ quy trình nghiệp vụ lõi nào. Mọi dữ liệu nó có đều phải đến từ việc "nghe" RabbitMQ events. Lý do thiết kế cứng này: analytics là non-critical path. Dù <code>analytics-service</code> có sập hay bị quá tải vì query báo cáo nặng, nó tuyệt đối không được tạo tải ngược (cascading failure) lên <code>contract-service</code> hay <code>bank-service</code> đang xử lý giao dịch.</p>
+<p><strong>Mục tiêu (B2B Agritech context):</strong> Cung cấp các chỉ số đo lường sức khoẻ nền tảng có ý nghĩa thật cho Hiệp hội (VICOFA/VRA) và Admin nền tảng, để ra quyết định vĩ mô. Không vẽ dashboard vô thưởng vô phạt. Cụ thể:</p>
+<ul>
+<li><strong>Tỷ lệ phá hợp đồng (Cancellation/Default Rate):</strong> Đo lường lòng tin vào hợp đồng forward.</li>
+<li><strong>Hiệu quả Milestone Escrow (Escrow Effectiveness):</strong> Giải quyết câu hỏi "Mô hình chia nhỏ batch có thực sự giúp giảm tỷ lệ vốn bị giam (locked) vô ích so với thực nhận (actual) không?".</li>
+<li><strong>Xu hướng Bất khả kháng (Force Majeure Trends):</strong> Đo lường rủi ro đứt gãy chuỗi cung ứng do thiên tai theo mùa vụ/ngành hàng.</li>
+</ul>
+<p><strong>Ràng buộc đồ án (5 tháng/5 người):</strong> Giữ stack ở mức MySQL (lưu trữ read model) + Redis (cache API response) + RabbitMQ (ingest) + Spring <code>@Scheduled</code> (batch pre-compute). <strong>Đã loại hẳn</strong> ClickHouse, Elasticsearch, Kafka hay Spark — over-engineer so với lượng data của một nền tảng B2B forward contract (vốn có tần suất giao dịch thấp nhưng giá trị cao).</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Domain Model — CQRS Read Models <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<p>Thiết kế DB tuân theo mô hình <strong>Star Schema thu nhỏ</strong>, tách biệt bảng Dimension (thông tĩnh) và Fact/Aggregate (số liệu).</p>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> Bảng Dimension (Tái tạo local state) <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<p>Bởi vì không được gọi Feign ngược, analytics phải tự build một bản sao thu gọn của thông tin hợp đồng để dùng làm các "chiều" (dimensions) phân tích (như <code>commodity</code>, <code>buyerId</code>, <code>sellerId</code>).</p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE dim_contract (
+    contract_id    CHAR(36) PRIMARY KEY,
+    commodity      VARCHAR(50) NOT NULL,
+    buyer_id       CHAR(36) NOT NULL,
+    seller_id      CHAR(36) NOT NULL,
+    total_amount   DECIMAL(18,2) NOT NULL,
+    signed_at      TIMESTAMP NOT NULL
+);</code></pre></figure>
+<p><strong>Đã giải quyết (06/07/2026, rà soát lại):</strong> điểm treo trước đây về nguồn <code>commodity</code> được chốt bằng cách thêm event mới <code>contract.signed</code> vào Event Catalog cấp Contract (<code>milestone-escrow-phase2-design.md</code> §7.2), publish đúng 1 lần lúc <code>Contract.transitionTo(SIGNED)</code>, payload <code>{contractId, commodity, buyerId, sellerId, totalAmount, signedAt}</code>. <code>dim_contract</code> được <code>INSERT</code> (upsert theo <code>contract_id</code>) ngay khi nhận event này — chi tiết ingest ở §3.1 bên dưới. <strong>Cập nhật:</strong> write mới luôn mang <code>COFFEE</code>; enum legacy có thể còn xuất hiện khi rebuild lịch sử nhưng không mở lại write scope. Cơ chế <code>commodity</code> đến từ đâu (<code>Category.commodity</code>, admin gán lúc <code>approve()</code>, bỏ bảng mapping) chốt ở <code>product-phase2-design.md</code> §9 (owner) — không mô tả lại ở đây.</p>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> Sự đánh đổi: Real-time vs Pre-computed <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<p><strong>Vấn đề cốt lõi:</strong> Nếu mọi API dashboard đều gộp data bằng lệnh <code>SELECT SUM(...) GROUP BY DATE(...)</code> từ hàng trăm nghìn event thô, DB sẽ nghẽn lúc hiệp hội vào xem báo cáo cuối tháng. Nếu tính sẵn mọi thứ, thì code ingest cực kỳ phức tạp vì phải lo race condition khi nhiều event update cùng 1 bucket.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — Hybrid Approach (Kết hợp 2 chiến lược):</strong></p></div>
+<ol>
+<li><strong>Fact Tables (Lưu Raw Events - Ghi cực nhanh, không khoá bảng):</strong>
+Dùng để lưu sự thật gốc rễ, incremental append-only.</li>
+</ol>
+<figure class="code" data-lang="sql"><pre><code>   -- Bảng Fact cho Milestone
+   CREATE TABLE fact_milestone_performance (
+       fact_id                 CHAR(36) PRIMARY KEY,
+       contract_id             CHAR(36) NOT NULL,
+       milestone_id            CHAR(36) NOT NULL,
+       status                  VARCHAR(20) NOT NULL, -- SETTLED / CANCELLED_WITH_PENALTY
+       locked_amount           DECIMAL(18,2) NOT NULL,
+       actual_amount           DECIMAL(18,2) NOT NULL,
+       delta_shortfall_amount  DECIMAL(18,2) NOT NULL, -- = locked - actual
+       has_force_majeure       BOOLEAN NOT NULL DEFAULT FALSE,
+       resolved_at             TIMESTAMP NOT NULL
+   );
+   CREATE INDEX idx_fact_milestone_time ON fact_milestone_performance(resolved_at);
+
+   -- Bảng Fact cho Contract Termination (SỬA 19/07/2026 — thay fact_contract_cancellation:
+   -- đo "người bấm nút" (initiated_by) là đo NHẦM "người default" — người yêu cầu chấm dứt
+   -- không đồng nghĩa người vi phạm (milestone-escrow §6.0). Tách 3 khái niệm để metric
+   -- default-rate/cancellation-rate không vu oan bên yếu):
+   CREATE TABLE fact_contract_termination (
+       fact_id                 CHAR(36) PRIMARY KEY,
+       contract_id             CHAR(36) NOT NULL,
+       termination_type        VARCHAR(35) NOT NULL, -- MUTUAL_TERMINATION | MUTUAL_REPLACEMENT |
+                                                      -- TERMINATION_FOR_BREACH | TERMINATION_FOR_FORCE_MAJEURE |
+                                                      -- ACTIVATION_FAILURE
+       requested_by            VARCHAR(10) NOT NULL, -- BUYER / SELLER / SYSTEM — ai bấm nút
+       final_breaching_role    VARCHAR(10) NULL,     -- BUYER / SELLER / NULL — ai LỖI theo attribution
+       breach_reason_code      VARCHAR(30) NULL,     -- taxonomy milestone-escrow §6.4.1
+       terminated_at           TIMESTAMP NOT NULL
+   );
+   CREATE INDEX idx_fact_termination_time ON fact_contract_termination(terminated_at);
+
+   -- Bảng Fact cho Contract Settlement (mới, 06/07/2026 — bug fix)
+   -- Lý do bắt buộc phải có bảng riêng: fact_milestone_performance là granularity
+   -- MILESTONE, không phải CONTRACT. Một hợp đồng có N milestone, đếm distinct
+   -- contract_id từ bảng đó ra "hợp đồng đã hoàn tất" sẽ sai bất cứ khi nào có hợp
+   -- đồng đang dở dang (milestone 1,2 đã SETTLED nhưng 3,4,5 còn ACTIVE). Cần nguồn
+   -- sự thật riêng ở đúng cấp Contract, lấy thẳng từ event `contract.settled`
+   -- (chỉ bắn đúng 1 lần khi TOÀN BỘ milestone đã SETTLED — milestone-escrow §2.2/§7.2).
+   CREATE TABLE fact_contract_settlement (
+       fact_id                 CHAR(36) PRIMARY KEY,
+       contract_id             CHAR(36) NOT NULL,
+       settled_at              TIMESTAMP NOT NULL
+   );
+   CREATE INDEX idx_fact_contract_settlement_time ON fact_contract_settlement(settled_at);
+</code></pre></figure>
+<ol start="2">
+<li><strong>Pre-computed Aggregate Tables (Tính toán sẵn - Đọc cực nhanh):</strong>
+Dùng cho các metrics phức tạp (tỷ lệ %, chia trung bình). Không cập nhật real-time. Do một job Spring <code>@Scheduled</code> chạy batch hàng đêm (VD: 1:00 AM) quét từ bảng Fact để điền vào. Time bucket chia theo <strong>Tháng</strong> (phù hợp với chu kỳ báo cáo nông sản).</li>
+</ol>
+<figure class="code" data-lang="sql"><pre><code>   CREATE TABLE agg_monthly_commodity_stats (
+       month_id                VARCHAR(7) NOT NULL,  -- Format 'YYYY-MM'
+       commodity               VARCHAR(50) NOT NULL,
+       total_contracts_settled INT NOT NULL DEFAULT 0,
+       -- SỬA 19/07/2026: tách "cancelled" gộp thành 4 cột — mutual không phải default,
+       -- gộp chung làm cancellation_rate cao giả tạo và không nói được AI vi phạm:
+       total_mutual_exits      INT NOT NULL DEFAULT 0,  -- MUTUAL_TERMINATION + MUTUAL_REPLACEMENT
+       total_seller_breaches   INT NOT NULL DEFAULT 0,  -- final_breaching_role = SELLER
+       total_buyer_breaches    INT NOT NULL DEFAULT 0,  -- final_breaching_role = BUYER
+       total_no_fault_exits    INT NOT NULL DEFAULT 0,  -- FM + ACTIVATION_FAILURE
+       seller_breach_rate      DECIMAL(5,4) NOT NULL DEFAULT 0,
+       buyer_breach_rate       DECIMAL(5,4) NOT NULL DEFAULT 0,
+       force_majeure_incidents INT NOT NULL DEFAULT 0,
+       total_value_settled     DECIMAL(18,2) NOT NULL DEFAULT 0,
+       escrow_efficiency_rate  DECIMAL(5,4) NOT NULL DEFAULT 0, -- (actual_amount / locked_amount) toàn tháng
+       PRIMARY KEY (month_id, commodity)
+   );
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-2-3" class="section" id="sec-2-3"><h3 id="heading-sec-2-3"><span class="sec-num">§2.3</span> Idempotency Log (Ràng buộc bắt buộc cho Analytics) <a aria-label="Sao chép liên kết tới §2.3" class="anchor" href="#sec-2-3">#</a></h3>
+<p>RabbitMQ đảm bảo at-least-once delivery. Nếu 1 event <code>milestone.settled</code> bị kẹt và gửi lại 2 lần, số tiền trong hệ thống báo cáo sẽ bị nhân đôi. Analytics nhạy cảm với vụ này không kém gì bank-service.</p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE analytics_idempotency_log (
+    message_id      VARCHAR(255) PRIMARY KEY, -- ID của RabbitMQ message
+    processed_at    TIMESTAMP NOT NULL DEFAULT now()
+);</code></pre></figure>
+</section><section aria-labelledby="heading-sec-2-4" class="section" id="sec-2-4"><h3 id="heading-sec-2-4"><span class="sec-num">§2.4</span> Bảng staging cho <code>has_force_majeure</code> (mới, 06/07/2026 — bug fix race condition) <a aria-label="Sao chép liên kết tới §2.4" class="anchor" href="#sec-2-4">#</a></h3>
+<p><strong>Vấn đề:</strong> <code>milestone.force_majeure_resolved</code> (dispute) luôn xảy ra <strong>trước</strong> khi milestone đạt trạng thái cuối (<code>SETTLED</code>/<code>CANCELLED_WITH_PENALTY</code>) — nhưng <code>fact_milestone_performance</code> chỉ được <code>INSERT</code> khi nhận đúng 2 event cuối đó (§3.2). Nếu ingest pipeline chỉ biết <code>UPDATE ... SET has_force_majeure = TRUE WHERE milestone_id = X</code>, row đó chưa tồn tại lúc <code>resolved</code> tới → <code>UPDATE</code> chạy vào khoảng không, 0 row bị ảnh hưởng, cờ vĩnh viễn <code>FALSE</code>.</p>
+<p><strong>Giải pháp — staging table, merge lúc INSERT:</strong></p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE pending_force_majeure_flag (
+    milestone_id    CHAR(36) PRIMARY KEY,
+    flagged_at      TIMESTAMP NOT NULL
+);</code></pre></figure>
+<p>Cơ chế 2 chiều (an toàn bất kể thứ tự event tới, dù thứ tự thực tế luôn là resolved-trước):</p>
+<ol>
+<li>Nhận <code>force_majeure_resolved</code> (APPROVED) → thử <code>UPDATE fact_milestone_performance SET has_force_majeure = TRUE WHERE milestone_id = X</code>. Nếu <code>rows affected = 0</code> (row chưa tồn tại — trường hợp thường gặp) → <code>INSERT</code> vào <code>pending_force_majeure_flag</code>.</li>
+<li>Lúc <code>INSERT</code> vào <code>fact_milestone_performance</code> (từ <code>settled</code>/<code>cancelled_with_penalty</code>, §3.2) → <code>SELECT</code> trước từ <code>pending_force_majeure_flag</code> theo <code>milestone_id</code>; nếu có → set <code>has_force_majeure = TRUE</code> ngay trong câu <code>INSERT</code>, rồi <code>DELETE</code> row staging đó.</li>
+</ol>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Ingest Pipeline <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<p>Mỗi khi nhận event từ RabbitMQ, pipeline xử lý phải đi qua bước check <code>analytics_idempotency_log</code>. Nếu đã xử lý → skip ngay lập tức.</p>
+</section><section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1"><h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> Nhóm Event "Contract Signed" — populate Dimension <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
+<p><em>(Nguồn: milestone-escrow-phase2-design.md §7.2 — event mới, thêm cùng lúc review này)</em></p>
+<ul>
+<li><strong>Nhận <code>contract.signed</code> (mang <code>commodity</code>, <code>buyerId</code>, <code>sellerId</code>, <code>totalAmount</code>, <code>signedAt</code>):</strong>
+<ul>
+<li><em>Hành động:</em> <code>UPSERT</code> vào <code>dim_contract</code> theo <code>contract_id</code>. Phải xử lý event này <strong>trước</strong> các event milestone/settlement của cùng <code>contractId</code> về mặt logic (không bắt buộc về thứ tự nhận trên RabbitMQ, nhưng batch job §3.4 JOIN <code>dim_contract</code> nên nếu dimension chưa kịp có, dòng đó tạm thời thiếu <code>commodity</code> ở lần chạy batch gần nhất — tự vá lại ở lần chạy kế tiếp, không mất dữ liệu, chỉ trễ 1 chu kỳ).</li>
+</ul>
+</li>
+</ul>
+</section><section aria-labelledby="heading-sec-3-2" class="section" id="sec-3-2"><h3 id="heading-sec-3-2"><span class="sec-num">§3.2</span> Nhóm Event "Milestone Escrow" <a aria-label="Sao chép liên kết tới §3.2" class="anchor" href="#sec-3-2">#</a></h3>
+<p><em>(Nguồn: milestone-escrow-phase2-design.md §7.1)</em></p>
+<ul>
+<li><strong>Nhận <code>milestone.settled</code> (mang <code>lockedAmount</code>, <code>actualAmount</code>):</strong>
+<ul>
+<li><em>Hành động:</em> Trước khi <code>INSERT</code>, <code>SELECT</code> từ <code>pending_force_majeure_flag</code> (§2.4) theo <code>milestone_id</code>. <code>INSERT</code> vào <code>fact_milestone_performance</code>, tính <code>delta_shortfall_amount = lockedAmount - actualAmount</code>, set <code>has_force_majeure = TRUE</code> nếu tìm thấy row staging tương ứng, rồi <code>DELETE</code> row staging đó.</li>
+<li><em>Chiến lược:</em> Ghi incremental, không group ngay. Nhanh và triệt tiêu table lock contention.</li>
+</ul>
+</li>
+<li><strong>Nhận <code>milestone.force_majeure_resolved</code> (chỉ ghi nhận khi APPROVED):</strong>
+<ul>
+<li><em>Hành động (sửa 06/07/2026 — bug race condition):</em> Event này luôn tới <strong>trước</strong> khi milestone đạt trạng thái cuối, nên <code>fact_milestone_performance</code> gần như chắc chắn <strong>chưa có row</strong> để <code>UPDATE</code>. Thử <code>UPDATE fact_milestone_performance SET has_force_majeure = TRUE WHERE milestone_id = X</code> trước; nếu <code>rows affected = 0</code> → <code>INSERT</code> vào <code>pending_force_majeure_flag</code> (§2.4) để chờ merge lúc <code>INSERT</code> fact row thật (2 bước trên/dưới mục này).</li>
+</ul>
+</li>
+<li><strong>Nhận <code>milestone.cancelled_with_penalty</code> (lưu ý 19/07/2026 — event này giờ CHỈ bắn sau attribution, milestone-escrow §7.1/§6.4; tần suất sẽ thấp hơn thiết kế cũ vì Delta 1 không còn tự bắn):</strong>
+<ul>
+<li><em>Hành động:</em> Cùng logic merge staging như <code>milestone.settled</code> ở trên. <code>INSERT</code> vào <code>fact_milestone_performance</code> với <code>status = CANCELLED_WITH_PENALTY</code> (khớp DDL <code>fact_milestone_performance</code> và tên event; chốt 19/10/2026), <code>actual_amount = 0</code>, kiểm tra + merge <code>pending_force_majeure_flag</code> trước khi insert.</li>
+</ul>
+</li>
+</ul>
+</section><section aria-labelledby="heading-sec-3-3" class="section" id="sec-3-3"><h3 id="heading-sec-3-3"><span class="sec-num">§3.3</span> Nhóm Event "Contract Level — Settlement/Termination" (đổi tên 19/07/2026) <a aria-label="Sao chép liên kết tới §3.3" class="anchor" href="#sec-3-3">#</a></h3>
+<p><em>(Nguồn: milestone-escrow-phase2-design.md §7.2)</em></p>
+<ul>
+<li><strong>Nhận <code>contract.settled</code> (mới, 06/07/2026 — bug fix, trước đây không consume event này):</strong>
+<ul>
+<li><em>Hành động:</em> <code>INSERT</code> vào <code>fact_contract_settlement</code>. Đây là nguồn <strong>duy nhất</strong> đúng để đếm "hợp đồng đã hoàn tất" ở granularity Contract — không được suy ra từ <code>fact_milestone_performance</code> (đó là granularity Milestone, xem lý do tại §2.2).</li>
+</ul>
+</li>
+<li><strong>Nhận <code>contract.terminated</code> (SỬA 19/07/2026 — thay <code>contract.cancelled</code>; payload mang <code>terminationType</code>/<code>requestedBy</code>/<code>finalBreachingRole</code>/<code>breachReasonCode?</code>):</strong>
+<ul>
+<li><em>Hành động:</em> <code>INSERT</code> vào <code>fact_contract_termination</code> với đủ 3 khái niệm tách bạch. <strong>Không map <code>requestedBy</code> vào cột "người vi phạm"</strong> — đó chính là bug đo nhầm đã sửa.</li>
+</ul>
+</li>
+<li><em>(Sửa 19/07 lần 2 — BỎ consumer <code>remedy.finalized</code>: <code>contract.terminated</code> giờ mang thẳng <code>breachReasonCode</code>/<code>remedyDecisionId</code> trong payload nên analytics đọc một event là đủ; bớt một consumer, bớt một đường eventual-consistency phải test.)</em></li>
+</ul>
+</section><section aria-labelledby="heading-sec-3-4" class="section" id="sec-3-4"><h3 id="heading-sec-3-4"><span class="sec-num">§3.4</span> Batch Job <code>@Scheduled</code> (Pre-compute) <a aria-label="Sao chép liên kết tới §3.4" class="anchor" href="#sec-3-4">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> Job <code>MonthlyAggregationJob</code> chạy lúc <strong>1:00 AM mỗi ngày</strong> (off-peak, trước giờ <code>VerifyChainJob</code> của audit-service 2:00 AM để tránh dẫm chân tài nguyên DB nội bộ nếu triển khai chung node).</p></div>
+<ul>
+<li><em>Cách chạy :</em> bucket của <code>agg_monthly_commodity_stats</code> là <strong>THÁNG</strong> (<code>PRIMARY KEY (month_id, commodity)</code>) — không có bucket ngày để "recompute D-7..D-1". Job mỗi ngày: xác định cửa sổ trễ 7 ngày <code>[D-7, D-1]</code>, rồi <strong>recompute NGUYÊN từng bucket tháng bị cửa sổ đó chạm</strong> (thường là tháng hiện tại; những ngày đầu tháng thì thêm cả tháng trước) — quét <strong>toàn bộ facts của tháng đó</strong> (không chỉ facts trong cửa sổ) từ <code>fact_contract_settlement</code> + <code>fact_contract_termination</code> (JOIN <code>dim_contract</code> lấy <code>commodity</code>) và <code>fact_milestone_performance</code>, tính lại đủ mọi cột, rồi <strong>SET ghi đè bucket, KHÔNG <code>+=</code></strong>. Lý do bỏ cách cũ: (a) event tới muộn sau khi job đã chạy → job quét-hôm-qua không bao giờ quay lại — "lần chạy kế tiếp tự vá" là lời hứa sai; (b) rerun kiểu increment-upsert → cộng hai lần. Recompute-cả-tháng + SET là idempotent tự nhiên: rerun bao nhiêu lần cũng ra cùng số, event trễ ≤7 ngày tự được vá ở lần chạy kế. Chi phí quét cả tháng chấp nhận được — nền B2B forward tần suất giao dịch thấp (§1). Event trễ &gt;7 ngày: chấp nhận sai số (read model, không phải evidence ledger); cần thì trigger recompute tay theo <code>month_id</code>. Phân loại termination vào 4 cột theo <code>termination_type</code> + <code>final_breaching_role</code> (§2.2).</li>
+<li><em>Tính Rate (SỬA 19/07/2026 — tách rate theo attribution, không còn 1 cancellation_rate gộp):</em> <code>seller_breach_rate = total_seller_breaches / (total_contracts_settled + total_seller_breaches + total_buyer_breaches)</code>; <code>buyer_breach_rate</code> mirror. <strong>Mutual exits và no-fault KHÔNG vào mẫu số breach rate như "vi phạm"</strong> — gộp chung sẽ thổi phồng "tỷ lệ phá hợp đồng" bằng cả những cặp chia tay thiện chí, đo sai đúng cái metric mà hiệp hội dựa vào để đánh giá lòng tin thị trường.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-3-5" class="section" id="sec-3-5"><h3 id="heading-sec-3-5"><span class="sec-num">§3.5</span> Batch Job AML — <code>AmlPatternScanJob</code> (mới, 10/07/2026 — đóng gap structuring chậm §9 reputation-service) <a aria-label="Sao chép liên kết tới §3.5" class="anchor" href="#sec-3-5">#</a></h3>
+<p><strong>Bối cảnh — vì sao phải là batch, không dồn vào tầng realtime:</strong> <code>reputation-service</code> §8 đã có 2 tầng phát hiện chạy realtime — nhóm tín hiệu tương đối (cửa sổ ngắn, bắt structuring dồn trong vài ngày) + nhóm tuyệt đối (ngưỡng 500 triệu, bắt one-shot lớn). Cả 2 đều <strong>không thể</strong> bắt kịch bản rải mỏng: kẻ gian đẩy đều đặn nhiều hợp đồng ~490 triệu (dưới ngưỡng tuyệt đối) giãn cách nhiều tuần/tháng (ngoài cửa sổ tương đối). Mỗi hợp đồng đứng riêng đều vô hại — chỉ khi nhìn xuyên nhiều tháng mới thấy <em>hình dạng</em> structuring. Đây đúng là việc của batch phân tích hành vi cộng dồn trên data warehouse (<code>reputation-service</code> §9 đã ghi nhận đây là gap còn hở, không đóng được bằng công cụ pattern realtime).</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> job <code>AmlPatternScanJob</code> chạy <code>@Scheduled</code> <strong>riêng biệt</strong>, KHÔNG gộp vào <code>MonthlyAggregationJob</code> — 2 job khác mục đích hoàn toàn (<code>MonthlyAggregationJob</code> = báo cáo thương mại vĩ mô cho dashboard hiệp hội; <code>AmlPatternScanJob</code> = phát hiện gian lận). Trộn chung làm 1 job vi phạm single-responsibility, và lịch chạy/tần suất/xử lý lỗi khác nhau.</p></div>
+<p><strong>Nguồn dữ liệu — JOIN, không thêm cột:</strong> <code>dim_contract</code> đã có sẵn <code>buyer_id</code>, <code>seller_id</code>, <code>total_amount</code>; <code>fact_contract_settlement</code> có <code>contract_id</code> + <code>settled_at</code>. Job JOIN 2 bảng theo <code>contract_id</code>, KHÔNG cần thêm <code>total_amount</code> vào bảng fact (tránh phải sửa payload event <code>contract.settled</code> — cascade không cần thiết).</p>
+<figure class="code" data-lang="sql"><pre><code>-- Quét cụm near-threshold theo cặp buyer-seller, cửa sổ 90 ngày.
+SELECT dc.buyer_id, dc.seller_id,
+       COUNT(*) AS near_threshold_count,
+       JSON_ARRAYAGG(fcs.contract_id) AS contract_ids  -- MySQL 8 (sửa dialect 18/07/2026, ARRAY_AGG là Postgres)
+FROM   fact_contract_settlement fcs
+JOIN   dim_contract dc ON dc.contract_id = fcs.contract_id
+WHERE  fcs.settled_at &gt;= DATE_SUB(NOW(), INTERVAL 90 DAY)  -- MySQL 8 (sửa dialect 18/07/2026)
+  AND  dc.total_amount &gt;= 475000000      -- [95%, 100%) của ngưỡng 500 triệu
+  AND  dc.total_amount &lt;  500000000
+GROUP BY dc.buyer_id, dc.seller_id
+HAVING COUNT(*) &gt;= 5;                     -- min 5 hợp đồng near-threshold cùng cặp</code></pre></figure>
+<p><strong>3 tham số (số cứng, không placeholder — dẫn từ ngưỡng luật định 500 triệu, đã public):</strong></p>
+<ul>
+<li><strong>Band near-threshold: <code>[475 triệu, 500 triệu)</code></strong> = <code>[95%, 100%)</code> của ngưỡng. Bám sát mép báo cáo. <em>Band một mình KHÔNG phải tín hiệu</em> — tín hiệu thật là <strong>clustering low-variance</strong>: nhiều hợp đồng dồn trong dải hẹp sát mép. Cặp làm ăn thật deal to-nhỏ lẫn lộn (ví dụ Doc02: 13,5-135 tỷ), không cluster quanh đúng 490 triệu.</li>
+<li><strong>Min count: 5 hợp đồng</strong> near-threshold cùng cặp trong window. Dưới 5 là bằng chứng yếu → false-positive cặp mua lặp hợp pháp.</li>
+<li><strong>Lookback: 90 ngày.</strong> Phải dài hơn hẳn cửa sổ realtime (48-72h) vì bắt slow-drip. Neo ~1 chu kỳ vụ; dài hơn thì vắt qua nhiều mùa không liên quan (nhiễu), ngắn hơn thì lọt kẻ rải mỏng.</li>
+</ul>
+<p><strong>Output — publish event, KHÔNG tự quyết định gì:</strong> bắt cụm → <code>analytics-service</code> publish <code>analytics.structuring_pattern_detected</code>. <code>analytics-service</code> là <strong>event-driven projection kiêm derived-signal producer</strong> (sửa cách gọi 18/07/2026 — "pure consumer" cũ không còn chính xác vì job này publish event; điểm bất biến thật là: không nằm trên transaction critical path, không gọi sync ngược core service), <strong>không</strong> tự hold giao dịch, <strong>không</strong> tự flag reputation, <strong>không</strong> tự báo cáo cơ quan — chỉ phát hiện và phát tín hiệu. Ai xử lý là việc của consumer.</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Event</th>
+<th scope="col">Payload</th>
+<th scope="col">Consumers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>analytics.structuring_pattern_detected</code></td>
+<td class="identifier"><code>{buyerId, sellerId, contractIds[], nearThresholdCount, windowStart, windowEnd, detectedAt}</code></td>
+<td><strong><code>reputation-service</code></strong> (set cặp <code>ELEVATED_RISK</code> — <code>reputation-service-phase2-design.md</code> §8) · <strong><code>bank-service</code></strong> (báo cáo giao dịch khả nghi cho cơ quan — nghĩa vụ Luật PCRT 2022, đúng chủ thể pháp lý giữ tiền; consumer đã có trong <code>bank-service-phase2-design.md</code> §3.4b (cập nhật 18/07/2026 — bỏ trạng thái "cần thêm"))</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Giới hạn cấu trúc (ghi rõ, không cố lấp):</strong> batch chỉ thấy hình sau khi các mảnh <strong>đã settle</strong> — vài hợp đồng đầu (trước khi đủ cụm ≥5) chắc chắn lọt, tiền đã đi. Không thiết kế nào bắt được mảnh đầu của một pattern chưa thành hình. Batch <strong>không</strong> cứu one-shot nhỏ lẻ (1 hợp đồng dưới ngưỡng rồi biến — không đủ cụm). Nó chỉ đóng đúng phần slow-drip <em>có lặp lại</em> — xem <code>reputation-service-phase2-design.md</code> §9 để biết residual còn lại.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> API Endpoints <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<p>Các API này phục vụ Dashboard của Admin/Hiệp hội, nên được Redis cache với TTL 1 giờ (dữ liệu phân tích vĩ mô không cần fresh tới từng giây).</p>
+</section><section aria-labelledby="heading-sec-4-1" class="section" id="sec-4-1"><h3 id="heading-sec-4-1"><span class="sec-num">§4.1</span> Báo cáo Termination theo Ngành hàng (SỬA 19/07/2026 — thay "Tỷ lệ phá hợp đồng" gộp) <a aria-label="Sao chép liên kết tới §4.1" class="anchor" href="#sec-4-1">#</a></h3>
+<p>Đo lường lòng tin vào hợp đồng forward — nhưng đo đúng: breach rate tách theo bên vi phạm (attribution), mutual/no-fault báo riêng, không gộp thành một "tỷ lệ phá hợp đồng" vu cả những cặp chia tay thiện chí.</p>
+<ul>
+<li><code>GET /api/v1/analytics/terminations?year={YYYY}</code></li>
+<li><strong>Response Shape:</strong></li>
+</ul>
+<figure class="code" data-lang="json"><pre><code>    {
+      "year": "2026",
+      "data": [
+        {
+          "commodity": "COFFEE",
+          "totalSettled": 120,
+          "sellerBreaches": 9,
+          "buyerBreaches": 4,
+          "mutualExits": 6,
+          "noFaultExits": 2,
+          "sellerBreachRate": 0.0677,
+          "buyerBreachRate": 0.0301
+        }
+      ]
+    }
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-4-2" class="section" id="sec-4-2"><h3 id="heading-sec-4-2"><span class="sec-num">§4.2</span> Hiệu quả Milestone Escrow (Escrow Effectiveness) <a aria-label="Sao chép liên kết tới §4.2" class="anchor" href="#sec-4-2">#</a></h3>
+<p>Chứng minh giá trị thật của cơ chế Milestone Phase 2 so với Two-phase lock Phase 1. Trả lời câu hỏi: "Tiền bị khoá (locked_amount) có thực sự bám sát thực nhận (actual_amount) không, hay đang khoá dư thừa?".</p>
+<ul>
+<li><code>GET /api/v1/analytics/escrow-effectiveness?month={YYYY-MM}</code></li>
+<li><strong>Response Shape:</strong></li>
+</ul>
+<figure class="code" data-lang="json"><pre><code>    {
+      "month": "2026-10",
+      "metrics": {
+        "totalLockedVolume": 5000000000,
+        "totalActualDisbursed": 4850000000,
+        "totalShortfallDelta": 150000000,
+        "escrowEfficiencyRate": 0.97,
+        "forceMajeureImpact": 50000000
+      }
+    }
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-4-3" class="section" id="sec-4-3"><h3 id="heading-sec-4-3"><span class="sec-num">§4.3</span> Xu hướng Bất khả kháng (Force Majeure Trends) <a aria-label="Sao chép liên kết tới §4.3" class="anchor" href="#sec-4-3">#</a></h3>
+<p>Rất quan trọng với VICOFA/VRA để báo cáo tình hình chuỗi cung ứng với Bộ NN&amp;PTNT.</p>
+<ul>
+<li><code>GET /api/v1/analytics/force-majeure-trends?year={YYYY}</code></li>
+<li><strong>Response Shape:</strong></li>
+</ul>
+<figure class="code" data-lang="json"><pre><code>    {
+      "year": "2026",
+      "totalIncidents": 24,
+      "byCommodity": {
+        "COFFEE": 24
+      },
+      "peakMonths": ["2026-09", "2026-10"] // Các tháng có bão lũ
+    }
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Known Limitations (Giới hạn có chủ đích) <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<p>Những điều này phải báo cáo thẳng thắn với hội đồng bảo vệ, đây là sự đánh đổi kinh điển của kiến trúc Event-Driven/CQRS, không phải bug:</p>
+<ol>
+<li><strong>Eventual Consistency &amp; Data Lag (Độ trễ dữ liệu):</strong> Dữ liệu trên Dashboard sẽ không khớp tới từng VNĐ ngay thời điểm hiện tại so với <code>bank-service</code> hay <code>contract-service</code>. Có hai lớp lag:
+<ul>
+<li><em>Lag hệ thống:</em> Độ trễ của RabbitMQ (thường là mili-giây, nhưng có thể lâu hơn nếu queue kẹt).</li>
+<li><em>Lag nghiệp vụ:</em> Bảng <code>agg_monthly_commodity_stats</code> chỉ được cập nhật qua batch job 1:00 AM. Những thay đổi trong ngày hôm nay sẽ không phản ánh vào các biểu đồ chia rate (%) cho tới ngày mai.</li>
+</ul>
+</li>
+<li><strong>Không có Historical Backfill (Dữ liệu quá khứ trống không):</strong> Vì service này không có API gọi ngược (event-driven projection), nếu deploy <code>analytics-service</code> vào giữa Phase 2 (tháng thứ 3 chẳng hạn), nó sẽ chỉ bắt đầu ghi nhận data từ ngày deploy. Các hợp đồng đã SETTLED ở tháng 1, tháng 2 sẽ không tồn tại trên dashboard trừ khi ta viết script thủ công tái phát (replay) event từ <code>audit-service</code> đẩy vào lại RabbitMQ. Đây là cái giá thật của event-driven architecture.</li>
+<li><strong>Không bắt được thay đổi cấu trúc bảng cũ:</strong> Nếu <code>milestone-escrow</code> quyết định sửa lịch sử giao dịch (data fix tay bằng SQL từ phía Admin), event RabbitMQ không được sinh ra, dẫn đến <code>analytics-service</code> sẽ vĩnh viễn bị lệch số so với DB gốc.</li>
+</ol>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Status — Analytics-service Design <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>analytics-service</code> là event-driven projection/CQRS read-model kiêm derived-signal producer (không critical path, không sync ngược core), không phụ thuộc đồng bộ vào service nào. Áp dụng mô hình Star Schema thu nhỏ: <code>fact</code> tables (lưu event thô incremental, giải quyết nghẽn ghi) + <code>agg</code> tables (pre-computed định kỳ 1:00 AM bằng <code>@Scheduled</code>, giải quyết nghẽn đọc/tính toán %). Bắt buộc có bảng Log Idempotency theo <code>message_id</code> để tránh at-least-once làm lặp số. Metric tập trung hoàn toàn vào B2B value (termination theo attribution — sửa 19/07/2026, force majeure, escrow effectiveness). Chấp nhận độ trễ (data lag) và trống data quá khứ lúc mới deploy làm tradeoff.</p></div>
+<p><strong>Sửa — 4 vấn đề phát hiện, cả 4 đã fix trong bản này:</strong></p>
+<ol>
+<li><code>total_contracts_settled</code> không thể tính đúng từ <code>fact_milestone_performance</code> (sai granularity: Milestone ≠ Contract) → thêm <code>fact_contract_settlement</code>, populate từ event <code>contract.settled</code> (§2.2, §3.3).</li>
+<li><code>analytics-service</code> chưa được đăng ký làm consumer của <code>contract.settled</code>/<code>contract.terminated</code> (tên cũ <code>contract.cancelled</code>) trong Event Catalog gốc (<code>milestone-escrow-phase2-design.md</code> §7.2) dù tự ý consume — đã thêm vào bảng consumer ở file đó.</li>
+<li><code>dim_contract</code> chưa từng được wire vào ingest pipeline nào — thêm event mới <code>contract.signed</code> (<code>milestone-escrow-phase2-design.md</code> §7.2) + bước ingest §3.1.</li>
+<li><code>has_force_majeure</code> gần như luôn <code>FALSE</code> do race condition (event <code>resolved</code> luôn tới trước khi fact row tồn tại) → thêm bảng staging <code>pending_force_majeure_flag</code> (§2.4), merge 2 chiều lúc <code>INSERT</code>.</li>
+</ol>
+<p><strong>Nguồn <code>commodity</code> đã đóng hoàn toàn (cập nhật scope 06/10/2026):</strong> <code>commodity</code> non-null, đọc từ <code>Category.commodity</code>; write mới chỉ nhận <code>COFFEE</code>, giá trị khác chỉ có thể đến từ dữ liệu legacy. Cơ chế chốt ở <code>product-phase2-design.md</code> §9 (owner).</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — <code>AmlPatternScanJob</code> đóng gap structuring chậm (§3.5):</strong> thêm job batch AML riêng (KHÔNG gộp <code>MonthlyAggregationJob</code>) quét cụm near-threshold <code>[475tr, 500tr)</code>, min 5 hợp đồng/cặp, lookback 90 ngày, JOIN <code>dim_contract</code> (đã có <code>total_amount</code>/<code>buyer_id</code>/<code>seller_id</code>) — <strong>không</strong> thêm cột vào <code>fact_contract_settlement</code>, tránh sửa payload <code>contract.settled</code>. Bắt cụm → publish <code>analytics.structuring_pattern_detected</code>; <code>analytics-service</code> chỉ phát hiện, không tự hold/flag/báo cáo (derived-signal producer — không critical path, không sync ngược). Consumer: <code>reputation-service</code> (ELEVATED_RISK) + <code>bank-service</code> (báo cáo cơ quan). Đóng đúng phần slow-drip có lặp mà 2 tầng realtime của <code>reputation-service</code> (§8) không bắt được; residual (vài mảnh đầu + one-shot nhỏ lẻ) ghi rõ ở <code>reputation-service-phase2-design.md</code> §9.</p></div>
+<p>Analytics-service — <strong>ĐÓNG SESSION HOÀN TOÀN, service cuối cùng của Phase 2, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong> Điểm treo mapping <code>commodity</code> đã đóng hoàn toàn (§2.3) — <code>commodity</code> non-null đọc từ <code>Category.commodity</code>; Phase 2 write mới chỉ dùng <code>COFFEE</code>, cơ chế chốt ở <code>product-phase2-design.md</code> §9.</p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">06/10/2026</span><p>Write scope Việt Nam + <code>COFFEE</code>; legacy commodity chỉ đọc/rebuild.</p>
+</li><li><span class="changelog__date">19/07/2026</span><p>Termination theo attribution (thay <code>contract.cancelled</code>), breach rate tách theo bên, monthly recompute + SET.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Đổi cách gọi thành derived-signal producer; sửa dialect SQL sang MySQL 8.</p>
+</li><li><span class="changelog__date">10/07/2026</span><p>Thêm <code>AmlPatternScanJob</code>.</p>
+</li><li><span class="changelog__date">06/07/2026</span><p>Design + fix 4 bug: <code>fact_contract_settlement</code>, consumer <code>contract.settled</code>, <code>contract.signed</code> cho <code>dim_contract</code>, staging <code>pending_force_majeure_flag</code>.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li>Chưa ghi nhận điểm mâu thuẫn cần chú thích trong lần chuyển bản đọc này.</li></ul></aside><footer class="doc-footer"><a href="../analytics-service-phase2-design.md">analytics-service-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-19">19/10/2026</time></p><a href="../analytics-service-phase2-design.md">Markdown · 319 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="reputation-service-phase2-design.html" title="reputation-service-phase2-design.md">reputation-service</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+
