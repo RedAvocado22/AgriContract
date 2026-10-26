@@ -1,5 +1,9 @@
 # Inspection service foundation — issue 112
 
+Issue #129 adds an internal report persistence and pending-work query foundation.
+See [ISSUE_129.md](ISSUE_129.md) for its exact scope, migration ordering and remaining
+signed-submission dependencies. The sections below describe the original #112 baseline.
+
 Implements the user-approved scope: scaffold, local Level 1.5 assignment persistence,
 inspector eligibility and owner-service authorization. No business API, assignment
 creation transport, report submission workflow or event publisher is introduced.
