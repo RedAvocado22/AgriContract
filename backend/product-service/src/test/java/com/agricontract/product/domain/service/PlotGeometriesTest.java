@@ -65,6 +65,17 @@ class PlotGeometriesTest {
     }
 
     @Test
+    void polygon_aboveTheHouseholdMaximum_isRejected() {
+        // ~7,800 ha is still accepted; ~12,000 ha and ~1.2 million ha (beyond DECIMAL(10,4)) are not
+        assertThat(PlotGeometries.polygon(square(108.05, 12.66, 0.08), List.of()).areaHectares())
+                .isLessThan(PlotGeometries.POLYGON_MAX_HECTARES);
+        assertThatThrownBy(() -> PlotGeometries.polygon(square(108.05, 12.66, 0.1), List.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("10000 ha");
+        assertThatThrownBy(() -> PlotGeometries.polygon(square(107.0, 12.0, 1.0), List.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("check the coordinates");
+    }
+
+    @Test
     void polygon_holeIsSubtracted() {
         List<double[]> hole = new ArrayList<>(square(108.051, 12.661, 0.001));
         Collections.reverse(hole);

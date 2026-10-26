@@ -20,6 +20,9 @@ import java.time.Instant;
 @Getter
 public class PlotRegistryEntry {
 
+    // household_label VARCHAR(255) utf8mb4 counts characters, i.e. code points
+    public static final int MAX_LABEL_LENGTH = 255;
+
     private RegistryEntryId registryEntryId;
     private String sellerId;
     private String householdLabel;
@@ -103,9 +106,14 @@ public class PlotRegistryEntry {
     /**
      * The re-import match key. KML tools differ in Unicode form (NFC vs NFD) for Vietnamese diacritics, so
      * "Hộ Lê Văn A" from two exports must compare equal; diacritics themselves stay significant.
+     * The length is checked after NFC, the form that is stored.
      */
     public static String normalizeLabel(String householdLabel) {
-        return Normalizer.normalize(householdLabel.trim(), Normalizer.Form.NFC);
+        String label = Normalizer.normalize(householdLabel.trim(), Normalizer.Form.NFC);
+        if (label.codePointCount(0, label.length()) > MAX_LABEL_LENGTH) {
+            throw new IllegalArgumentException("Household label is longer than " + MAX_LABEL_LENGTH + " characters");
+        }
+        return label;
     }
 
     private void apply(PlotGeometry geometry, PlotSource source, BigDecimal accuracyMeters,

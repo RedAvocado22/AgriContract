@@ -2,6 +2,7 @@ package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.PlotResponse;
 import com.agricontract.product.application.dto.RegisteredPlot;
+import com.agricontract.product.common.exception.DuplicatePlotHouseholdException;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.vo.PlotGeometry;
 import com.agricontract.product.domain.model.vo.PlotSource;
@@ -9,7 +10,6 @@ import com.agricontract.product.domain.model.vo.Province;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -43,7 +43,7 @@ class PlotRegistrar {
                 sellerId, label, geometry, source, accuracyMeters, declaredProvince, now);
         try {
             return new RegisteredPlot(PlotResponse.from(plotRegistryRepository.create(entry)), true);
-        } catch (DataIntegrityViolationException e) {
+        } catch (DuplicatePlotHouseholdException e) {
             // a concurrent import of the same household inserted first; apply this one on top of it
             PlotRegistryEntry winner = plotRegistryRepository.findBySellerIdAndHouseholdLabel(sellerId, label)
                     .orElseThrow(() -> e);

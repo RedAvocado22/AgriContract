@@ -1,5 +1,6 @@
 package com.agricontract.product.infrastructure.persistence.repository;
 
+import com.agricontract.product.common.exception.DuplicatePlotHouseholdException;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.vo.*;
@@ -110,10 +111,22 @@ class PlotRegistryPersistenceTest {
 
         assertThatThrownBy(() -> plotRegistryRepository.create(
                 entry("plot-2", "seller-1", "Ho A", PlotFixtures.point(), NOW)))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .isInstanceOf(DuplicatePlotHouseholdException.class);
         // another seller may use the same label for their own member household
         plotRegistryRepository.create(entry("plot-3", "seller-2", "Ho A", PlotFixtures.point(), NOW));
         assertThat(plotRegistryRepository.findBySellerIdAndHouseholdLabel("seller-2", "Ho A")).isPresent();
+    }
+
+    @Test
+    void otherIntegrityError_isNotReportedAsADuplicateHousehold() {
+        // reconstruct skips the domain length check, so the column limit itself is hit
+        PlotRegistryEntry tooLong = PlotRegistryEntry.reconstruct(new RegistryEntryId("plot-1"), "seller-1",
+                "a".repeat(256), PlotFixtures.point(), PlotSource.KML_IMPORT, null, VerificationLevel.SELF_DECLARED,
+                Province.DAK_LAK, GeoVerificationStatus.PENDING, null, NOW);
+
+        assertThatThrownBy(() -> plotRegistryRepository.create(tooLong))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .isNotInstanceOf(DuplicatePlotHouseholdException.class);
     }
 
     @Test

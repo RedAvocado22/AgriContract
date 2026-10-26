@@ -82,6 +82,29 @@ class ImportPlotsFromKmlUseCaseImplTest {
     }
 
     @Test
+    void labelTooLong_orAreaTooLarge_isRejectedPerPlacemark_andTheRestOfTheFileGoesIn() {
+        when(plotRegistrar.register(any(), any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> stored(inv.getArgument(1), inv.getArgument(2), true));
+        String longName = "Ho " + "a".repeat(300);
+
+        PlotImportResult result = useCase.execute(SELLER, kml(
+                point("Ho A", "1")
+                        + point(longName, "1")
+                        + """
+                        <Placemark><name>Huge</name><Polygon><outerBoundaryIs><LinearRing><coordinates>
+                        107.0,12.0 108.0,12.0 108.0,13.0 107.0,13.0 107.0,12.0
+                        </coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>"""
+                        + point("Ho B", "1")), Province.DAK_LAK);
+
+        assertThat(result.created()).extracting(PlotResponse::householdLabel).containsExactly("Ho A", "Ho B");
+        assertThat(result.rejected()).extracting(PlotImportResult.Rejection::placemark)
+                .containsExactly(longName, "Huge");
+        assertThat(result.rejected().get(0).reason()).contains("255");
+        assertThat(result.rejected().get(1).reason()).contains("check the coordinates");
+        verify(plotRegistrar, times(2)).register(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void polygonPlacemark_isRegisteredWithItsComputedArea() {
         when(plotRegistrar.register(any(), any(), any(), any(), any(), any()))
                 .thenAnswer(inv -> stored(inv.getArgument(1), inv.getArgument(2), true));

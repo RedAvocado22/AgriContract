@@ -5,7 +5,10 @@ import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapper;
+import com.agricontract.product.common.exception.DuplicatePlotHouseholdException;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,8 @@ import java.util.Optional;
 @Repository
 @RequiredArgsConstructor
 public class PlotRegistryRepositoryImpl implements PlotRegistryRepository {
+    private static final String SELLER_HOUSEHOLD_KEY = "uk_plot_registry_seller_household";
+
     private final PlotRegistryMapper plotRegistryMapper;
     private final PlotRegistryEntryJpaRepository plotRegistryEntryJpaRepository;
 
@@ -38,8 +43,26 @@ public class PlotRegistryRepositoryImpl implements PlotRegistryRepository {
     @Transactional
     public PlotRegistryEntry create(PlotRegistryEntry entry) {
         // flush so a concurrent insert of the same (seller, household) fails here on the unique key
-        return plotRegistryMapper.toDomain(
-                plotRegistryEntryJpaRepository.saveAndFlush(plotRegistryMapper.toJpaEntity(entry)));
+        try {
+            return plotRegistryMapper.toDomain(
+                    plotRegistryEntryJpaRepository.saveAndFlush(plotRegistryMapper.toJpaEntity(entry)));
+        } catch (DataIntegrityViolationException e) {
+            if (violates(e, SELLER_HOUSEHOLD_KEY)) {
+                throw new DuplicatePlotHouseholdException(entry.getHouseholdLabel(), e);
+            }
+            throw e;
+        }
+    }
+
+    // MySQL names the key as "plot_registry_entry.uk_..." since 8.0.19, bare "uk_..." before
+    private static boolean violates(Throwable e, String constraint) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation && violation.getConstraintName() != null
+                    && violation.getConstraintName().endsWith(constraint)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
