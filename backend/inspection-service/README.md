@@ -2,6 +2,9 @@
 
 The foundation sections below describe the original #112 baseline. The Level 1.5
 assignment lifecycle added by #160 is described at the end of this document.
+Issue #129 adds an internal report persistence and pending-work query foundation.
+See [ISSUE_129.md](ISSUE_129.md) for its exact scope, migration ordering and remaining
+signed-submission dependencies.
 
 Implements the user-approved scope: scaffold, local Level 1.5 assignment persistence,
 inspector eligibility and owner-service authorization. No business API, assignment
