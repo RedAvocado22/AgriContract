@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>notification-service-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">notification-service</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 15 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Ingress &amp; Trust Boundary</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> RabbitMQ notification commands — đường mặc định</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> Internal synchronous API — chỉ cho OTP</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Domain Model</a></li><li class="toc__sub"><a href="#sec-3-1"><span class="toc__number">§3.1</span> NotificationLog</a></li><li class="toc__sub"><a href="#sec-3-2"><span class="toc__number">§3.2</span> Template</a></li><li class="toc__sub"><a href="#sec-3-3"><span class="toc__number">§3.3</span> Attachment cho evidence mail</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Notification Command → Template → Recipient Matrix</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Processing, Retry &amp; Idempotency</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Database Migration</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Configuration</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Security &amp; Evidence Rules</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> Known Limitations / Out of Scope</a></li><li class="toc__top"><a href="#sec-10"><span class="toc__number">§10</span> Status — Notification-service Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>Notification-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../notification-service-phase2-design.md">Mở Markdown · 224 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="contract-document-consent-phase2-design.html" title="contract-document-consent-phase2-design.md">contract-document-consent</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Async qua <code>notification.*_requested</code>; owner gửi recipient/template data trong payload, notification không Feign ngược.</li><li>Sync chỉ <code>POST /internal/v1/notifications/otp-email</code> từ contract-service; trả 200 khi provider nhận, lỗi trả 5xx, không retry nền sau failure.</li><li>Reserve <code>(event_id, recipient_email, notification_type)</code> trước gửi; row <code>SENT</code> ack/skip, retry async tối đa 3 lần rồi DLQ.</li><li>Final PDF chỉ gửi sau <code>contract.document_generated</code>/READY; dedup <code>(documentId, recipientEmail, CONTRACT_FINAL_PDF)</code>.</li><li>Không lưu/log plaintext OTP hay attachment bytes; template evidence/security immutable theo version.</li><li>Integrity failure báo Admin + nhiều Software Buyer contacts song song; không tự fan-out Buyer/Seller.</li><li>Deadline từ business-event/system timestamp; đọc email không bắt đầu, dừng hay gia hạn window.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p>Phase 2 có ba nhóm notification:</p>
+<ol>
+<li><strong>Transactional:</strong> KYC, contract, milestone, escrow/dispute.</li>
+<li><strong>Security:</strong> OTP ký, emergency lock/unlock, key fingerprint.</li>
+<li><strong>Evidence:</strong> snapshot + hash, OTS proof, weekly digest và integrity-failure alert.</li>
+</ol>
+<p>Notification-service không quyết định nghiệp vụ, không tính hash, không xác minh OTP và không phán quyết ai là recipient. Publisher gửi payload đã tính xong cùng email người nhận; notification chỉ validate, render, gửi và ghi log.</p>
+<p><strong>Convention deadline/authority:</strong> email là kênh notification authoritative của Phase 2. Deadline luôn chạy từ business-event/system timestamp do owner service ghi nhận, theo UTC/ICT convention của <code>milestone-escrow-phase2-design.md</code> §1.1; thời điểm recipient mở/đọc email không bắt đầu, dừng hay gia hạn window. Độ trễ nhận biết do không có realtime channel được chấp nhận có chủ đích.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Ingress &amp; Trust Boundary <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> RabbitMQ notification commands — đường mặc định <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<p>Mọi notification không cần caller biết kết quả gửi ngay lập tức đi qua routing key <code>notification.*_requested</code>. Owner service tạo command đã có recipient/template data; không ép các domain event vốn phục vụ tiền/analytics phải phình payload vì email. Envelope canonical là schema executable <code>contracts/events/notification-commands.yaml</code>; recipients nằm <strong>trong command payload</strong>, không nằm top-level:</p>
+<figure class="code" data-lang="json"><pre><code>{
+  "eventId": "uuid",
+  "eventType": "notification.milestone_anchor_requested",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-16T10:00:00Z",
+  "producer": "audit-service",
+  "aggregateId": "contract-or-milestone-id",
+  "correlationId": "uuid",
+  "causationId": null,
+  "payload": {
+    "contractId": "uuid",
+    "milestoneId": "uuid",
+    "recipients": [{"userId": "uuid", "email": "seller@example.test", "role": "SELLER"}],
+    "recordHash": "64-char-sha256-hex",
+    "otsProof": "base64",
+    "settlementSummary": {}
+  }
+}
+</code></pre></figure>
+<ul>
+<li><code>eventVersion</code>, <code>producer</code>, <code>aggregateId</code>, <code>correlationId</code> là required; <code>causationId</code> là nullable nhưng nếu gửi thì phải đúng schema.</li>
+<li>Email nằm trong <code>payload.recipients</code> như routing data nội bộ, theo mô hình Phase 1 đã chốt.</li>
+<li>Owner service lấy email từ user-service hoặc local profile trước khi publish; notification-service không Feign ngược.</li>
+<li>Một event có thể có nhiều recipients; mỗi recipient được dedup/gửi độc lập.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> Internal synchronous API — chỉ cho OTP <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<p><code>POST /internal/v1/notifications/otp-email</code> chỉ nhận service-to-service call từ contract-service:</p>
+<figure class="code" data-lang="json"><pre><code>{
+  "requestId": "otpId",
+  "recipientUserId": "uuid",
+  "recipientEmail": "...",
+  "contractId": "uuid",
+  "otpCode": "123456",
+  "signedContentHash": "sha256-hex",
+  "expiresAt": "..."
+}
+</code></pre></figure>
+<ul>
+<li>API trả <code>200 OK</code> chỉ khi mail provider đã nhận request gửi; lỗi provider trả 5xx để contract-service không nói sai “OTP đã gửi”.</li>
+<li>Không route endpoint này qua API Gateway.</li>
+<li>Notification không lưu/ghi log plaintext OTP; body được render trong memory. Log chỉ giữ <code>requestId</code>, template, recipient, status và hash/reference an toàn.</li>
+<li>Contract-service vẫn sở hữu OTP hash, attempt count, expiry và verify logic.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Domain Model <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+</section><section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1"><h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> <code>NotificationLog</code> <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>notificationId</code></td>
+<td>UUID</td>
+<td>Identity nội bộ</td>
+</tr>
+<tr>
+<td class="identifier"><code>eventId</code></td>
+<td>VARCHAR</td>
+<td>Rabbit eventId hoặc OTP requestId</td>
+</tr>
+<tr>
+<td class="identifier"><code>eventType</code></td>
+<td>VARCHAR</td>
+<td>Routing/audit</td>
+</tr>
+<tr>
+<td class="identifier"><code>notificationType</code></td>
+<td>VARCHAR</td>
+<td>Template semantic, không đồng nhất bắt buộc với eventType</td>
+</tr>
+<tr>
+<td class="identifier"><code>recipientUserId</code></td>
+<td>VARCHAR nullable</td>
+<td>Có thể null cho Software Buyer distribution list</td>
+</tr>
+<tr>
+<td class="identifier"><code>recipientEmail</code></td>
+<td>VARCHAR</td>
+<td>Destination</td>
+</tr>
+<tr>
+<td class="identifier"><code>channel</code></td>
+<td class="identifier"><code>EMAIL</code></td>
+<td>Phase 2 golden flow chỉ bắt buộc email</td>
+</tr>
+<tr>
+<td class="identifier"><code>templateVersion</code></td>
+<td>VARCHAR</td>
+<td>Bằng chứng email nào đã được render</td>
+</tr>
+<tr>
+<td class="identifier"><code>status</code></td>
+<td class="identifier"><code>PENDING | SENT | FAILED</code></td>
+<td>State machine</td>
+</tr>
+<tr>
+<td class="identifier"><code>retryCount</code></td>
+<td>INT</td>
+<td>Tối đa 3 cho async flow</td>
+</tr>
+<tr>
+<td class="identifier"><code>providerMessageId</code></td>
+<td>VARCHAR nullable</td>
+<td>Đối soát provider</td>
+</tr>
+<tr>
+<td class="identifier"><code>failureReason</code></td>
+<td>TEXT nullable</td>
+<td>Không chứa secret/OTP</td>
+</tr>
+<tr>
+<td class="identifier"><code>sentAt</code></td>
+<td>TIMESTAMP nullable</td>
+<td>Provider accepted time</td>
+</tr>
+</tbody>
+</table></div>
+<p>Unique key: <code>(event_id, recipient_email, notification_type)</code>.</p>
+<details class="why"><summary>Vì sao</summary><p>Một event có thể gửi nhiều loại mail cho cùng người hoặc nhiều người không có platform userId; dedup phải theo recipient email và notification type.</p>
+</details>
+</section><section aria-labelledby="heading-sec-3-2" class="section" id="sec-3-2"><h3 id="heading-sec-3-2"><span class="sec-num">§3.2</span> Template <a aria-label="Sao chép liên kết tới §3.2" class="anchor" href="#sec-3-2">#</a></h3>
+<p>Template được version trong code/resources để review cùng source; DB chỉ lưu <code>templateVersion</code> đã dùng. Không cho Admin sửa nội dung evidence/security template runtime vì sẽ làm mất khả năng tái hiện bằng chứng.</p>
+</section><section aria-labelledby="heading-sec-3-3" class="section" id="sec-3-3"><h3 id="heading-sec-3-3"><span class="sec-num">§3.3</span> Attachment cho evidence mail <a aria-label="Sao chép liên kết tới §3.3" class="anchor" href="#sec-3-3">#</a></h3>
+<p>Evidence attachment và body:</p>
+<ul>
+<li><code>notification.milestone_anchor_requested</code> — email quyết toán <strong>đính file <code>.ots</code></strong> làm attachment: proof là binary, publisher (audit-service) truyền base64 trong payload (<code>otsProof</code>), notification decode và attach, tên file <code>{contractId}-{milestoneId}.ots</code>.</li>
+<li><code>notification.contract_anchor_requested</code> — chỉ dùng cho compatibility nếu cần gửi structured snapshot cũ; không còn là final-document command.</li>
+<li><code>notification.contract_document_ready_requested</code> — phát sau <code>contract.document_generated</code>, đính <code>FINAL_SIGNED_CONTRACT</code> PDF lấy qua trusted file reference và render trong body các giá trị <code>sourceContentHash</code>, <code>documentFileHash</code>, template code/version. Đây là email final canonical của Phase 2.</li>
+</ul>
+<p><code>NotificationLog</code> không lưu attachment bytes — chỉ lưu size + SHA-256 của attachment trong metadata để đối soát; bytes tái hiện được từ nguồn (audit-service giữ proof trong <code>audit_anchor.proof</code> — hash-chain §3).</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Notification Command → Template → Recipient Matrix <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Routing key / publisher</th>
+<th scope="col">Recipient</th>
+<th scope="col">Notification/payload bắt buộc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>notification.user_kyc_result_requested</code> / user-service</td>
+<td>User tương ứng</td>
+<td>Kết quả KYC, reason nếu reject</td>
+</tr>
+<tr>
+<td><code>notification.user_lock_changed_requested</code> / user-service</td>
+<td>User bị tác động</td>
+<td>LOCKED/UNLOCKED, thời hạn/lý do</td>
+</tr>
+<tr>
+<td><code>notification.contract_anchor_requested</code> / contract-service</td>
+<td>Buyer + Seller</td>
+<td>Snapshot <code>ContractTerms</code> + <code>signedContentHash</code> + contractId</td>
+</tr>
+<tr>
+<td><code>notification.contract_document_ready_requested</code> / contract-service</td>
+<td>Buyer + Seller</td>
+<td><code>documentId</code>, contractId, trusted <code>fileId</code>, <code>sourceContentHash</code>, <code>documentFileHash</code>, template code/version; chỉ gửi khi document READY</td>
+</tr>
+<tr>
+<td><code>notification.contract_terminated_requested</code> / contract-service</td>
+<td>Buyer + Seller</td>
+<td>Canonical lifecycle fields (<code>contractId</code>, <code>terminationType</code>, <code>requestedBy</code>, nullable attribution/reason/decision/case fields, affected milestones and replacement pointers) plus <code>remedyLegs</code> and <code>payload.recipients</code>. Template PHẢI phân biệt: mutual/replacement/FM/technical (không ai vi phạm — giọng trung tính) vs breach (nêu bên vi phạm theo attribution). KHÔNG dùng chữ "huỷ do X" khi X chỉ là requestedBy</td>
+</tr>
+<tr>
+<td><code>notification.breach_notice_requested</code> / contract-service</td>
+<td>Bên bị cáo buộc + bên cáo buộc</td>
+<td><code>breachCaseId</code>, <code>breachReasonCode</code>, severity, evidence refs — thông báo <code>BreachCase</code> mở (milestone-escrow §6.4); là notice chính thức có timestamp, đầu chuỗi bằng chứng wrongful-termination</td>
+</tr>
+<tr>
+<td><code>notification.remedy_finalized_requested</code> / contract-service</td>
+<td>Buyer + Seller</td>
+<td>Canonical remedy fields gồm <code>remedyDecisionId</code>, <code>attributionDecisionId</code>, nullable <code>breachCaseId</code>, <code>contractId</code>, <code>buyerId</code>, <code>sellerId</code>, <code>affectedMilestoneIds[]</code>, nullable final attribution/reason, nullable <code>qualityDisposition</code>, eligibility flags và exact <code>remedyLegs</code>; quality resolution bắt buộc disposition non-null và template hiển thị nó cùng final attribution, không suy blame từ <code>requestedBy</code>/<code>flaggedBy</code>; command chỉ bổ sung <code>payload.recipients</code> cho routing</td>
+</tr>
+<tr>
+<td><code>notification.milestone_funding_status_requested</code> / contract-service</td>
+<td>Buyer (nhắc nạp) / Seller (báo tạm dừng đồng hồ) / cả 2 + Operator khi FUNDING_FAILED</td>
+<td>statusType: <code>FUNDING_REMINDER</code> | <code>FUNDING_FAILED</code> | <code>FUNDING_CURE_DEADLINE</code> (mail actionable có deadline <code>fundingCureWindowDays</code>) — milestone-escrow §6b</td>
+</tr>
+<tr>
+<td><code>notification.milestone_status_requested</code> / contract-service</td>
+<td>Buyer/Seller + Operator/Arbitrator theo status (FM claim, flag cần quyết định → Arbitrator)</td>
+<td>weighed, confirmed, flagged, force-majeure, penalty hoặc provisional Level 2</td>
+</tr>
+<tr>
+<td><code>notification.milestone_anchor_requested</code> / audit-service</td>
+<td>Buyer + Seller</td>
+<td>Quyết toán + <code>recordHash</code> + <code>.ots</code> proof; chỉ publish sau khi audit record/OTS sẵn sàng</td>
+</tr>
+<tr>
+<td><code>notification.level2_commission_requested</code> / inspection-service</td>
+<td>Org + Buyer + Seller</td>
+<td>commissionId, org, intake address, contract context</td>
+</tr>
+<tr>
+<td><code>notification.audit_digest_requested</code> / audit-service</td>
+<td>Software Buyer contacts</td>
+<td>Weekly digest, chỉ sau WEEKLY_VERIFY_OK</td>
+</tr>
+<tr>
+<td><code>notification.audit_failure_requested</code> / audit-service</td>
+<td>Admin + <strong>nhiều</strong> Software Buyer contacts song song</td>
+<td>Vị trí lỗi/anchored hash; không qua Admin approval</td>
+</tr>
+<tr>
+<td><code>notification.verifier_key_anchor_requested</code> / bank-service</td>
+<td>External Verifier contacts</td>
+<td>Public-key fingerprint</td>
+</tr>
+<tr>
+<td><code>notification.security_lock_changed_requested</code> / bank-service</td>
+<td>Admin + External Verifier</td>
+<td>LOCKED/UNLOCKED, reason/timestamp; không fan-out buyer/seller</td>
+</tr>
+<tr>
+<td><code>notification.contract_activation_failed_requested</code> / contract-service</td>
+<td>Buyer + Seller + Operator</td>
+<td>Hợp đồng đã ký nhưng khoá cọc fail sau retry (milestone-escrow §3.1) — không penalty, nêu bước tiếp theo (Operator retry / xác nhận không tiếp tục)</td>
+</tr>
+<tr>
+<td><code>notification.reconciliation_mismatch_requested</code> / bank-service</td>
+<td>Admin only</td>
+<td>Ledger lệch số với audit record đã anchor (bank §5b.1) — vị trí lệch (contractId/milestoneId, chênh lệch); không fan-out buyer/seller, không auto-fix</td>
+</tr>
+</tbody>
+</table></div>
+<p>Các domain event (<code>contract.signed</code>, <code>milestone.settled</code>...) vẫn giữ payload nghiệp vụ canonical ở owner design. Owner/audit consumer publish notification command tương ứng; notification-service không subscribe trực tiếp domain event nếu payload đó không đủ template/recipient. <code>contract.delivered</code> là dead event Phase 1 và phải xoá listener/template.</p>
+<p>Buyer/seller chỉ được báo tampering sau khi Admin khoanh vùng đúng contract bị ảnh hưởng; flow này là notification command riêng có người xác nhận nội dung, không tự fan-out từ global verify failure.</p>
+<p><strong>Template <code>notification.milestone_status_requested</code>:</strong> payload có field <code>statusType</code>; mỗi <code>statusType</code> map 1 <code>notificationType</code>/template version riêng để dedup key hoạt động đúng. Ngoài các trạng thái đã liệt kê, 2 template bắt buộc dễ sót khi implement: <code>LEVEL2_OPTOUT_REQUESTED</code> — hỏi buyer chọn mức release provisional, <strong>mail actionable có deadline <code>disputeOptOutWindowDays</code></strong> (milestone-escrow §3.2 Bước 0, buyer im lặng → default sàn); và <code>BUYER_RECEIVE_REMINDER</code> — nhắc buyer cân nhận hàng khi hết <code>buyerReceiveWindowDays</code> (milestone-escrow §3.2).</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Processing, Retry &amp; Idempotency <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<figure class="code" data-lang="text"><pre><code>receive → validate → reserve unique key/PENDING → render → provider send
+                                                ├─ accepted → SENT
+                                                └─ temporary failure → retry (3 lần) → DLQ/FAILED
+</code></pre></figure>
+<ul>
+<li>Insert/reserve unique key trước khi gửi để hai consumer không gửi song song cùng mail.</li>
+<li>Duplicate khi row <code>SENT</code> → ack/skip. Row <code>PENDING/FAILED</code> chỉ retry theo policy, không tạo row mới.</li>
+<li>Retry async tối đa 3 lần với exponential backoff; permanent validation error đi DLQ ngay.</li>
+<li>OTP synchronous không retry nền sau khi đã trả lỗi cho caller, tránh caller tạo OTP mới trong khi OTP cũ bất ngờ được gửi muộn. Caller có thể retry cùng <code>requestId</code>; idempotency trả lại kết quả đã biết.</li>
+<li>Final document dedup theo semantic key <code>(documentId, recipientEmail, CONTRACT_FINAL_PDF)</code>; redelivery event/command không được gửi hai bản final cho cùng recipient.</li>
+<li>DLQ security/evidence tạo operational alert; không silently discard.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Database Migration <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<p>Migration Phase 2 thay unique key và bổ sung metadata:</p>
+<figure class="code" data-lang="sql"><pre><code>ALTER TABLE notification_logs
+  ADD COLUMN event_type VARCHAR(100) NOT NULL DEFAULT 'LEGACY_P1',
+  ADD COLUMN notification_type VARCHAR(100) NOT NULL DEFAULT 'LEGACY_P1',
+  ADD COLUMN recipient_email VARCHAR(255) NOT NULL DEFAULT '',
+  ADD COLUMN template_version VARCHAR(50) NOT NULL DEFAULT 'p1-unknown',
+  ADD COLUMN provider_message_id VARCHAR(255) NULL,
+  ADD COLUMN failure_reason TEXT NULL,
+  ADD COLUMN sent_at DATETIME(6) NULL;
+
+-- Backfill TRƯỚC khi đổi unique key — bắt buộc, không phải tuỳ chọn: các row Phase 1
+-- cùng event_id (key cũ phân biệt bằng user_id, key mới bằng recipient_email) sẽ va nhau
+-- ngay lúc CREATE UNIQUE INDEX nếu recipient_email còn sentinel '' giống nhau:
+UPDATE notification_logs SET recipient_email = CONCAT('legacy:', user_id)
+  WHERE recipient_email = '';
+
+ALTER TABLE notification_logs DROP INDEX uq_event_user;
+CREATE UNIQUE INDEX uq_event_recipient_type
+  ON notification_logs(event_id, recipient_email, notification_type);
+</code></pre></figure>
+<p>Khi migrate, cột Phase 1 <code>user_id</code> đổi semantics thành <code>recipient_user_id</code> hoặc được giữ tạm rồi backfill; migration implementation phải không làm mất log cũ. <strong>Bổ sung:</strong> cột <code>NOT NULL</code> mới mang <code>DEFAULT</code> sentinel (<code>LEGACY_P1</code>/<code>''</code>/<code>p1-unknown</code>) để <code>ALTER</code> chạy được trên bảng có data mà không phụ thuộc SQL mode; <code>recipient_email</code> backfill <code>legacy:{user_id}</code> <strong>trước</strong> khi tạo unique index mới (tránh va chạm các row cùng <code>event_id</code>). Log cũ là read-only audit — <code>notification_type = 'LEGACY_P1'</code> không trùng với type mới nên không tham gia dedup của Phase 2.</p>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Configuration <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Config</th>
+<th class="numeric" scope="col">Default</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>notification.retry.maxAttempts</code></td>
+<td class="numeric">3</td>
+<td>Async events</td>
+</tr>
+<tr>
+<td class="identifier"><code>notification.retry.initialDelaySeconds</code></td>
+<td class="numeric">5</td>
+<td>Exponential backoff</td>
+</tr>
+<tr>
+<td class="identifier"><code>notification.softwareBuyerContacts</code></td>
+<td class="numeric">≥2 địa chỉ</td>
+<td>Integrity alerts</td>
+</tr>
+<tr>
+<td class="identifier"><code>notification.adminEmail</code></td>
+<td class="numeric">deployment value</td>
+<td>Không hardcode production; chỉ nhận mail audit/security/reconciliation</td>
+</tr>
+<tr>
+<td class="identifier"><code>notification.operatorEmail</code></td>
+<td class="numeric">deployment value</td>
+<td>Activation/funding fail, hàng đợi vận hành</td>
+</tr>
+<tr>
+<td class="identifier"><code>notification.arbitratorEmail</code></td>
+<td class="numeric">deployment value</td>
+<td>Breach case/FM cần quyết định</td>
+</tr>
+<tr>
+<td class="identifier"><code>notification.externalVerifierContacts</code></td>
+<td class="numeric">deployment value</td>
+<td>Key/lock confirmation</td>
+</tr>
+</tbody>
+</table></div>
+<p>SMTP/SendGrid credential chỉ từ secret/env. MailHog dùng local development.</p>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Security &amp; Evidence Rules <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<ul>
+<li>Không log OTP, full email body chứa OTP, access token hoặc attachment nhạy cảm.</li>
+<li>Snapshot/hash/OTS nhận từ owner service; notification không tự tính lại rồi tạo nguồn sự thật thứ hai.</li>
+<li>Evidence template immutable theo version; log giữ provider ID và sent time.</li>
+<li>Identity/recipient email do publisher xác định; notification validate format nhưng không được thay recipient theo input Admin tùy ý cho evidence mail.</li>
+<li>Verify failure fan-out không có gatekeeper đơn lẻ.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> Known Limitations / Out of Scope <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<ul class="limitations">
+<li><strong>Realtime notification channel:</strong> in-app notification/WebSocket là enhancement; Phase 2 bắt buộc email + persisted log và chấp nhận deadline không phụ thuộc thời điểm đọc. Không có end-user API đọc log trong Phase 2 — Gateway đã bỏ route <code>/api/v1/notifications/**</code>; nếu sau này expose, thêm endpoint + route cùng lúc.</li>
+<li>Provider accepted không chứng minh người nhận đã đọc; email anchor chứng minh bản đã rời platform và có timestamp độc lập.</li>
+<li>Bounce/complaint reconciliation nâng cao ngoài golden flow; providerMessageId giữ đường mở rộng.</li>
+<li>Event payload mang email tạo PII trong broker; chấp nhận có chủ đích cho scope, hạn chế bằng private network, access control và retention broker.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-10" class="section" id="sec-10"><h2 id="heading-sec-10"><span class="sec-num">§10</span> Status — Notification-service Design <a aria-label="Sao chép liên kết tới §10" class="anchor" href="#sec-10">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> event-driven cho notification nghiệp vụ/evidence; internal sync API chỉ cho OTP. Recipient email đi trong payload, không Feign ngược. Dedup theo event + recipient + notification type. Retry 3 lần + DLQ; OTP không gửi muộn sau khi caller đã nhận failure. <code>contract.delivered</code> bị loại bỏ.</p></div>
+<p>Template termination theo <code>terminationType</code>/<code>finalBreachingRole</code>, không theo người khởi xướng. Mỗi statusType/terminationType map 1 notificationType riêng để dedup key <code>(event_id, recipient_email, notification_type)</code> hoạt động đúng; quality resolution có <code>qualityDisposition</code> cùng final attribution, không suy blame từ requester.</p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>Sync staff role với <code>notification.operatorEmail</code>/<code>notification.arbitratorEmail</code> để vận hành và phán xử nhận đúng mail.</p>
+</li><li><span class="changelog__date">06/10/2026</span><p>Final PDF trở thành scope chính thức, supersede “không PDF Phase 2” ngày 17/07: gửi <code>notification.contract_document_ready_requested</code> sau READY với hai hash và semantic dedup để không gửi final thiếu bằng chứng.</p>
+</li><li><span class="changelog__date">23/07/2026</span><p>Chốt email authoritative/deadline theo timestamp owner và quality payload <code>qualityDisposition</code> cùng final attribution để không suy blame từ requester hay thời điểm đọc mail.</p>
+</li><li><span class="changelog__date">19/07/2026</span><p>Đổi <code>contract_cancelled_requested</code> → <code>contract_terminated_requested</code>, thêm <code>breach_notice_requested</code>, <code>remedy_finalized_requested</code>, <code>milestone_funding_status_requested</code> để template phản ánh termination/attribution và deadline.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Thêm reconciliation mismatch Admin-only và xác định attachment bytes tái hiện từ <code>audit_anchor.proof</code> để không lưu bytes ở NotificationLog.</p>
+</li><li><span class="changelog__date">17/07/2026</span><p>Thêm activation-failure command, <code>LEVEL2_OPTOUT_REQUESTED</code>/<code>BUYER_RECEIVE_REMINDER</code>, attachment <code>.ots</code>, sentinel/backfill <code>legacy:{user_id}</code> và bỏ end-user API để tránh thiếu thông báo, collision log cũ và route không tồn tại.</p>
+</li><li><span class="changelog__date">16/07/2026</span><p>Mở rộng Phase 1 <code>NotificationLog</code>, RabbitMQ/retry/DLQ, đổi dedup <code>(eventId, userId)</code> / <code>(event_id, user_id)</code> sang event + email + type vì một người có thể nhận nhiều template và distribution list không có userId.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li><strong>DDL metadata attachment.</strong> §3.3 yêu cầu size + SHA-256 nhưng §3.1/§6 chưa chỉ rõ cột chứa metadata.</li><li><strong>Hai cơ chế dedup.</strong> Unique event-recipient-type có trong §6; semantic key document-recipient-type của final PDF chưa được thể hiện trong migration.</li><li><strong>Compatibility.</strong> §3.3 xác định <code>notification.contract_anchor_requested</code> là compatibility; bảng §4 vẫn giữ dòng này, không tự xoá hoặc đổi publisher.</li></ul></aside><footer class="doc-footer"><a href="../notification-service-phase2-design.md">notification-service-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../notification-service-phase2-design.md">Markdown · 224 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="contract-document-consent-phase2-design.html" title="contract-document-consent-phase2-design.md">contract-document-consent</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

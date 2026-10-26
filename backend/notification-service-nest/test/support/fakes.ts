@@ -64,6 +64,14 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
     return Promise.resolve('IN_PROGRESS');
   }
 
+  heartbeat(eventId: string, recipientEmail: string): Promise<void> {
+    const row = this.rows.get(
+      InMemoryNotificationLogRepository.key(eventId, recipientEmail),
+    );
+    if (row?.status === NotificationStatus.PENDING) row.updatedAt = this.now;
+    return Promise.resolve();
+  }
+
   markSent(eventId: string, recipientEmail: string): Promise<void> {
     this.update(eventId, recipientEmail, (row) => {
       row.status = NotificationStatus.SENT;

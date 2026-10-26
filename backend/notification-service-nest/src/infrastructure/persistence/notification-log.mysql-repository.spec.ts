@@ -1,4 +1,5 @@
 import type { Pool } from 'mysql2/promise';
+import { CLAIM_LEASE_MS } from '../../application/notification-sender';
 import {
   NotificationChannel,
   NotificationLog,
@@ -42,7 +43,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
     const log = newLog();
 
     await expect(
-      new MysqlNotificationLogRepository(pool).claim(log, 120_000),
+      new MysqlNotificationLogRepository(pool).claim(log, CLAIM_LEASE_MS),
     ).resolves.toBe('CLAIMED');
 
     expect(query).toHaveBeenCalledTimes(1);
@@ -66,7 +67,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
     ]);
 
     await expect(
-      new MysqlNotificationLogRepository(pool).claim(newLog(), 120_000),
+      new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
     ).resolves.toBe('CLAIMED');
 
     expect(sql(query, 1)).toBe(
@@ -77,7 +78,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
     expect(params(query, 1)).toEqual([
       'evt-1',
       'buyer@example.test',
-      120_000_000,
+      45_000_000,
     ]);
   });
 
@@ -89,7 +90,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
     );
 
     await expect(
-      new MysqlNotificationLogRepository(pool).claim(newLog(), 120_000),
+      new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
     ).resolves.toBe('ALREADY_SENT');
   });
 
@@ -101,7 +102,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
     );
 
     await expect(
-      new MysqlNotificationLogRepository(pool).claim(newLog(), 120_000),
+      new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
     ).resolves.toBe('IN_PROGRESS');
   });
 
@@ -109,8 +110,24 @@ describe('MysqlNotificationLogRepository.claim', () => {
     const { pool } = scriptedPool(new Error('connection lost'));
 
     await expect(
-      new MysqlNotificationLogRepository(pool).claim(newLog(), 120_000),
+      new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
     ).rejects.toThrow('connection lost');
+  });
+});
+
+describe('MysqlNotificationLogRepository.heartbeat', () => {
+  it('moves updated_at of the PENDING row to the DB clock, and touches nothing else', async () => {
+    const { pool, query } = scriptedPool();
+
+    await new MysqlNotificationLogRepository(pool).heartbeat(
+      'evt-1',
+      'buyer@example.test',
+    );
+
+    expect(sql(query, 0)).toBe(
+      "UPDATE notification_logs SET updated_at = UTC_TIMESTAMP(6) WHERE event_id = ? AND user_id = ? AND status = 'PENDING'",
+    );
+    expect(params(query, 0)).toEqual(['evt-1', 'buyer@example.test']);
   });
 });
 

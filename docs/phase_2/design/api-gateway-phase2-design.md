@@ -73,7 +73,7 @@ Public policy match theo **method + exact path pattern**, không dùng prefix r�
 
 | Path | Role tại Gateway | Destination |
 |---|---|---|
-| `GET /api/v1/admin/users?verificationStatus=...`, `POST /api/v1/admin/users/{id}/verify\|reject` | OPERATOR | user-service (KYC) |
+| `GET /api/v1/admin/users?verificationStatus=...`, `GET /api/v1/admin/users/{id}` (chi tiết KYC có read-audit, #155), `POST /api/v1/admin/users/{id}/verify\|reject` | OPERATOR | user-service (KYC) |
 | `/api/v1/admin/users/**` còn lại (account/role) | ADMIN | user-service |
 | `/api/v1/admin/categories/**`, `/api/v1/admin/products/**` | OPERATOR | product-service |
 | Route `InitiateLevel2Inspection` (exact path, đứng trước wildcard) | ARBITRATOR | inspection-service |

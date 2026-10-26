@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>contract-document-consent-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">contract-document-consent</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 8 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Phạm vi đã chốt</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Giá trị pháp lý và ranh giới tuyên bố</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Hồ sơ mẫu hợp đồng</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Bằng chứng đồng ý theo từng hành vi</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Vòng đời tài liệu</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> API và event</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Lưu trữ, retention và kiểm chứng</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Known limitations</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Core money flow</div><h1>Contract document &amp; consent</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-06">06/10/2026</time></span><a href="../contract-document-consent-phase2-design.md">Mở Markdown · 152 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="notification-service-phase2-design.html" title="notification-service-phase2-design.md">notification-service</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Chỉ hợp đồng nội địa Việt Nam cho <code>COFFEE</code>; legacy đã ký vận hành theo snapshot cũ, không tạo contract Phase 2 mới.</li><li>Template code/version/hash và <code>coffeeQualityProfileVersion</code> thuộc <code>ContractTermsSnapshot</code>; RFC 8785 → <code>signedContentHash</code>, đổi version/hash phải ký lại.</li><li>Consent append-only; server resolve statement, kiểm active version và hash subject, sai action/subject/version/hash → reject không side effect.</li><li>Final PDF bất biến, <code>SYSTEM_GENERATED</code>; phân biệt <code>sourceContentHash</code> với hash bytes <code>documentFileHash</code>.</li><li>Chữ ký thứ hai commit → document <code>PENDING</code>; worker render sau commit → READY → <code>contract.document_generated</code>; render lỗi không rollback ký.</li><li>Proxy document READY sau participant ownership check; không lộ bucket/object key, preview phải watermark <code>CHƯA CÓ HIỆU LỰC</code>.</li><li>Chưa cấu hình cơ quan tranh chấp được duyệt → template fail validation trước ký; không tự đặt mặc định.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Phạm vi đã chốt <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p>Phase 2 chỉ hỗ trợ giao dịch nội địa Việt Nam và chỉ hỗ trợ hàng hoá <code>COFFEE</code>. Mọi API/schema tạo mới phải reject commodity khác; dữ liệu legacy đã ký chỉ được đọc/vận hành theo snapshot cũ, không được dùng để tạo hợp đồng Phase 2 mới.</p>
+<p>AgriContract dùng một mẫu hợp đồng mua bán cà phê B2B tiếng Việt có version và một phụ lục chất lượng cà phê có version. Không tuyên bố mẫu này “đạt ISO 27001” hoặc “đạt ANSI”: ISO/IEC 27001 là chuẩn hệ thống quản lý an toàn thông tin, không phải chuẩn nội dung hợp đồng; ANSI không phải một mẫu hợp đồng quốc tế duy nhất. Các chuẩn đo/thử chất lượng bên ngoài chỉ được ghi vào profile sau khi nhóm chọn đúng tiêu chuẩn và phương pháp thử.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Giá trị pháp lý và ranh giới tuyên bố <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<p>Cơ chế ký vẫn là chữ ký điện tử tầng cơ sở theo <code>signature-phase2-design.md</code>: định danh tài khoản, thẩm quyền đại diện, step-up authentication, OTP, hash nội dung bất biến, timestamp và audit trail. Checkbox là bằng chứng thể hiện ý chí đối với đúng hành vi và đúng nội dung đang hiển thị; nó không phải vân tay sinh trắc học, không phải “điểm chỉ” vật lý và không tự nâng chữ ký thành chữ ký số có chứng thư CA.</p>
+<p>Hệ thống phải chứng minh được đồng thời:</p>
+<ol>
+<li>ai thực hiện hành vi;</li>
+<li>người đó có quyền đại diện tại thời điểm thực hiện;</li>
+<li>họ đã được hiển thị đúng statement và đúng nội dung;</li>
+<li>họ chủ động tick checkbox và hoàn tất mức xác thực tương ứng;</li>
+<li>nội dung, thời điểm và chuỗi audit không bị sửa sau đó.</li>
+</ol>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Hồ sơ mẫu hợp đồng <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<figure class="code" data-lang="text"><pre><code>ContractTemplateProfile:
+  contractTemplateCode = VN_COFFEE_B2B
+  contractTemplateVersion
+  contractTemplateHash
+  coffeeQualityProfileVersion
+</code></pre></figure>
+<p><code>contractTemplateCode</code>, <code>contractTemplateVersion</code>, <code>contractTemplateHash</code> và <code>coffeeQualityProfileVersion</code> là một phần của <code>ContractTermsSnapshot</code>, được canonicalize theo RFC 8785 trước khi tính <code>signedContentHash</code>. Thay bất kỳ version/hash nào phải làm đổi <code>signedContentHash</code> và bắt hai bên xem/ký lại.</p>
+<p>Mẫu dùng mô hình hybrid:</p>
+<ul>
+<li>Điều khoản pháp lý cố định nằm trong template có version: chủ thể, giải thích thuật ngữ, luật áp dụng, hiệu lực, thông báo, bất khả kháng, vi phạm, chấm dứt và giải quyết tranh chấp.</li>
+<li>Điều khoản thực thi nằm trong field có cấu trúc: giá, khối lượng, milestone, giao nhận, chất lượng, inspection, đặt cọc, penalty và remedy.</li>
+<li>Điều khoản hybrid có cả câu chữ render cho người đọc và rule cấu trúc cho hệ thống. Text và rule phải cùng lấy từ một snapshot/version; không được để PDF nói một ý còn engine tính một ý khác.</li>
+</ul>
+<p>Chưa chốt hai lựa chọn phải để hiển thị rõ là cấu hình/pháp lý cần duyệt, không tự bịa mặc định: bộ tiêu chuẩn/phương pháp thử chất lượng cà phê bên ngoài; toà án Việt Nam hay trọng tài thương mại trong nước là cơ quan giải quyết tranh chấp.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Bằng chứng đồng ý theo từng hành vi <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<figure class="code" data-lang="text"><pre><code>ConsentEvidence:
+  consentId
+  actionType
+  subjectType
+  subjectId
+  actorUserId
+  actorRole
+  statementCode
+  statementVersion
+  statementHash
+  presentedContentHash
+  consentedAt
+  correlationId
+</code></pre></figure>
+<p><code>statementHash</code> là SHA-256 của đúng câu checkbox đã hiển thị. <code>presentedContentHash</code> gắn consent với nội dung mà người dùng đang nhìn; server không tin hash do client tự quyết mà phải đối chiếu với hash hiện hành của subject. Consent record append-only, được ghi cùng transaction của hành vi hoặc transaction chuẩn bị challenge tương ứng.</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Nhóm hành vi</th>
+<th scope="col">Ví dụ</th>
+<th scope="col">Mức bằng chứng</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ký/cam kết rủi ro cao</td>
+<td>ký hợp đồng, xác nhận mutual replacement, mutual termination</td>
+<td>Checkbox bắt buộc + session step-up còn hạn + OTP bind subject/action/content hash</td>
+</tr>
+<tr>
+<td>Xác nhận vận hành có hệ quả</td>
+<td>khai cân giao, xác nhận nhận hàng sạch, flag hàng, chấp nhận giá trong band</td>
+<td>Checkbox bắt buộc + authenticated session + ownership/role check</td>
+</tr>
+<tr>
+<td>Quyết định quản trị</td>
+<td>resolve breach/force majeure</td>
+<td>Statement xác nhận quyết định + authenticated privileged session + maker-checker nếu owner design yêu cầu</td>
+</tr>
+</tbody>
+</table></div>
+<p>Statement phải đặc thù theo hành vi, không dùng một câu “Tôi đồng ý” chung. Ví dụ xác nhận nhận hàng phải nói rõ số lượng/evidence đang xác nhận và ghi rõ việc nhận hàng không mặc nhiên từ bỏ quyền kiểm tra chất lượng, khiếu nại hoặc inspection còn hiệu lực theo hợp đồng.</p>
+<p>Client gửi <code>statementVersion</code> và <code>presentedContentHash</code>; server resolve <code>statementCode</code>, tính lại <code>statementHash</code>, kiểm tra version đang active và kiểm tra <code>presentedContentHash</code> đúng subject hiện hành. Sai action, subject, version hoặc hash đều reject và không tạo side effect.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Vòng đời tài liệu <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<figure class="code" data-lang="text"><pre><code>ContractDocument:
+  documentId
+  contractId
+  documentType
+  templateCode
+  templateVersion
+  sourceContentHash
+  documentFileHash
+  fileId
+  status = PENDING | READY | FAILED
+  generatedAt
+  failureReason
+</code></pre></figure>
+<p><code>sourceContentHash</code> là hash nội dung pháp lý canonical, ví dụ <code>signedContentHash</code>. <code>documentFileHash</code> là SHA-256 của bytes PDF đã render. Hai hash giải quyết hai câu hỏi khác nhau và tuyệt đối không dùng thay nhau.</p>
+<p>Các loại tài liệu Phase 2:</p>
+<ul>
+<li><code>DRAFT_PREVIEW</code>: sinh từ offer/negotiation hiện hành, luôn có watermark <code>CHƯA CÓ HIỆU LỰC</code>; có thể sinh lại vì chưa phải bản ký cuối.</li>
+<li><code>PARTIALLY_SIGNED</code>: bản trình bày sau chữ ký đầu, thể hiện rõ còn chờ bên kia và chưa phải bản final.</li>
+<li><code>FINAL_SIGNED_CONTRACT</code>: PDF bất biến sau chữ ký thứ hai, lưu qua file-service với <code>ingestChannel = SYSTEM_GENERATED</code>.</li>
+<li><code>ACTIVATION_CONFIRMATION</code>, <code>DELIVERY_RECEIPT</code>, <code>INSPECTION_RECORD</code>: tài liệu hậu ký độc lập, tham chiếu contract/hash gốc; không sửa bytes hoặc nội dung của <code>FINAL_SIGNED_CONTRACT</code>.</li>
+</ul>
+<p><code>FINAL_SIGNED_CONTRACT</code> dùng <code>templateCode = VN_COFFEE_B2B</code>; tài liệu hậu ký dùng code riêng có prefix <code>VN_COFFEE_...</code> và version riêng, nhưng luôn reference <code>sourceContentHash</code> của contract/action nguồn.</p>
+<p>Flow final document:</p>
+<figure class="code" data-lang="text"><pre><code>Chữ ký thứ hai commit
+  -&gt; Contract SIGNED + publish contract.signed
+  -&gt; tạo ContractDocument PENDING
+  -&gt; durable worker render PDF
+  -&gt; file-service lưu blob SYSTEM_GENERATED
+  -&gt; ContractDocument READY
+  -&gt; publish contract.document_generated
+  -&gt; notification-service gửi final PDF/email anchor
+</code></pre></figure>
+<p>Không render PDF trong transaction ký. Lỗi render/file storage không được làm mất hoặc rollback hai chữ ký; worker retry idempotent theo <code>documentId</code>, và cùng một final source/version chỉ có một document READY. Final PDF không được overwrite; sửa lỗi nội dung phải tạo contract replacement/version mới theo flow nghiệp vụ, không thay file cũ.</p>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> API và event <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<p>Public read surface do contract-service sở hữu:</p>
+<figure class="code" data-lang="text"><pre><code>GET /api/v1/contracts/{contractId}/document-preview
+GET /api/v1/contracts/{contractId}/documents
+GET /api/v1/contracts/{contractId}/documents/{documentId}
+</code></pre></figure>
+<p>Endpoint list trả metadata; endpoint theo <code>documentId</code> proxy bytes của document READY sau khi kiểm tra participant ownership. Không lộ bucket/object key trực tiếp. Preview chỉ render server-side từ snapshot hiện hành và bắt buộc watermark.</p>
+<p>Canonical event <code>contract.document_generated</code> mang <code>documentId</code>, <code>contractId</code>, <code>documentType</code>, <code>fileId</code>, <code>sourceContentHash</code>, <code>documentFileHash</code>, <code>templateCode</code>, <code>templateVersion</code>, <code>generatedAt</code>. Audit-service ingest event này; notification command cho final document dedup theo <code>documentId + recipient + notificationType</code>.</p>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Lưu trữ, retention và kiểm chứng <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<ul>
+<li>file-service đánh dấu final PDF là <code>SYSTEM_GENERATED</code>, áp retention/legal hold ít nhất bằng evidence hợp đồng và chỉ cho tải qua authorization proxy.</li>
+<li>audit-service lưu cả <code>sourceContentHash</code> và <code>documentFileHash</code> trong typed content của record; verify lại hash bytes file tách biệt với verify chain.</li>
+<li>Email final document chỉ được gửi sau <code>contract.document_generated</code>, không gửi file “final” trực tiếp từ <code>contract.signed</code> khi PDF chưa READY.</li>
+<li>Dữ liệu consent, signature, template profile, document metadata và audit record đều append-only về mặt nghiệp vụ.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Known limitations <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<ul>
+<li>Chưa tích hợp chữ ký số CA hoặc ký sinh trắc học; không được marketing checkbox là điểm chỉ/vân tay thật.</li>
+<li>Chưa chốt citation tiêu chuẩn chất lượng cà phê cụ thể; <code>coffeeQualityProfileVersion</code> là profile nội bộ có version cho tới khi pháp lý/nghiệp vụ duyệt nguồn ngoài.</li>
+<li>Chưa chốt toà án hay trọng tài trong nước; template phải fail validation trước ký nếu deployment chưa cấu hình lựa chọn đã được duyệt.</li>
+<li>PDF chuyên nghiệp là representation của snapshot đã ký, không phải nguồn sự thật thay cho structured terms/hash.</li>
+</ul>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">06/10/2026</span><p>Chốt template Việt Nam + cà phê, consent bind từng hành vi và final PDF async để text/rule cùng snapshot, không rollback chữ ký khi render lỗi.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li><strong>DDL consent.</strong> Trang này định nghĩa <code>ConsentEvidence</code> dạng model text nhưng không có CREATE TABLE; các doc khác gọi đây là DDL canonical, không tự sinh schema ngoài nguồn.</li></ul></aside><footer class="doc-footer"><a href="../contract-document-consent-phase2-design.md">contract-document-consent-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-06">06/10/2026</time></p><a href="../contract-document-consent-phase2-design.md">Markdown · 152 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="notification-service-phase2-design.html" title="notification-service-phase2-design.md">notification-service</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

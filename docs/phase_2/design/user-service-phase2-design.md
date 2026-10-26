@@ -83,11 +83,26 @@ Reputation công khai không nhét vào DTO này; client gọi `GET /api/v1/repu
 
 | Method | Path | Ý nghĩa |
 |---|---|---|
-| `GET` | `/api/v1/admin/users?verificationStatus=PENDING` | Hàng đợi duyệt |
+| `GET` | `/api/v1/admin/users?verificationStatus=PENDING` | Hàng đợi duyệt — chỉ `userId`, `organizationName`, `role`, `verificationStatus`; không contact, không metadata quyết định (**19/10/2026, #155**) |
+| `GET` | `/api/v1/admin/users/{userId}` | Xem đầy đủ hồ sơ KYC — **mỗi lần gọi ghi 1 dòng read-audit** (governance §8) trước khi trả data; ghi audit lỗi → không trả data. Không tìm thấy → 404, không ghi audit (**19/10/2026, #155**) |
 | `POST` | `/api/v1/admin/users/{userId}/verify` | Body **bắt buộc có key** `authorizationExpiresAt` — giá trị là instant theo giấy thật hoặc `null` tường minh (vô thời hạn). Thiếu key → 400 (**bổ sung 12/10/2026**, phát hiện ở PR #151: body `{}` từng được hiểu là vô thời hạn — Operator quên nhập thành cấp quyền vĩnh viễn) |
 | `POST` | `/api/v1/admin/users/{userId}/reject` | Body chứa `reason` bắt buộc |
 
 Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào hash chain là enhancement, không phải Phase 2 golden flow.
+
+**Read-audit (19/10/2026, #155):** response của `verify`/`reject` chỉ trả kết quả quyết định (`userId`, `verificationStatus`, thời điểm, actor, lý do), không contact — chi tiết hồ sơ chỉ đọc được qua `GET /{userId}`, nên đó là cửa đọc Restricted duy nhất và luôn có vết. Log nằm ở bảng append-only `kyc_read_audit` trong `user_db` `{actor_id, actor_role, resource_type=KYC_PROFILE, resource_id, case_context, accessed_at}`. **Known limitation:** chưa có job xoá log quá 2 năm; `case_context` để null vì KYC chưa có case ID.
+
+### 4.2b Role assignment API — qua Gateway, role `ADMIN` (mới 13/10/2026, #161; contract `assignUserRole` trong `golden-flow-api.yaml`)
+
+| Method | Path | Ý nghĩa |
+|---|---|---|
+| `PUT` | `/api/v1/admin/users/{userId}/role` | Body `{"role": "<BUYER\|SELLER\|ADMIN\|INSPECTOR\|OPERATOR\|ARBITRATOR>"}`, field lạ → 400; user không tồn tại → 404 |
+
+- **Một account một role** (cột `role` đơn trị) — tổ hợp `OPERATOR` + `ARBITRATOR` không biểu diễn được trong `user_db`. Lỗ hổng còn lại là **đổi thẳng** `OPERATOR` ↔ `ARBITRATOR` (người vừa propose đổi role rồi tự approve) → **409 `ROLE_SEPARATION_VIOLATION`**, rule nằm ở domain (`UserProfile.assignRole`). Cần người khác thì dùng account khác. Gán lại đúng role hiện tại → no-op.
+- Token mang cả 2 role cũng bị chặn: `HeaderAuthenticationFilter` trả 403 cho **mọi request** có `X-User-Role` (realm roles từ JWT) chứa cả `OPERATOR` và `ARBITRATOR` — gồm cả `register`, nên không lặng lẽ chọn role đầu tiên.
+- **Không ADMIN fallback:** ADMIN chỉ gán role, không được gọi KYC (§4.2) hay bất kỳ action OPERATOR/ARBITRATOR nào trong user-service (governance §5.2/§5.4).
+- **Không tự đổi role (chốt 25/10/2026, #215):** actor = target → **403**, kể cả gán lại đúng role hiện tại; mỗi lần đổi role ghi `actorId` (từ principal, không từ header thô) cùng role cũ/mới và thời điểm. Chặn một ADMIN tự chuyển sang ARBITRATOR/OPERATOR rồi hành động trên chính hệ thống mình quản trị.
+- **Known limitation:** endpoint chỉ đổi role trong `user_db`, chưa đồng bộ realm role sang Keycloak (cần Keycloak admin client — follow-up). Tới lúc đó ADMIN gán realm role trên Keycloak bằng tay và realm export không seed account nào mang cả 2 role.
 
 ### 4.3 Internal API — tuyệt đối không route qua Gateway
 

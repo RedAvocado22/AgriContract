@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>hash-chain-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">hash-chain</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 18 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Event Catalog vào Hash Chain</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> Từ Milestone Escrow (milestone-escrow-phase2-design.md §7) — 6/8</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> Nguồn khác (đã có sẵn ở mục 4, 6 — chỉ liệt kê, không thiết kế lại)</a></li><li class="toc__sub"><a href="#sec-2-3"><span class="toc__number">§2.3</span> Sự kiện bảo mật External Verifier — đi kèm bank-service §3.5</a></li><li class="toc__sub"><a href="#sec-2-4"><span class="toc__number">§2.4</span> Audit Ingestion Catalog — cơ chế thống nhất + danh sách đầy đủ source_type</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Cấu trúc Chain — Dual Chain trên cùng 1 bảng</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Multi-location Hash Storage (chi tiết mục 7 + 8)</a></li><li class="toc__sub"><a href="#sec-4-1"><span class="toc__number">§4.1</span> Ba nơi lưu, phải khớp nhau</a></li><li class="toc__sub"><a href="#sec-4-2"><span class="toc__number">§4.2</span> Verify logic</a></li><li class="toc__sub"><a href="#sec-4-3"><span class="toc__number">§4.3</span> OpenTimestamps Anchor</a></li><li class="toc__sub"><a href="#sec-4-4"><span class="toc__number">§4.4</span> External Verifier self-service query — biến "phải có người chủ động nhìn" thành chủ động được</a></li><li class="toc__sub"><a href="#sec-4-5"><span class="toc__number">§4.5</span> Internal read API cho ledger reconciliation</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Weekly Verify Job</a></li><li class="toc__sub"><a href="#sec-5-1"><span class="toc__number">§5.1</span> Thứ tự với Weekly Digest (mục 8)</a></li><li class="toc__sub"><a href="#sec-5-2"><span class="toc__number">§5.2</span> Alert Routing khi Verify Fail</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Known Limitation (ghi nhận có chủ đích, không phải điểm mù)</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Status — Hash Chain Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Core money flow</div><h1>Audit trail · Hash chain</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-06">06/10/2026</time></span><a href="../hash-chain-phase2-design.md">Mở Markdown · 323 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="notification-service-phase2-design.html" title="notification-service-phase2-design.md">notification-service</a><a class="xref" href="api-gateway-phase2-design.html" title="api-gateway-phase2-design.md">api-gateway</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Audit-service là writer duy nhất <code>audit_record</code>; ingest domain event RabbitMQ, <code>source_event_id UNIQUE</code> chống nhân đôi record/anchor/email.</li><li>Dual-chain global + <code>(subject_type, subject_id)</code> trong một bảng; DB user chỉ INSERT + SELECT, proof ghi riêng <code>audit_anchor</code>.</li><li>Insert record và <code>anchor_request_outbox(record_id UNIQUE, ...)</code> cùng transaction; worker retry OTS với backoff, không gọi inline sau commit.</li><li>OTS theo event được chọn + weekly mỗi Chủ Nhật kể cả không có giao dịch; <code>VerifyChainJob</code> chạy trước <code>DigestJob</code>.</li><li>Không so <code>record_hash</code> với content hash hay PDF hash; <code>documentFileHash</code> kiểm với bytes, source content hash so giữa DB/audit/email.</li><li>Verify fail: <code>notification.audit_failure_requested</code> tới Admin + nhiều Software Buyer contacts; Buyer/Seller chỉ được báo sau khoanh vùng.</li><li><code>GET /api/v1/security/audit-hash?contractId=...</code> do audit-service serve, <code>X-Api-Key</code>; reconciliation internal API không route Gateway.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p><code>audit-service</code> nhận và nối hash append-only với <code>previousHash</code>/<code>recordHash</code>; owner design cho <code>signedContentHash</code> và <code>reportHash</code> không đổi.</p>
+<p><strong>Không detail lại</strong> mục 4 (<code>signedContentHash</code> ở <code>contract-service</code>) và mục 6 (<code>reportHash</code> ở <code>inspection-service</code>) — 2 cơ chế đó đã tồn tại như nguồn phát sinh hash, doc này chỉ định nghĩa cách <code>audit-service</code> <strong>nhận và nối</strong> các hash đó vào chain, dùng chung 1 schema <code>AuditRecord</code> cho mọi nguồn.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Event Catalog vào Hash Chain <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> không phải mọi event đều vào chain. Tiêu chí: event phải mang theo <strong>số liệu/quyết định có thể bị tranh chấp làm bằng chứng sau này</strong>, hoặc là input để tính ra 1 con số sẽ bị tranh chấp — không chỉ riêng event dịch chuyển tiền.</p></div>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> Từ Milestone Escrow (<code>milestone-escrow-phase2-design.md</code> §7) — 6/8 <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Event</th>
+<th scope="col">Vào chain?</th>
+<th scope="col">Lý do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>milestone.seller_weighed</code></td>
+<td>✅</td>
+<td>Mang <code>sellerDeclaredWeight</code> — input gốc để tính Delta 1/Delta 2, cần chứng minh không bị sửa sau khi cân</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.buyer_confirmed</code></td>
+<td>✅</td>
+<td>Mang <code>buyerReceivedWeight</code> — input gốc tính Delta 2, cùng lý do trên</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.flagged</code></td>
+<td>❌</td>
+<td>Chỉ là tín hiệu "buyer bấm nút", không mang số liệu riêng — số liệu thật đã nằm ở <code>buyer_confirmed</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.force_majeure_claimed</code></td>
+<td>✅</td>
+<td>Bằng chứng bất khả kháng seller nộp — cơ sở miễn/không miễn penalty, giá trị pháp lý cao (Điều 156/351 BLDS 2015)</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.force_majeure_resolved</code></td>
+<td>✅</td>
+<td>Quyết định APPROVE/REJECT của Admin/Level 1.5 — kết quả tranh chấp, bắt buộc immutable</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.settled</code></td>
+<td>✅</td>
+<td>Kết quả cuối, số tiền release — bắt buộc</td>
+</tr>
+<tr>
+<td class="identifier"><code>milestone.cancelled_with_penalty</code></td>
+<td>✅</td>
+<td>Căn cứ tính <code>lockDurationDays</code>, penalty debt — có giá trị làm bằng chứng theo Luật TM 2005 Điều 302</td>
+</tr>
+<tr>
+<td><code>milestone.settled.local-check</code> (Local Outbox)</td>
+<td>❌</td>
+<td>Không phải domain event — chỉ là cơ chế sync nội bộ <code>Milestone</code>→<code>Contract</code>, không có ý nghĩa pháp lý</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> Nguồn khác (đã có sẵn ở mục 4, 6 — chỉ liệt kê, không thiết kế lại) <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Nguồn</th>
+<th scope="col">Trigger</th>
+<th scope="col">Publisher</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>Contract.signedContentHash</code></td>
+<td><code>sign()</code> được gọi</td>
+<td><code>contract-service</code> (mục 4)</td>
+</tr>
+<tr>
+<td class="identifier"><code>reportHash</code></td>
+<td>INSPECTOR submit report</td>
+<td><code>inspection-service</code> (mục 6)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Cả 2 dùng chung schema <code>AuditRecord</code> ở §3 — không cần thiết kế pipeline riêng. <strong>Transport:</strong> <code>Contract.signedContentHash</code> vào chain qua chính domain event <code>contract.signed</code> (payload mở rộng mang <code>signedContentHash</code>, audit-service là consumer); <code>reportHash</code> vào chain qua <code>inspection.report_confirmed</code> (inspection §4). Danh sách đầy đủ — §2.4.</p>
+</section><section aria-labelledby="heading-sec-2-3" class="section" id="sec-2-3"><h3 id="heading-sec-2-3"><span class="sec-num">§2.3</span> Sự kiện bảo mật External Verifier — đi kèm bank-service §3.5 <a aria-label="Sao chép liên kết tới §2.3" class="anchor" href="#sec-2-3">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Event / <code>source_type</code></th>
+<th scope="col">Trigger</th>
+<th scope="col">Vì sao vào chain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>EXTERNAL_VERIFIER_KEY_REGISTERED</code></td>
+<td>Đăng ký/đổi public key của External Verifier</td>
+<td>Root-of-trust của kill switch — phải tamper-evident để Admin không lén swap key (bank-service §3.5.6 lớp 2)</td>
+</tr>
+<tr>
+<td class="identifier"><code>SECURITY_LOCK_TRIGGERED</code></td>
+<td>External Verifier ký lệnh emergency-lock</td>
+<td>Quyết định đóng băng toàn hệ thống — bằng chứng ai ra lệnh, lúc nào, lý do gì (bank-service §3.5.7)</td>
+</tr>
+<tr>
+<td class="identifier"><code>SECURITY_UNLOCK_TRIGGERED</code></td>
+<td>External Verifier ký lệnh emergency-unlock</td>
+<td>Quyết định mở băng — cùng lý do, kill switch tự nó phải tamper-evident</td>
+</tr>
+</tbody>
+</table></div>
+<p>Cả 3 dùng chung schema <code>AuditRecord</code> §3 — <code>content</code> mang payload đã ký (không mang private key). Chúng đi vào <strong>cả</strong> dual-chain (global + per-subject: <code>subject_type = SYSTEM</code> cho key-registration/emergency lock; xem §3) <strong>và</strong> được OTS-anchor như event ✅ (§4.3), vì đây là loại quyết định giá trị pháp lý cao nhất — không được để rơi ngoài anchor.</p>
+</section><section aria-labelledby="heading-sec-2-4" class="section" id="sec-2-4"><h3 id="heading-sec-2-4"><span class="sec-num">§2.4</span> Audit Ingestion Catalog — cơ chế thống nhất + danh sách đầy đủ <code>source_type</code> <a aria-label="Sao chép liên kết tới §2.4" class="anchor" href="#sec-2-4">#</a></h3>
+<div class="callout callout--invariant"><span class="callout__label">BẤT BIẾN</span><p><strong>Bất biến:</strong> mọi nguồn vào chain là domain event RabbitMQ; audit-service là consumer và writer DUY NHẤT của <code>audit_record</code>, không service nào INSERT trực tiếp hoặc dùng API ghi hộ. Catalog đầy đủ:</p></div>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col"><code>source_type</code></th>
+<th scope="col">Event nguồn</th>
+<th scope="col">Publisher</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>MILESTONE_EVENT</code></td>
+<td>các <code>milestone.*</code> ✅ theo §2.1</td>
+<td>contract-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>CONTRACT_SIGNED</code></td>
+<td><code>contract.signed</code> (payload mang <code>signedContentHash</code>)</td>
+<td>contract-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>CONTRACT_DOCUMENT_GENERATED</code></td>
+<td><code>contract.document_generated</code> (mang <code>sourceContentHash</code> + <code>documentFileHash</code>)</td>
+<td>contract-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>INSPECTION_REPORT</code></td>
+<td><code>inspection.report_confirmed</code> (tier = LEVEL_1_5)</td>
+<td>inspection-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>EXTERNAL_INSPECTION_REPORT</code></td>
+<td><code>inspection.report_confirmed</code> (tier = LEVEL_2)</td>
+<td>inspection-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>LEVEL2_INSPECTION_COMMISSIONED</code></td>
+<td class="identifier"><code>inspection.level2_commissioned</code></td>
+<td>inspection-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>EXTERNAL_VERIFIER_KEY_REGISTERED</code></td>
+<td class="identifier"><code>bank.verifier_key_registered</code></td>
+<td>bank-service</td>
+</tr>
+<tr>
+<td><code>SECURITY_LOCK_TRIGGERED</code> / <code>SECURITY_UNLOCK_TRIGGERED</code></td>
+<td class="identifier"><code>bank.security_lock_changed {action}</code></td>
+<td>bank-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>STRUCTURING_REPORT</code></td>
+<td class="identifier"><code>bank.suspicious_report_created</code></td>
+<td>bank-service (bank §3.4b)</td>
+</tr>
+<tr>
+<td class="identifier"><code>AML_RISK_CLEARED</code></td>
+<td class="identifier"><code>reputation.elevated_risk_cleared</code></td>
+<td>reputation-service (reputation §8 mục 6 — quyết định gỡ <code>ELEVATED_RISK</code> phải defensible)</td>
+</tr>
+<tr>
+<td class="identifier"><code>BREACH_REPORTED</code></td>
+<td class="identifier"><code>breach.reported</code></td>
+<td>contract-service (milestone-escrow §6.4 — thời điểm mở cáo buộc + notice là bằng chứng then chốt khi tranh cãi wrongful termination / cure deadline; mốc cáo buộc là evidence bắt buộc)</td>
+</tr>
+<tr>
+<td class="identifier"><code>REMEDY_FINALIZED</code></td>
+<td class="identifier"><code>remedy.finalized</code></td>
+<td>contract-service (kết luận attribution + remedyLegs — chính là RemedyDecision mà escrow/reputation thực thi theo; phải bất biến + timestamp độc lập để defensible trước VIAC/toà)</td>
+</tr>
+<tr>
+<td class="identifier"><code>CONTRACT_TERMINATED</code></td>
+<td class="identifier"><code>contract.terminated</code></td>
+<td>contract-service (terminationType + finalBreachingRole — gồm cả <code>MUTUAL_REPLACEMENT</code> với cặp con trỏ supersede: chain chứng minh được hợp đồng cũ đóng sạch và hợp đồng mới nối đúng)</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>CONTRACT_DOCUMENT_GENERATED</code> commit tách biệt hash nội dung pháp lý (<code>sourceContentHash</code>) và hash bytes PDF (<code>documentFileHash</code>); audit-service không coi hai hash là cùng một giá trị. Record cấp hệ thống/cấp cặp (key registration, security lock, AML) dùng <code>subject_type = SYSTEM | USER_PAIR</code> (mỗi subject có chain riêng qua <code>prev_hash_subject</code>). OTS policy: 2 nhóm security (<code>EXTERNAL_VERIFIER_*</code>, <code>SECURITY_*</code>) anchor như event ✅ (§2.3); <code>STRUCTURING_REPORT</code>/<code>AML_RISK_CLEARED</code> cũng anchor — cùng tiêu chí "quyết định có thể bị tranh chấp". <strong>3 source_type attribution</strong> — <code>BREACH_REPORTED</code>/<code>REMEDY_FINALIZED</code>/<code>CONTRACT_TERMINATED</code> — anchor như event ✅ theo đúng tiêu chí đó: đây là các mốc sẽ bị tranh chấp trực diện nhất (ai cáo buộc lúc nào, kết luận ra sao, hợp đồng chấm dứt kiểu gì); <code>subject_type = CONTRACT</code>.</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Cấu trúc Chain — Dual Chain trên cùng 1 bảng <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <strong>không</strong> tách 2 bảng riêng cho global chain và per-contract chain — tốn kém, trùng lặp, đi ngược lập luận "blockchain không thực tế" đã chốt cuối <code>services.md</code>. Dùng <strong>1 bảng duy nhất</strong>, 2 cột <code>previousHash</code> khác mục đích:</p></div>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE audit_record (
+    record_id           CHAR(36) PRIMARY KEY,
+    subject_type        VARCHAR(20) NOT NULL,   -- CONTRACT | USER_PAIR | SYSTEM (sửa 18/07/2026 —
+                                                -- thay contract_id NOT NULL + sentinel: key registration,
+                                                -- emergency lock, AML cấp cặp không phải contract;
+                                                -- sentinel làm per-contract chain lẫn semantic)
+    subject_id          VARCHAR(100) NOT NULL,  -- contractId | "buyerId:sellerId" | "SYSTEM"
+    source_type         VARCHAR(50) NOT NULL,   -- danh sách đầy đủ ở §2.4, gồm CONTRACT_DOCUMENT_GENERATED
+    source_event_type   VARCHAR(100) NOT NULL,  -- vd: 'milestone.settled', 'remedy.finalized'
+    source_event_id     CHAR(36) NOT NULL UNIQUE,  -- MỚI 19/07 lần 3: dedup theo domain event — RabbitMQ redeliver
+                                                   -- cùng remedy.finalized/contract.terminated mà không có UNIQUE này
+                                                   -- sẽ tạo 2 audit record + 2 anchor + 2 email evidence khác recordHash:
+                                                   -- chain vẫn "toán học hợp lệ" nhưng lịch sử nghiệp vụ bị nhân đôi.
+                                                   -- Duplicate → trả record hiện có / no-op, KHÔNG nối node mới
+    causation_id        CHAR(36) NULL,             -- 19/07 lần 3: trace event gây ra record
+    correlation_id      CHAR(36) NULL,             -- 19/07 lần 3: trace theo luồng nghiệp vụ
+    source_hash         VARCHAR(64) NULL,       -- SỬA 18/07/2026 (round 2): hash của BẢN THỂ NGUỒN —
+                                                -- signedContentHash (CONTRACT_SIGNED), reportHash
+                                                -- (INSPECTION_*)... Đây mới là giá trị 3-way match với
+                                                -- contract-service DB + email (§4.1); record_hash là
+                                                -- chain-integrity hash, verify RIÊNG. NULL cho event
+                                                -- không có source hash. Cột riêng để query/reconcile,
+                                                -- không moi từ content JSON
+    content              JSON NOT NULL,          -- MySQL 8 JSON (sửa dialect 18/07/2026 — JSONB là Postgres). MINIMAL HOÁ (governance §6): chỉ ID (UUID
+                                             -- pseudonymous), số liệu cần verify và metadata sự kiện;
+                                             -- KHÔNG contact info/tên tổ chức/địa chỉ — xoá/ẩn danh bản
+                                             -- gốc ở service DB không đứt chain (quyền xoá vs immutability)
+    record_hash          VARCHAR(64) NOT NULL,   -- công thức canonical — xem ngay dưới (sửa 18/07/2026)
+    prev_hash_global      VARCHAR(64),            -- NULL nếu là record đầu tiên toàn hệ thống
+    prev_hash_subject     VARCHAR(64),            -- NULL nếu là record đầu tiên của subject này (đổi tên từ prev_hash_contract)
+    created_at           TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_audit_record_subject ON audit_record(subject_type, subject_id, created_at);
+
+-- TÁCH BẢNG (sửa 18/07/2026): ots_proof cũ nằm trong audit_record buộc UPDATE sau khi
+-- có proof — mâu thuẫn trực tiếp với DB user chỉ INSERT+SELECT. Anchor là sự kiện
+-- append-only riêng:
+CREATE TABLE audit_anchor (
+    anchor_id       CHAR(36) PRIMARY KEY,
+    record_id        CHAR(36) NOT NULL REFERENCES audit_record(record_id),
+    anchored_hash    VARCHAR(64) NOT NULL,      -- record_hash tại thời điểm anchor
+    anchor_type      VARCHAR(20) NOT NULL,      -- 'OTS' (Phase 2); mở cho anchor khác
+    proof            TEXT NOT NULL,             -- .ots bytes (base64)
+    created_at       TIMESTAMP NOT NULL DEFAULT now()
+);
+-- Weekly anchor (§4.3 tầng 2) cũng INSERT vào bảng này. DB user: INSERT+SELECT cho CẢ 2 bảng.
+</code></pre></figure>
+<p><strong>DB permission (mục 5 gốc):</strong> DB user của <code>audit-service</code> chỉ có <code>INSERT</code> + <code>SELECT</code>, không có <code>UPDATE</code>/<code>DELETE</code> — giữ nguyên, không đổi.</p>
+<p><strong>Cách tính lúc insert 1 record mới:</strong></p>
+<figure class="code" data-lang="text"><pre><code>prev_hash_global   = record_hash của row có created_at lớn nhất TOÀN BẢNG (bất kể subject)
+prev_hash_subject  = record_hash của row có created_at lớn nhất CÙNG (subject_type, subject_id)
+record_hash        = SHA256(canonicalJson({
+                       recordId, subjectType, subjectId, sourceType, sourceEventType,
+                       sourceEventId, causationId, correlationId,   -- 19/07 sync: 3 cột mới (dedup §3)
+                                                                    -- VÀO canonical — nguyên tắc 18/07
+                                                                    -- "mọi field đều commit" (test 11d);
+                                                                    -- null giữ key theo chuẩn dưới
+                       content, prevHashGlobal, prevHashSubject, createdAt
+                     }))
+-- SỬA P0 (18/07/2026): công thức cũ SHA256(content + prev_hash_global) KHÔNG commit
+-- subject/source metadata và đặc biệt không commit prev_hash_subject — per-subject chain
+-- khi đó chỉ là pointer thường, sửa được mà không gãy hash. Giờ mọi field đều được
+-- cryptographically committed.
+-- canonicalJson BẮT BUỘC chốt format, cấm object.toString():
+--   key sort tăng dần, UTF-8, không whitespace; timestamp = ISO-8601 UTC milli;
+--   số thập phân serialize dạng chuỗi cố định scale (tiền: 2 số lẻ); null giữ nguyên key.
+</code></pre></figure>
+<p><strong>Lưu ý concurrency:</strong> tính <code>prev_hash_global</code> cần đọc record cuối cùng toàn bảng — với nhiều contract insert đồng thời, cần <code>SELECT ... FOR UPDATE</code> trên row cuối hoặc 1 sequence riêng để tránh 2 insert cùng lúc tính ra cùng 1 <code>prev_hash_global</code> (race condition làm gãy chain ngay từ đầu). Với scale B2B forward contract thật (không phải giao dịch tần suất cao), serialize ở mức này không phải bottleneck.</p>
+<p><strong>Ví dụ minh hoạ (đã thống nhất trong session):</strong></p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Seq</th>
+<th scope="col">subjectId (CONTRACT)</th>
+<th scope="col">Event</th>
+<th scope="col">recordHash</th>
+<th scope="col">prevHashGlobal</th>
+<th scope="col">prevHashSubject</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="numeric">1</td>
+<td>A</td>
+<td class="identifier"><code>milestone.settled</code></td>
+<td>h1</td>
+<td>null</td>
+<td>null</td>
+</tr>
+<tr>
+<td class="numeric">2</td>
+<td>B</td>
+<td class="identifier"><code>milestone.settled</code></td>
+<td>h2</td>
+<td>h1</td>
+<td>null</td>
+</tr>
+<tr>
+<td class="numeric">3</td>
+<td>A</td>
+<td class="identifier"><code>milestone.cancelled_with_penalty</code></td>
+<td>h3</td>
+<td>h2</td>
+<td>h1</td>
+</tr>
+<tr>
+<td class="numeric">4</td>
+<td>B</td>
+<td class="identifier"><code>milestone.settled</code></td>
+<td>h4</td>
+<td>h3</td>
+<td>h2</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Verify per-subject</strong> (<code>WHERE subject_type='CONTRACT' AND subject_id = A</code>, theo <code>prevHashSubject</code>): dùng để export bằng chứng gọn cho riêng 1 vụ (VIAC/toà), tự-đủ-bằng-chứng, không cần giải thích gì về subject khác.</li>
+<li><strong>Verify global</strong> (theo <code>prevHashGlobal</code>, đọc toàn bảng theo <code>created_at</code>): dùng để phát hiện <strong>xoá nguyên cụm record của 1 contract</strong> — per-contract chain đứng một mình không phát hiện được kiểu tấn công này, vì chain đó tự nó biến mất sạch không để lại dấu vết.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Multi-location Hash Storage (chi tiết mục 7 + 8) <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> email hợp đồng final được gửi sau document READY, không còn nằm trong transaction <code>sign()</code>. Email inspection/report giữ timing theo owner flow riêng.</p></div>
+</section><section aria-labelledby="heading-sec-4-1" class="section" id="sec-4-1"><h3 id="heading-sec-4-1"><span class="sec-num">§4.1</span> Ba nơi lưu, phải khớp nhau <a aria-label="Sao chép liên kết tới §4.1" class="anchor" href="#sec-4-1">#</a></h3>
+<div class="callout callout--invariant"><span class="callout__label">BẤT BIẾN</span><p><strong>Bất biến — ba hash khác vai:</strong> <code>signedContentHash/sourceContentHash</code> commit canonical legal content; <code>documentFileHash</code> commit bytes PDF; <code>audit_record.record_hash</code> commit record + chain links. <code>Contract.signedContentHash = CONTRACT_SIGNED.source_hash = CONTRACT_DOCUMENT_GENERATED.content.sourceContentHash = hash nội dung trong email final</code>. <code>documentFileHash</code> chỉ so với bytes file-service/PDF attachment. <code>record_hash</code> luôn verify riêng và không bao giờ so trực tiếp với hai hash kia.</p></div>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">#</th>
+<th scope="col">Nơi lưu</th>
+<th scope="col">Ai kiểm soát</th>
+<th scope="col">Giá trị bảo vệ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="numeric">1</td>
+<td><code>contract-service</code> DB (<code>Contract.signedContentHash</code>)</td>
+<td>Platform</td>
+<td>Nguồn gốc — nơi hash được tính ra đầu tiên</td>
+</tr>
+<tr>
+<td class="numeric">2</td>
+<td><code>audit-service</code> DB (<strong><code>audit_record.source_hash</code></strong>, <code>source_type = 'CONTRACT_SIGNED'</code>)</td>
+<td>Platform</td>
+<td>Bản sao thứ 2 của signedContentHash, nằm trong record đã được chain bảo vệ</td>
+</tr>
+<tr>
+<td class="numeric">3</td>
+<td>Email final gửi buyer + seller sau <code>contract.document_generated</code></td>
+<td><strong>Ngoài platform</strong> — hộp thư cá nhân buyer/seller</td>
+<td>Ngoài tầm với của bất kỳ ai trong platform, kể cả Admin có full quyền root</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Nội dung email (mục 7 — "có bản sao ở ngoài"):</strong> sau <code>contract.document_generated</code>, notification-service gửi final PDF kèm <code>signedContentHash/sourceContentHash</code>, <code>documentFileHash</code>, template code/version và timestamp. <code>contract.signed</code> vẫn vào chain ngay khi chữ ký thứ hai commit; việc email/PDF bị trễ hoặc retry không làm thay đổi trạng thái ký.</p>
+<p><strong>Giá trị timestamp (mục 8 — "có mốc thời gian độc lập"):</strong> thời điểm gửi do hệ thống email bên thứ 3 (Gmail/Outlook) ghi lại, không phải đồng hồ do platform kiểm soát — platform không tự "lùi ngày" được mốc này sau khi email đã gửi.</p>
+<p><strong>Bổ sung — email anchor cho External Verifier key (bank-service §3.5.6 lớp 2):</strong> khi đăng ký/đổi public key của External Verifier, gửi email fingerprint của key đó thẳng vào hộp thư External Verifier — cùng cơ chế "bản sao ngoài platform" như email final contract cho buyer/seller. Đây là nơi lưu thứ 3 (ngoài config platform + record <code>EXTERNAL_VERIFIER_KEY_REGISTERED</code> trong chain) cho root-of-trust của kill switch: Admin lén đổi public key trong config → lệch với record đã anchor (bắt bởi <code>VerifyChainJob</code>) <strong>và</strong> lệch với fingerprint External Verifier tự giữ trong mail của họ.</p>
+</section><section aria-labelledby="heading-sec-4-2" class="section" id="sec-4-2"><h3 id="heading-sec-4-2"><span class="sec-num">§4.2</span> Verify logic <a aria-label="Sao chép liên kết tới §4.2" class="anchor" href="#sec-4-2">#</a></h3>
+<p>Ba bản sao của content hash (contract-service DB, audit record và email final) phải khớp tuyệt đối vì cùng bắt nguồn từ snapshot tại chữ ký thứ hai. PDF bytes được verify thêm bằng <code>documentFileHash</code>; nó không tham gia phép so content-hash ba bên. Attacker muốn qua mặt phải sửa được cả dữ liệu nội bộ, blob/hash PDF và email đã rời platform.</p>
+</section><section aria-labelledby="heading-sec-4-3" class="section" id="sec-4-3"><h3 id="heading-sec-4-3"><span class="sec-num">§4.3</span> OpenTimestamps Anchor <a aria-label="Sao chép liên kết tới §4.3" class="anchor" href="#sec-4-3">#</a></h3>
+<details class="why"><summary>Vì sao</summary><p>Verify chain hiện tại chỉ so nó với chính nó, nên cascade tampering hoặc xoá head có thể vẫn pass; cần mốc hash độc lập trong quá khứ.</p>
+</details>
+<p><strong>Giải pháp:</strong> neo <code>record_hash</code> của các event quan trọng lên Bitcoin qua <strong>OpenTimestamps (OTS)</strong> — dịch vụ mã nguồn mở, dùng calendar server công khai miễn phí gom hash của nhiều người dùng thành 1 giao dịch Bitcoin duy nhất, chia phí ra gần như 0 đồng mỗi lần dùng. Không cần ví crypto, không cần thẻ thanh toán — chỉ gọi REST API bình thường. Verify sau này (<code>ots verify</code>, chạy offline) không phụ thuộc platform còn sống hay hợp tác hay không — đúng tinh thần multi-location đã chốt ở §4.1, thêm 1 nơi lưu nằm hẳn ngoài mọi hệ thống do platform kiểm soát.</p>
+<p><strong>Trigger — 2 tầng:</strong> event-triggered (mỗi event ✅ trong Event Catalog) không đủ tự nó — quy mô B2B forward contract tần suất thấp (§3), hoàn toàn có thể có 1 tuần không phát sinh event ✅ nào cả, lúc đó không có OTS nào được tạo suốt tuần, cửa sổ tấn công mở toang dù cơ chế event-triggered vẫn tồn tại trên giấy. Nên <code>VerifyChainJob</code> (§5.1) <strong>luôn</strong> tự tạo thêm 1 OTS độc lập cho head hiện tại mỗi Chủ Nhật, không phụ thuộc tuần đó có event ✅ hay không — đảm bảo trần cứng: cửa sổ tấn công không bao giờ vượt quá 7 ngày, bất kể platform có giao dịch hay ế.</p>
+<p><em>Tầng 1 (event-triggered, durable):</em> mỗi khi 1 event thuộc danh sách ✅ ở Event Catalog (§2.1) được ghi vào <code>audit_record</code>, <strong>cùng transaction</strong> insert 1 row <code>anchor_request_outbox(record_id UNIQUE, status, retry_count, next_attempt_at)</code>; worker riêng đọc outbox → gọi OTS API lấy <code>.ots</code> → insert <code>audit_anchor</code> → đánh dấu DONE, retry với backoff khi OTS timeout. Đây là đúng bài Local Outbox milestone-escrow đã dùng, không phải cơ chế mới. Worker lấy <code>.ots</code> cho <code>record_hash</code> — vì <code>record_hash</code> đã cuốn theo toàn bộ lịch sử qua <code>prev_hash_global</code>, nó tự nhiên là commitment cho <strong>toàn bộ chain</strong>, không chỉ riêng record đó. Lưu <code>.ots</code> bằng cách <strong>INSERT 1 row <code>audit_anchor</code></strong> trỏ <code>record_id</code> vừa ghi (không UPDATE <code>audit_record</code>, bảng đó bất biến tuyệt đối).</p>
+<p><em>Tầng 2 (weekly, luôn chạy):</em> <code>VerifyChainJob</code> mỗi Chủ Nhật tự tạo 1 OTS mới cho <code>record_hash</code> của head hiện tại (INSERT <code>audit_anchor</code> mới, <code>record_id</code> = head), kể cả khi tuần đó không có event ✅ nào — dùng làm điểm neo cho lần verify tuần sau (§5.1).</p>
+<p><strong>Gửi cho buyer/seller — chỉ tại <code>milestone.settled</code>:</strong> sau khi ghi audit record và lấy <code>.ots</code>, audit-service publish <code>notification.milestone_anchor_requested</code> mang <code>{eventId, sourceEventId, contractId, milestoneId, recipients, recordHash, otsProof, settlementSummary}</code>. <code>recipients</code> được propagate từ payload <code>milestone.settled</code> vì audit-service là pure consumer, không Feign ngược user-service. Notification đính proof vào email quyết toán; không gửi ở mọi event ✅ trung gian để tránh noise/spam.</p>
+<p><strong>Cửa sổ tấn công còn lại:</strong> trần cứng 7 ngày nhờ tầng 2 (luôn chạy, không phụ thuộc hoạt động platform); tuần nào có event ✅ thì cửa sổ thực tế hẹp hơn nhiều nhờ tầng 1. Không triệt tiêu hoàn toàn — giới hạn cố hữu của bất kỳ mô hình chốt-theo-mốc nào (kể cả anchor liên tục theo mili-giây cũng còn khe hở, chỉ hẹp gần bằng 0), không phải lỗi thực thi.</p>
+<p><strong>Giới hạn:</strong> OTS chỉ giải quyết vế "bằng chứng có tồn tại độc lập ngoài platform hay không" — <strong>không</strong> giải quyết vế "có ai chủ động đi đối chiếu hay không". Xem cập nhật ở §6.</p>
+</section><section aria-labelledby="heading-sec-4-4" class="section" id="sec-4-4"><h3 id="heading-sec-4-4"><span class="sec-num">§4.4</span> External Verifier self-service query — biến "phải có người chủ động nhìn" thành chủ động được <a aria-label="Sao chép liên kết tới §4.4" class="anchor" href="#sec-4-4">#</a></h3>
+<details class="why"><summary>Vì sao</summary><p>OTS proof tồn tại độc lập nhưng job verify trong platform vẫn có thể bị vô hiệu hoá hoặc bỏ qua; cần watchdog ngoài platform.</p>
+</details>
+<p><strong>Giải pháp — cho External Verifier một watchdog độc lập, chạy NGOÀI platform:</strong> expose <code>GET /api/v1/security/audit-hash?contractId=...</code> (endpoint do <strong>audit-service</strong> serve trực tiếp, owner <code>audit_record</code>. Bank §3.5.1 giữ đúng 2 đường lock/unlock. Endpoint chỉ-đọc, auth nhẹ <code>X-Api-Key</code>, không cần chữ ký vì hash không phải bí mật) để tổ chức vận hành platform (Software Buyer — VICOFA/VRA/doanh nghiệp bất kỳ, <strong>không cột cứng 1 tên</strong>) tự query <code>record_hash</code> hiện tại của platform và đối soát với bản hash "mộc" họ đang giữ (nhận qua email anchor §4.1). Phép đối chiếu <strong>không</strong> phụ thuộc job nội bộ platform: verifier tự chạy được bất cứ lúc nào, bằng lịch riêng của họ, platform không can thiệp được.</p>
+<p><strong>Nối vào kill switch:</strong> nếu verifier phát hiện hash lệch → họ ký lệnh <code>emergency-lock</code> (bank-service §3.5) bằng private key của họ → đóng băng toàn hệ thống. Đường phát hiện (query) và đường phản ứng (lock) đều nằm ngoài tầm Admin — Admin không có private key nên không giả được lệnh, cũng không tắt được watchdog vì nó chạy ở hạ tầng verifier.</p>
+<p><strong>Thu hẹp §6 tới đâu:</strong> vế "phải có người chủ động nhìn" không còn phụ thuộc <strong>duy nhất</strong> vào job nội bộ — có thêm 1 bên ngoài chủ động nhìn được, với công cụ tự động (query API + đối soát). <strong>Không đóng hoàn toàn:</strong> nếu External Verifier không bao giờ query, hoặc thông đồng với Admin, thì vẫn hở — nhưng đây là bên độc lập, khác người, khác hạ tầng, khác động cơ so với Admin, nên rủi ro thấp hơn hẳn so với chỉ dựa 1 job nội bộ. Giới hạn cố hữu trusted-operator vẫn còn, chỉ nhỏ lại.</p>
+</section><section aria-labelledby="heading-sec-4-5" class="section" id="sec-4-5"><h3 id="heading-sec-4-5"><span class="sec-num">§4.5</span> Internal read API cho ledger reconciliation <a aria-label="Sao chép liên kết tới §4.5" class="anchor" href="#sec-4-5">#</a></h3>
+<p><code>GET /internal/v1/audit/records?contractId&amp;sourceType&amp;from&amp;to</code> — read-only, service-to-service secret, <strong>không route Gateway</strong> (gateway §3.5). Caller Phase 2 duy nhất: <code>LedgerAuditReconciliationJob</code> của bank-service (bank §5b.1) — đối chiếu số tiền trong <code>audit_record.content</code> vs ledger, lấp lớp check "tiền đi đúng như record đã anchor chưa" mà chain verify (chỉ soát hash) không cover. Audit-service vẫn là writer duy nhất; API này không có đường ghi.</p>
+<p>For reconciliation-relevant records, <code>content</code> is a typed projection rather than an open JSON object: <code>{contractId, milestoneId?, settledAmount, seizedAmount, sourceEventId?, releaseLegs[], refundLegs[]}</code>. Each leg carries <code>{entryType, amount, sourceEventId}</code>. Level 2 records copy the explicit seller-release/buyer-refund legs from the canonical event; <code>milestone.settled</code> maps <code>actualAmount</code> to <code>settledAmount</code>; <code>milestone.cancelled_with_penalty</code> maps its penalty leg to <code>seizedAmount</code>. Zero is represented in audit projection where needed, but bank commands with zero are omitted.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Weekly Verify Job <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> không chỉ verify lúc export EUDR report (quá hiếm, phát hiện muộn) — thêm <code>@Scheduled</code> job chạy <strong>định kỳ hàng tuần, 2-3h sáng Chủ Nhật</strong> (giờ traffic thấp nhất, cùng convention với Outbox Poller chạy nền).</p></div>
+</section><section aria-labelledby="heading-sec-5-1" class="section" id="sec-5-1"><h3 id="heading-sec-5-1"><span class="sec-num">§5.1</span> Thứ tự với Weekly Digest (mục 8) <a aria-label="Sao chép liên kết tới §5.1" class="anchor" href="#sec-5-1">#</a></h3>
+<p>Verify chạy <strong>trước</strong>, digest gửi <strong>sau</strong>, cùng 1 lần chạy tuần — không phải 2 job độc lập không biết tới nhau:</p>
+<figure class="code" data-lang="text"><pre><code>02:00 CN — VerifyChainJob chạy:
+  1. Đọc toàn bộ audit_record theo created_at (global chain)
+  2. Tính lại record_hash từng row theo công thức §3, so với record_hash đã lưu
+  3. Lấy anchoredHash = `anchored_hash` mới nhất trong `audit_anchor` (event-triggered trong tuần, hoặc weekly anchor tuần trước nếu tuần này chưa có event ✅ nào) → query SELECT 1 FROM audit_record WHERE record_hash = anchoredHash. Vì record_hash phụ thuộc đệ quy vào toàn bộ lịch sử phía trước, cascade tampering ở bất kỳ điểm nào trước hoặc tại vị trí đó sẽ làm giá trị này biến mất khỏi bảng — không cần biết attacker sửa bao nhiêu dòng, chỉ 1 query là đủ
+  4. Tạo OTS mới cho record_hash của head hiện tại (tầng 2, §4.3) — luôn chạy, không phụ thuộc tuần này có event ✅ hay không, dùng làm anchoredHash cho lần verify tuần sau
+  5. Nếu khớp 100% ở bước 2 và anchoredHash vẫn tồn tại ở bước 3 → set flag WEEKLY_VERIFY_OK
+  6. Nếu có row lệch (bước 2) hoặc anchoredHash không tìm thấy (bước 3) → set flag WEEKLY_VERIFY_FAILED, ghi lại vị trí lệch đầu tiên tìm được, hoặc note "anchored hash missing — cascade tampering" nếu bước 2 pass nhưng bước 3 fail
+
+02:30 CN — DigestJob chạy (chỉ sau khi VerifyChainJob xong):
+  - Nếu WEEKLY_VERIFY_OK → tính hash head và publish `notification.audit_digest_requested`
+    tới danh sách Software Buyer contacts
+  - Nếu WEEKLY_VERIFY_FAILED → KHÔNG publish digest; publish
+    `notification.audit_failure_requested` theo flow alert §5.2
+</code></pre></figure>
+<p><strong>Scaling ngoài scope:</strong> bước 1-2 quét toàn bảng mỗi lần chạy — chi phí O(n) theo số record trong bảng, không phải chi phí hash (SHA256 mỗi record luôn O(1), không đổi theo kích thước chain — xem cách tính ở §3). Ở quy mô vài nghìn tới vài chục nghìn record, không đáng lo. Nếu vận hành nhiều năm và bảng phình tới hàng triệu record, <code>VerifyChainJob</code> sẽ chậm dần tuyến tính theo thời gian — hướng fix (không detail ở đây) là incremental verify: lưu con trỏ <code>last_verified_record_id</code>, mỗi lần chỉ verify phần mới từ lần chạy trước thay vì quét lại từ đầu.</p>
+</section><section aria-labelledby="heading-sec-5-2" class="section" id="sec-5-2"><h3 id="heading-sec-5-2"><span class="sec-num">§5.2</span> Alert Routing khi Verify Fail <a aria-label="Sao chép liên kết tới §5.2" class="anchor" href="#sec-5-2">#</a></h3>
+<details class="why"><summary>Vì sao</summary><p>Nếu Admin sửa data và là gatekeeper duy nhất của cảnh báo, họ có thể chặn cảnh báo bằng cách không hoàn tất điều tra.</p>
+</details>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt cơ chế:</strong> verify fail → hệ thống <strong>tự động bắn song song, không qua bước duyệt của ai</strong>:</p></div>
+<ol>
+<li><strong>Admin</strong> — để điều tra kỹ thuật, xác định chính xác record/contract nào bị ảnh hưởng.</li>
+<li><strong>Nhiều địa chỉ liên hệ phía Software Buyer</strong> (hiệp hội/DN deploy) — <strong>không chỉ 1 người</strong> (giảm rủi ro collusion của đúng 1 cá nhân phía nhận, dù không loại trừ hoàn toàn được nếu tất cả cùng thông đồng — xem §6).</li>
+</ol>
+<p>Cả 2 hướng nằm trong cùng payload <code>notification.audit_failure_requested</code>, gửi <strong>cùng lúc, tự động qua <code>notification-service</code></strong>, không có bước "Admin xác nhận trước rồi mới gửi tiếp".</p>
+<p><strong>Về việc báo cho buyer/seller trong từng hợp đồng cụ thể:</strong> không báo ngay lúc verify fail (chưa xác định được contract nào bị ảnh hưởng, báo nhầm gây hoang mang). Sau khi Admin điều tra xong, khoanh vùng đúng <code>contract_id</code> bị ảnh hưởng → mới thông báo cho đúng buyer/seller của contract đó qua kênh liên lạc thông thường (không phải tự động, cần người xác nhận nội dung trước khi gửi vì đây là thông tin nhạy cảm, cần chính xác).</p>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Known Limitation (ghi nhận có chủ đích, không phải điểm mù) <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<p>Toàn bộ thiết kế 3 lớp (hash chain + multi-location + email anchor) đứng trên giả định <strong>trusted operator</strong> đã chốt từ đầu (<code>services.md</code>, dòng cuối): <em>"Platform có trusted operator — bài toán trustless consensus không tồn tại."</em></p>
+<p><strong>Kịch bản không giải quyết được trong scope này:</strong> nếu Admin <strong>và</strong> toàn bộ (hoặc đa số) người nhận cảnh báo phía Software Buyer cùng thông đồng — không có cơ chế software nào trong kiến trúc hiện tại chặn được, vì đây chính xác là bài toán trustless consensus mà blockchain giải quyết bằng cách phân tán ra nhiều node độc lập không ai kiểm soát hết, và nhóm đã quyết định không theo hướng đó.</p>
+<p><strong>2 lớp vẫn đứng vững kể cả trong kịch bản xấu nhất này:</strong></p>
+<ul class="limitations">
+<li>Email final sau document READY gửi cho <strong>buyer/seller thật trong từng hợp đồng cụ thể</strong> — người này khác hoàn toàn, thời điểm khác hoàn toàn so với người nhận weekly digest. Không bị ảnh hưởng bởi collusion ở phía hiệp hội.</li>
+<li>Bằng chứng toán học (hash mismatch) tồn tại độc lập với việc có ai chủ động báo hay không — bất kỳ bên thứ 3 nào sau này (luật sư, chuyên gia toà chỉ định) tự chạy lại được đúng phép verify này trên dữ liệu thô, không cần platform "thông báo" mới phát hiện ra.</li>
+<li>OTS anchor (§4.3) cho global commitment hash — verify được ngay cả khi platform sập hoàn toàn, không domain, không server, vì bằng chứng nằm trên Bitcoin, không nằm trong hệ thống của platform.</li>
+<li><strong>External Verifier self-service watchdog (§4.4)</strong> — tổ chức vận hành platform (Software Buyer, không cột cứng VICOFA) tự query hash đối soát bằng lịch riêng, ngoài tầm Admin, và có đường ký lệnh kill switch (bank-service §3.5) nếu phát hiện lệch. Phép đối chiếu chủ động <strong>không</strong> phụ thuộc duy nhất vào job nội bộ platform.</li>
+</ul>
+<details class="why"><summary>Vì sao</summary><p>OTS bảo đảm có bằng chứng ngoài platform, không tự bảo đảm có người đối chiếu; trusted-operator vẫn cần bên chủ động verify.</p>
+</details>
+<p><strong>External Verifier watchdog — giới hạn còn lại:</strong> §4.4 + kill switch (bank-service §3.5) đưa phép đối chiếu ra <strong>ngoài</strong> platform — một bên độc lập (Software Buyer, khác người/khác hạ tầng/khác động cơ so với Admin) tự query hash và tự đóng băng hệ thống được khi phát hiện lệch, không còn phụ thuộc <strong>duy nhất</strong> vào <code>VerifyChainJob</code> nội bộ. Nhưng nếu External Verifier không bao giờ chủ động query, hoặc chính họ thông đồng với Admin, thì vẫn hở — đây là bài toán trustless consensus cố hữu mà nhóm đã quyết định không giải bằng blockchain. Kill switch chuyển "người chủ động nhìn" từ <strong>bên trong</strong> (dễ bị Admin vô hiệu) sang <strong>có thêm 1 bên ngoài</strong> (khó hơn nhiều), không xoá hẳn nhu cầu "phải có người chịu nhìn".</p>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Status — Hash Chain Design <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>AuditRecord</code> dual-chain global + per-subject, <code>audit_anchor</code> append-only, source hash/content hash/PDF hash kiểm riêng; weekly verify trước digest, alert song song Admin + Software Buyer contacts. Collusion toàn diện vẫn là Known Limitation.</p></div>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">06/10/2026</span><p>Thêm <code>CONTRACT_DOCUMENT_GENERATED</code> và tách content/PDF/chain hash, email final sau document READY để không dùng PDF hash thay legal content hash.</p>
+</li><li><span class="changelog__date">19/07/2026 · lần 3</span><p>Thêm <code>source_event_id</code> UNIQUE, causation/correlation và durable <code>anchor_request_outbox</code> để redelivery không nhân lịch sử và crash/OTS timeout không làm mất proof/email riêng.</p>
+</li><li><span class="changelog__date">19/07/2026</span><p>Thêm <code>BREACH_REPORTED</code>/<code>REMEDY_FINALIZED</code>/<code>CONTRACT_TERMINATED</code> và OTS anchor để attribution/termination có timestamp bằng chứng độc lập.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Thay contractId sentinel bằng subject model, <code>prev_hash_contract</code> → <code>prev_hash_subject</code>, tách <code>ots_proof</code> sang <code>audit_anchor</code>, canonical commit metadata/subject link, phân biệt source_hash/record_hash và sửa JSONB sang MySQL JSON để giữ append-only và semantic hash.</p>
+</li><li><span class="changelog__date">17/07/2026</span><p>Gom Audit Ingestion Catalog, dùng domain events thay push riêng và chuyển audit-hash về audit-service owner data để thống nhất transport/consumer.</p>
+</li><li><span class="changelog__date">13/07/2026</span><p>Đóng review External Verifier và sync <code>bank-service-phase2-design.md</code> §3.5 để key registration/lock/unlock nhất quán với chain.</p>
+</li><li><span class="changelog__date">08/07/2026</span><p>Thêm 3 source_type security, fingerprint email và self-service <code>GET /audit-hash</code>/watchdog để đối chiếu và kill switch không chỉ phụ thuộc job nội bộ; cơ chế generic cho mọi Software Buyer, không cột cứng VICOFA.</p>
+</li><li><span class="changelog__date">03/07/2026</span><p>Bổ sung OTS chống cascade tampering, sau đó thêm weekly anchor độc lập để tuần không event vẫn có mốc trong 7 ngày; đề xuất <code>ots_proof</code> trong audit_record được thay ngày 18/07 để không UPDATE record.</p>
+</li><li><span class="changelog__date">02/07/2026</span><p>Chốt 6/8 milestone event (loại <code>flagged</code> và local-check), global/per-subject chain, weekly verify trước digest và alert nhiều contact để không có một gatekeeper.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li><strong>Catalog milestone chưa đồng bộ remedy.</strong> §2.1/§4.5 vẫn dùng <code>milestone.cancelled_with_penalty</code>; §2.4 đã thêm <code>remedy.finalized</code> và milestone-escrow coi remedy là đường tiền final; không tự thay event trong bảng.</li><li><strong>Canonical chưa ghi source_hash.</strong> §3 có cột <code>source_hash</code> và mô tả mọi field commit, nhưng công thức canonical trong code không liệt kê sourceHash; giữ nguyên công thức.</li><li><strong>Thứ tự chain.</strong> SQL dùng <code>created_at</code> để lấy/duyệt head, chưa có tie-break khi nhiều row cùng timestamp; không tự thêm cột hay ordering.</li><li><strong>Read-only account và concurrency.</strong> §3 yêu cầu INSERT+SELECT nhưng gợi ý SELECT FOR UPDATE/sequence; chưa chốt cấu hình transaction và quyền cho cơ chế serialize.</li><li><strong>Số lớp và danh sách.</strong> §6 ghi “2 lớp vẫn đứng vững” nhưng liệt kê 4 bullet; giữ nguyên kết luận và cả danh sách.</li><li><strong>Hash đối soát ngoài.</strong> §4.4 nói query <code>record_hash</code> so với hash nhận qua email §4.1, còn §4.1 phân biệt content/PDF/chain hash; cần chốt bản hash cùng loại ở watchdog.</li><li><strong>Outbox DDL.</strong> §4.3 yêu cầu <code>anchor_request_outbox</code> nhưng §3 không có CREATE TABLE tương ứng.</li></ul></aside><footer class="doc-footer"><a href="../hash-chain-phase2-design.md">hash-chain-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-06">06/10/2026</time></p><a href="../hash-chain-phase2-design.md">Markdown · 323 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="notification-service-phase2-design.html" title="notification-service-phase2-design.md">notification-service</a><a class="xref" href="api-gateway-phase2-design.html" title="api-gateway-phase2-design.md">api-gateway</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

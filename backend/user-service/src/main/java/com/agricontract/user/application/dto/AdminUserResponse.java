@@ -7,7 +7,7 @@ import lombok.Builder;
 
 import java.time.Instant;
 
-// KYC review view for ADMIN/OPERATOR only; contact info is needed to reach the applicant.
+// Staff-only view (OPERATOR for KYC, ADMIN for role assignment); contact info is needed to reach the applicant.
 @Builder
 public record AdminUserResponse(
         String userId,

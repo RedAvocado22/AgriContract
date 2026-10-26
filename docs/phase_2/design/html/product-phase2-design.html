@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>product-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">product</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 24 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Domain Model Changes</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> PlotRegistryEntry  — nguồn dữ liệu tái sử dụng, thuộc về Seller</a></li><li class="toc__sub"><a href="#sec-2-2-1"><span class="toc__number">§2.2.1</span> verificationLevel — tầng bằng chứng bổ sung, tuỳ chọn</a></li><li class="toc__sub"><a href="#sec-2-2-2"><span class="toc__number">§2.2.2</span> Province cross-check — mitigation cho lỗi convert VN2000 → WGS84</a></li><li class="toc__sub"><a href="#sec-2-2-3"><span class="toc__number">§2.2.3</span> Nguồn polygon ranh giới tỉnh — dùng Free-GIS-Data 34 tỉnh (cập nhật 08/07/2026, L1 — trước đây GADM 63 tỉnh)</a></li><li class="toc__sub"><a href="#sec-2-2-4"><span class="toc__number">§2.2.4</span> Geo-risk verification qua baseline rừng 2020 — ForTy/Natural Forests (mới 06/07/2026; cập nhật 08/07/2026 L2 — đổi từ tự tính NDVI sang baseline làm sẵn)</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> Nguồn nhập liệu — KML import là đường chính, pin thủ công là fallback hẹp</a></li><li class="toc__sub"><a href="#sec-2-3"><span class="toc__number">§2.3</span> Quy tắc geometryType (theo ngưỡng EUDR) — không đổi</a></li><li class="toc__sub"><a href="#sec-2-3b"><span class="toc__number">§2.3b</span> Global overlap check + yield anomaly — chống tái sử dụng tọa độ CHÉO seller</a></li><li class="toc__sub"><a href="#sec-2-4"><span class="toc__number">§2.4</span> ProductPlot  — snapshot copy từ PlotRegistryEntry, không phải nhập trực tiếp</a></li><li class="toc__sub"><a href="#sec-2-5"><span class="toc__number">§2.5</span> GeoJSON storage — GEOMETRY (SRID 4326), không phải TEXT (chốt 04/07/2026, session riêng)</a></li><li class="toc__sub"><a href="#sec-2-6"><span class="toc__number">§2.6</span> Product aggregate — không đổi cho geolocation, có 1 field mới không liên quan (xem §8)</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Database Migration</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Use Case Changes</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> EUDR Compliance Notes</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Out of Scope (có chủ đích, không phải thiếu sót)</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Status — Product Phase 2 (Farm Plot Geolocation)</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Cross-service Note — Product.varietyName (không thuộc phạm vi Geolocation, ghi lại để đồng bộ với pricing-service)</a></li><li class="toc__top"><a href="#sec-8b"><span class="toc__number">§8b</span> Listing.declaredQualitySpec, partial-fill inventory và contract snapshot</a></li><li class="toc__sub"><a href="#sec-8b-1"><span class="toc__number">§8b.1</span> Inventory ownership và listing lifecycle</a></li><li class="toc__sub"><a href="#sec-8b-2"><span class="toc__number">§8b.2</span> Reservation aggregate và atomicity</a></li><li class="toc__top"><a href="#sec-8c"><span class="toc__number">§8c</span> Thông tin bổ sung cho Product và Listing</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> Cross-service Note — Category aggregate + quan hệ 2 tầng commodity/category (đồng bộ với Phase 1 Category redesign, 08/07/2026)</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>Product-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../product-phase2-design.md">Mở Markdown · 471 dòng</a></div><div class="header-meta"><div class="header-meta__links"></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Phase 2 chỉ tạo mới Product/Listing/Contract <code>COFFEE</code>; <code>RICE</code>/<code>RUBBER</code>/<code>CASHEW</code> bị reject ở write path.</li><li>Geolocation là mảng plot (EUDR cấm mass balance), khai 1 lần ở Plot Registry rồi tái dùng khi tạo listing.</li><li>Use case vận hành thuộc OPERATOR; không ADMIN fallback.</li><li><code>Category.commodity</code> là điểm map duy nhất <code>commodity</code>, gán lúc <code>approve()</code>; doc này là source of truth (§9).</li><li>Listing partial-fill: reservation atomic, fail-closed (§8b).</li><li>Field mới §8c đều nullable, không tạo lifecycle/settlement/event; 3 field Product chỉ đọc trong <code>ListingResponse</code>.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p><strong>Scope override chốt 06/10/2026:</strong> Phase 2 chỉ cho tạo mới Product/Listing/Contract thuộc <code>COFFEE</code> phục vụ giao dịch nội địa Việt Nam. Các phân tích lịch sử về bốn commodity bên dưới được giữ làm bối cảnh nghiên cứu nhưng không còn là executable scope. Public write schema và <code>Category.approve()</code> cho scope Phase 2 phải reject <code>RICE</code>, <code>RUBBER</code>, <code>CASHEW</code>; legacy data chỉ được đọc theo compatibility policy.</p>
+<blockquote>
+<p><strong>Role vận hành — sync SRS v1.6 (12/10/2026, thay note 18/07):</strong> mọi use case vận hành trong doc này (review/moderate/nhập liệu hằng ngày, theo dõi alert) thuộc <strong>OPERATOR</strong>; ADMIN không làm thay (không fallback). Permission matrix ở <code>data-governance-phase2-design.md</code> §5.4 là source of truth; flow/state/schema không đổi.</p>
+</blockquote>
+<p>EUDR (EU Deforestation Regulation) áp dụng từ <strong>30/12/2026</strong> cho large/medium operator (Regulation 2025/2650, dời deadline lần 2, đã chốt cuối cùng — không còn dời tiếp). Yêu cầu cốt lõi: mọi lô hàng đưa ra thị trường EU phải truy được về <strong>toạ độ chính xác của (các) plot đất nơi hàng được trồng</strong>, chứng minh không có phá rừng sau 31/12/2020.</p>
+<p><strong>Điểm quan trọng nhất quyết định thiết kế này — EUDR cấm mass balance:</strong> không được gộp hàng từ nhiều nguồn rồi khai đại diện bằng 1 plot. Phải khai đủ <strong>toàn bộ</strong> plot đóng góp vào lô hàng, segregate rõ ràng, không được "coi như" hoặc pha trộn.</p>
+<p>Điều này va trực tiếp với bản chất HTX: một listing của HTX thường là hàng <strong>gom từ nhiều hộ thành viên</strong>, mỗi hộ có plot đất riêng — không phải 1 nông trại lớn duy nhất. Nên geolocation không thể là 1 cặp lat/long gắn vào <code>Product</code>, mà phải là <strong>mảng plot</strong>, mỗi phần tử ứng với 1 hộ đóng góp.</p>
+<p><strong>Cập nhật — vấn đề thứ 2, ngang tầm quan trọng với vấn đề trên:</strong> khai <code>geoJson</code> <strong>mỗi lần tạo listing mới</strong> là phi thực tế với HTX gom hàng từ hàng chục tới hàng trăm hộ — mỗi mùa vụ/hợp đồng mới lại bắt gõ lại toạ độ 6 số thập phân cho từng hộ là chắc chắn sinh sai số do con người, không phải rủi ro mà là hệ quả tất yếu. §2.4/§4 giải quyết việc này bằng cách tách khai báo đất (1 lần) khỏi tạo listing (nhiều lần).</p>
+<p><strong>Vị trí trong kiến trúc:</strong> đây là dữ liệu <strong>tĩnh, gắn với nguồn gốc hàng</strong>, không đổi qua vòng đời <code>OFFERED → ... → SETTLED</code> của <code>Contract</code>/<code>Milestone</code>. Không có "bước" nào trong Contract-service hay Milestone Escrow cần chụp GPS — nó phải tồn tại <strong>trước khi</strong> listing được tạo, thuộc về <code>product-service</code> (Phase 1, đã code + E2E verify). Additive change — thêm bảng con, không đụng business logic đã test của <code>Product</code> aggregate.</p>
+<p><strong>Cập nhật — geolocation/EUDR là conditional feature theo commodity, không phải core cho mọi ngành (C3 báo cáo rà soát):</strong> AgriContract định vị 4 ngành — cà phê, gạo, cao su, điều. Nhưng <code>[VERIFIED ✓]</code> EUDR (EU 2023/1115) chỉ áp cho cà phê, cao su, gỗ, ca cao (+ vài mặt hàng) — <strong>gạo và điều KHÔNG thuộc EUDR</strong>. Với gạo/điều, toàn bộ tầng geolocation/EUDR (<code>PlotRegistryEntry</code>, NDVI, cadastral, province cross-check) <strong>không áp dụng</strong> — giá trị đến từ escrow + dispute + reputation (những thứ core cho <em>mọi</em> ngành). Đây là thiết kế module hoá đúng, không phải over-invest: các field geo (<code>geoVerificationStatus</code>, <code>verificationLevel</code>...) vốn đã nullable/optional. <strong>Cần kiểm tra khi implement:</strong> các luồng có <code>commodity</code>-gate cho geolocation chưa? Nếu gạo/điều vẫn bị <em>bắt buộc</em> khai plot lúc <code>CreateListing</code> thì đó là bug scope — chỉ cà phê/cao su (commodity thuộc EUDR) mới bật geolocation bắt buộc; gạo/điều bỏ qua tầng này hoàn toàn (§4). Framing cho SDS/bảo vệ: geolocation là <em>"module EUDR bật/tắt theo commodity"</em>, không phải core universal — biến câu hỏi "sao Product-service đầu tư nặng nhất mà chỉ phục vụ 2/4 ngành?" thành câu trả lời "module hoá đúng, chỉ bật khi luật yêu cầu".</p>
+<p><strong>Cập nhật — quan hệ với hạ tầng dữ liệu vùng trồng nhà nước (C2 báo cáo rà soát):</strong> <code>[VERIFIED ✓]</code> Bộ NN&amp;PTNT + IDH đã xây và chuyển giao <strong>Hệ thống CSDL rừng và vùng trồng cà phê tuân thủ EUDR</strong> (thí điểm Đắk Lắk/Lâm Đồng/Gia Lai/Kon Tum, đang mở rộng ra cao su/hồ tiêu, cung cấp mã địa chính thống nhất theo nông hộ) — cộng với hệ thống truy xuất do VICOFA đồng hành. <strong>AgriContract KHÔNG cạnh tranh ở tầng "kho dữ liệu vùng trồng"</strong> — nó ở tầng <strong>hợp đồng + ký quỹ + tranh chấp</strong> (thứ CSDL nhà nước không làm). Geolocation trong AgriContract chỉ là <em>một mắt xích gắn vào hợp đồng</em>, và có thể <strong>tiêu thụ/liên thông</strong> CSDL nhà nước thay vì tự dựng từ đầu — mã địa chính thống nhất theo nông hộ của hệ thống đó chính là nguồn dữ liệu lý tưởng cho <code>verificationLevel = CADASTRAL_BACKED</code> (§2.2.1), thay vì chỉ dựa Sentinel Hub NDVI độc lập. Định vị đúng khi bảo vệ: <em>"thiết kế để tham chiếu/liên thông hạ tầng dữ liệu nhà nước đang hình thành, không xây lại"</em> — vừa thực tế, vừa cho thấy hiểu bối cảnh ngành. <strong>[FIELD VALIDATION]:</strong> cơ chế liên thông cụ thể (API, format, quyền truy cập) chưa xác nhận được với Bộ — giữ ở mức "thiết kế sẵn sàng tiêu thụ", không claim đã tích hợp.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Domain Model Changes <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> <code>PlotRegistryEntry</code>  — nguồn dữ liệu tái sử dụng, thuộc về Seller <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> tách khai báo đất ra khỏi vòng đời <code>Product</code>. <code>PlotRegistryEntry</code> thuộc về <strong>Seller</strong> (<code>sellerId</code>, plain UUID — không <code>REFERENCES user_db</code>, cross-service, cùng nguyên tắc đã áp cho <code>signerUserId</code>/<code>signature.report_id</code>), không thuộc về 1 <code>Product</code> cụ thể nào — 1 hộ đăng ký đất 1 lần, dùng lại cho mọi listing sau này của mùa vụ khác.</p></div>
+<p>Không cần aggregate riêng (không state machine, không lifecycle độc lập, giống lý do <code>ProductPlot</code> không tách aggregate ở bản gốc) — nhưng <strong>cũng không phải VO con của <code>Product</code></strong> như <code>ProductPlot</code>, vì nó sống độc lập với bất kỳ <code>Product</code> nào, có thể tồn tại trước khi listing đầu tiên được tạo. Coi như 1 aggregate root nhỏ, đơn giản, riêng của mình, thuộc <code>product-service</code> (cùng bounded context geolocation/EUDR).</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>registryEntryId</code></td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>sellerId</code></td>
+<td>UUID</td>
+<td>Chủ sở hữu — HTX/seller account. Không FK cross-service.</td>
+</tr>
+<tr>
+<td class="identifier"><code>householdLabel</code></td>
+<td>String</td>
+<td>Tên/mã hộ thành viên — giữ nguyên nghĩa như bản gốc, không cần map <code>User</code> account. <code>UNIQUE(sellerId, householdLabel)</code> (04/07/2026) — key dùng để match re-import/update, xem §4.</td>
+</tr>
+<tr>
+<td class="identifier"><code>geometryType</code></td>
+<td>Enum (<code>POINT</code>, <code>POLYGON</code>)</td>
+<td>Quy tắc §2.3, không đổi</td>
+</tr>
+<tr>
+<td class="identifier"><code>geoJson</code></td>
+<td><strong>GEOMETRY, SRID 4326</strong> (đổi từ <code>TEXT</code>, xem §2.5)</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>areaHectares</code></td>
+<td>BigDecimal</td>
+<td>Cách lấy khác nhau theo <code>geometryType</code>/<code>source</code> — xem §4</td>
+</tr>
+<tr>
+<td class="identifier"><code>source</code></td>
+<td>Enum (<code>KML_IMPORT</code>, <code>MANUAL_PIN</code>)</td>
+<td>Xem §2.2 — quyết định method nào tạo ra entry này, ảnh hưởng tới <code>geometryType</code> được phép (§2.2)</td>
+</tr>
+<tr>
+<td class="identifier"><code>accuracyMeters</code></td>
+<td>Decimal, nullable</td>
+<td><strong>Mới (04/07/2026).</strong> Chỉ có giá trị khi <code>source = MANUAL_PIN</code> (từ <code>coords.accuracy</code> của Geolocation API) — <code>NULL</code> cho <code>KML_IMPORT</code> (KML không mang theo metric này). Dùng để cảnh báo UI, không phải điều kiện chặn — xem §4.</td>
+</tr>
+<tr>
+<td class="identifier"><code>verificationLevel</code></td>
+<td>Enum (<code>SELF_DECLARED</code>, <code>CADASTRAL_BACKED</code>)</td>
+<td><strong>Mới (04/07/2026).</strong> Mặc định <code>SELF_DECLARED</code>. <code>CADASTRAL_BACKED</code> khi seller upload kèm "trích lục bản đồ địa chính" xin từ UBND xã/Văn phòng đăng ký đất đai — xem §2.2.1.</td>
+</tr>
+<tr>
+<td class="identifier"><code>cadastralExtractFileId</code></td>
+<td>UUID, nullable</td>
+<td>Reference <code>file-service</code> — bản scan/PDF trích lục seller upload. <code>NULL</code> nếu <code>verificationLevel = SELF_DECLARED</code>.</td>
+</tr>
+<tr>
+<td class="identifier"><code>originalKmlFileId</code></td>
+<td>UUID, nullable</td>
+<td><strong>Mới (05/07/2026).</strong> Reference <code>file-service</code> — file KML gốc mà entry này (hoặc lần re-import gần nhất của nó) được parse ra. <code>NULL</code> nếu <code>source = MANUAL_PIN</code>. Field phẳng, lặp giá trị cho mọi entry cùng ra từ 1 lần import (không tách bảng <code>PlotImportBatch</code> riêng — không có consumer nào cần query ở tầng batch, xem thảo luận session 05/07/2026). Mục đích là provenance ("entry này từng đến từ file nào"), <strong>không</strong> phải cơ chế re-verify toạ độ — file gốc chỉ chứa số WGS84 đã convert xong, không giữ số VN2000 gốc để đối chiếu ngược (xem giới hạn ở §5).</td>
+</tr>
+<tr>
+<td class="identifier"><code>declaredProvince</code></td>
+<td>Enum (34 tỉnh, theo địa giới hiện hành Nghị quyết 202/2025/QH15)</td>
+<td><strong>Mới (05/07/2026), cập nhật 08/07/2026 — đổi 63→34 tỉnh (L1).</strong> Seller tự chọn dropdown lúc <code>ImportPlotsFromKML</code>/<code>AddPlotManually</code> — nguồn độc lập với toạ độ, dùng để cross-check ở §4. Không suy ra tự động từ toạ độ (nếu suy ra từ chính toạ độ thì không còn là nguồn độc lập, mất tác dụng đối chiếu).</td>
+</tr>
+<tr>
+<td class="identifier"><code>provinceMismatchFlag</code></td>
+<td>Boolean, default <code>FALSE</code></td>
+<td><strong>Mới (05/07/2026).</strong> <code>TRUE</code> nếu tỉnh suy ra từ toạ độ (point-in-polygon, §4) không khớp <code>declaredProvince</code>. Non-blocking — không chặn insert, chỉ cảnh báo UI. Persistent trong DB (không biến mất sau khi seller tắt màn hình) — phục vụ audit trail "hệ thống đã cảnh báo từ lúc import".</td>
+</tr>
+<tr>
+<td class="identifier"><code>importedAt</code></td>
+<td>Timestamp</td>
+<td>Đổi ý nghĩa khi entry được UPDATE qua re-import (§4) — luôn phản ánh lần cập nhật gần nhất, không phải lần tạo đầu tiên</td>
+</tr>
+<tr>
+<td class="identifier"><code>geoVerificationStatus</code></td>
+<td>Enum (<code>PENDING</code>, <code>CHECKED</code>, <code>UNVERIFIED</code>)</td>
+<td><strong>Mới (06/07/2026).</strong> Trạng thái tiến trình check vệ tinh NDVI, KHÔNG phải kết quả rủi ro — xem §2.2.4. Mặc định <code>PENDING</code> lúc tạo entry.</td>
+</tr>
+<tr>
+<td class="identifier"><code>geoRiskLevel</code></td>
+<td>Enum, nullable (<code>LOW_RISK</code>, <code>HIGH_RISK</code>, <code>INCONCLUSIVE</code>)</td>
+<td><strong>Mới (06/07/2026, mở rộng thêm <code>INCONCLUSIVE</code> cùng ngày).</strong> Kết quả thật của NDVI check — chỉ có giá trị khi <code>geoVerificationStatus = CHECKED</code>. <code>NULL</code> khi <code>PENDING</code>/<code>UNVERIFIED</code>. <code>INCONCLUSIVE</code> khác <code>UNVERIFIED</code>: API <strong>đã trả lời</strong>, nhưng dữ liệu nhiễu (mây che, xen canh nhiều tầng) khiến không kết luận được rừng hay không — xem §2.2.4.</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-2-2-1" class="section" id="sec-2-2-1"><h3 id="heading-sec-2-2-1"><span class="sec-num">§2.2.1</span> <code>verificationLevel</code> — tầng bằng chứng bổ sung, tuỳ chọn <a aria-label="Sao chép liên kết tới §2.2.1" class="anchor" href="#sec-2-2-1">#</a></h3>
+<p><strong>Quan trọng — không được hiểu nhầm thành "đã xác minh sở hữu":</strong> "trích lục bản đồ địa chính" (xin tại UBND xã hoặc Văn phòng đăng ký đất đai cấp huyện/tỉnh, quy định tại Luật Đất đai 2024/Thông tư 34/2014/TT-BTNMT) là dữ liệu chính thức từ nhà nước (số thửa, tờ bản đồ, ranh giới, diện tích) — <strong>nhưng theo đúng quy định, bản thân nó không phải văn bản pháp lý chứng minh quyền sử dụng đất</strong> (đó là vai trò của Giấy chứng nhận quyền sử dụng đất/sổ đỏ, văn bản khác hẳn). <code>CADASTRAL_BACKED</code> vì vậy <strong>không</strong> đóng được giới hạn "khai đất giả nhưng hợp lệ hình học" đã nêu ở §5 — chỉ giảm nhẹ nó: người xin trích lục phải chứng minh liên quan tới đúng thửa đất đó khi nộp đơn tại xã, nên có bằng chứng nhà nước tham chiếu được nếu sau này tranh chấp, mạnh hơn hẳn 1 file KML tự đo không ai xác nhận.</p>
+<p><strong>Không đổi pipeline nhập liệu</strong> — toạ độ vẫn qua <code>ImportPlotsFromKML</code>/<code>AddPlotManually</code> như cũ (§2.2), y hệt validate GEOMETRY/JTS (§2.5). <code>cadastralExtractFileId</code> chỉ là 1 field bằng chứng đính kèm thêm, hoàn toàn tuỳ chọn — seller không có vẫn tạo/dùng entry bình thường (<code>SELF_DECLARED</code>), không bị chặn gì.</p>
+</section><section aria-labelledby="heading-sec-2-2-2" class="section" id="sec-2-2-2"><h3 id="heading-sec-2-2-2"><span class="sec-num">§2.2.2</span> Province cross-check — mitigation cho lỗi convert VN2000 → WGS84 <a aria-label="Sao chép liên kết tới §2.2.2" class="anchor" href="#sec-2-2-2">#</a></h3>
+<p><strong>Bối cảnh:</strong> toạ độ trong KML bắt buộc theo chuẩn là WGS84, nhưng cán bộ địa chính đo gốc bằng VN2000 (hệ chiếu phẳng theo mét, chia múi theo kinh tuyến trục riêng từng tỉnh) rồi convert trước khi xuất file — bước convert này xảy ra hoàn toàn bên ngoài, trước khi file .kml chạm tới <code>ImportPlotsFromKML</code>. Nếu phần mềm đo dùng sai tham số kinh tuyến trục (ví dụ đo ở Đắk Lắk nhưng quên đổi config từ tỉnh trước đó), kết quả convert vẫn ra đúng <strong>dạng</strong> toạ độ độ WGS84, vẫn nằm trong bounding box Việt Nam, vẫn pass <code>JTS .isValid()</code> — sai lệch tính được tới <strong>81.37km</strong> (verify bằng pyproj, điểm mẫu Đắk Lắk) nhưng không tầng validate cú pháp/hình học nào ở §2.5 bắt được, vì đây là lỗi <strong>nội dung</strong> (giá trị không đúng vị trí thật), không phải lỗi <strong>cú pháp</strong> (giá trị không đúng định dạng) — 2 loại validate khác nhau, và platform chỉ làm được loại đầu.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — cross-check bằng nguồn độc lập, không cố validate nội dung trực tiếp:</strong> vì platform không có ground-truth để biết ranh giới đất thật, giải pháp là đối chiếu 2 nguồn độc lập thay vì xác minh tuyệt đối 1 nguồn:</p></div>
+<ul>
+<li>Nguồn 1: <code>declaredProvince</code> — seller tự chọn dropdown, không đi qua máy đo/phần mềm convert.</li>
+<li>Nguồn 2: tỉnh suy ra từ toạ độ đã parse, qua point-in-polygon (JTS, đã có sẵn trong stack) với polygon ranh giới tỉnh (§2.2.3).</li>
+</ul>
+<p>2 nguồn khớp nhau → không làm gì. Lệch → <code>provinceMismatchFlag = TRUE</code>, cảnh báo UI, không chặn insert (seller có thể ở gần ranh giới tỉnh, hoặc tự khai nhầm tỉnh — không nhất thiết là lỗi toạ độ).</p>
+<p><strong>Giới hạn của cross-check này (không đóng hẳn vấn đề):</strong> nếu lỗi convert là <strong>hệ thống</strong> (cùng 1 lần đo, cùng 1 tham số sai áp cho toàn bộ batch), mọi entry trong batch dịch cùng hướng, cùng khoảng cách — vẫn nhất quán <em>nội bộ</em> với nhau. Check này chỉ bắt được khi toạ độ suy ra lệch khỏi tỉnh seller khai, không bắt được trường hợp cả batch cùng lệch theo cùng 1 kiểu. Không đóng permanent limitation "khai giả nhưng hợp lệ hình học" (§5) — chỉ giảm nhẹ rủi ro lỗi <em>vô ý</em> do config sai, không bắt được fraud có chủ đích.</p>
+</section><section aria-labelledby="heading-sec-2-2-3" class="section" id="sec-2-2-3"><h3 id="heading-sec-2-2-3"><span class="sec-num">§2.2.3</span> Nguồn polygon ranh giới tỉnh — dùng Free-GIS-Data 34 tỉnh (cập nhật 08/07/2026, L1 — trước đây GADM 63 tỉnh) <a aria-label="Sao chép liên kết tới §2.2.3" class="anchor" href="#sec-2-2-3">#</a></h3>
+<p><strong>Bối cảnh cũ (chốt 05/07/2026, nay superseded):</strong> lúc đó chưa tìm ra shapefile/GeoJSON polygon 34 tỉnh mở nào — Cục Đo đạc chỉ công bố bản đồ 34 tỉnh dạng PDF/ảnh, không đọc được bằng code. Nên tạm dùng GADM (63 tỉnh cũ, trước sáp nhập) cho point-in-polygon, chấp nhận Known Limitation false-positive mismatch ở vùng vừa sáp nhập.</p>
+<p><strong>Phát hiện (08/07/2026) — ĐÃ CÓ structured data 34 tỉnh mở, gỡ được limitation cũ:</strong></p>
+<ul>
+<li><strong><code>github.com/nguyenduy1133/Free-GIS-Data</code></strong> — shapefile + GeoJSON ranh giới hành chính <strong>34 tỉnh</strong> (gồm Hoàng Sa/Trường Sa), free public use (yêu cầu cite nguồn), cập nhật 10/07/2025, sync từ Tổng cục Thống kê (GSO). Đọc được bằng code, đúng định dạng point-in-polygon cần.</li>
+<li>Backup: <strong>GeoVina API</strong> (<code>geovina.io.vn/new-provinces</code>, REST + API key, miễn phí) — danh sách + tra cứu 34 tỉnh, cũng sync từ GSO.</li>
+</ul>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> swap GADM 63 tỉnh cũ → <strong>Free-GIS-Data 34 tỉnh</strong> cho point-in-polygon ở §2.2.2. <code>declaredProvince</code> (§2.1) đổi dropdown 63 → <strong>34 tỉnh mới</strong> để đồng bộ taxonomy với nguồn polygon, tránh lệch tên gọi. <strong>Limitation false-positive mismatch cũ BIẾN MẤT</strong> — cross-check giờ chạy đúng địa giới hiện hành, không còn báo lệch oan ở khu vực vừa sáp nhập.</p></div>
+<p><strong>Limitation còn lại (nhẹ hơn hẳn):</strong> Free-GIS-Data là nguồn <strong>cộng đồng</strong> (sync GSO), không phải bản đồ pháp lý chính thức của Cục Đo đạc — dùng cho cross-check tương đối là đủ (cơ chế non-blocking, không cần chính xác pháp lý), nhưng nếu productize thật cần bản chính thức của Cục. Limitation thu từ <strong>"không có data → phải dùng 63 tỉnh sai địa giới"</strong> xuống <strong>"có data đúng địa giới nhưng chưa có giá trị pháp lý chính thức"</strong> — nhẹ hơn nhiều.</p>
+<p><strong>Giá trị hiển thị cho buyer (tuỳ thuộc §4 quyết định cuối):</strong> khi màn hình tìm kiếm/bản đồ hiển thị listing theo vị trí địa lý, <code>verificationLevel</code> là field đủ để tô màu marker khác nhau (<code>CADASTRAL_BACKED</code> nổi bật hơn <code>SELF_DECLARED</code>) — vừa cho buyer tín hiệu tin cậy thêm, vừa tạo động lực thật cho seller chủ động đi xin trích lục (tăng uy tín, không phải thủ tục bắt buộc). Field này copy nguyên vào <code>ProductPlot</code> (§2.4) và được trả trực tiếp trong response truy vấn listing của <code>product-service</code>, không cần gọi thêm service khác khi render map.</p>
+</section><section aria-labelledby="heading-sec-2-2-4" class="section" id="sec-2-2-4"><h3 id="heading-sec-2-2-4"><span class="sec-num">§2.2.4</span> Geo-risk verification qua baseline rừng 2020 — ForTy/Natural Forests (mới 06/07/2026; cập nhật 08/07/2026 L2 — đổi từ tự tính NDVI sang baseline làm sẵn) <a aria-label="Sao chép liên kết tới §2.2.4" class="anchor" href="#sec-2-2-4">#</a></h3>
+<p><strong>Bối cảnh:</strong> GEOMETRY/JTS validation (§2.5) và province cross-check (§2.2.2) chỉ bắt lỗi cú pháp/hình học và lỗi convert toạ độ — không bắt được trường hợp toạ độ hợp lệ 100% nhưng nằm trong vùng rừng thật (permanent limitation, §5). Đây là lớp bổ sung độc lập, không thay thế 2 lớp trên, nhắm đúng câu hỏi lõi của EUDR: "đất này có phải rừng tính đến 31/12/2020 không."</p>
+<p><strong>Cơ chế (cập nhật 08/07/2026, L2 — đổi từ "tự tính NDVI + tự đặt ngưỡng" sang "query baseline rừng làm sẵn"):</strong> ngay sau khi <code>PlotRegistryEntry</code> được tạo/update (qua <code>ImportPlotsFromKML</code>/<code>AddPlotManually</code>), hệ thống tự động (async, không chặn response cho seller) query <strong>bản đồ rừng baseline 2020 làm sẵn cho đúng EUDR</strong> theo toạ độ/polygon plot — <strong>không</strong> tự tính NDVI thô rồi tự đặt ngưỡng nữa. Hai nguồn mở, miễn phí:</p>
+<ul>
+<li><strong>ForTy 2020 (Forest Typology v1.0)</strong> trong Google Earth Engine Data Catalog: phân 6 class, trong đó <strong>Class 5 = Tree Crops &amp; Agroforestry (cà phê, cao su, cây ăn quả) được phân loại thẳng là "agricultural land use under EUDR"</strong>, tách khỏi class rừng tự nhiên. Trả về probability theo toạ độ — đúng bài toán "đất này là cây trồng hay rừng" mà không cần threshold thủ công.</li>
+<li><strong>Natural Forests 2020 baseline</strong> (Nature Scientific Data, 10m resolution, <strong>92% accuracy</strong>, thiết kế thẳng cho EUDR due diligence): bản đồ xác suất rừng tự nhiên tại mốc 31/12/2020.</li>
+</ul>
+<p>Rơi vào class rừng tự nhiên 2020 → <code>geoRiskLevel = HIGH_RISK</code>; rơi vào class cây trồng/nông nghiệp → <code>LOW_RISK</code>. Dữ liệu baseline dựng từ mosaic Sentinel-2 2020 đã có sẵn trong archive, không phải chờ vệ tinh chụp mới. <strong>Không còn ngưỡng NDVI thủ công</strong> — dùng nhãn rừng/không-rừng đã được peer-review làm sẵn tại đúng mốc 31/12/2020.</p>
+<p><strong><code>INCONCLUSIVE</code> — outcome thứ 3, mới 06/07/2026 (vẫn giữ sau L2):</strong> baseline làm sẵn (ForTy/Natural Forests) dựng từ mosaic cloudless 2020 nên đã <strong>giảm</strong> phần nhiễu do mây so với tự tính NDVI thô — nhưng chưa xoá hẳn nguồn nhiễu thứ 2: nông dân Việt Nam phổ biến xen canh nhiều tầng (cà phê dưới tán sầu riêng, cao su tái canh xen cây ngắn ngày), khiến class rừng/cây-trồng chồng lấn ở ranh giới, baseline trả về probability không đủ dứt khoát. Khi probability không đủ tin cậy để phân loại nhị phân → <code>geoRiskLevel = INCONCLUSIVE</code>, khác <code>HIGH_RISK</code> (có bằng chứng rủi ro) và khác <code>UNVERIFIED</code> (chưa có câu trả lời gì — lỗi kỹ thuật/timeout, §2.2.4 dưới) — đây là <strong>baseline đã trả lời, nhưng câu trả lời không đủ rõ để kết luận</strong>.</p>
+<p><strong>Không chặn giao dịch:</strong> <code>HIGH_RISK</code> chỉ là nhãn cảnh báo hiển thị cho buyer lúc xem listing, không tự động từ chối/khoá plot. Đúng nguyên tắc nền tảng là neutral-party cung cấp minh bạch, không đóng vai tòa án — buyer tự quyết định có chấp nhận rủi ro hay không, cùng tinh thần đã áp cho <code>verificationLevel</code>/điểm uy tín reputation-service (hiển thị tín hiệu, không tự động cấm).</p>
+<p><strong>Timeout — <code>geoVerificationTimeoutHours</code></strong> (chốt 6 giờ, <code>application.yml</code>, tinh chỉnh được): vì dữ liệu Sentinel-2 tại mốc 31/12/2020 đã tồn tại sẵn trong archive (không phải giám sát real-time), timeout ở đây chỉ để hứng lỗi tạm thời (mây che phải ghép nhiều ảnh lân cận, rate limit, lỗi mạng) — tính bằng <strong>giờ</strong>, khác hẳn các timeout khác trong hệ thống dựa trên hành vi người (<code>sellerResponseWindowDays</code>...) vốn tính bằng ngày. Hết <code>geoVerificationTimeoutHours</code> mà API chưa trả kết quả → <code>geoVerificationStatus = UNVERIFIED</code> (khác <code>HIGH_RISK</code> — đây là "chưa biết", không phải "có bằng chứng rủi ro").</p>
+<p><strong>Chặn <code>CreateListing</code> khi đang <code>PENDING</code> (§4):</strong> seller không thể chọn 1 <code>registryEntryId</code> đang <code>geoVerificationStatus = PENDING</code> để tạo listing — validate reject, yêu cầu chờ check xong (thường vài giờ, xem timeout ở trên). Đánh đổi: chậm listing đầu tiên vài giờ, đổi lấy loại bỏ hoàn toàn race condition listing lên sàn trước khi biết risk.</p>
+<p><strong>Giới hạn chi phí/kỹ thuật (Known Limitation, xem thêm §5):</strong></p>
+<ul>
+<li>Dữ liệu Sentinel-2 miễn phí, không giới hạn dùng thương mại (chính sách dữ liệu Copernicus). Sentinel Hub (qua Copernicus Data Space Ecosystem) có free tier với quota Processing Unit hàng tháng — chi phí mỗi lần check tỷ lệ với diện tích polygon; plot hộ nông dân nhỏ hơn nhiều so với ví dụ đo lường của Copernicus (polygon cỡ thành phố ~34 PU), nên chi phí mỗi lần check không đáng kể. Giữ chi phí thấp bằng cách chỉ check <strong>1 lần/<code>PlotRegistryEntry</code></strong> (không lặp lại mỗi lần tạo listing mới) — khớp đúng thiết kế đã tách khai báo đất khỏi tạo listing (§2.1).</li>
+<li>NDVI 10m resolution + ngưỡng nhị phân là proxy thô, <strong>KHÔNG</strong> phải xác minh EUDR pháp lý đầy đủ (dịch vụ thương mại chuyên dụng dùng layer mịn hơn kèm audit trail riêng) — không được trình bày với VICOFA/buyer như "đã verify EUDR", chỉ là tín hiệu tham khảo bổ sung, cùng nhóm với <code>verificationLevel</code> (§2.2.1).</li>
+<li><strong>Không còn tự đặt ngưỡng NDVI (L2, 08/07/2026 — điểm treo cũ đã GỠ):</strong> trước đây phải tự tính NDVI rồi tự đặt threshold — khó defend ("số này ở đâu ra?") và dễ sai vì cà phê dưới tán và rừng tự nhiên có NDVI gần nhau. Nay dùng baseline ForTy/Natural Forests 2020 làm sẵn, đã phân loại cây-trồng vs rừng-tự-nhiên bằng nghiên cứu peer-review (92% accuracy) — vừa gỡ điểm treo "ngưỡng chưa chốt", vừa nâng cấp cơ chế từ "tự đặt ngưỡng chưa kiểm chứng" lên "baseline chuẩn EUDR".</li>
+</ul>
+<p><strong>Luồng "yêu cầu đánh giá lại" bằng ảnh EXIF (mới, 06/07/2026 — đóng điểm treo trước đây):</strong> không bắt buộc chụp ảnh lúc đăng ký plot (tránh over-engineer, bắt nông dân thao tác lằng nhằng — đúng nguyên tắc đã dùng xuyên suốt tài liệu này). Chỉ kích hoạt khi <code>geoRiskLevel = HIGH_RISK</code> hoặc <code>INCONCLUSIVE</code> <strong>và</strong> seller muốn khiếu nại:</p>
+<ul>
+<li>Use case mới <code>RequestGeoReevaluation</code> (§4) — seller mở app, chụp ảnh trực tiếp tại đúng khu đất qua camera app (không cho chọn ảnh có sẵn trong thư viện — chặn đường nộp ảnh chụp từ trước/chụp chỗ khác).</li>
+<li><code>file-service</code> nhận ảnh, bóc tách EXIF — lấy toạ độ GPS lúc bấm máy và timestamp, 2 giá trị khó giả mạo hơn nếu không chủ đích can thiệp file.</li>
+<li>Đối chiếu toạ độ EXIF với polygon/point đã đăng ký ở <code>PlotRegistryEntry</code> (point-in-polygon, JTS — tái dùng thư viện đã có, không thêm dependency) — nằm trong ranh giới đã khai → cập nhật <code>geoVerificationStatus</code>/audit trail ghi nhận "đã xác minh bằng ảnh thực địa", hiển thị cho buyer cùng nhãn risk gốc (không xoá nhãn <code>HIGH_RISK</code>/<code>INCONCLUSIVE</code>, chỉ bổ sung bằng chứng đối chiếu — buyer tự quyết định).</li>
+<li>Toạ độ ngoài ranh giới đã khai → reject, không cập nhật gì, ghi nhận vào audit trail (chống seller chụp ảnh vườn hàng xóm/nơi khác nộp giả).</li>
+</ul>
+<p><strong>Giới hạn của lớp EXIF này, đã thống nhất từ đầu — không đóng hoàn toàn:</strong> vẫn là lớp phòng thủ yếu (GPS spoofing bằng app giả lập vị trí vẫn khả thi về mặt kỹ thuật), không phải bằng chứng tuyệt đối — chỉ đủ lọc case sơ hở (nộp nhầm/nộp bừa), đúng vai trò bổ sung tín hiệu chứ không thay thế xác minh EUDR pháp lý đầy đủ (xem giới hạn NDVI ở trên).</p>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> Nguồn nhập liệu — KML import là đường chính, pin thủ công là fallback hẹp <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt, phát hiện qua đối chiếu thực tế ngành (nguồn: cross-check độc lập giữa web search và NotebookLM podcast — 2 nguồn khác nhau ra cùng kết luận):</strong> cán bộ địa chính, công ty xuất khẩu, hoặc NGO ở Việt Nam đã và đang đo GPS chuyên dụng cho đúng mục đích chuẩn bị EUDR, ra file KML/Excel toạ độ sẵn có. Bắt HTX tự đo lại từ đầu là làm lại việc đã có người làm.</p></div>
+<ul>
+<li><strong><code>KML_IMPORT</code> (đường chính, cho cả <code>POINT</code> lẫn <code>POLYGON</code>):</strong> use case <code>ImportPlotsFromKML</code> (§4) parse file KML, mỗi placemark → 1 <code>PlotRegistryEntry</code>. <code>householdLabel</code> lấy từ tên placemark trong file (<code>&lt;name&gt;</code> tag) — quy ước, không bắt HTX gõ tay lại.</li>
+<li><strong><code>MANUAL_PIN</code> (fallback hẹp, chỉ cho <code>POINT</code>):</strong> dùng <code>navigator.geolocation.getCurrentPosition()</code> (API trình duyệt có sẵn, không thêm dependency) khi không có file KML sẵn. <strong>Chỉ cho phép <code>geometryType = POINT</code></strong> — cấm dùng cho <code>POLYGON</code>. Lý do cấm: vẽ polygon bằng cách thả ghim tay trên bản đồ mang sai số cấp mét, đủ để lệch sang ranh giới hộ hàng xóm hoặc rừng phòng hộ — rủi ro không đáng đánh đổi với chi phí xây UI vẽ polygon trong scope 5 tháng. Nếu plot cần <code>POLYGON</code> (&gt;4ha) mà không có file KML → yêu cầu seller đi xin file KML thật, không có đường tắt nào khác.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-2-3" class="section" id="sec-2-3"><h3 id="heading-sec-2-3"><span class="sec-num">§2.3</span> Quy tắc <code>geometryType</code> (theo ngưỡng EUDR) — không đổi <a aria-label="Sao chép liên kết tới §2.3" class="anchor" href="#sec-2-3">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Diện tích plot</th>
+<th scope="col"><code>geometryType</code></th>
+<th scope="col">Format</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>≤ 4 hecta</td>
+<td class="identifier"><code>POINT</code></td>
+<td>1 toạ độ lat/long, 6 số thập phân</td>
+</tr>
+<tr>
+<td>&gt; 4 hecta</td>
+<td class="identifier"><code>POLYGON</code></td>
+<td>GeoJSON polygon, các điểm khép kín viền plot, 6 số thập phân mỗi điểm</td>
+</tr>
+</tbody>
+</table></div>
+<p>Áp dụng theo từng plot riêng lẻ, không phải theo tổng diện tích cả listing.</p>
+</section><section aria-labelledby="heading-sec-2-3b" class="section" id="sec-2-3b"><h3 id="heading-sec-2-3b"><span class="sec-num">§2.3b</span> Global overlap check + yield anomaly — chống tái sử dụng tọa độ CHÉO seller <a aria-label="Sao chép liên kết tới §2.3b" class="anchor" href="#sec-2-3b">#</a></h3>
+<p><strong>Gap:</strong> mọi lớp hiện có đều per-seller — <code>UNIQUE(sellerId, householdLabel)</code> không bắt Seller B đăng ký lại đúng polygon X của Seller A; province check và baseline rừng cũng pass vì tọa độ hoàn toàn hợp lệ. Đây là attack rẻ nhất để "mượn" đất sạch EUDR của người khác.</p>
+<p><strong>Check khi tạo/update <code>PlotRegistryEntry</code>:</strong></p>
+<ol>
+<li>Spatial index (GEOMETRY index sẵn có) lấy candidate có bounding box giao nhau, loại chính entry hiện tại.</li>
+<li>Với candidate <code>POLYGON</code>: tính exact geometry hash (bắt copy nguyên xi), diện tích giao, <strong>IoU = giao/hợp</strong> VÀ <strong>coverage ratio = giao/min(diện tích 2 plot)</strong> — coverage ratio bắt case plot nhỏ nằm lọt trong plot lớn mà IoU vẫn thấp; chỉ IoU là lọt lưới.</li>
+<li>Với <code>POINT</code> (không có IoU): khoảng cách toạ độ &lt; epsilon + <code>areaHectares</code> xấp xỉ + owner khác.</li>
+<li>Owner khác và overlap vượt policy (config <code>plotOverlapIoUThreshold</code>/<code>plotOverlapCoverageThreshold</code>, <code>application.yml</code>) → set <code>plotReuseRisk = HIGH</code> → <strong>đẩy OPERATOR review, KHÔNG auto-reject và không tự tuyên bố fraud</strong> — overlap hợp pháp có thật: cùng hộ thuộc 2 HTX, thuê/chuyển quyền sử dụng đất, đo lại lệch nhẹ, polygon cadastral vs GPS không trùng khít. Human-in-the-loop, cùng nguyên tắc evidence review.</li>
+</ol>
+<p><strong>Yield anomaly — signal, không phải gate:</strong> <code>declaredQuantity ≤ Σ(plotArea × maxYield)</code> với <code>maxYield</code> config theo commodity/vùng — vượt → <code>yieldRisk = SUSPICIOUS|EXTREME</code>, yêu cầu seller bổ sung bằng chứng hoặc OPERATOR review. <strong>Không hard-reject</strong>: hard-code "x tấn/ha" từ 1 nguồn chung tự tạo false positive cho vườn năng suất cao/nhiều vụ; khi chưa có dữ liệu yield đáng tin theo giống/vùng/mùa vụ thì đây chỉ được phép là anomaly signal.</p>
+<p><strong>Naming EUDR output (18/07/2026, đồng bộ governance §6b):</strong> mọi chỗ export gọi là <strong>"EUDR evidence package / DDS-supporting export"</strong> — platform cung cấp traceability data cho due diligence, KHÔNG claim output là Due Diligence Statement hoàn chỉnh (risk assessment/mitigation/submission là nghĩa vụ của operator/trader tại EU).</p>
+</section><section aria-labelledby="heading-sec-2-4" class="section" id="sec-2-4"><h3 id="heading-sec-2-4"><span class="sec-num">§2.4</span> <code>ProductPlot</code>  — snapshot copy từ <code>PlotRegistryEntry</code>, không phải nhập trực tiếp <a aria-label="Sao chép liên kết tới §2.4" class="anchor" href="#sec-2-4">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>ProductPlot</code> <strong>giữ nguyên</strong> vai trò VO list bên trong <code>Product</code> aggregate (không tách aggregate — lý do gốc không đổi, xem §2.6). Điểm đổi: dữ liệu của nó giờ <strong>copy từ <code>PlotRegistryEntry</code></strong> tại thời điểm <code>CreateListing</code>, không phải nhập tay/API nhận trực tiếp <code>geoJson</code> nữa.</p></div>
+<p>Snapshot, không phải tham chiếu sống — cùng nguyên tắc đã dùng xuyên suốt hệ thống (<code>agreedPrice</code>, <code>milestoneSchedule</code> snapshot lúc <code>sign()</code>; <code>level2InspectorOrg</code> snapshot lúc <code>sign()</code>): nếu seller sau này sửa lại <code>PlotRegistryEntry</code> gốc (đo lại chính xác hơn, hộ đổi ranh giới), listing cũ <strong>không</strong> tự đổi theo — đúng bản chất "khai báo tại đúng thời điểm tạo listing", không phải link động.</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>plotId</code></td>
+<td>UUID</td>
+<td>Định danh nội bộ trong <code>Product</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>sourceRegistryEntryId</code></td>
+<td>UUID, nullable</td>
+<td>Tham chiếu tới <code>PlotRegistryEntry</code> đã copy từ đó — cùng DB (<code>product-service</code>), REFERENCES hợp lệ (không cross-service). <code>NULL</code> chỉ cho trường hợp hiếm cần nhập tay ngoài registry (không khuyến khích, không phải luồng chính).</td>
+</tr>
+<tr>
+<td class="identifier"><code>householdLabel</code></td>
+<td>String</td>
+<td>Copy tại thời điểm tạo listing</td>
+</tr>
+<tr>
+<td class="identifier"><code>geometryType</code></td>
+<td>Enum</td>
+<td>Copy</td>
+</tr>
+<tr>
+<td class="identifier"><code>geoJson</code></td>
+<td><strong>GEOMETRY, SRID 4326</strong></td>
+<td>Copy</td>
+</tr>
+<tr>
+<td class="identifier"><code>areaHectares</code></td>
+<td>BigDecimal</td>
+<td>Copy</td>
+</tr>
+<tr>
+<td class="identifier"><code>verificationLevel</code></td>
+<td>Enum</td>
+<td>Copy — snapshot đúng trạng thái lúc tạo listing, không đổi theo nếu registry gốc sau này upload thêm trích lục</td>
+</tr>
+<tr>
+<td class="identifier"><code>cadastralExtractFileId</code></td>
+<td>UUID, nullable</td>
+<td>Copy</td>
+</tr>
+<tr>
+<td class="identifier"><code>declaredAt</code></td>
+<td>Timestamp</td>
+<td>Thời điểm tạo listing (không phải thời điểm đo GPS gốc — đó là <code>PlotRegistryEntry.importedAt</code>)</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-2-5" class="section" id="sec-2-5"><h3 id="heading-sec-2-5"><span class="sec-num">§2.5</span> GeoJSON storage — <code>GEOMETRY</code> (SRID 4326), không phải <code>TEXT</code> (chốt 04/07/2026, session riêng) <a aria-label="Sao chép liên kết tới §2.5" class="anchor" href="#sec-2-5">#</a></h3>
+<p><strong>Vấn đề:</strong> lưu <code>TEXT</code> không chặn được gì — sai cú pháp, ring hở, polygon tự cắt đều insert được vô tư, tới lúc dùng mới lộ lỗi.</p>
+<p><strong>Đã verify (không suy đoán):</strong> MySQL 8 tách 2 khái niệm — <em>syntactically well-formed</em> (tự động check lúc INSERT: ring phải khép kín, đủ điểm tối thiểu) và <em>geometrically valid</em> (polygon không tự cắt chính nó — <strong>KHÔNG</strong> tự động check, phải gọi <code>ST_IsValid()</code> tay, theo đúng doc MySQL: <em>"Due to the computational expense, MySQL does not check explicitly for geometric validity"</em>). Thêm 1 giới hạn quan trọng: <code>ST_IsValid()</code>/<code>ST_Validate()</code> chỉ chạy được trên SRID=0 (Cartesian phẳng), <strong>lỗi thẳng</strong> (<code>ER_WRONG_ARGUMENTS</code>) trên SRID=4326 (toạ độ GPS thật) — xác nhận còn đúng tới bản 8.4.5.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt kiến trúc — chia trách nhiệm 2 tầng, không đổ hết cho DB:</strong></p></div>
+<ul>
+<li><strong>DB (<code>GEOMETRY</code>, SRID 4326):</strong> free, tự động — chặn sai cú pháp, ring không khép kín, thiếu điểm. Không cần code thêm.</li>
+<li><strong>Application layer (JTS, thư viện lõi Hibernate Spatial vốn đã có sẵn trong dependency tree, không thêm lib mới):</strong> gọi <code>Geometry.isValid()</code> <strong>trong RAM, trước khi persist</strong>, ở use case <code>ImportPlotsFromKML</code>/<code>AddPlotManually</code> — bypass hoàn toàn giới hạn SRID=0 của MySQL vì JTS không quan tâm SRID của DB. Đây là nơi duy nhất bắt được self-intersection.</li>
+<li><strong><code>ST_GeomFromGeoJSON()</code></strong> (MySQL 8 built-in) parse thẳng chuỗi GeoJSON từ API/KML-parse ra geometry, không cần tự convert qua WKT tay.</li>
+</ul>
+<p><strong>Giới hạn không đổi, permanent, không công nghệ nào đóng được (giữ nguyên từ bản gốc):</strong> dù DB + JTS bắt hết lỗi cú pháp/hình học, <strong>không có cách nào chặn seller khai 1 plot hợp lệ 100% về hình học nhưng không có thật/không phải đất của họ</strong> — đây là giới hạn của mô hình self-declared, trusted-operator, không phải thiếu sót của lần cập nhật này.</p>
+</section><section aria-labelledby="heading-sec-2-6" class="section" id="sec-2-6"><h3 id="heading-sec-2-6"><span class="sec-num">§2.6</span> <code>Product</code> aggregate — không đổi cho geolocation, có 1 field mới không liên quan (xem §8) <a aria-label="Sao chép liên kết tới §2.6" class="anchor" href="#sec-2-6">#</a></h3>
+<p>Vẫn giữ quan hệ 1-N với <code>ProductPlot</code>, không đổi field nào hiện có, không đổi state machine hiện tại của <code>Product</code> — <strong>cho phần geolocation/EUDR của tài liệu này.</strong> Có 1 field mới (<code>varietyName</code>) phát sinh từ nhu cầu khác hẳn (match giá tham khảo bên pricing-service), không liên quan gì tới plot/toạ độ — xem §8, tách riêng để không làm loãng scope geolocation của tài liệu này. <code>ProductPlot</code> không tách aggregate riêng — không state machine, không lifecycle độc lập, đúng nguyên tắc Vernon đã áp từ bản gốc.</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Database Migration <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<p>Additive — không sửa bảng <code>product</code> gốc:</p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE plot_registry_entry (
+    registry_entry_id  CHAR(36) PRIMARY KEY,
+    seller_id           CHAR(36) NOT NULL,          -- plain UUID lưu bằng CHAR(36), KHÔNG REFERENCES user_db (cross-service)
+    household_label     VARCHAR(255) NOT NULL,
+    geometry_type       VARCHAR(20) NOT NULL,   -- POINT | POLYGON
+    geo_json            GEOMETRY NOT NULL SRID 4326,
+    area_hectares       DECIMAL(10,4) NOT NULL,
+    source              VARCHAR(20) NOT NULL,   -- KML_IMPORT | MANUAL_PIN
+    accuracy_meters     DECIMAL(6,2) NULL,      -- chỉ MANUAL_PIN, từ coords.accuracy — cảnh báo UI, không phải constraint
+    verification_level  VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',  -- SELF_DECLARED | CADASTRAL_BACKED
+    cadastral_extract_file_id CHAR(36) NULL,        -- reference file-service, NULL nếu SELF_DECLARED
+    original_kml_file_id CHAR(36) NULL,             -- reference file-service, NULL nếu MANUAL_PIN. Field phẳng, lặp giá trị theo batch (§2.1)
+    declared_province    VARCHAR(50) NOT NULL,  -- seller tự chọn dropdown, 34 tỉnh (NQ 202/2025) — nguồn độc lập cho cross-check (§2.2.2), L1 08/07/2026
+    province_mismatch_flag BOOLEAN NOT NULL DEFAULT FALSE,  -- TRUE nếu point-in-polygon suy ra tỉnh khác declared_province — non-blocking
+    imported_at         TIMESTAMP NOT NULL,     -- cập nhật lại mỗi lần re-import/update, không chỉ lần đầu
+    geo_verification_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',  -- PENDING | CHECKED | UNVERIFIED (§2.2.4)
+    geo_risk_level      VARCHAR(20) NULL,       -- LOW_RISK | HIGH_RISK, chỉ có giá trị khi geo_verification_status = CHECKED (§2.2.4)
+    UNIQUE (seller_id, household_label),
+    SPATIAL INDEX (geo_json)
+);
+CREATE INDEX idx_plot_registry_seller ON plot_registry_entry(seller_id);
+-- province_mismatch_flag KHÔNG chặn INSERT/UPDATE — set song song, cảnh báo UI, xem §2.2.2.
+-- Invariant "source = MANUAL_PIN → geometry_type phải = POINT" check ở use-case layer,
+-- không phải DB constraint — cùng pattern active-flag đã dùng ở product-service.
+-- UNIQUE(seller_id, household_label) chính là cơ chế match re-import/update ở §4 —
+-- INSERT ... ON DUPLICATE KEY UPDATE, không cần query tìm rồi update tay.
+
+CREATE TABLE product_plot (
+    plot_id                    CHAR(36) PRIMARY KEY,
+    product_id                 CHAR(36) NOT NULL REFERENCES product(product_id),
+    source_registry_entry_id   CHAR(36) NULL REFERENCES plot_registry_entry(registry_entry_id),
+                                                  -- cùng DB product-service, REFERENCES hợp lệ.
+                                                  -- NULL = hiếm, nhập tay ngoài registry, không phải luồng chính.
+    household_label            VARCHAR(255) NOT NULL,
+    geometry_type               VARCHAR(20) NOT NULL,
+    geo_json                    GEOMETRY NOT NULL SRID 4326,   -- đổi từ TEXT
+    area_hectares                DECIMAL(10,4) NOT NULL,
+    verification_level           VARCHAR(20) NOT NULL DEFAULT 'SELF_DECLARED',  -- copy từ registry lúc snapshot
+    cadastral_extract_file_id    CHAR(36) NULL,                                     -- copy từ registry lúc snapshot
+    declared_at                  TIMESTAMP NOT NULL,
+    SPATIAL INDEX (geo_json)
+);
+CREATE INDEX idx_product_plot_product_id ON product_plot(product_id);
+</code></pre></figure>
+<p>Không có <code>UPDATE</code>/migration nào chạy trên data cũ — bảng mới, rỗng, không ảnh hưởng listing đã tồn tại.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Use Case Changes <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<ul>
+<li><strong><code>ImportPlotsFromKML(sellerId, kmlFile, declaredProvince)</code></strong> (mới, cập nhật 05/07/2026 — thêm <code>declaredProvince</code>) — parse KML, mỗi placemark → 1 <code>PlotRegistryEntry</code>.
+<ul>
+<li><strong>Matching cho re-import (04/07/2026):</strong> match theo cặp <code>(sellerId, householdLabel)</code> — placemark trùng <code>householdLabel</code> với entry đã có của đúng seller đó → <strong>UPDATE</strong> entry hiện có (coi như đo lại chính xác hơn/hộ đổi ranh giới), không tạo bản trùng. Không trùng → tạo mới (<code>source = KML_IMPORT</code>). <code>ProductPlot</code> đã snapshot cho listing cũ không đổi theo (§2.4) — 2 việc tách biệt đúng như đã chốt.</li>
+<li><strong><code>areaHectares</code> khi placemark là <code>Point</code> (04/07/2026):</strong> hình học điểm không có diện tích để tính (0 chiều) — khác <code>Polygon</code> (tự tính trực tiếp từ hình học bằng <code>JTS Polygon.getArea()</code>, cùng lib đã dùng để validate, không cần thêm gì). Ưu tiên đọc từ <code>&lt;ExtendedData&gt;</code> của placemark nếu KML có field diện tích theo quy ước đặt tên (tài liệu hướng dẫn seller ghi rõ tên field cần có, ví dụ <code>dien_tich</code>/<code>area_ha</code>). Không có field đó trong KML → bắt buộc seller nhập tay 1 số lúc import (không mặc định <code>NULL</code>/<code>0</code> — <code>0</code> gây hiểu nhầm "diện tích bằng 0" thay vì "chưa có dữ liệu").</li>
+<li>Với mỗi placemark: xác định <code>geometryType</code> theo <code>areaHectares</code> (§2.3), convert toạ độ sang GeoJSON, chạy JTS <code>.isValid()</code> trước khi <code>INSERT</code>/<code>UPDATE</code> (§2.5) — placemark nào fail validation báo lỗi rõ tên đó, không chặn cả file, cho seller sửa/bỏ qua từng cái.</li>
+<li><strong><code>declaredProvince</code> + province cross-check :</strong> seller chọn 1 tỉnh (dropdown, danh sách 34 tỉnh, §2.2.3) cho cả file — áp dụng chung cho mọi placemark trong lần import đó, lưu vào <code>declaredProvince</code> của từng <code>PlotRegistryEntry</code> tạo/update ra. Sau khi parse toạ độ mỗi placemark, chạy point-in-polygon (JTS) với polygon Free-GIS-Data 34 tỉnh (§2.2.3) suy ra tỉnh thực tế — lệch với <code>declaredProvince</code> thì set <code>provinceMismatchFlag = TRUE</code> cho đúng entry đó, không chặn insert (§2.2.2).</li>
+<li><strong><code>originalKmlFileId</code> :</strong> file KML upload lưu qua <code>file-service</code> trước, <code>fileId</code> trả về gán vào <code>originalKmlFileId</code> của mọi <code>PlotRegistryEntry</code> tạo/update trong lần import này — cùng giá trị lặp lại cho cả batch (§2.1).</li>
+</ul>
+</li>
+<li><strong><code>AddPlotManually(sellerId, householdLabel, lat, long, accuracyMeters, declaredProvince)</code></strong> (mới, cập nhật 05/07/2026 — thêm <code>declaredProvince</code>) — fallback, tạo/update <code>PlotRegistryEntry</code> (cùng matching rule theo <code>householdLabel</code> như KML) với <code>geometryType = POINT</code>, <code>source = MANUAL_PIN</code>. Không nhận polygon qua đường này (§2.2). <code>originalKmlFileId</code> luôn <code>NULL</code> (không qua KML). Cùng cơ chế province cross-check như trên (§2.2.2) — áp dụng cho từng entry đơn lẻ thay vì cả batch.
+<ul>
+<li><strong>Kiểm tra độ chính xác (04/07/2026):</strong> <code>accuracyMeters</code> lấy trực tiếp từ <code>coords.accuracy</code> của Geolocation API trình duyệt (bán kính sai số 1-độ-lệch-chuẩn tính bằng mét, trả kèm toạ độ, không cần tính thêm) — lưu lại, không bỏ qua. Nếu <code>accuracyMeters &gt; accuracyWarningThresholdMeters</code> (chốt 20m, <code>application.yml</code> — 1 cạnh plot 4ha điển hình ~200m, sai số 20m vẫn dùng được nhưng đáng cảnh báo), UI hiển thị cảnh báo trước khi seller xác nhận lưu ("độ chính xác thấp, thử lại ở nơi thoáng hoặc dùng file KML"). Không chặn cứng — thiết bị rẻ/trong nhà kính có thể không bao giờ đạt ngưỡng tốt hơn, chặn cứng loại bỏ hẳn 1 nhóm user thay vì chỉ cảnh báo.</li>
+</ul>
+</li>
+<li><strong><code>CreateListing</code>:</strong> đổi input — nhận <code>List&lt;registryEntryId&gt;</code> (chọn từ danh sách plot đã có sẵn trong registry của seller, UI dạng checkbox) thay vì <code>List&lt;ProductPlotRequest&gt;</code> với <code>geoJson</code> đầy đủ. Use case tự copy dữ liệu từ <code>PlotRegistryEntry</code> đã chọn sang <code>ProductPlot</code> mới (snapshot, §2.4). Validate: <code>registryEntryId</code> phải thuộc đúng <code>sellerId</code> đang tạo listing, ít nhất 1 plot được chọn và <code>Category.commodity == COFFEE</code>. Commodity khác bị reject vì ngoài Phase 2, không còn nhánh optional-geolocation cho write mới.
+<ul>
+<li><strong>Validate mới :</strong> reject nếu bất kỳ <code>registryEntryId</code> nào đang <code>geoVerificationStatus = PENDING</code> (§2.2.4) — tránh race condition listing cà phê lên sàn trước khi biết kết quả satellite check. <code>CHECKED</code> và <code>UNVERIFIED</code> đã có outcome nên không bị chặn bởi riêng guard này.</li>
+</ul>
+</li>
+<li><strong><code>UploadCadastralExtract(sellerId, registryEntryId, extractFile)</code></strong>  — seller upload file scan/PDF trích lục bản đồ địa chính cho 1 entry đã có sẵn (không tạo entry mới). Nhận <code>JPG</code>/<code>PNG</code>/<code>PDF</code>, cùng giới hạn dung lượng đã áp cho evidence file khác trong hệ thống (<code>sellerEvidenceFileId</code>...) — không thêm constraint riêng. Lưu qua <code>file-service</code> → <code>cadastralExtractFileId</code>, set <code>verificationLevel = CADASTRAL_BACKED</code>.
+<ul>
+<li><strong>Giới hạn thật, không phải chi tiết vặt (04/07/2026):</strong> platform <strong>không đối chiếu</strong> nội dung file (số thửa, tờ bản đồ ghi trong trích lục) với <code>geoJson</code> đã khai cho đúng entry đó — không có OCR, không tra hệ thống địa chính thật để xác nhận khớp. Seller về lý thuyết có thể upload trích lục của 1 thửa đất bất kỳ, không liên quan gì tới toạ độ đã nhập, vẫn được gắn <code>CADASTRAL_BACKED</code>. Đây là giới hạn cùng nhóm với "self-declared" đã nêu ở §2.2.1 — file chỉ là bằng chứng đính kèm, không phải cơ chế xác minh khớp tự động.</li>
+</ul>
+</li>
+<li><strong><code>RequestGeoReevaluation(sellerId, registryEntryId, photoFile)</code></strong>  — seller khiếu nại khi <code>geoRiskLevel = HIGH_RISK</code>/<code>INCONCLUSIVE</code> (§2.2.4). Chỉ nhận ảnh chụp trực tiếp qua camera app (chặn chọn ảnh có sẵn trong thư viện máy). Lưu qua <code>file-service</code> → bóc EXIF (GPS + timestamp) → point-in-polygon đối chiếu với <code>geoJson</code> đã đăng ký của đúng <code>registryEntryId</code> đó.
+<ul>
+<li><strong>Trong ranh giới:</strong> ghi audit trail "đã xác minh bằng ảnh thực địa" kèm timestamp, không xoá <code>geoRiskLevel</code> gốc — chỉ bổ sung bằng chứng đối chiếu hiển thị cùng nhãn cho buyer.</li>
+<li><strong>Ngoài ranh giới:</strong> reject, không cập nhật gì, ghi nhận audit trail (chống nộp ảnh chụp nơi khác/vườn hàng xóm).</li>
+<li><strong>Giới hạn (06/07/2026):</strong> không giải quyết được GPS spoofing bằng app giả lập vị trí — lớp phòng thủ bổ sung, không phải bằng chứng tuyệt đối (§2.2.4).</li>
+</ul>
+</li>
+<li><strong><code>UpdateListing</code>:</strong> cho phép đổi tập <code>registryEntryId</code> được chọn trước khi listing chuyển khỏi trạng thái cho phép sửa (theo state machine <code>Product</code> hiện có, không đổi) — thêm/bớt plot bằng cách tick/untick, không sửa trực tiếp <code>geoJson</code> của <code>ProductPlot</code> đã snapshot.</li>
+<li><strong><code>GetListing</code>/<code>SearchListing</code>:</strong> không đổi logic.</li>
+</ul>
+<p>Không đụng tới <code>contract-service</code>, <code>escrow-service</code>, hay bất kỳ use case nào của Milestone Escrow.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> EUDR Compliance Notes <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<ul>
+<li><strong>Không mass balance:</strong> listing phải khai đủ toàn bộ plot đóng góp, không được chọn 1 plot đại diện. Validate ở tầng use case: <code>List&lt;registryEntryId&gt;</code> không được rỗng.</li>
+<li><strong>Không cần tỷ lệ đóng góp:</strong> EUDR không đòi biết chính xác bao nhiêu kg đến từ hộ nào — chỉ cần khai đủ danh sách plot, miễn không plot nào bị phá rừng sau 31/12/2020. Nên <code>ProductPlot</code>/<code>PlotRegistryEntry</code> <strong>không có</strong> field khối lượng/tỷ lệ đóng góp.</li>
+<li><strong>Dữ liệu self-declared:</strong> platform không có khả năng verify vệ tinh/thực địa (ngoài scope 5 tháng/3 người). <code>declaredAt</code>/<code>importedAt</code> + hash chain (<code>services.md</code> mục 5) là cơ chế chống sửa sau khi khai, <strong>không phải</strong> cơ chế xác minh tính đúng đắn ban đầu — và GEOMETRY/JTS validation (§2.5) cũng vậy: chặn sai cú pháp/hình học, không chặn "khai đất giả nhưng hợp lệ". Giữ nhất quán với lập luận "trusted operator, không phải trustless".</li>
+<li><strong>Verify thêm (04/07/2026):</strong> validation hiện tại (JTS <code>.isValid()</code> + bounding box Việt Nam) không phát hiện được toạ độ bị convert sai kinh tuyến trục VN2000 sang WGS84 (ví dụ nhầm 108°30' của Đắk Lắk thành 107°45' của Lâm Đồng — 2 tỉnh liền kề, lỗi nhập nhầm tham số thực tế xảy ra khi thiết bị đo/phần mềm export cấu hình sai tỉnh) — kiểm chứng bằng tính toán thật (pyproj, điểm mẫu Đắk Lắk): sai lệch <strong>81.37km</strong>, kết quả vẫn là toạ độ hợp lệ 100% về hình học và vẫn nằm gọn trong bounding box Việt Nam, nên không có tầng validation nào ở §2.5 bắt được — cùng nhóm giới hạn permanent với "khai đất giả nhưng hợp lệ hình học" đã nêu ở trên, không giải bằng code thêm.</li>
+<li><strong>Mitigation cho lỗi VN2000/WGS84 — province cross-check (mới, 05/07/2026, xem §2.2.2/§2.2.3):</strong> không đóng được permanent limitation ở trên, nhưng giảm nhẹ trường hợp lỗi <em>vô ý</em> (config sai tỉnh) bằng cách đối chiếu <code>declaredProvince</code> (seller tự khai, nguồn độc lập) với tỉnh suy ra từ toạ độ qua point-in-polygon. Không bắt được nếu lỗi convert là hệ thống (cả batch cùng lệch theo cùng 1 hướng, nhất quán nội bộ) và không bắt được fraud có chủ đích — chỉ bắt được khi toạ độ đơn lẻ lệch khỏi tỉnh seller khai. Dùng polygon Free-GIS-Data 34 tỉnh (§2.2.3, cập nhật 08/07/2026 — đã có nguồn mở đúng địa giới hiện hành, gỡ false-positive cũ) — nguồn cộng đồng sync GSO, đủ cho cross-check tương đối non-blocking, chưa phải bản đồ pháp lý chính thức của Cục.</li>
+<li><strong>Geo-risk verification qua baseline rừng 2020 — ForTy/Natural Forests (mới 06/07/2026; cập nhật 08/07/2026 L2, xem §2.2.4):</strong> lớp bổ sung độc lập, nhắm đúng câu hỏi "đất có phải rừng tính đến 31/12/2020 không" mà JTS/province cross-check không trả lời được. Không chặn giao dịch — chỉ dán nhãn <code>HIGH_RISK</code>/<code>LOW_RISK</code> cho buyer tự quyết định. Baseline 10m 92% accuracy vẫn là proxy tham khảo, không phải xác minh EUDR pháp lý đầy đủ (dịch vụ thương mại chuyên dụng dùng layer mịn hơn + audit trail riêng) — xem giới hạn chi tiết ở §2.2.4.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Out of Scope (có chủ đích, không phải thiếu sót) <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<ul class="limitations">
+<li><strong>Luồng export sang <code>audit-service</code> để tạo báo cáo EUDR</strong> — để dành cho session hash chain (đã chốt: Feign, không phải read model riêng — xem <code>hash-chain-phase2-design.md</code> §2.3).</li>
+<li><strong>Vẽ polygon tay trong app</strong> — cấm hẳn (§2.2), không phải "chưa làm tới". Rủi ro sai số không đáng đánh đổi trong scope đồ án.</li>
+<li><strong>Xác minh KML có đúng là do "cán bộ địa chính/NGO thật" đo hay không</strong> — platform tin nội dung file KML seller upload, không xác minh nguồn gốc file. Cùng giới hạn "self-declared, trusted operator" đã nêu ở §5.</li>
+<li><strong>Đòn bẩy kinh tế thay thế cho reputation lockout ở năm đầu vận hành</strong> — đã verify (04/07/2026, kết quả và lý do đầy đủ ở <code>reputation-service-phase2-design.md</code> §9): điều lệ VICOFA hiện không hỗ trợ cơ chế này. Không lặp lại chi tiết ở đây — đây là câu hỏi thuộc phạm vi enforcement/reputation, không phải geolocation.</li>
+<li>**EXIF photo cross-check ** — đã spec đầy đủ thành use case <code>RequestGeoReevaluation</code> (§2.2.4, §4), không còn deferred. Vẫn giữ nguyên giới hạn đã thống nhất từ đầu: lớp phòng thủ yếu, không giải quyết được GPS spoofing.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Status — Product Phase 2 (Farm Plot Geolocation) <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>ProductPlot</code> là nested VO list trong <code>Product</code> aggregate, không tách aggregate riêng. <code>geometryType</code> quyết theo ngưỡng 4ha/plot. Migration additive, không đụng data/logic Phase 1 đã test.</p></div>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong></p></div>
+<ul>
+<li><strong><code>geo_json</code>: <code>TEXT</code> → <code>GEOMETRY</code> (SRID 4326)</strong> ở cả <code>product_plot</code> và <code>plot_registry_entry</code> — DB tự chặn sai cú pháp/ring hở; self-intersection chặn ở application layer qua JTS <code>.isValid()</code> (bypass giới hạn <code>ST_IsValid()</code> chỉ chạy SRID=0 của MySQL). Giới hạn "khai đất giả nhưng hợp lệ hình học" vẫn permanent, không đổi.</li>
+<li><strong><code>PlotRegistryEntry</code> (mới)</strong> — tách khai báo đất (1 lần, thuộc seller) khỏi tạo listing (nhiều lần) — giải quyết friction "gõ lại toạ độ mỗi mùa vụ cho hàng trăm hộ", phát hiện qua đối chiếu độc lập giữa web search và NotebookLM podcast review.</li>
+<li><strong>Re-import/update qua <code>UNIQUE(sellerId, householdLabel)</code></strong> — KML import lại hoặc <code>AddPlotManually</code> cho cùng hộ tự update entry hiện có (INSERT ON DUPLICATE KEY UPDATE), không tạo bản trùng, không mồ côi entry cũ. <code>ProductPlot</code> đã snapshot cho listing cũ không đổi theo — 2 việc tách biệt.</li>
+<li><strong><code>accuracyMeters</code> cho <code>MANUAL_PIN</code></strong> — lấy từ <code>coords.accuracy</code> của Geolocation API, cảnh báo UI nếu vượt ngưỡng (chốt 20m), không chặn cứng.</li>
+<li><strong><code>areaHectares</code> cho <code>Point</code> placemark trong KML</strong> — ưu tiên đọc từ <code>ExtendedData</code> nếu KML có, không có thì bắt buộc seller nhập tay lúc import (không mặc định NULL/0).</li>
+<li>**<code>verificationLevel</code> ** — <code>SELF_DECLARED</code> mặc định / <code>CADASTRAL_BACKED</code> nếu seller upload "trích lục bản đồ địa chính" (xin từ UBND xã/Văn phòng đăng ký đất đai, quy trình nhà nước có sẵn, không cần AgriContract làm gì để nó tồn tại). <strong>Không</strong> phải bằng chứng sở hữu đầy đủ (đó là vai trò của sổ đỏ, khác văn bản) — chỉ giảm nhẹ giới hạn "khai đất giả nhưng hợp lệ hình học", không đóng hẳn. Copy xuyên suốt <code>PlotRegistryEntry</code> → <code>ProductPlot</code>; response truy vấn listing của <code>product-service</code> trả field này để map hiển thị marker khác màu cho buyer.</li>
+<li><strong>KML import là đường nhập liệu chính</strong> (<code>ImportPlotsFromKML</code>), khớp thực tế cán bộ địa chính/công ty xuất khẩu/NGO đã đo GPS sẵn cho EUDR. Pin thủ công (<code>AddPlotManually</code>) chỉ là fallback, giới hạn cứng ở <code>POINT</code>, cấm dùng cho <code>POLYGON</code>.</li>
+<li><strong><code>CreateListing</code>/<code>UpdateListing</code> đổi input</strong> — chọn từ registry (checkbox) thay vì nhập/gửi <code>geoJson</code> trực tiếp mỗi lần. <code>ProductPlot</code> giờ là snapshot copy từ <code>PlotRegistryEntry</code>, cùng nguyên tắc snapshot đã dùng cho <code>agreedPrice</code>/<code>milestoneSchedule</code>/<code>level2InspectorOrg</code>.</li>
+</ul>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — dependency file-service + mitigation VN2000/WGS84:</strong></p></div>
+<ul>
+<li><strong><code>originalKmlFileId</code> (mới)</strong> — giữ lại file KML gốc qua <code>file-service</code>, field phẳng trên <code>PlotRegistryEntry</code>, lặp giá trị theo batch import. Không tách <code>PlotImportBatch</code> riêng — không có consumer nào cần query ở tầng batch (log lỗi fail lúc import không ai đọc lại; traceability đã đủ qua cơ chế UPDATE-tại-chỗ khi re-import). Mục đích là provenance, không phải re-verify toạ độ — đã xác nhận file gốc không giúp phát hiện lỗi VN2000/WGS84 vì chỉ chứa số đã convert xong.</li>
+<li><strong><code>declaredProvince</code> + <code>provinceMismatchFlag</code> (mới)</strong> — cross-check độc lập cho lỗi convert VN2000→WGS84 (permanent limitation đã nêu ở §5, không đóng được bằng validate cú pháp/hình học). Seller khai tỉnh (dropdown, độc lập với toạ độ) đối chiếu với tỉnh suy ra từ point-in-polygon. Non-blocking, chỉ cảnh báo. Không bắt được lỗi hệ thống (cả batch cùng lệch nhất quán) hay fraud có chủ đích — chỉ giảm nhẹ lỗi vô ý do config sai.</li>
+<li><strong>Nguồn polygon ranh giới — Free-GIS-Data 34 tỉnh</strong> (cập nhật 08/07/2026, L1 — trước đây GADM 63 tỉnh cũ, nay đã có structured data 34 tỉnh mở sync GSO, xem §2.2.3). False-positive mismatch ở vùng vừa sáp nhập (limitation cũ) đã <strong>gỡ</strong>. Còn lại: nguồn cộng đồng, chưa phải bản đồ pháp lý chính thức của Cục Đo đạc — đủ cho cross-check non-blocking, cần bản chính thức nếu productize.</li>
+</ul>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — geo-risk verification qua vệ tinh:</strong></p></div>
+<ul>
+<li><strong><code>geoVerificationStatus</code>/<code>geoRiskLevel</code> (mới)</strong> — tách trạng thái tiến trình check (<code>PENDING</code>/<code>CHECKED</code>/<code>UNVERIFIED</code>) khỏi kết quả rủi ro thật (<code>LOW_RISK</code>/<code>HIGH_RISK</code>/<code>INCONCLUSIVE</code>), 2 field riêng biệt để tránh gộp nhầm "chưa biết" với "có bằng chứng rủi ro" (§2.1, §2.2.4).</li>
+<li><strong><code>INCONCLUSIVE</code> (mới)</strong> — outcome thứ 3 cho case mây che/xen canh nhiều tầng làm NDVI đọc nhiễu (cà phê dưới tán sầu riêng, cao su tái canh) — khác <code>UNVERIFIED</code> (API đã trả lời nhưng không đủ tin cậy để phân loại, chứ không phải lỗi kỹ thuật/timeout).</li>
+<li><strong>Baseline rừng 2020 check — ForTy (GEE Data Catalog) / Natural Forests (cập nhật 08/07/2026 L2, thay Sentinel Hub NDVI tự tính)</strong> — async, chạy 1 lần/<code>PlotRegistryEntry</code> ngay sau tạo/update, không lặp lại mỗi lần tạo listing. Nguồn mở miễn phí, không giới hạn thương mại (Copernicus/GEE). Không chặn giao dịch — chỉ dán nhãn cho buyer tự quyết định (§2.2.4).</li>
+<li><strong><code>geoVerificationTimeoutHours</code></strong> (chốt 6 giờ, <code>application.yml</code>) — timeout tính bằng giờ chứ không phải ngày, vì dữ liệu Sentinel-2 tại mốc 31/12/2020 đã có sẵn trong archive (từ 2015), timeout chỉ hứng lỗi tạm thời (mây che, rate limit), không phải chờ dữ liệu tồn tại (§2.2.4).</li>
+<li><strong><code>CreateListing</code> chặn khi <code>PENDING</code></strong> — tránh race condition listing lên sàn trước khi có kết quả check (§4).</li>
+<li><strong>Đã đóng điểm treo EXIF</strong> — spec đầy đủ thành <code>RequestGeoReevaluation</code> (§2.2.4, §4): chỉ kích hoạt khi bị gắn <code>HIGH_RISK</code>/<code>INCONCLUSIVE</code>, không bắt buộc lúc đăng ký plot; chụp qua camera app, đối chiếu EXIF GPS với polygon đã khai.</li>
+</ul>
+<p><strong>Các điểm treo đã đóng hết (13/07/2026):</strong> ngưỡng NDVI đã <strong>GỠ</strong> nhờ chuyển sang baseline ForTy/Natural Forests làm sẵn (L2, §2.2.4). <code>geoVerificationTimeoutHours</code> chốt <strong>6 giờ</strong> (<code>application.yml</code>), tinh chỉnh được khi có dữ liệu vận hành thật (§2.2.4). Không còn điểm treo số liệu.</p>
+<p><strong>Cập nhật — rà soát end-to-end, 2 điểm định vị (không đụng code lõi geolocation):</strong></p>
+<ul>
+<li><strong>C3 — superseded cho executable Phase 2:</strong> phân tích conditional bốn commodity vẫn có giá trị roadmap, nhưng write scope hiện tại chỉ còn cà phê nên <code>CreateListing</code> luôn bắt plot và reject commodity khác (§1/§4).</li>
+<li><strong>C2 — quan hệ với CSDL vùng trồng nhà nước (Bộ NN&amp;PTNT + IDH + VICOFA):</strong> AgriContract không cạnh tranh tầng traceability — ở tầng contract/escrow/dispute. Geolocation thiết kế để liên thông/tiêu thụ CSDL nhà nước (nguồn <code>CADASTRAL_BACKED</code> lý tưởng) thay vì tự dựng, không thay thế nó (§1). <strong>Known Limitation:</strong> cơ chế liên thông cụ thể (API, format, quyền truy cập) không xác nhận được với Bộ trong phạm vi đồ án — thiết kế giữ ở mức "sẵn sàng tiêu thụ", không claim đã tích hợp. Defend hội đồng: nắm bối cảnh hạ tầng nhà nước, thiết kế để liên thông khi có điều kiện, không tự dựng lại tầng dữ liệu.</li>
+</ul>
+<p><strong>Cập nhật — L1/L2 từ báo cáo rà soát Limitations, gỡ 2 giới hạn:</strong></p>
+<ul>
+<li><strong>L1 — polygon ranh giới tỉnh:</strong> đổi GADM 63 tỉnh cũ → <strong>Free-GIS-Data 34 tỉnh</strong> (structured data mở, sync GSO, đúng địa giới hiện hành NQ 202/2025). Gỡ hẳn false-positive mismatch ở vùng vừa sáp nhập (§2.2.3). <code>declaredProvince</code> dropdown đổi 63→34 tỉnh.</li>
+<li><strong>L2 — geo-risk baseline:</strong> đổi "tự tính NDVI + tự đặt ngưỡng" → <strong>query baseline rừng 2020 làm sẵn (ForTy Class 5 / Natural Forests, 92% accuracy, chuẩn EUDR)</strong> (§2.2.4). Gỡ điểm treo "ngưỡng NDVI chưa chốt" + nâng cấp defensibility ("số này ở đâu ra" → "baseline peer-review").</li>
+</ul>
+<p>Product Phase 2 (Farm Plot Geolocation) — <strong>ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong> <code>geoVerificationTimeoutHours</code> chốt 6 giờ (§2.2.4), ngưỡng NDVI đã đóng nhờ L2. Không còn điểm treo số liệu. Liên thông CSDL nhà nước (C2) ghi ở Known Limitation — ngoài phạm vi xác nhận được của đồ án, không phải điểm treo thiết kế.</p>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Cross-service Note — <code>Product.varietyName</code> (không thuộc phạm vi Geolocation, ghi lại để đồng bộ với pricing-service) <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<blockquote>
+<p><strong>Superseded cho Phase 2 (06/10/2026):</strong> phần <code>varietyName</code> cho rice chỉ là ghi chú roadmap/legacy; không được expose trên write contract cà phê hiện tại.</p>
+</blockquote>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt, phát sinh từ session thiết kế <code>pricing-service</code>, không liên quan gì tới EUDR/geolocation:</strong> pricing-service cần phân biệt giống lúa cụ thể để hiện đúng giá tham khảo (VNSAT trả nhiều giống — OM 18, ST25, IR 50404... — cùng tỉnh/cùng ngày với giá khác hẳn nhau, không phải 1 giá/tỉnh/ngày như cà phê). <code>Product</code> hiện chỉ có <code>category</code> (ENUM tầng rộng, VD "Gạo"), không có field nào ở tầng chi tiết giống.</p></div>
+<p><strong>Thêm <code>Product.varietyName</code></strong> (<code>VARCHAR(100)</code>, nullable — chỉ có ý nghĩa với category "Gạo", <code>NULL</code> cho cà phê/cao su/điều):</p>
+<ul>
+<li>Additive migration, không đụng <code>Product</code> aggregate logic đã test.</li>
+<li>Free text, <strong>không</strong> lock cứng theo danh sách <code>itemName</code> mà pricing-service quan sát được từ VNSAT — tránh tạo dependency đồng bộ giữa 2 service chỉ cho 1 field phụ trợ tham khảo. FE có thể gợi ý autocomplete qua <code>GET /api/prices/rice/{province}/items</code> (pricing-service) nhưng không bắt buộc khớp.</li>
+<li>Match giá tham khảo là best-effort: pricing-service tự normalize <code>varietyName</code> theo cùng thuật toán <code>itemSlug</code> nó dùng nội bộ — khớp thì hiện giá tham khảo, không khớp thì im lặng không hiện, không phải lỗi, không block tạo listing.</li>
+</ul>
+<p><strong>Timing:</strong> gộp chung migration này với PR <code>Category</code>/<code>ProductImage</code>/<code>Listing.coverImageUrl</code> mà NMC đang làm (cùng đụng bảng <code>products</code>), tránh 2 lần touch schema gần nhau. Chi tiết đầy đủ nằm ở <code>pricing-service-phase2-design.md</code> §5 (Known Limitations) — tài liệu này chỉ ghi nhận phần việc phía <code>product-service</code> cần làm, không lặp lại toàn bộ lý do.</p>
+</section><section aria-labelledby="heading-sec-8b" class="section" id="sec-8b"><h2 id="heading-sec-8b"><span class="sec-num">§8b</span> <code>Listing.declaredQualitySpec</code>, partial-fill inventory và contract snapshot <a aria-label="Sao chép liên kết tới §8b" class="anchor" href="#sec-8b">#</a></h2>
+<p><code>Listing</code> thêm <code>declaredQualitySpec</code>, bắt buộc là <code>CoffeeQualitySpec</code> và <code>Category.commodity</code> bắt buộc <code>COFFEE</code>. Listing legacy commodity khác hoặc quality <code>NULL</code> được phép đọc/hiển thị, nhưng không được edit/republish thành listing Phase 2 mới.</p>
+<p>Mọi quantity/weight của product/listing dùng canonical <strong>kilogram (<code>kg</code>)</strong>. <code>offeredQuantity</code>, <code>minOrderQuantity</code> và <code>quantityAvailable</code> luôn là kg; <code>unitOfMeasure = KG</code> được giữ trong DTO hiện có để tương thích, không thêm <code>quantityUnit</code> mới. <code>minOrderQuantity</code> là mức tối thiểu seller chấp nhận cho một contract và phải <code>&gt; 0</code>, <code>&lt;= offeredQuantity</code>.</p>
+</section><section aria-labelledby="heading-sec-8b-1" class="section" id="sec-8b-1"><h3 id="heading-sec-8b-1"><span class="sec-num">§8b.1</span> Inventory ownership và listing lifecycle <a aria-label="Sao chép liên kết tới §8b.1" class="anchor" href="#sec-8b-1">#</a></h3>
+<p><code>product-service</code> là <strong>owner duy nhất</strong> của <code>quantityAvailable</code>, reservation records và listing lifecycle. <code>contract-service</code> chỉ lưu <code>reservedQuantity</code> bằng tổng <code>Σ milestoneSchedule[].committedQuantity</code> như snapshot/reference để ký, reconcile và phát lifecycle event; contract-service không có inventory counter riêng và không tự cộng/trừ tồn.</p>
+<ul>
+<li>Listing mới khởi tạo <code>quantityAvailable = offeredQuantity</code> trong cùng transaction tạo listing. Public create/update request không được gửi <code>quantityAvailable</code>; response expose field nullable này để client hiển thị.</li>
+<li>Listing legacy có <code>quantityAvailable = NULL</code> vẫn đọc được nhưng mọi reserve phải fail closed với <code>409 INSUFFICIENT_LISTING_QUANTITY</code>. Lần seller edit hoặc republish kế tiếp khởi tạo <code>quantityAvailable = offeredQuantity</code> trong cùng transaction; không có compatibility path cho contract mới tiếp tục overcommit legacy row.</li>
+<li>Lifecycle canonical là <code>DRAFT -&gt; AVAILABLE -&gt; PARTIALLY_COMMITTED -&gt; CLOSED</code>, giữ <code>PAUSED</code>. Reserve chỉ nhận listing <code>AVAILABLE</code> hoặc <code>PARTIALLY_COMMITTED</code>; <code>quantityAvailable</code> còn dương sau reserve thì state là <code>PARTIALLY_COMMITTED</code>, bằng <code>0</code> thì state là <code>CLOSED</code> (<strong>G19 chốt <code>CLOSED</code></strong>, không thêm <code>SOLD_OUT</code>).</li>
+<li>Release tính lại state từ lượng reservation chưa release: không còn reservation thì <code>AVAILABLE</code>, còn reservation và còn hàng thì <code>PARTIALLY_COMMITTED</code>, hết hàng thì <code>CLOSED</code>. Nếu seller đã chủ động close, marker seller-close luôn thắng và release chỉ tăng counter, không tự mở listing; seller phải republish tường minh. <code>PAUSED</code> cũng không tự đổi state do restore.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-8b-2" class="section" id="sec-8b-2"><h3 id="heading-sec-8b-2"><span class="sec-num">§8b.2</span> Reservation aggregate và atomicity <a aria-label="Sao chép liên kết tới §8b.2" class="anchor" href="#sec-8b-2">#</a></h3>
+<p>Reservation được định danh duy nhất bằng <code>contractId</code>, mang <code>listingId</code>, <code>reservedQuantity</code> và state <code>RESERVED -&gt; SIGNED_RELEASABLE -&gt; COMMITTED</code> hoặc <code>RELEASED</code>:</p>
+<ul>
+<li><code>RESERVED</code>: synchronous reserve đã trừ <code>quantityAvailable</code>, contract chưa đủ hai chữ ký.</li>
+<li><code>SIGNED_RELEASABLE</code>: đã nhận <code>contract.signed</code> nhưng activation vẫn có thể fail; <strong>SIGNED chưa phải commit cứng</strong>.</li>
+<li><code>COMMITTED</code>: chỉ sau <code>contract.activated</code>; từ đây activation failure không còn hợp lệ và inventory không restore.</li>
+<li><code>RELEASED</code>: withdraw pre-sign, <code>contract.activation_failed</code>, hoặc compensation do create contract persist thất bại. Transition vào state này dùng conditional update nên replay không cộng hàng lần hai.</li>
+</ul>
+<p>Internal reserve command nhận <code>{contractId, listingId, requestedQuantity, listingVersionToken}</code>. <code>contractId</code> có unique constraint và là idempotency identity: replay cùng payload trả reservation hiện có, không decrement lần hai; cùng <code>contractId</code> nhưng payload khác trả state conflict. Trong <strong>một transaction</strong>, product-service tạo reservation và chạy atomic conditional update tương đương:</p>
+<figure class="code" data-lang="text"><pre><code>UPDATE listing
+SET quantityAvailable = quantityAvailable - requestedQuantity,
+    status = (quantityAvailable - requestedQuantity == 0 ? CLOSED : PARTIALLY_COMMITTED)
+WHERE listingId = :listingId
+  AND versionToken = :listingVersionToken
+  AND status IN (AVAILABLE, PARTIALLY_COMMITTED)
+  AND quantityAvailable IS NOT NULL
+  AND minOrderQuantity &lt;= requestedQuantity
+  AND quantityAvailable &gt;= requestedQuantity
+</code></pre></figure>
+<p>Zero-row update được re-read để phân loại: legacy-null, dưới <code>minOrderQuantity</code> hoặc không đủ tồn đều trả <code>409 INSUFFICIENT_LISTING_QUANTITY</code>; token stale khi tồn vẫn đủ trả <code>409 LISTING_VERSION_MISMATCH</code>; state seller-paused/closed trả state conflict. Client phải reload listing, không blind retry. Hai transaction tranh phần tồn cuối chỉ một conditional update thắng.</p>
+<p><code>contract.created</code> chỉ xác nhận reservation đã được gắn với contract persist thành công, tuyệt đối không decrement lần hai. Product-service consume lifecycle event theo <code>eventId</code> với dedup durable: <code>contract.withdrawn</code> release pre-sign; <code>contract.signed</code> chuyển <code>RESERVED -&gt; SIGNED_RELEASABLE</code>; <code>contract.activation_failed</code> release cả reservation signed; <code>contract.activated</code> chuyển sang <code>COMMITTED</code>. Event replay và compensation release dùng cùng conditional transition nên không thể restore hai lần. Nếu <code>contract.created</code> tới sau khi reservation đã <code>RELEASED</code>, consumer phải phân loại đây là bất nhất tồn kho của một contract sống với reservation đã restore, ghi error log và alert Operator; không được silent no-op, decrement lại, đảo state hay tạo money/inventory path thứ hai.</p>
+<h4 id="topic-1"><code>OrphanReservationReaperJob</code></h4>
+<p>Product-service chạy <code>OrphanReservationReaperJob</code> định kỳ để thu hồi reservation bị bỏ rơi mà không gọi contract-service và không tạo endpoint hay coupling đồng bộ mới. Job chỉ đọc dữ liệu cục bộ của product-service và durable event-dedup store hiện có (bản ghi lifecycle được dedup theo <code>eventId</code>). Một reservation là <strong>orphan</strong> khi đồng thời:</p>
+<ol>
+<li>reservation đang ở <code>RESERVED</code>;</li>
+<li>durable dedup store chưa ghi nhận event <code>contract.created</code> cho <code>contractId</code>; và</li>
+<li>tuổi reservation vượt <code>orphanReservationGraceMinutes</code>, tính từ timestamp tạo reservation.</li>
+</ol>
+<p><code>orphanReservationGraceMinutes</code> là config, mặc định <strong>30 phút</strong>: đủ dài để compensation/outbox retry hoàn tất trong điều kiện bình thường nhưng không để hàng treo quá lâu trong trạng thái không có contract đã persist. Không thêm bảng, marker hay cơ chế persistence mới cho job.</p>
+<p>Với mỗi orphan, job dùng đúng conditional transition <code>RESERVED -&gt; RELEASED</code> của reservation aggregate. <code>SIGNED_RELEASABLE</code> và <code>COMMITTED</code> không bao giờ là ứng viên reaper. Conditional update bảo đảm duplicate run, restart hoặc concurrent worker chỉ restore một lần; seller-close và <code>PAUSED</code> chỉ được tăng lại counter, không tự mở listing. Mỗi lần release ghi operational log và phát alert cho Operator để theo dõi.</p>
+<p>Race delivery trễ được xử lý tường minh: nếu <code>contract.created</code> đến sau khi reaper đã release, consumer nhìn thấy reservation <code>RELEASED</code>, ghi error log kèm <code>contractId</code>/<code>eventId</code> và alert Operator. Consumer vẫn dedup event theo <code>eventId</code> sau khi ghi nhận bất nhất để retry không tạo nhiều cảnh báo, nhưng không tự decrement, không chuyển state ngược và không phát thêm money/inventory command. Vận hành phải xử lý contract sống và reservation đã restore như một incident tồn kho.</p>
+<p><code>ListingResponse</code> bắt buộc expose <code>listingVersionToken</code> opaque. Trong Phase 2, product-service tạo token từ canonical UTC representation của <code>Listing.updatedAt</code>; buyer client giữ token đã xem và gửi lại khi <code>CreateContract</code>. Contract-service so exact token trước khi snapshot, mismatch trả <code>409 LISTING_VERSION_MISMATCH</code>. Token được đặt tên opaque để sau này có thể chuyển sang monotonic version mà không đổi public field; việc thêm numeric version chính thức nằm ngoài batch này.</p>
+<p>Declared spec và committed spec dùng chung một schema cà phê:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Commodity</th>
+<th scope="col">Identity / exact field</th>
+<th scope="col">Measurable numeric fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>COFFEE</code></td>
+<td><code>type</code> (<code>ARABICA</code>/<code>ROBUSTA</code>)</td>
+<td><code>moisturePercent</code>, <code>foreignMatterPercent</code>, <code>blackBrokenBeansPercent</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>type</code> là field inspector có thể exact-match. Product-service reject mọi commodity khác <code>COFFEE</code> và mọi quality shape không đúng <code>CoffeeQualitySpec</code> ở create/update/republish.</p>
+<p>Khi contract-service tạo contract, nó đọc authoritative listing/product/category/plot và tạo <code>GoodsTermsSnapshot</code>; input từ buyer không được gửi object này. Snapshot dùng shape nguồn gốc chuẩn hoá:</p>
+<figure class="code" data-lang="text"><pre><code>originSnapshot {
+  regionText,
+  plotRefs[]
+}
+</code></pre></figure>
+<p><code>plotRefs</code> bắt buộc non-empty cho <code>COFFEE</code>. <code>traceabilitySnapshot</code> là nullable evidence-package reference. Đây là contract snapshot: sửa/xoá Listing, Product, Category hay PlotRegistryEntry sau create contract không cascade và không làm đổi <code>goodsTerms</code>/<code>signedContentHash</code>; lookup nguồn chỉ phục vụ provenance/audit, không tái hydrate terms.</p>
+<p>Contract create ordering và invariant chữ ký được owner contract-service chốt ở <code>milestone-escrow-phase2-design.md</code> §2.1d: reserve sync trước khi persist <code>OFFERED</code>, persistence failure phải gọi compensation release idempotent, và <strong>F18</strong> bắt buộc <code>Σ committedQuantity == reservedQuantity</code> trước transition <code>SIGNED</code>.</p>
+</section><section aria-labelledby="heading-sec-8c" class="section" id="sec-8c"><h2 id="heading-sec-8c"><span class="sec-num">§8c</span> Thông tin bổ sung cho Product và Listing <a aria-label="Sao chép liên kết tới §8c" class="anchor" href="#sec-8c">#</a></h2>
+<p>Các thuộc tính sau là metadata bổ sung, đều nullable/không bắt buộc và không tạo lifecycle, settlement hay event mới. Ba field Product được project read-only từ Product sang <code>ListingResponse</code>; client không được gửi chúng khi create/update Listing.</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Aggregate</th>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ý nghĩa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>Product</code></td>
+<td class="identifier"><code>cropYear</code></td>
+<td>Integer, nullable</td>
+<td>Năm mùa vụ do seller khai báo.</td>
+</tr>
+<tr>
+<td class="identifier"><code>Product</code></td>
+<td class="identifier"><code>harvestSeason</code></td>
+<td>Free-text, nullable</td>
+<td>Mùa thu hoạch do seller mô tả; không áp taxonomy hoặc validation nghiệp vụ mới.</td>
+</tr>
+<tr>
+<td class="identifier"><code>Product</code></td>
+<td class="identifier"><code>certifications</code></td>
+<td>List free-text, nullable</td>
+<td>Danh sách cam kết forward của seller, không phải chứng nhận đã được platform verify.</td>
+</tr>
+<tr>
+<td class="identifier"><code>Listing</code></td>
+<td class="identifier"><code>packagingDeclaration</code></td>
+<td>Free-text, nullable</td>
+<td>Khai báo đóng gói chỉ phục vụ hiển thị.</td>
+</tr>
+<tr>
+<td class="identifier"><code>Listing</code></td>
+<td class="identifier"><code>warehouseLocation</code></td>
+<td>Free-text, nullable</td>
+<td>Vị trí kho phục vụ thông tin listing; khác với delivery point được thoả thuận trong contract/delivery terms.</td>
+</tr>
+<tr>
+<td class="identifier"><code>Listing</code></td>
+<td class="identifier"><code>estimatedAvailabilityDate</code></td>
+<td>Date, nullable</td>
+<td>Ngày dự kiến hàng sẵn có; không tạo deadline hay state transition.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Ba field <code>Listing</code> được expose qua common create/response DTO. Ba field <code>Product</code> được expose trong <code>ListingResponse</code> common DTO dưới dạng read-only, nullable và derived từ Product; Product vẫn là owner duy nhất, không thêm Product DTO public riêng. <code>certifications</code> là list free-text do seller cam kết cho hàng tương lai, không typed và không có expiry.</p>
+<p>Lý do consistency: <code>goodsTerms</code> snapshot lúc ký mang <code>cropYear</code>/<code>harvestSeason</code> dưới dạng required-but-nullable server-derived fields. Nếu buyer ký hợp đồng có các field này nhưng lúc xem Listing lại không thấy, buyer đang ký một phần thông tin mà họ chưa từng nhìn thấy. ListingResponse phải hiển thị cùng lớp thông tin với snapshot; đây là cùng lớp vấn đề với <code>listingVersionToken</code>/listing-version guard. <code>certifications</code> vẫn là metadata seller-declared read-only của ListingResponse trong Phase 2; chưa tự nâng thành chứng nhận đã verify hoặc signed compliance claim.</p>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> Cross-service Note — <code>Category</code> aggregate + quan hệ 2 tầng <code>commodity</code>/<code>category</code> (đồng bộ với Phase 1 Category redesign, 08/07/2026) <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<p><strong>⟢ SOURCE OF TRUTH cho quan hệ <code>Category</code>/<code>commodity</code> (redesign Phase 1) là mục này.</strong> <code>Category</code> thuộc <code>product-service</code>/Phase 1 nên quyết định <code>Category.commodity</code> (enum cứng, Operator gán lúc <code>approve()</code>, bỏ bảng mapping) chốt ở đây. Các file khác chỉ <em>dùng</em> <code>commodity</code> để gate logic của riêng chúng và tham chiếu về mục này thay vì tự mô tả lại cơ chế map: <code>milestone-escrow</code> §7.2 (đọc để publish <code>contract.signed</code>), <code>analytics-service</code> §2.1 (populate <code>dim_contract</code>). Nếu 2 file lệch nhau về cách map → bản ở đây thắng.</p>
+<p><strong>Bối cảnh:</strong> Phase 1 đang redesign <code>Product.category</code> từ String tự do thành <code>categoryId</code> (FK) trỏ tới aggregate <code>Category</code> mới (<code>PENDING → APPROVED | REJECTED</code>, Operator duyệt/seller propose động). Điều này đụng tới nhiều service Phase 2 vốn dùng <code>commodity</code> để gate logic — cần làm rõ 2 tầng để không lẫn:</p>
+<p><strong>2 tầng khác mục đích, giữ cả hai:</strong></p>
+<ul>
+<li><strong><code>commodity</code></strong> — Phase 2 executable value duy nhất là <code>COFFEE</code>. Enum lịch sử có thể còn tồn tại khi migrate legacy data, nhưng mọi write path mới và contract/event schema phải dùng <code>COFFEE</code>; pricing/analytics không được quảng bá hỗ trợ ba commodity còn lại.</li>
+<li><strong><code>category</code></strong> (aggregate động, admin/seller thêm) — tầng "phân loại marketplace" cho filter/hiển thị. Linh hoạt, không giới hạn số lượng ("Cà phê Arabica Cầu Đất", "Gạo ST25 hữu cơ"...).</li>
+</ul>
+<p><strong>Điểm nối 2 tầng — <code>Category.commodity</code>:</strong> aggregate <code>Category</code> vẫn giữ field <code>commodity</code>, nhưng Phase 2 approval chỉ chấp nhận <code>COFFEE</code>. Đây là điểm map duy nhất, 1 lần, đúng người có thẩm quyền; mọi Product/Listing hợp lệ trong scope luôn truy ra <code>COFFEE</code> non-null khi snapshot hoặc publish <code>contract.signed</code>.</p>
+<p><strong>Việc cần làm (đồng bộ Phase 1 ↔ Phase 2):</strong></p>
+<ul>
+<li>Phase 1 <code>Category</code> aggregate thêm field <code>commodity</code> (non-null; Phase 2 write validation chỉ nhận <code>COFFEE</code>) + Operator gán lúc <code>approve()</code>. Migration <code>categories</code> thêm cột <code>commodity</code>.</li>
+<li>Các service Phase 2 (<code>contract-service</code> publish <code>contract.signed</code>, <code>product-service</code> EUDR gate, <code>analytics-service</code> dimension) đọc <code>commodity</code> qua <code>Category.commodity</code> thay vì tự map từ enum cũ.</li>
+<li><strong>Duplicate check của <code>Category</code> (Phase 1 §1.2) không đụng tầng <code>commodity</code></strong> — 2 category khác tên nhưng cùng <code>commodity</code> là hợp lệ ("Cà phê Robusta" và "Cà phê Arabica" đều <code>commodity = COFFEE</code>, không phải trùng). <code>commodity</code> là thuộc tính phân nhóm, không phải khoá unique.</li>
+</ul>
+<p>Chi tiết mapping <code>commodity</code> ở <code>contract.signed</code> xem <code>milestone-escrow-phase2-design.md</code> §7.2.</p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">23/07/2026</span><p>Thêm metadata Product/Listing §8c.</p>
+</li><li><span class="changelog__date">13/07/2026</span><p>Chốt <code>geoVerificationTimeoutHours</code> = 6h; C2 chuyển Known Limitation; đóng session.</p>
+</li><li><span class="changelog__date">08/07/2026</span><p>Commodity-gate cho geolocation; <code>Category.commodity</code> nối 2 tầng; polygon 34 tỉnh; baseline rừng 2020.</p>
+</li><li><span class="changelog__date">06/07/2026</span><p>Geo-risk qua Sentinel-2 NDVI, <code>INCONCLUSIVE</code>, luồng EXIF <code>RequestGeoReevaluation</code>.</p>
+</li><li><span class="changelog__date">05/07/2026</span><p>File-service dependency, province cross-check, <code>varietyName</code>.</p>
+</li><li><span class="changelog__date">04/07/2026</span><p>GEOMETRY/JTS validation, Plot Registry + KML import.</p>
+</li><li><span class="changelog__date">02/07/2026</span><p>Design session.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li>§1 đoạn 08/07 (C3) còn mô tả gạo/điều/cao su như scope; scope override 06/10 chỉ còn <code>COFFEE</code>.</li></ul></aside><footer class="doc-footer"><a href="../product-phase2-design.md">product-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../product-phase2-design.md">Markdown · 471 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

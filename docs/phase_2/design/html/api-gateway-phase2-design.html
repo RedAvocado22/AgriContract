@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>api-gateway-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">api-gateway</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 18 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Authentication &amp; Header Trust Boundary</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Route &amp; Access Matrix</a></li><li class="toc__sub"><a href="#sec-3-1"><span class="toc__number">§3.1</span> Public — không cần JWT</a></li><li class="toc__sub"><a href="#sec-3-2"><span class="toc__number">§3.2</span> Authenticated Buyer/Seller/common</a></li><li class="toc__sub"><a href="#sec-3-3"><span class="toc__number">§3.3</span> Role-gated</a></li><li class="toc__sub"><a href="#sec-3-4"><span class="toc__number">§3.4</span> External Verifier</a></li><li class="toc__sub"><a href="#sec-3-5"><span class="toc__number">§3.5</span> Internal-only — không có external route</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Authorization Ownership</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Edge Policies</a></li><li class="toc__sub"><a href="#sec-5-1"><span class="toc__number">§5.1</span> Timeout &amp; retry</a></li><li class="toc__sub"><a href="#sec-5-2"><span class="toc__number">§5.2</span> Request size</a></li><li class="toc__sub"><a href="#sec-5-3"><span class="toc__number">§5.3</span> Rate limit</a></li><li class="toc__sub"><a href="#sec-5-4"><span class="toc__number">§5.4</span> CORS &amp; observability</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Configuration Delta</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Failure &amp; Security Cases</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Known Limitations / Out of Scope</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> Status — API Gateway Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>API Gateway</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-25">25/10/2026</time></span><a href="../api-gateway-phase2-design.md">Mở Markdown · 200 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a><a class="xref" href="bank-service-phase2-design.html" title="bank-service-phase2-design.md">bank-service</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Public match theo method + exact path; authenticated default; deny <code>/internal/**</code> trước mọi route.</li><li>Strip client identity headers rồi inject JWT <code>sub</code>/application roles và secret; không inject <code>X-User-Email</code>, preserve <code>X-Api-Key</code> cho audit-hash.</li><li>Exact OPERATOR/ARBITRATOR/ADMIN routes đứng trước wildcard; không ADMIN fallback, service vẫn re-check role/ownership.</li><li><code>audit-hash</code> → audit-service; emergency lock/unlock → bank-service, không JWT user flow, không retry, giữ raw signed body.</li><li>Không route raw file API hoặc <code>/api/v1/notifications/**</code>; upload business gọi <code>StoreOnBehalfOf</code> để giữ scan/cap/whitelist.</li><li>Không gọi user-service từ <code>UserContextInjectionFilter</code>; không xử lý KYC, reputation lock, contract state hay tiền tại Gateway.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p>Phase 1 Gateway route 5 service và <code>SecurityConfig</code> đang <code>permitAll</code>; filter tự quyết định hai public prefix rồi inject identity headers. Phase 2 có 12 business services, thêm public reference APIs, Admin/Inspector workflows, internal-only APIs và External Verifier security endpoints. Nếu chỉ thêm route mà không chốt access matrix, endpoint nội bộ hoặc dữ liệu PII rất dễ bị expose.</p>
+<p>Gateway chịu trách nhiệm:</p>
+<ul>
+<li>Validate JWT và phân loại route coarse-grained.</li>
+<li>Strip mọi identity header từ client rồi inject identity đã xác thực.</li>
+<li>Route tới đúng service, áp timeout/request-size/rate policy ở edge.</li>
+<li>Chặn <code>/internal/**</code> và service ports khỏi external traffic.</li>
+</ul>
+<p>Gateway <strong>không</strong> chịu trách nhiệm ownership, KYC, reputation lock, contract state, file business access hoặc quyết định tiền.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Authentication &amp; Header Trust Boundary <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<figure class="code" data-lang="text"><pre><code>Client → Nginx → API Gateway (verify JWT/JWKS) → downstream service
+</code></pre></figure>
+<p>Với authenticated request, Gateway xoá các header client có thể giả mạo rồi inject lại:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Header</th>
+<th scope="col">Nguồn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>X-User-Id</code></td>
+<td>JWT <code>sub</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>X-User-Role</code></td>
+<td>Keycloak <code>realm_access.roles</code>, chỉ giữ role ứng dụng</td>
+</tr>
+<tr>
+<td class="identifier"><code>X-Correlation-Id</code></td>
+<td>Giữ UUID hợp lệ từ client hoặc sinh mới</td>
+</tr>
+<tr>
+<td class="identifier"><code>X-Gateway-Secret</code></td>
+<td>Secret deployment, không nhận giá trị client</td>
+</tr>
+</tbody>
+</table></div>
+<p>Gateway xoá <code>Authorization</code> trước khi chuyển xuống service theo pattern Phase 1; downstream tin headers chỉ khi gateway secret hợp lệ. <strong>Sửa 17/07/2026 — bỏ inject <code>X-User-Email</code>:</strong> giảm PII rải qua header/log của mọi hop, và email trong JWT claim có thể lệch với <code>contactInfo</code> ở <code>user_profiles</code>; service cần email người dùng luôn lấy qua <code>GET /internal/v1/users/{userId}</code> (user-service §4.3), không tin bất kỳ header nào. Gateway chỉ strip <code>Authorization</code> + <code>X-User-*</code> + internal secret — header <code>X-Api-Key</code> của route audit-hash public đi qua nguyên vẹn. Service-to-service dùng network nội bộ + <code>SERVICE_INTERNAL_SECRET</code>, tiến hoá mTLS.</p>
+<p>Public request không được inject identity giả. Nếu JWT optional nhưng hợp lệ, Gateway có thể inject context; JWT sai/expired luôn trả <code>401</code>, không hạ xuống anonymous.</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Route &amp; Access Matrix <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+</section><section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1"><h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> Public — không cần JWT <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Path</th>
+<th scope="col">Destination</th>
+<th scope="col">Policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>GET /api/v1/listings/**</code></td>
+<td>product-service</td>
+<td>Public read only</td>
+</tr>
+<tr>
+<td class="identifier"><code>GET /api/v1/products/**</code></td>
+<td>product-service</td>
+<td>Chỉ endpoint catalog/listing-public được permit; <code>/products/mine</code> không match rule public cụ thể</td>
+</tr>
+<tr>
+<td class="identifier"><code>GET /api/v1/prices/**</code></td>
+<td>pricing-service</td>
+<td>Reference data</td>
+</tr>
+<tr>
+<td class="identifier"><code>GET /api/v1/security/audit-hash</code></td>
+<td>audit-service</td>
+<td><code>X-Api-Key</code> + rate limit; hash read-only. <strong>Sửa 17/07/2026:</strong> data (<code>audit_record</code>) thuộc audit-service nên audit-service serve trực tiếp — bank-service chỉ giữ lock/unlock (bank §3.5.1), không tạo Feign bank→audit chỉ để đọc hộ</td>
+</tr>
+<tr>
+<td><code>/actuator/health</code>, <code>/actuator/info</code></td>
+<td>Gateway</td>
+<td>Public operational probe; không expose env/config</td>
+</tr>
+</tbody>
+</table></div>
+<p>Public policy match theo <strong>method + exact path pattern</strong>, không dùng prefix rộng như Phase 1 (<code>startsWith("/products")</code>).</p>
+</section><section aria-labelledby="heading-sec-3-2" class="section" id="sec-3-2"><h3 id="heading-sec-3-2"><span class="sec-num">§3.2</span> Authenticated Buyer/Seller/common <a aria-label="Sao chép liên kết tới §3.2" class="anchor" href="#sec-3-2">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Prefix</th>
+<th scope="col">Destination</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>/api/v1/users/**</code></td>
+<td>user-service</td>
+<td><code>/me</code>, register, safe public user DTO</td>
+</tr>
+<tr>
+<td><code>/api/v1/products/**</code>, <code>/api/v1/listings/**</code>, <code>/api/v1/plots/**</code></td>
+<td>product-service</td>
+<td>Write/owned reads authenticated</td>
+</tr>
+<tr>
+<td class="identifier"><code>/api/v1/categories/**</code></td>
+<td>product-service</td>
+<td>(thiếu trong matrix, phát hiện ở PR #150): đọc danh mục + <code>POST</code> đề xuất category mới (BUYER/SELLER, role check ở service). Duyệt/từ chối category <strong>không</strong> nằm ở prefix này — canonical là <code>/api/v1/admin/categories/**</code> (OPERATOR, bảng dưới). Known debt: <code>CategoryController</code> Phase 1 còn <code>PUT /api/v1/categories/{id}/approve|reject</code> với <code>hasRole('ADMIN')</code> — product-service phải dời sang admin prefix + OPERATOR; tới lúc đó gateway không thêm role gate cho 2 path legacy này.</td>
+</tr>
+<tr>
+<td><code>/api/v1/contracts/**</code>, <code>/api/v1/milestones/**</code></td>
+<td>contract-service</td>
+<td>Ownership/state ở contract-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>/api/v1/escrows/**</code></td>
+<td>escrow-service</td>
+<td>Chỉ participant-owned read/commands đã expose</td>
+</tr>
+<tr>
+<td class="identifier"><code>/api/v1/inspections/**</code></td>
+<td>inspection-service</td>
+<td>Role/assignment ở service</td>
+</tr>
+<tr>
+<td class="identifier"><code>/api/v1/reputation/**</code></td>
+<td>reputation-service</td>
+<td>Gồm <code>public-summary</code> (<strong>đổi 17/07/2026:</strong> authenticated, không còn public no-auth — mọi bên cần xem uy tín đối tác đều đã login; hạ exposure scraping lock-history); credit export cần consent/authorization ở service</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>/api/v1/notifications/**</code> <strong>bị loại khỏi matrix (17/07/2026)</strong> — notification-service không có end-user API trong Phase 2 (chỉ RabbitMQ consumer + internal OTP endpoint, <code>notification-service-phase2-design.md</code> §2/§9); không route tới API không tồn tại. Nếu sau này expose log reader, thêm endpoint + route cùng lúc.</p>
+</section><section aria-labelledby="heading-sec-3-3" class="section" id="sec-3-3"><h3 id="heading-sec-3-3"><span class="sec-num">§3.3</span> Role-gated <a aria-label="Sao chép liên kết tới §3.3" class="anchor" href="#sec-3-3">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Path</th>
+<th scope="col">Role tại Gateway</th>
+<th scope="col">Destination</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/v1/admin/users?verificationStatus=...</code>, <code>GET /api/v1/admin/users/{id}</code> (chi tiết KYC có read-audit, #155), <code>POST /api/v1/admin/users/{id}/verify|reject</code></td>
+<td>OPERATOR</td>
+<td>user-service (KYC)</td>
+</tr>
+<tr>
+<td><code>/api/v1/admin/users/**</code> còn lại (account/role)</td>
+<td>ADMIN</td>
+<td>user-service</td>
+</tr>
+<tr>
+<td><code>/api/v1/admin/categories/**</code>, <code>/api/v1/admin/products/**</code></td>
+<td>OPERATOR</td>
+<td>product-service</td>
+</tr>
+<tr>
+<td>Route <code>InitiateLevel2Inspection</code> (exact path, đứng trước wildcard)</td>
+<td>ARBITRATOR</td>
+<td>inspection-service</td>
+</tr>
+<tr>
+<td><code>/api/v1/admin/inspections/**</code> còn lại (case ID, review <code>PENDING_REVIEW</code>, upload thủ công)</td>
+<td>OPERATOR</td>
+<td>inspection-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>POST /api/v1/admin/reputation/actions/propose</code></td>
+<td>OPERATOR</td>
+<td>reputation-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>POST /api/v1/admin/reputation/actions/{id}/approve|reject</code></td>
+<td>ARBITRATOR</td>
+<td>reputation-service</td>
+</tr>
+<tr>
+<td><code>/api/v1/admin/reputation/**</code> còn lại (đọc hàng đợi)</td>
+<td>OPERATOR, ARBITRATOR</td>
+<td>reputation-service</td>
+</tr>
+<tr>
+<td><code>POST /api/v1/contracts/{id}/breach-cases/{id}/review|resolve</code>, <code>POST .../milestones/{id}/force-majeure/resolve</code></td>
+<td>ARBITRATOR</td>
+<td>contract-service</td>
+</tr>
+<tr>
+<td><code>POST /api/v1/contracts/{id}/activation/**</code>, retry funding milestone</td>
+<td>OPERATOR</td>
+<td>contract-service</td>
+</tr>
+<tr>
+<td><code>/api/v1/admin/prices/**</code> hoặc <code>POST /api/v1/prices/manual</code></td>
+<td>OPERATOR</td>
+<td>pricing-service</td>
+</tr>
+<tr>
+<td><code>/api/v1/admin/analytics/**</code>, <code>/api/v1/analytics/**</code></td>
+<td>ADMIN</td>
+<td>analytics-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>/api/v1/admin/security/**</code></td>
+<td>ADMIN</td>
+<td>bank-service — đọc lịch sử <code>system_lock</code>/<code>used_nonce</code>, admin security workflow; <strong>không</strong> được emergency unlock</td>
+</tr>
+<tr>
+<td class="identifier"><code>/api/v1/admin/audit/**</code></td>
+<td>ADMIN</td>
+<td>audit-service — verify status, export bằng chứng per-contract (VIAC/toà), trigger EUDR report. trước đây <code>AUDIT_SERVICE_URL</code> có trong config nhưng không route nào dùng tường minh</td>
+</tr>
+<tr>
+<td>Approve replay DLQ nhóm tiền/security/evidence</td>
+<td>ADMIN (propose: OPERATOR)</td>
+<td>theo service sở hữu queue — governance §8b</td>
+</tr>
+<tr>
+<td class="identifier"><code>/api/v1/inspector/**</code></td>
+<td>INSPECTOR</td>
+<td>inspection-service</td>
+</tr>
+</tbody>
+</table></div>
+<p>Gateway role gate là lớp coarse-grained; service vẫn kiểm tra role + resource assignment.</p>
+<p><strong>Sync SRS v1.6 (12/10/2026, thay đoạn bổ sung OPERATOR ngày 18/07):</strong> mỗi route nhận <strong>đúng role staff của chức năng đó</strong> — không còn dạng <code>ADMIN|OPERATOR</code>, không có Admin fallback (<code>data-governance-phase2-design.md</code> §5.4). OPERATOR: KYC, moderate, giá manual, intake/review inspection, retry activation/funding, propose reputation/replay. ARBITRATOR: breach case, force majeure, khởi tạo Level 2, approve/reject reputation. ADMIN: account/role, audit, security, analytics, approve replay. Route <code>/api/v1/contracts/**</code> cho Buyer/Seller vẫn là authenticated wildcard; các route ARBITRATOR/OPERATOR trong contract-service là exact path đứng trước wildcard đó (rule §6). Service vẫn re-check role — Gateway chỉ là lớp ngoài.</p>
+</section><section aria-labelledby="heading-sec-3-4" class="section" id="sec-3-4"><h3 id="heading-sec-3-4"><span class="sec-num">§3.4</span> External Verifier <a aria-label="Sao chép liên kết tới §3.4" class="anchor" href="#sec-3-4">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Path</th>
+<th scope="col">Authentication</th>
+<th scope="col">Destination</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>POST /api/v1/security/emergency-lock</code></td>
+<td>Asymmetric signature, timestamp + nonce/replay guard</td>
+<td>bank-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>POST /api/v1/security/emergency-unlock</code></td>
+<td>Mirror asymmetric verification; không Admin bypass</td>
+<td>bank-service</td>
+</tr>
+</tbody>
+</table></div>
+<p>Hai endpoint này không dùng JWT user flow và không bị filter ép <code>X-User-*</code>. Gateway preserve raw signed body, áp request cap <strong>64 KB</strong>, không retry, và cộng rate bucket per-IP nhỏ (đề xuất 10 req/phút — verify chữ ký bất đối xứng tốn CPU, chặn flood chữ ký rác ngay tại edge; verification thật vẫn ở bank-service). Verification mật mã cuối cùng nằm ở bank-service. Contract wire dùng ES256 và body <code>keyId</code> + <code>signedPayload</code> + <code>signature</code> theo <code>bank-service §3.5.2</code>.</p>
+</section><section aria-labelledby="heading-sec-3-5" class="section" id="sec-3-5"><h3 id="heading-sec-3-5"><span class="sec-num">§3.5</span> Internal-only — không có external route <a aria-label="Sao chép liên kết tới §3.5" class="anchor" href="#sec-3-5">#</a></h3>
+<ul>
+<li><code>/internal/v1/users/**</code></li>
+<li><code>/internal/v1/notifications/**</code></li>
+<li>File-service raw upload/download/attach APIs dành cho owning service.</li>
+<li>Bank ledger command/read APIs/events (gồm đường escrow-service đọc ledger cho statement export — bank §5b.2).</li>
+<li><code>/internal/v1/audit/**</code> (read API cho <code>LedgerAuditReconciliationJob</code> — hash-chain §4.5, mới 18/07/2026).</li>
+<li>Service reconciliation, outbox poller và webhook nội bộ không được liệt kê public.</li>
+</ul>
+<p>Request external có path <code>/internal/**</code> trả <code>404</code> hoặc <code>403</code> ngay tại Gateway; không forward.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Authorization Ownership <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Concern</th>
+<th scope="col">Owner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JWT validity, coarse role, public/private route</td>
+<td>Gateway</td>
+</tr>
+<tr>
+<td>User ownership/PII</td>
+<td>user-service</td>
+</tr>
+<tr>
+<td>KYC/authorization expiry</td>
+<td>user-service + caller use-case</td>
+</tr>
+<tr>
+<td>Listing/contract participant ownership</td>
+<td>product/contract-service</td>
+</tr>
+<tr>
+<td>Reputation lock</td>
+<td>user projection + caller use-case; không Gateway</td>
+</tr>
+<tr>
+<td>File access</td>
+<td>Service sở hữu <code>fileId</code>, proxy bytes từ file-service</td>
+</tr>
+<tr>
+<td>Emergency signature/replay</td>
+<td>bank-service</td>
+</tr>
+</tbody>
+</table></div>
+<p>Không gọi user-service từ <code>UserContextInjectionFilter</code>; tránh biến mọi request thành dependency đồng bộ và tránh cascading failure.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Edge Policies <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+</section><section aria-labelledby="heading-sec-5-1" class="section" id="sec-5-1"><h3 id="heading-sec-5-1"><span class="sec-num">§5.1</span> Timeout &amp; retry <a aria-label="Sao chép liên kết tới §5.1" class="anchor" href="#sec-5-1">#</a></h3>
+<ul>
+<li>GET idempotent: timeout rõ ràng; chỉ retry khi route cho phép và lỗi kết nối xảy ra trước response.</li>
+<li>POST/PUT/PATCH/DELETE: Gateway không tự retry nếu không có idempotency key được service định nghĩa.</li>
+<li>Upload/download dùng timeout riêng, không dùng timeout ngắn của JSON API.</li>
+<li>Circuit breaker ở Gateway chỉ bảo vệ tài nguyên/fast-fail; fallback không được giả response nghiệp vụ thành công.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-5-2" class="section" id="sec-5-2"><h3 id="heading-sec-5-2"><span class="sec-num">§5.2</span> Request size <a aria-label="Sao chép liên kết tới §5.2" class="anchor" href="#sec-5-2">#</a></h3>
+<ul>
+<li>JSON API default cap nhỏ (đề xuất 1 MB).</li>
+<li>Direct upload cap 10 MB và email intake 20 MB được file-service enforce streaming theo owner design; Gateway chỉ cho upload qua business endpoint đã uỷ quyền, không expose raw file-service. <strong>Làm rõ:</strong> business service nhận multipart từ end-user rồi gọi entrypoint nội bộ uỷ quyền <code>StoreOnBehalfOf</code> của file-service — entrypoint này giữ nguyên semantics <code>DIRECT_UPLOAD</code> (virus-scan, cap 10 MB, whitelist contentType), <strong>không phải</strong> <code>store()</code>/<code>SYSTEM_GENERATED</code> vốn bỏ qua scan. Xem file-service §3 (cập nhật cùng ngày).</li>
+<li>Emergency lock/unlock cap nhỏ (đề xuất 64 KB) để giữ signature verification deterministic.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-5-3" class="section" id="sec-5-3"><h3 id="heading-sec-5-3"><span class="sec-num">§5.3</span> Rate limit <a aria-label="Sao chép liên kết tới §5.3" class="anchor" href="#sec-5-3">#</a></h3>
+<ul>
+<li>Nginx giữ coarse per-IP rate limit.</li>
+<li>Gateway/Redis áp route bucket cho public pricing/reputation/audit-hash và auth endpoints.</li>
+<li>OTP resend/attempt business limits nằm ở contract-service theo <code>signature-phase2-design.md</code>; Gateway chỉ chống flood thô, không thay counter nghiệp vụ.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-5-4" class="section" id="sec-5-4"><h3 id="heading-sec-5-4"><span class="sec-num">§5.4</span> CORS &amp; observability <a aria-label="Sao chép liên kết tới §5.4" class="anchor" href="#sec-5-4">#</a></h3>
+<ul>
+<li>CORS allowlist từ config deployment, không wildcard kèm credential.</li>
+<li>Mọi response có correlation ID; log path template, status, latency và destination, không log Authorization/OTP/email body.</li>
+<li>Chỉ expose <code>health/info</code>; metrics cần network/admin protection.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Configuration Delta <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<p><code>application.yml</code> thêm route URI/env cho:</p>
+<figure class="code" data-lang="text"><pre><code>BANK_SERVICE_URL
+INSPECTION_SERVICE_URL
+REPUTATION_SERVICE_URL
+FILE_SERVICE_URL (internal route only, normally no external predicate)
+PRICING_SERVICE_URL
+AUDIT_SERVICE_URL
+ANALYTICS_SERVICE_URL
+</code></pre></figure>
+<p>Route definitions phải có order rõ: exact public/role routes trước wildcard authenticated routes; <code>/internal/**</code> deny trước tất cả.</p>
+<p><code>SecurityConfig</code> chuyển từ <code>anyExchange().permitAll()</code> sang explicit public permit + authenticated default. Role-specific path dùng Keycloak application roles, bỏ qua các realm management roles không thuộc enum ứng dụng.</p>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Failure &amp; Security Cases <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<ul>
+<li>JWT thiếu/sai/expired trên protected route → <code>401</code>.</li>
+<li>JWT hợp lệ nhưng thiếu role yêu cầu → <code>403</code>.</li>
+<li>Client tự gửi <code>X-User-Id</code>, <code>X-User-Role</code>, internal secret → bị strip/overwrite.</li>
+<li>Unknown/unrouted path → <code>404</code>, không fallback tới service gần nhất.</li>
+<li>Downstream timeout → <code>504/503</code> với correlation ID; không fabricate success.</li>
+<li>Gateway không có emergency unlock path cho Admin; chữ ký External Verifier là đường duy nhất.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Known Limitations / Out of Scope <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<ul class="limitations">
+<li>Internal secret trong shared network yếu hơn mTLS; mTLS là production evolution.</li>
+<li>Gateway không phải WAF; Nginx/Cloudflare là lớp DDoS/bot nâng cấp.</li>
+<li>Route matrix cần cập nhật khi endpoint implementation cuối cùng đổi tên; test route contract bắt buộc ngăn drift.</li>
+<li>Centralized fine-grained authorization bị loại có chủ đích; domain service giữ ownership/state logic.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> Status — API Gateway Design <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> Gateway là edge authentication/routing boundary, không phải business authorization service. Public match theo method + exact pattern; authenticated default; internal APIs không route. Identity headers luôn strip rồi inject. External Verifier lock/unlock giữ đường auth riêng, không Admin bypass và không automatic retry.</p></div>
+<p><strong>Cập nhật 17/07/2026 (rà soát cross-service):</strong> <code>audit-hash</code> route về audit-service (chủ data); <code>public-summary</code> chuyển authenticated; bỏ route <code>/api/v1/notifications/**</code> (API không tồn tại); bỏ inject <code>X-User-Email</code> (email lấy qua internal API); thêm <code>/api/v1/admin/audit/**</code>; rate bucket cho emergency lock/unlock; upload uỷ quyền qua <code>StoreOnBehalfOf</code> của file-service — giữ nguyên virus-scan.</p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>Sync SRS v1.6 thành đúng staff role của từng chức năng, bỏ <code>ADMIN|OPERATOR</code> fallback và bổ sung <code>/api/v1/categories/**</code> sau PR #150 để route matrix không thiếu và không mở sai quyền.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Bổ sung role OPERATOR và internal audit read API phục vụ ledger reconciliation; phân quyền staff được cập nhật lại theo SRS v1.6 ngày 12/10/2026 để tách vận hành khỏi phán xử.</p>
+</li><li><span class="changelog__date">17/07/2026</span><p>Chuyển <code>audit-hash</code> về audit-service, <code>public-summary</code> sang authenticated, bỏ route notifications và inject <code>X-User-Email</code>, thêm admin audit/rate bucket/<code>StoreOnBehalfOf</code> để đúng owner, giảm PII/scraping và giữ virus-scan.</p>
+</li><li><span class="changelog__date">16/07/2026</span><p>Thay Gateway Phase 1 route 5 services với <code>SecurityConfig</code>/<code>permitAll</code> và <code>startsWith("/products")</code> bằng matrix 12 services, exact public permit và authenticated default để tránh expose nội bộ/PII.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li><strong>Các giá trị còn là đề xuất.</strong> Nguồn ghi 10 req/phút, JSON 1 MB, emergency 64 KB ở các mục policy là đề xuất; không đổi thành SLA hay cấu hình đã triển khai.</li><li><strong>Debt category được giữ nguyên.</strong> §3.2 vẫn ghi controller Phase 1 approve/reject dưới <code>/api/v1/categories/{id}</code> và ADMIN; canonical là admin prefix + OPERATOR, Gateway chưa thêm role gate cho legacy.</li><li><strong>Route chưa chốt exact path.</strong> §3.3 gọi tên <code>InitiateLevel2Inspection</code> và retry funding bằng use case; không tự đặt endpoint ngoài nguồn.</li></ul></aside><footer class="doc-footer"><a href="../api-gateway-phase2-design.md">api-gateway-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-25">25/10/2026</time></p><a href="../api-gateway-phase2-design.md">Markdown · 200 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a><a class="xref" href="bank-service-phase2-design.html" title="bank-service-phase2-design.md">bank-service</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

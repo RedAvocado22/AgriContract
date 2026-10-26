@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>verification-matrix-phase2</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">verification-matrix</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 3 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Mục đích</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Matrix</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Ghi chú thực thi</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Cross-cutting</div><h1>Verification matrix</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../verification-matrix-phase2.md">Mở Markdown · 133 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="data-governance-phase2-design.html" title="data-governance-phase2-design.md">data-governance</a><a class="xref" href="bank-service-phase2-design.html" title="bank-service-phase2-design.md">bank-service</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Mỗi invariant quan trọng có đúng 1 test chứng minh; viết test bảng này trước mọi test khác.</li><li>P0 = tiền/immutability/bằng chứng; P1 = access control; P2 = đúng nghiệp vụ.</li><li>P0 #2, #4, #5 phải là integration test Testcontainers MySQL, tamper thẳng DB, không mock repository.</li><li>Deadline/window: timestamp UTC, clock nghiệp vụ <code>Asia/Ho_Chi_Minh</code>, date-only hết <code>23:59:59.999 ICT</code>.</li><li>Fixture chung cho rows 19/07: helper tạo <code>BreachCase</code> + resolve với <code>finalBreachingRole</code>/<code>breachReasonCode</code>.</li><li>Living doc: quyết định design mới phải thêm row trước khi code.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Mục đích <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p>Mỗi invariant quan trọng của hệ phải có <strong>1 test chứng minh nó đứng vững</strong> — không phải test coverage chung chung, mà test đúng thứ sẽ gây thảm hoạ nếu vỡ. Đây là danh sách ưu tiên code/test cao nhất; viết test cho bảng này <strong>trước</strong> khi viết test khác.</p>
+<p>Mọi test có deadline/window dùng timestamp UTC và clock business <code>Asia/Ho_Chi_Minh</code>; date-only kết thúc <code>23:59:59.999 ICT</code>, business-day fixture dùng lịch Việt Nam theo milestone-escrow §1.1.</p>
+<p>Ưu tiên: <strong>P0</strong> = tiền/immutability/bằng chứng — vỡ là mất tính chính danh của platform. <strong>P1</strong> = access control/luồng an toàn. <strong>P2</strong> = đúng nghiệp vụ.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Matrix <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<h3 id="topic-1">P0 — Tiền, immutability, bằng chứng</h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">#</th>
+<th scope="col">Invariant</th>
+<th scope="col">Test</th>
+<th scope="col">Nguồn design</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="numeric">1</td>
+<td>Event lặp không release/lock tiền hai lần</td>
+<td>Publish cùng bank request nhiều lần với <code>payload.sourceEventId == envelope.eventId</code> → đúng 1 bộ ledger entry; result dùng eventId mới và causationId=request eventId</td>
+<td>bank §4 idempotency</td>
+</tr>
+<tr>
+<td class="numeric">2</td>
+<td>Ledger append-only — không UPDATE/DELETE</td>
+<td>Repository chỉ có insert/select; test lớp repo + quyền DB user</td>
+<td>bank ledger, governance nguyên tắc 3</td>
+</tr>
+<tr>
+<td class="numeric">3</td>
+<td>Hợp đồng đã <code>SIGNED</code> không sửa được terms</td>
+<td>Gọi update terms sau ký → <code>409</code>; hash không đổi</td>
+<td>signature §3, milestone §3.1</td>
+</tr>
+<tr>
+<td class="numeric">4</td>
+<td><code>audit_record</code> bị sửa phải bị phát hiện</td>
+<td>Tamper trực tiếp DB (đổi amount/hash) → <code>VerifyChainJob</code> fail + đúng vị trí</td>
+<td>hash-chain §4.2/§5</td>
+</tr>
+<tr>
+<td class="numeric">5</td>
+<td>Ledger lệch với record đã anchor phải bị phát hiện</td>
+<td>Sửa 1 ledger leg lệch typed audit projection (<code>contractId</code>, <code>milestoneId</code>, <code>settledAmount</code>, <code>seizedAmount</code>, release/refund legs) → <code>LedgerAuditReconciliationJob</code> bắn <code>reconciliation_mismatch</code></td>
+<td>bank §5b.1; hash-chain §4.5</td>
+</tr>
+<tr>
+<td class="numeric">6</td>
+<td>Bank completion callback lặp không nhân đôi</td>
+<td>Gửi duplicate callback → 1 bộ entry, trạng thái không đổi lần 2</td>
+<td>bank §4</td>
+</tr>
+<tr>
+<td class="numeric">7</td>
+<td>DLQ replay không side effect lặp</td>
+<td>Replay <code>eventId</code> gốc sau khi đã xử lý → consumer skip, không entry mới</td>
+<td>governance §8b</td>
+</tr>
+<tr>
+<td class="numeric">8</td>
+<td>Contract terminal không còn tiền lock treo</td>
+<td>Normal completion/termination phát <code>remedy.finalized</code>, mock một bank leg còn missing/failed → contract vẫn non-terminal và chưa publish lifecycle event; khi đủ expected <code>remedyLegId</code> + remaining lock = 0 mới cho <code>contract.settled</code>/<code>contract.terminated</code>/<code>SUPERSEDED</code>/<code>ACTIVATION_FAILED</code> (pre-sign <code>WITHDRAWN</code> zero by construction)</td>
+<td>milestone-escrow §3.1/§6.7; bank §3.2; escrow</td>
+</tr>
+<tr>
+<td class="numeric">9</td>
+<td>Kill switch chặn toàn bộ dòng tiền</td>
+<td>ES256/RFC8785 request: wrong key/signature/timestamp/action/replayed nonce bị exact 401/409 code; <code>system_lock ACTIVE</code> làm mọi <code>bank.*_requested</code> fail; Gateway không retry và cap 64 KB</td>
+<td>bank §3.5.2-3.5.5; gateway §3.4</td>
+</tr>
+<tr>
+<td class="numeric">10</td>
+<td>Provisional Level 2 không release quá mức sàn và bảo toàn tiền</td>
+<td>Buyer im lặng → <code>sellerReleaseAmount</code> dùng release floor, không buyer refund; mọi reconcile/terminal leg explicit, tổng release+refund+remaining lock bảo toàn batchAmount, zero command bị omit</td>
+<td>milestone §3.2 Bước 0-3; bank §3.3</td>
+</tr>
+<tr>
+<td class="numeric">11</td>
+<td>Khoá cọc fail không kẹt im lặng</td>
+<td>Bank fail liên tục → hết 3 retry → <code>escrow.deposit_lock_failed</code> + contract giữ <code>SIGNED</code> + notification 3 bên; <code>RetryDepositLock</code> sau khi hết lỗi → <code>ACTIVE</code></td>
+<td>milestone §3.1</td>
+</tr>
+<tr>
+<td>11b</td>
+<td>Partial lock không nuốt tiền: buyer LOCKED + seller fail → terminal phải refund</td>
+<td>Mock seller-leg fail vĩnh viễn → <code>MarkActivationFailed</code> → <code>bank.refund_requested</code> cho leg buyer, qua <code>ACTIVATION_REFUND_PENDING</code>, chỉ <code>ACTIVATION_FAILED</code> khi refund confirmed; refund fail → đứng lại + alert</td>
+<td>milestone §3.1 (18/07)</td>
+</tr>
+<tr>
+<td>11c</td>
+<td>2 chữ ký phải cùng bản terms</td>
+<td>Buyer ký, đổi terms (phải bị 409); ép seller ký hash khác → REJECT, không SIGNED</td>
+<td>signature §6 bước 4 (18/07)</td>
+</tr>
+<tr>
+<td>11d</td>
+<td>Mọi field record đều được hash commit</td>
+<td>Tamper riêng <code>source_type</code>/<code>subject_id</code>/<code>prev_hash_subject</code> (giữ nguyên content) → <code>VerifyChainJob</code> recompute fail</td>
+<td>hash-chain §3 canonical (18/07 r2)</td>
+</tr>
+<tr>
+<td>11e</td>
+<td><code>audit_anchor</code> cũng bất biến</td>
+<td>Repository/DB user chỉ INSERT+SELECT trên audit_anchor; UPDATE/DELETE → denied</td>
+<td>hash-chain §3 (18/07 r2)</td>
+</tr>
+<tr>
+<td>11f</td>
+<td>Source/result hash commitment verify riêng với record hash</td>
+<td><code>Contract.signedContentHash</code> 3-way khớp; inspection recompute <code>resultHash</code> từ RFC8785 normalized result và <code>reportHash</code> từ report identity/file/result/timestamp/actor; tamper bất kỳ field nào bị reject; <code>record_hash</code> vẫn verify riêng</td>
+<td>hash-chain §4.1; inspection §2.3/§4</td>
+</tr>
+<tr>
+<td>11g</td>
+<td>Allegation chưa final không đụng tiền/reputation</td>
+<td>Mở <code>BreachCase</code> (<code>breach.reported</code>) rồi thử phát seize/forfeiture/penalty + kiểm tra reputation consumer → mọi lệnh tiền bị chặn khi <code>status != RESOLVED</code>; reputation không có <code>lock_entry</code> mới</td>
+<td>milestone-escrow §6.4 invariant (19/07)</td>
+</tr>
+<tr>
+<td>11h</td>
+<td>Người request termination không tự động bị coi là vi phạm</td>
+<td>Seller yêu cầu terminate vì buyer <code>FUNDING_FAILURE</code> → <code>finalBreachingRole = BUYER</code>, seller không bị seize/lock; mirror chiều ngược</td>
+<td>milestone-escrow §6.0/§6b (19/07)</td>
+</tr>
+<tr>
+<td>11i</td>
+<td><code>finalBreachingRole = NULL</code> → không ai bị phạt</td>
+<td><code>MUTUAL_TERMINATION</code>/<code>MUTUAL_REPLACEMENT</code>/FM/<code>ACTIVATION_FAILURE</code> → cọc về đúng chủ (<code>REFUND_TO_BUYER</code>/<code>RELEASE_TO_SELLER</code>), zero <code>DEPOSIT_FORFEITURE</code>/<code>CONTRACTUAL_PENALTY</code>, zero <code>lock_entry</code></td>
+<td>milestone-escrow §6.5/§6.6/§6.7; bank §3.2; reputation §3 (19/07)</td>
+</tr>
+<tr>
+<td>11j</td>
+<td>Contractual penalty không vượt cap LegalProfile</td>
+<td><code>sign()</code> với <code>buyerPenaltyRate</code>/<code>sellerPenaltyRate</code> &gt; <code>maxContractualPenaltyRate</code> (8% VN_COMMERCIAL_LAW) → reject 400; penalty tính trên batchAmount phần bị vi phạm, không trên totalAmount</td>
+<td>milestone-escrow §2.1b (19/07)</td>
+</tr>
+<tr>
+<td>11k</td>
+<td>Không double recovery</td>
+<td>Remedy calculator: với <code>damagesPolicy = CIVIL_PENALTY_ONLY_UNLESS_EXPRESSLY_CUMULATIVE</code>/<code>EXPRESS_PENALTY_ONLY</code> → không có <code>DAMAGES_COMPENSATION</code> leg; với <code>COMMERCIAL_CUMULATIVE_IF_PROVEN</code> → DAMAGES chỉ khi có bằng chứng, và <code>DEPOSIT_FORFEITURE</code> offset vào penalty; ledger không có 2 khoản seize bù cùng 1 tổn thất</td>
+<td>milestone-escrow §2.1b/§6.7; bank §2 (19/07, sửa lần 2)</td>
+</tr>
+<tr>
+<td>11l</td>
+<td>Mutual replacement nối đúng 2 contract, không double-count</td>
+<td>Supersede → contract cũ <code>SUPERSEDED</code> + <code>supersededByContractId</code>; contract mới <code>replacesContractId</code>; milestone <code>SETTLED</code> cũ giữ nguyên; tiền lock cũ refund hết (tổng lock contract cũ = 0), contract mới lock từ 0</td>
+<td>milestone-escrow §6.6 (19/07)</td>
+</tr>
+<tr>
+<td>11m</td>
+<td>Milestone funding failure không kẹt tiền + không phạt oan seller</td>
+<td>Mock bank fail lock batch milestone 2 → hết retry → <code>FUNDING_FAILED</code>, đồng hồ giao hàng seller tạm dừng (không trigger seller-quá-hạn), leg đã lock refund; hết <code>fundingCureWindowDays</code> → buyer breach Rổ A, seller không bị seize</td>
+<td>milestone-escrow §6b (19/07)</td>
+</tr>
+<tr>
+<td>11n</td>
+<td>Termination pro-rata không đụng milestone đã <code>SETTLED</code></td>
+<td><code>TERMINATION_FOR_BREACH</code> giữa hợp đồng (milestone 1-2 <code>SETTLED</code>, 3-5 chưa) → penalty/forfeiture chỉ tính trên batch 3-5; ledger milestone 1-2 không có entry mới, tiền đã release không bị truy thu</td>
+<td>milestone-escrow §6.1 pro-rata (19/07)</td>
+</tr>
+<tr>
+<td>11o</td>
+<td>Một <code>remedyDecisionId</code> → đúng 1 bộ bank legs, ≤ 1 reputation lock (chặn double-consume)</td>
+<td>Replay <code>remedy.finalized</code> / gửi leg trùng → <code>ledger_entry.remedy_leg_id</code> UNIQUE chặn từng leg (đơn vị dedup đúng — 1 decision nhiều legs), reconcile <code>SUM</code> group theo <code>remedy_decision_id</code> khớp đúng 1 bộ; reputation <code>lock_entry.remedy_decision_id</code> UNIQUE chặn lock thứ 2 kể cả từ event khác</td>
+<td>milestone-escrow §7.2; reputation §2.1; bank §2 DDL (19/07 lần 2, schema-hoá lần 4)</td>
+</tr>
+<tr>
+<td>11p</td>
+<td>Supersede crash windows không nuốt tiền/không kẹt hợp đồng</td>
+<td>(a) draft replacement không đủ 2 chữ ký → cũ vẫn <code>ACTIVE</code>, zero sự kiện tiền; (b) mới <code>SIGNED</code>, refund cũ fail giữa chừng → cũ đứng <code>SUPERSEDE_REFUND_PENDING</code> + alert, không nhảy <code>SUPERSEDED</code>; (c) cũ <code>SUPERSEDED</code> xong, activation mới fail → mới đi đường <code>ACTIVATION_FAILED</code> chuẩn, cũ không rollback</td>
+<td>milestone-escrow §6.6 saga (19/07 lần 3)</td>
+</tr>
+<tr>
+<td>11q</td>
+<td>Replay evidence event không nhân đôi audit record/anchor</td>
+<td>Redeliver cùng <code>remedy.finalized</code>/<code>contract.terminated</code> (eventId cũ) → <code>audit_record.source_event_id</code> UNIQUE reject/no-op, không record mới, không anchor mới, không email evidence thứ 2</td>
+<td>hash-chain §3 <code>source_event_id</code> (19/07 lần 3)</td>
+</tr>
+<tr>
+<td>11r</td>
+<td>Reservation/release không double-decrement hoặc double-restore</td>
+<td>Reserve replay cùng <code>contractId</code> trả cùng record; withdraw/activation-failed/compensation replay cùng hoặc khác eventId hợp lệ chỉ transition <code>RELEASED</code> một lần và counter khớp</td>
+<td>product §8b.2; milestone-escrow §2.1d</td>
+</tr>
+<tr>
+<td>11s</td>
+<td><code>SIGNED</code> chưa commit inventory và quantity snapshot phải khớp</td>
+<td>Ép <code>Σ committedQuantity != reservedQuantity</code> → chặn <code>SIGNED</code>; đúng tổng → <code>SIGNED_RELEASABLE</code>; activation failure restore, chỉ <code>contract.activated</code> chuyển <code>COMMITTED</code></td>
+<td>milestone-escrow §2.1d; signature §6 bước 4</td>
+</tr>
+<tr>
+<td>11t</td>
+<td>Template/profile là một phần nội dung ký</td>
+<td>Đổi riêng <code>contractTemplateVersion</code>, <code>contractTemplateHash</code> hoặc <code>coffeeQualityProfileVersion</code> → <code>signedContentHash</code> đổi; OTP/consent cũ bị reject</td>
+<td>contract-document-consent §3; signature §6</td>
+</tr>
+<tr>
+<td>11u</td>
+<td>Final PDF khớp đúng nội dung đã ký và không overwrite</td>
+<td>Recompute PDF bytes = <code>documentFileHash</code>, metadata <code>sourceContentHash = signedContentHash</code>; thử replace blob/document READY → reject, bản cũ còn đọc được</td>
+<td>contract-document-consent §5-7; file-service §6-7; hash-chain §2.4</td>
+</tr>
+<tr>
+<td>11v</td>
+<td>PDF generation fail không làm mất chữ ký</td>
+<td>Chữ ký thứ hai commit <code>SIGNED</code> + document <code>PENDING</code>; mock renderer/file-service fail rồi retry → hai Signature vẫn còn, cuối cùng đúng một document READY/event</td>
+<td>contract-document-consent §5; signature §6</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="topic-2">P1 — Access control &amp; luồng an toàn</h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">#</th>
+<th scope="col">Invariant</th>
+<th scope="col">Test</th>
+<th scope="col">Nguồn design</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="numeric">12</td>
+<td>User khác không thao tác contract người khác</td>
+<td>Ownership check → <code>403</code> (contract, escrow, statement)</td>
+<td>contract/escrow, gateway §4</td>
+</tr>
+<tr>
+<td class="numeric">13</td>
+<td>Client không tự tiêm identity</td>
+<td>Gửi kèm <code>X-User-Id</code>/<code>X-User-Role</code>/<code>X-Gateway-Secret</code> giả → bị strip/overwrite, downstream nhận identity từ JWT</td>
+<td>gateway §2/§7</td>
+</tr>
+<tr>
+<td class="numeric">14</td>
+<td><code>/internal/**</code> không ra ngoài</td>
+<td>Gọi từ external → <code>404/403</code> tại Gateway, không forward</td>
+<td>gateway §3.5</td>
+</tr>
+<tr>
+<td class="numeric">15</td>
+<td>File nhiễm virus không thành evidence</td>
+<td>Upload EICAR qua <code>StoreOnBehalfOf</code> và qua email intake → <code>FAILED</code>, không có <code>file.ready</code>, không gắn được vào milestone/report</td>
+<td>file-service §3-4</td>
+</tr>
+<tr>
+<td class="numeric">16</td>
+<td>OPERATOR không chạm đường ARBITRATOR/ADMIN</td>
+<td>OPERATOR gọi approve/reject reputation, resolve breach case, resolve FM, <code>InitiateLevel2Inspection</code>, <code>/admin/audit</code>, approve replay → <code>403</code>; OPERATOR gọi <code>RetryDepositLock</code>/<code>RetryMilestoneFunding</code>/<code>MarkActivationFailed</code> → pass (sửa 12/10/2026, SRS v1.6)</td>
+<td>governance §5.4</td>
+</tr>
+<tr>
+<td class="numeric">17</td>
+<td>Không ai tự approve đề xuất của chính mình</td>
+<td>Cùng 1 account propose rồi approve → reject (<code>proposedBy != approvedBy</code>); gán đồng thời <code>OPERATOR</code>+<code>ARBITRATOR</code> cho 1 account → user-service reject</td>
+<td>governance §5.2/§5.3</td>
+</tr>
+<tr>
+<td>17b</td>
+<td>ARBITRATOR không chạm đường ADMIN và vận hành</td>
+<td>ARBITRATOR gọi <code>/admin/audit</code>, <code>/admin/security</code>, KYC verify, <code>RetryDepositLock</code>, propose reputation → <code>403</code></td>
+<td>governance §5.4 (12/10/2026)</td>
+</tr>
+<tr>
+<td>17c</td>
+<td>ADMIN không có fallback nghiệp vụ</td>
+<td>ADMIN gọi KYC verify, resolve breach/FM, approve reputation, <code>RetryDepositLock</code>, review external report → <code>403</code>; ADMIN approve replay DLQ nhóm tiền vẫn pass</td>
+<td>governance §5.2/§8b (12/10/2026)</td>
+</tr>
+<tr>
+<td>17d</td>
+<td><code>decisionSource</code> không còn <code>ADMIN</code></td>
+<td>Schema <code>remedy.finalized</code>/<code>BreachCase</code>/<code>AttributionDecision</code> reject <code>decisionSource = ADMIN</code>; Arbitrator resolve → <code>ARBITRATOR</code></td>
+<td>milestone-escrow §6.4/§6.4b (12/10/2026)</td>
+</tr>
+<tr>
+<td class="numeric">18</td>
+<td>Unlock sớm không mở khoá nhầm khi nhiều lock chồng</td>
+<td>2 lock (T+60, T+30), unlock sớm lock 1 → <code>lockedUntil</code> user-service = T+30, <code>sign()</code> vẫn bị chặn</td>
+<td>reputation §7, user §2.2</td>
+</tr>
+<tr>
+<td class="numeric">19</td>
+<td><code>sign()</code> fail-closed khi user-service chết</td>
+<td>Stop user-service → sign bị reject, không fallback anonymous</td>
+<td>user §3/§7</td>
+</tr>
+<tr>
+<td class="numeric">20</td>
+<td>OTP fail không gửi muộn</td>
+<td>Provider trả lỗi → contract-service nhận 5xx; xác nhận không có mail nào được gửi sau đó với <code>requestId</code> cũ trừ khi caller tự retry</td>
+<td>notification §2.2/§5</td>
+</tr>
+<tr>
+<td class="numeric">21</td>
+<td>Public DTO không lộ PII</td>
+<td><code>GET /users/{id}</code> → không email/phone/address; public-summary yêu cầu JWT</td>
+<td>user §4.1, gateway §3.2</td>
+</tr>
+<tr>
+<td>21b</td>
+<td>OTP challenge binding</td>
+<td>Verify với JWT user khác / otpId khác contract / terms đã đổi sau phát OTP → 403/409/invalidate; không lấy được "OTP mới nhất" của người khác</td>
+<td>signature §6-§7 (18/07)</td>
+</tr>
+<tr>
+<td>21c</td>
+<td>Lock ordering sống qua restart</td>
+<td>Apply unlock revision N, restart service, deliver locked revision N-1 (eventId mới) → bị bỏ qua nhờ <code>last_lock_revision</code> persist</td>
+<td>user §2.2 (18/07)</td>
+</tr>
+<tr>
+<td>21d</td>
+<td><code>legalHold</code> chặn xoá tuyệt đối</td>
+<td>Set legalHold + retention đã hết → lifecycle job gọi <code>DeleteFile</code> → REJECT, file còn nguyên</td>
+<td>file-service §7, governance §8 (18/07 r2)</td>
+</tr>
+<tr>
+<td>21e</td>
+<td>Xoá file 2 bước tự lành</td>
+<td>Mock MinIO delete fail sau tombstone → job re-run → cả DB lẫn blob về trạng thái nhất quán, không rác</td>
+<td>file-service §7 (18/07 r2)</td>
+</tr>
+<tr>
+<td>21f</td>
+<td>Listing/offer fail-closed khi user-service chết</td>
+<td>Stop user-service → CreateListing/CreateOffer trả 503, user đang khoá không lách được</td>
+<td>user §3 (18/07 r2)</td>
+</tr>
+<tr>
+<td>21g</td>
+<td>Resend OTP vô hiệu challenge cũ còn hạn</td>
+<td>Initiate hai lần cùng signer/contract/hash → verify otpId cũ với code đúng vẫn reject; chỉ otpId mới nhất pass. Concurrent resend không để hai challenge cùng hợp lệ</td>
+<td>signature §6 (23/07)</td>
+</tr>
+<tr>
+<td>21h</td>
+<td>Consent bind đúng action, subject, statement và content hash</td>
+<td>Dùng consent của contract/action khác, statement version cũ hoặc <code>presentedContentHash</code> lệch → reject trước side effect/OTP; đúng input tạo đúng một append-only ConsentEvidence</td>
+<td>contract-document-consent §4; signature §3.1/§6</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="topic-3">P2 — Đúng nghiệp vụ</h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">#</th>
+<th scope="col">Invariant</th>
+<th scope="col">Test</th>
+<th scope="col">Nguồn design</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="numeric">22</td>
+<td>Phase 2 chỉ nhận cà phê và cà phê bắt buộc plot</td>
+<td>Create/republish listing hoặc create contract với <code>RICE</code>/<code>RUBBER</code>/<code>CASHEW</code> → schema/domain reject; <code>COFFEE</code> thiếu plot → reject</td>
+<td>product §1/§4/§8b; contract-document-consent §1</td>
+</tr>
+<tr>
+<td class="numeric">23</td>
+<td>Analytics chết không ảnh hưởng giao dịch</td>
+<td>Stop analytics-service → settle milestone vẫn hoàn tất; analytics <strong>catch-up từ queue backlog</strong> khi sống lại (outage ngắn — KHÔNG phải cold rebuild, sửa 18/07/2026)</td>
+<td>governance §3 (read model)</td>
+</tr>
+<tr>
+<td class="numeric">24</td>
+<td>Notification dedup theo recipient + type</td>
+<td>1 event 2 recipients + retry → mỗi (recipient, type) đúng 1 mail <code>SENT</code></td>
+<td>notification §3.1/§5</td>
+</tr>
+<tr>
+<td class="numeric">25</td>
+<td>Restore đụng tiền phải qua verify mới mở</td>
+<td>Restore <code>bank_db</code> test env → 2 job verify chạy pass trước khi mở traffic (demo DR)</td>
+<td>governance §8c</td>
+</tr>
+<tr>
+<td class="numeric">26</td>
+<td>Event cũ không ghi đè quyết định mới</td>
+<td>Deliver <code>reputation.locked/unlocked</code> sai thứ tự (<code>lockRevision</code> nhỏ hơn — sửa 18/07) → bị bỏ qua</td>
+<td>user §2.2</td>
+</tr>
+<tr>
+<td>26b</td>
+<td>Plot overlap chéo seller bị bắt</td>
+<td>Seller B đăng ký polygon trùng/lọt trong polygon Seller A → <code>plotReuseRisk = HIGH</code> + OPERATOR review, không auto-reject</td>
+<td>product §2.3b (18/07)</td>
+</tr>
+<tr>
+<td>26c</td>
+<td>Yield anomaly là signal, không phải gate</td>
+<td><code>declaredQuantity</code> vượt Σ(plotArea×maxYield) → <code>yieldRisk</code> + yêu cầu bổ sung/review; listing KHÔNG bị auto-reject</td>
+<td>product §2.3b (18/07 r2)</td>
+</tr>
+<tr>
+<td>26d</td>
+<td>Deployment policy enforce được</td>
+<td>CI check: image pin theo digest, secret không nằm trong image, protected branch bắt buộc approval — fail build nếu vi phạm (policy test, không phải runtime test)</td>
+<td>governance §2 threat model (18/07 r2)</td>
+</tr>
+<tr>
+<td>26e</td>
+<td>Delta 1 vượt threshold không auto-gán phá hợp đồng</td>
+<td>Shortfall &gt; threshold, không FM claim → milestone mở <code>BreachCase</code> (không bắn <code>milestone.cancelled_with_penalty</code> tự động); pro-rata phần đã giao vẫn release</td>
+<td>milestone-escrow §4 nhánh 2 (19/07)</td>
+</tr>
+<tr>
+<td>26f</td>
+<td>Reputation chỉ phạt strategic breach</td>
+<td><code>remedy.finalized</code> với <code>breachReasonCode = PRODUCTION_SHOCK_NON_FM</code> → không <code>lock_entry</code>; với <code>SIDE_SELLING</code> → có; <code>zeroProgressMultiplier</code> 1.5x chỉ khi strategic + 0 settled</td>
+<td>reputation §3/§4.3 (19/07)</td>
+</tr>
+<tr>
+<td>26g</td>
+<td>Analytics đo <code>finalBreachingRole</code>, không đo người bấm nút</td>
+<td><code>contract.terminated</code> các nhánh → <code>fact_contract_termination</code> tách <code>terminationType</code>/<code>requestedBy</code>/<code>finalBreachingRole</code>; mutual không đếm vào default rate</td>
+<td>analytics (19/07)</td>
+</tr>
+<tr>
+<td>26h</td>
+<td>Allegation bị bác/được miễn trách không phát hậu quả tiêu cực (đổi tên 19/07 lần 2 — Phase 2 cố tình chưa có cure state, không gọi "cure thành công")</td>
+<td><code>BreachCase</code> RESOLVED với <code>finalBreachingRole = NULL</code> → không termination, không lock_entry cho bên bị cáo buộc; <code>remedy.finalized</code> nếu phát chỉ chứa refund/release legs</td>
+<td>milestone-escrow §6.4; reputation §4.3 (19/07)</td>
+</tr>
+<tr>
+<td>26i</td>
+<td>Inspection đang pending chặn auto-confirm</td>
+<td>Milestone <code>CONTESTED</code>/có commission Level 1.5-2 đang chạy → hết <code>buyerConfirmWindowDays</code> KHÔNG auto <code>CONFIRM_CLEAN</code>, không release; timer chỉ áp khi milestone còn đúng state <code>BUYER_RECEIVED</code></td>
+<td>milestone-escrow §3.2 bổ sung (19/07)</td>
+</tr>
+<tr>
+<td class="numeric">27</td>
+<td>Quality disposition tính tất định</td>
+<td>Recompute từ committed spec/deviation policy trong <code>signedContentHash</code> + actual metrics trong <code>resultHash</code>; reviewer không thể thêm criterion chủ quan làm đổi kết quả</td>
+<td>milestone-escrow §3.3; inspection §2.3/§4</td>
+</tr>
+<tr>
+<td>27b</td>
+<td>Exact reject của cà phê đúng profile đã ký</td>
+<td>Coffee <code>type</code> mismatch theo exact policy → reject; numeric metric dùng đúng threshold/version trong <code>coffeeQualityProfileVersion</code>; không thêm tiêu chí chủ quan</td>
+<td>product §8b; milestone §2.1c/§3.3; contract-document-consent §3</td>
+</tr>
+<tr>
+<td>27c</td>
+<td>Mapping disposition → attribution/remedy</td>
+<td>Sau flag: <code>CONFORMING</code> zero punitive/reputation; <code>PARTIALLY_CONFORMING</code> max discount một lần và null role; <code>NON_CONFORMING</code> Seller + <code>QUALITY_BELOW_COMMITTED</code>, refund milestone + policy penalty/forfeiture; <code>INCONCLUSIVE</code> zero money</td>
+<td>milestone-escrow §3.3</td>
+</tr>
+<tr>
+<td>27d</td>
+<td>Inspected path không áp Delta 2 lần hai</td>
+<td>Clean path giữ Delta 1/Delta 2; inspected/contested dùng <code>min(lockedAmount, acceptedQuantityKg × effectiveUnitPrice)</code>; over-delivery chỉ bị cap</td>
+<td>milestone-escrow §3.3/§4</td>
+</tr>
+<tr>
+<td>27e</td>
+<td>Quality conservation tách theo fund source</td>
+<td>Sum <code>MILESTONE_PAYMENT</code> legs = <code>batchAmount</code>; penalty và <code>SELLER_DEPOSIT</code> forfeiture đối soát riêng; penalty base = <code>effectiveUnitPrice × committedQuantity</code>, không phải <code>totalContractValue</code></td>
+<td>milestone-escrow §3.3/§6.7; bank §2</td>
+</tr>
+<tr>
+<td>27f</td>
+<td>Một quality resolution chỉ có một money trigger</td>
+<td>Publish/replay <code>remedy.finalized</code> → đúng một bộ legs theo <code>remedyLegId</code>; không publish/consume <code>milestone.settled</code> cho cùng resolution</td>
+<td>milestone-escrow §7.1/§7.2</td>
+</tr>
+<tr>
+<td>27g</td>
+<td>Delivery certificate chỉ là evidence</td>
+<td>Đính kèm certificate ở seller/buyer weigh vẫn không xuất hiện trong actual metrics/resultHash, không sinh disposition và không thay report confirmed</td>
+<td>milestone-escrow §2.2/§3.3; inspection §2.3</td>
+</tr>
+<tr>
+<td>27h</td>
+<td>Inspection cost policy chỉ <code>LOSER_PAYS</code></td>
+<td>Schema reject mọi giá trị khác; conforming → Buyer, partial/non-conforming → Seller, inconclusive chưa allocate</td>
+<td>milestone-escrow §2.1c/§3.3</td>
+</tr>
+<tr>
+<td>27i</td>
+<td>Quality reject chỉ fail milestone liên quan</td>
+<td><code>NON_CONFORMING</code> refund/phạt milestone bị reject nhưng contract vẫn active cho milestone khác; chỉ supersede/termination flow tường minh mới đổi contract lifecycle</td>
+<td>milestone-escrow §3.3/§6</td>
+</tr>
+<tr>
+<td>27j</td>
+<td>Declared/committed/actual schema chỉ nhận cà phê</td>
+<td>Ba lớp schema pass <code>CoffeeQualitySpec/CoffeeActualMetrics</code>; mọi non-coffee discriminator hoặc field shape bị reject</td>
+<td>product §8b; milestone-escrow §2.1c/§8d; inspection §2.3</td>
+</tr>
+<tr>
+<td>27k</td>
+<td>Goods snapshot độc lập nguồn mutable</td>
+<td>Sửa/xoá Listing/Product/Category/Plot sau create không đổi <code>goodsTerms</code> đã lưu hoặc <code>signedContentHash</code></td>
+<td>product §8b; milestone-escrow §2.1c/§8d</td>
+</tr>
+<tr>
+<td>27l</td>
+<td>Signed fields/hash và legacy policy đầy đủ</td>
+<td>Thay bất kỳ nested signed field mới nào làm đổi canonical hash; chữ ký đầu khoá PATCH; legacy signed vẫn read/operate, legacy draft thiếu terms không được ký</td>
+<td>milestone-escrow §2.1c/§8d</td>
+</tr>
+<tr>
+<td>27m</td>
+<td>Inspection guard không tạo milestone state</td>
+<td><code>NONE_UNLESS_DISPUTED</code> clean path không tạo report; mandatory inspection chặn settlement ở <code>BUYER_RECEIVED</code>/<code>CONTESTED</code> tới report confirmed nhưng không thêm/chuyển milestone state chỉ vì chờ inspection</td>
+<td>milestone-escrow §3.3/§8d</td>
+</tr>
+<tr>
+<td>27n</td>
+<td>Bounded price acceptance đúng auth và cutoff</td>
+<td>In-band pass; out-of-band, self-accept, stale proposal hoặc sau funding cutoff bị reject; accepted record immutable/auditable và không đổi signed hash</td>
+<td>milestone-escrow §6c/§8d</td>
+</tr>
+<tr>
+<td>27o</td>
+<td>Funding dùng effective price, deposit giữ nominal</td>
+<td>Funding fallback base hoặc dùng accepted <code>effectiveUnitPrice</code>, không settlement true-up; price tăng/giảm không recompute buyer/seller deposit từ nominal <code>totalContractValue</code></td>
+<td>milestone-escrow §2.1c/§6c/§8d</td>
+</tr>
+<tr>
+<td class="numeric">28</td>
+<td>Listing partial-fill atomic và fail-closed legacy</td>
+<td>Listing 100 reserve 40 + 40 → tồn 60 rồi 20; reserve 30 trả <code>409 INSUFFICIENT_LISTING_QUANTITY</code>; hai request tranh tồn cuối chỉ một thắng; legacy-null fail tới edit/republish</td>
+<td>product §8b.1-§8b.2; milestone-escrow §2.1d</td>
+</tr>
+<tr>
+<td>28b</td>
+<td>Restore không vượt seller lifecycle choice</td>
+<td>Withdraw/activation failure trả đúng lượng; listing seller-closed vẫn <code>CLOSED</code>, listing <code>PAUSED</code> vẫn <code>PAUSED</code>; explicit republish mới mở lại</td>
+<td>product §8b.1-§8b.2</td>
+</tr>
+<tr>
+<td>28c</td>
+<td>Orphan reservation reaper an toàn và bắt late-event race</td>
+<td>Chỉ <code>RESERVED</code> quá grace và chưa có durable <code>contract.created</code> mới release; không đụng <code>SIGNED_RELEASABLE</code>/<code>COMMITTED</code>; CLOSED/PAUSED không tự mở; re-run không restore lần hai; <code>contract.created</code> đến sau release phải error log + alert Operator, không silent no-op, re-decrement hay đảo state</td>
+<td>product §8b.2</td>
+</tr>
+<tr>
+<td class="numeric">29</td>
+<td>Draft preview luôn vô hiệu rõ ràng</td>
+<td>Mọi preview ở OFFERED/NEGOTIATING/PARTIALLY_SIGNED chứa <code>CHƯA CÓ HIỆU LỰC</code>; không endpoint nào trả preview như final READY document</td>
+<td>contract-document-consent §5-6</td>
+</tr>
+<tr>
+<td>29b</td>
+<td>Receipt consent không waive quyền quality</td>
+<td>Buyer receipt/confirm statement và persisted ConsentEvidence ghi đúng phạm vi; inspection/dispute còn hợp lệ theo signed terms vẫn mở được sau acknowledgement</td>
+<td>contract-document-consent §4; milestone-escrow §3.2</td>
+</tr>
+<tr>
+<td>29c</td>
+<td>Duplicate document delivery chỉ tạo một final</td>
+<td>Redeliver render job, <code>contract.document_generated</code> và notification command → một READY document, một audit record và mỗi recipient đúng một final email</td>
+<td>contract-document-consent §5-7; notification §5; hash-chain §2.4</td>
+</tr>
+<tr>
+<td>29d</td>
+<td>Document event commit tách hai hash</td>
+<td><code>contract.document_generated</code> có <code>sourceContentHash</code> khớp signed content và <code>documentFileHash</code> khớp PDF bytes; tráo một trong hai bị verify fail</td>
+<td>contract-document-consent §5-7; hash-chain §4</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Ghi chú thực thi <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<ul>
+<li>P0 #2, #4, #5: cần test đụng thẳng DB (tamper) — viết dạng integration test với Testcontainers MySQL, không mock repository.</li>
+<li>P0 #7 + P1 #17: dùng chung fixture maker-checker/replay của governance §8b.</li>
+<li>Matrix này là living doc: mỗi quyết định design mới phải tự hỏi "invariant nào mới sinh ra?" và thêm row trước khi code.</li>
+<li>Rows 19/07 (11g-11m, 26e-26h): fixture chung nên dựng quanh <code>BreachCase</code> + <code>remedy.finalized</code> — 1 helper tạo case + resolve với <code>finalBreachingRole</code>/<code>breachReasonCode</code> tuỳ ý sẽ phục vụ được cả 12 rows.</li>
+</ul>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">06/10/2026</span><p>Bổ sung Việt Nam + cà phê, consent evidence, template/profile hash và document lifecycle.</p>
+</li><li><span class="changelog__date">12/10/2026</span><p>Sync role SRS v1.6: OPERATOR/ARBITRATOR/ADMIN không fallback (rows 16–17d).</p>
+</li><li><span class="changelog__date">23/07/2026</span><p>Thêm quality dispute resolution, listing partial-fill/reservation, F18 quantity guard, OTP supersession.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Lập matrix.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li>Chưa ghi nhận điểm mâu thuẫn cần chú thích trong lần chuyển bản đọc này.</li></ul></aside><footer class="doc-footer"><a href="../verification-matrix-phase2.md">verification-matrix-phase2.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../verification-matrix-phase2.md">Markdown · 133 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="data-governance-phase2-design.html" title="data-governance-phase2-design.md">data-governance</a><a class="xref" href="bank-service-phase2-design.html" title="bank-service-phase2-design.md">bank-service</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

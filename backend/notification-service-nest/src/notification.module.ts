@@ -1,4 +1,4 @@
-import { Module, type Provider } from '@nestjs/common';
+import { Logger, Module, type Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NotificationSender } from './application/notification-sender';
 import {
@@ -84,7 +84,9 @@ const USE_CASES = {
       provide: NotificationSender,
       inject: [NOTIFICATION_LOG_REPOSITORY, EMAIL_PORT],
       useFactory: (logs: NotificationLogRepository, email: EmailPort) =>
-        new NotificationSender(logs, email),
+        new NotificationSender(logs, email, {
+          logger: new Logger(NotificationSender.name),
+        }),
     },
     useCaseOf(NotifyContractSignedUseCase),
     useCaseOf(NotifyContractDeliveredUseCase),

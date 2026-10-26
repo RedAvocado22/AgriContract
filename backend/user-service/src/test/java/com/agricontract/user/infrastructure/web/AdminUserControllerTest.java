@@ -1,15 +1,18 @@
 package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
+import com.agricontract.user.application.dto.AssignUserRoleCommand;
 import com.agricontract.user.application.dto.ListUsersByVerificationStatusCommand;
 import com.agricontract.user.application.dto.PageResult;
 import com.agricontract.user.application.dto.RejectUserCommand;
 import com.agricontract.user.application.dto.VerifyUserCommand;
+import com.agricontract.user.application.usecase.AssignUserRoleUseCase;
 import com.agricontract.user.application.usecase.ListUsersByVerificationStatusUseCase;
 import com.agricontract.user.application.usecase.RejectUserUseCase;
 import com.agricontract.user.application.usecase.VerifyUserUseCase;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
+import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
@@ -34,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +55,7 @@ class AdminUserControllerTest {
     private static final String ACTOR_ID = "operator-1";
     private static final String VERIFY_URL = "/api/v1/admin/users/" + TARGET_ID + "/verify";
     private static final String REJECT_URL = "/api/v1/admin/users/" + TARGET_ID + "/reject";
+    private static final String ROLE_URL = "/api/v1/admin/users/" + TARGET_ID + "/role";
     private static final String VERIFY_BODY = "{\"authorizationExpiresAt\":\"2027-06-30T16:59:59.999Z\"}";
 
     @Autowired private MockMvc mockMvc;
@@ -58,6 +63,7 @@ class AdminUserControllerTest {
     @MockBean private ListUsersByVerificationStatusUseCase listUsersByVerificationStatusUseCase;
     @MockBean private VerifyUserUseCase verifyUserUseCase;
     @MockBean private RejectUserUseCase rejectUserUseCase;
+    @MockBean private AssignUserRoleUseCase assignUserRoleUseCase;
 
     private MockHttpServletRequestBuilder viaGateway(MockHttpServletRequestBuilder request, String roles) {
         return request
@@ -84,7 +90,7 @@ class AdminUserControllerTest {
     void verify_withoutGatewaySecret_forbidden() throws Exception {
         mockMvc.perform(post(VERIFY_URL)
                         .header("X-User-Id", ACTOR_ID)
-                        .header("X-User-Role", "ADMIN")
+                        .header("X-User-Role", "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(verifyUserUseCase);
@@ -109,11 +115,11 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void verify_internalSecretWithForgedAdminRole_forbidden() throws Exception {
+    void verify_internalSecretWithForgedOperatorRole_forbidden() throws Exception {
         mockMvc.perform(post(VERIFY_URL)
                         .header("X-Internal-Secret", INTERNAL_SECRET)
                         .header("X-User-Id", ACTOR_ID)
-                        .header("X-User-Role", "ADMIN")
+                        .header("X-User-Role", "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(verifyUserUseCase);
@@ -146,10 +152,10 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void verify_asAdmin_nullExpiryAllowed() throws Exception {
+    void verify_asOperator_nullExpiryAllowed() throws Exception {
         when(verifyUserUseCase.execute(any())).thenReturn(response(VerificationStatus.VERIFIED));
 
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"authorizationExpiresAt\":null}"))
                 .andExpect(status().isOk());
 
@@ -159,10 +165,10 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void reject_asAdmin_passesReasonAndActor() throws Exception {
+    void reject_asOperator_passesReasonAndActor() throws Exception {
         when(rejectUserUseCase.execute(any())).thenReturn(response(VerificationStatus.REJECTED));
 
-        mockMvc.perform(viaGateway(post(REJECT_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(REJECT_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Thieu giay phep\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.verificationStatus").value("REJECTED"));
@@ -193,7 +199,7 @@ class AdminUserControllerTest {
         when(listUsersByVerificationStatusUseCase.execute(any()))
                 .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
 
-        mockMvc.perform(viaGateway(get("/api/v1/admin/users"), "ADMIN"))
+        mockMvc.perform(viaGateway(get("/api/v1/admin/users"), "OPERATOR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.empty").value(true));
 
@@ -202,7 +208,7 @@ class AdminUserControllerTest {
 
     @Test
     void list_sizeAboveLimit_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(get("/api/v1/admin/users").param("size", "101"), "ADMIN"))
+        mockMvc.perform(viaGateway(get("/api/v1/admin/users").param("size", "101"), "OPERATOR"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(listUsersByVerificationStatusUseCase);
     }
@@ -214,7 +220,7 @@ class AdminUserControllerTest {
         mockMvc.perform(post(VERIFY_URL)
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", ACTOR_ID, "admin-2")
-                        .header("X-User-Role", "ADMIN")
+                        .header("X-User-Role", "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(verifyUserUseCase);
@@ -225,7 +231,7 @@ class AdminUserControllerTest {
         mockMvc.perform(post(REJECT_URL)
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .header("X-User-Id", ACTOR_ID)
-                        .header("X-User-Role", "BUYER", "ADMIN")
+                        .header("X-User-Role", "BUYER", "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Thieu giay phep\"}"))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(rejectUserUseCase);
@@ -238,7 +244,7 @@ class AdminUserControllerTest {
         when(verifyUserUseCase.execute(any()))
                 .thenThrow(new InvalidVerificationTransitionException("verify", VerificationStatus.VERIFIED));
 
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isConflict());
     }
@@ -247,7 +253,7 @@ class AdminUserControllerTest {
     void reject_concurrentDecision_conflict() throws Exception {
         when(rejectUserUseCase.execute(any())).thenThrow(new ConcurrentProfileUpdateException(TARGET_ID));
 
-        mockMvc.perform(viaGateway(post(REJECT_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(REJECT_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Blurry ID scan\"}"))
                 .andExpect(status().isConflict());
     }
@@ -256,7 +262,7 @@ class AdminUserControllerTest {
     void verify_selfDecision_forbidden() throws Exception {
         when(verifyUserUseCase.execute(any())).thenThrow(new SelfKycDecisionException(ACTOR_ID));
 
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isForbidden());
     }
@@ -265,7 +271,7 @@ class AdminUserControllerTest {
     void verify_userNotFound_notFound() throws Exception {
         when(verifyUserUseCase.execute(any())).thenThrow(new NoSuchElementException("User not found: " + TARGET_ID));
 
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isNotFound());
     }
@@ -275,14 +281,14 @@ class AdminUserControllerTest {
         when(verifyUserUseCase.execute(any()))
                 .thenThrow(new IllegalArgumentException("authorizationExpiresAt must be after the decision time"));
 
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void verify_missingBody_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN").contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR").contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(verifyUserUseCase);
     }
@@ -290,7 +296,7 @@ class AdminUserControllerTest {
     // Contract: a missing key must never become an implicit unlimited grant (explicit null is covered above).
     @Test
     void verify_missingExpiryKey_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(verifyUserUseCase);
@@ -298,7 +304,7 @@ class AdminUserControllerTest {
 
     @Test
     void verify_malformedExpiry_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"authorizationExpiresAt\":\"30/06/2027\"}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(verifyUserUseCase);
@@ -306,7 +312,7 @@ class AdminUserControllerTest {
 
     @Test
     void verify_misspelledExpiryField_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"authorizationExpiryAt\":\"2027-06-30T16:59:59.999Z\"}"))
                 .andExpect(status().isBadRequest());
@@ -315,7 +321,7 @@ class AdminUserControllerTest {
 
     @Test
     void verify_emptyStringExpiry_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"authorizationExpiresAt\":\"\"}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(verifyUserUseCase);
@@ -323,7 +329,7 @@ class AdminUserControllerTest {
 
     @Test
     void verify_epochNumberExpiry_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"authorizationExpiresAt\":1814371199}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(verifyUserUseCase);
@@ -333,7 +339,7 @@ class AdminUserControllerTest {
     void verify_offsetExpiry_normalizedToUtc() throws Exception {
         when(verifyUserUseCase.execute(any())).thenReturn(response(VerificationStatus.VERIFIED));
 
-        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"authorizationExpiresAt\":\"2027-06-30T23:59:59.999+07:00\"}"))
                 .andExpect(status().isOk());
@@ -345,7 +351,7 @@ class AdminUserControllerTest {
 
     @Test
     void reject_unknownField_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(REJECT_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(REJECT_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"Thieu giay phep\",\"actorId\":\"someone-else\"}"))
                 .andExpect(status().isBadRequest());
@@ -354,7 +360,7 @@ class AdminUserControllerTest {
 
     @Test
     void reject_blankReason_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(post(REJECT_URL), "ADMIN")
+        mockMvc.perform(viaGateway(post(REJECT_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"   \"}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(rejectUserUseCase);
@@ -362,8 +368,163 @@ class AdminUserControllerTest {
 
     @Test
     void list_invalidStatus_badRequest() throws Exception {
-        mockMvc.perform(viaGateway(get("/api/v1/admin/users").param("verificationStatus", "APPROVED"), "ADMIN"))
+        mockMvc.perform(viaGateway(get("/api/v1/admin/users").param("verificationStatus", "APPROVED"), "OPERATOR"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(listUsersByVerificationStatusUseCase);
+    }
+
+    // --- no ADMIN fallback on KYC ---
+
+    @Test
+    void verify_asAdmin_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void reject_asAdmin_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(post(REJECT_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Thieu giay phep\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(rejectUserUseCase);
+    }
+
+    @Test
+    void list_asAdmin_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(get("/api/v1/admin/users"), "ADMIN"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(listUsersByVerificationStatusUseCase);
+    }
+
+    @Test
+    void verify_asArbitrator_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "ARBITRATOR")
+                        .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void verify_tokenWithOperatorAndArbitrator_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(post(VERIFY_URL), "OPERATOR,ARBITRATOR")
+                        .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(verifyUserUseCase);
+    }
+
+    @Test
+    void unknownAdminPath_asAdmin_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(post("/api/v1/admin/users/" + TARGET_ID + "/lock"), "ADMIN"))
+                .andExpect(status().isForbidden());
+    }
+
+    // --- role assignment ---
+
+    @Test
+    void assignRole_asAdmin_passesTargetAndRole() throws Exception {
+        when(assignUserRoleUseCase.execute(any())).thenReturn(AdminUserResponse.builder()
+                .userId(TARGET_ID).role(Role.ARBITRATOR).verificationStatus(VerificationStatus.PENDING).build());
+
+        mockMvc.perform(viaGateway(put(ROLE_URL), "default-roles-agricontract,ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ARBITRATOR\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("ARBITRATOR"));
+
+        verify(assignUserRoleUseCase).execute(new AssignUserRoleCommand(TARGET_ID, Role.ARBITRATOR));
+    }
+
+    @Test
+    void assignRole_asOperator_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "OPERATOR")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ARBITRATOR\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_asArbitrator_forbidden() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ARBITRATOR")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"OPERATOR\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_operatorArbitratorSwap_conflict() throws Exception {
+        when(assignUserRoleUseCase.execute(any()))
+                .thenThrow(new RoleSeparationViolationException(TARGET_ID, Role.OPERATOR, Role.ARBITRATOR));
+
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ARBITRATOR\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("ROLE_SEPARATION_VIOLATION")));
+    }
+
+    @Test
+    void assignRole_userNotFound_notFound() throws Exception {
+        when(assignUserRoleUseCase.execute(any())).thenThrow(new NoSuchElementException("User not found: " + TARGET_ID));
+
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"OPERATOR\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void assignRole_unknownRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"SUPERADMIN\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_integerRole_badRequest() throws Exception {
+        // ordinal 2 is ADMIN; Jackson's default enum coercion would accept it
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":2}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_numericStringRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"2\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_nullRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":null}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_lowercaseRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"operator\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_missingRole_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
+    }
+
+    @Test
+    void assignRole_extraRoleField_badRequest() throws Exception {
+        mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"OPERATOR\",\"roles\":[\"ARBITRATOR\"]}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(assignUserRoleUseCase);
     }
 }
