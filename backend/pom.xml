@@ -27,6 +27,7 @@
         <module>notification-service</module>
         <module>reputation-service</module>
         <module>inspection-service</module>
+        <module>bank-service</module>
     </modules>
 
     <properties>

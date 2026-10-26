@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: bank-service
+  datasource:
+    url: ${BANK_DB_URL:jdbc:mysql://localhost:3314/bank_db?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
+    username: ${BANK_DB_USERNAME}
+    password: ${BANK_DB_PASSWORD}
+    hikari:
+      connection-init-sql: "SET time_zone = '+00:00'"
+  flyway:
+    url: ${spring.datasource.url}
+    user: ${BANK_MIGRATION_USERNAME}
+    password: ${BANK_MIGRATION_PASSWORD}
+    clean-disabled: true
+server:
+  port: ${SERVER_PORT:8086}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -44,6 +44,7 @@ jobs:
             notification-service: 'backend/notification-service/**'
             reputation-service: 'backend/reputation-service/**'
             inspection-service: 'backend/inspection-service/**'
+            bank-service: 'backend/bank-service/**'
             node:
               - 'backend/shared/node-eventing/**'
               - 'backend/notification-service-nest/**'
@@ -66,7 +67,7 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           # Keep in sync with the filters above (step 2 of "adding a Java service").
-          all='["shared/java-eventing","api-gateway","user-service","product-service","contract-service","escrow-service","notification-service","reputation-service","inspection-service"]'
+          all='["shared/java-eventing","api-gateway","user-service","product-service","contract-service","escrow-service","notification-service","reputation-service","inspection-service","bank-service"]'
           if [ "$EVENT" = "push" ] || echo "$CHANGES" | jq -e 'index("all")' > /dev/null; then
             java="$all"
             node=true
