@@ -120,6 +120,8 @@ Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào 
 }
 ```
 
+`GET /internal/v1/users/inspectors/eligible` (bổ sung 27/10/2026, #208) trả mảng `[{"userId": "..."}]` — pool để inspection-service chọn assignee Level 1.5 (#160). Eligible = role `INSPECTOR` + `verificationStatus = VERIFIED` + `authorizationExpiresAt` `NULL` hoặc lớn hơn hẳn clock UTC của user-service. Không lọc reputation lock. Pool rỗng → `200 []`.
+
 Chỉ service identity (mTLS/service token; Phase 2 có thể dùng `SERVICE_INTERNAL_SECRET`) được gọi. Không tái dùng `UserInfoResponse` public cho Feign vì đó là nguyên nhân KI-3.
 
 ## 5. Events

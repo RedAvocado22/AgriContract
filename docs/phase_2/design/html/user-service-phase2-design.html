@@ -255,6 +255,7 @@
   "lockedUntil": null
 }
 </code></pre></figure>
+<p><code>GET /internal/v1/users/inspectors/eligible</code> (bổ sung 27/10/2026, #208) trả mảng <code>[{"userId": "..."}]</code> — pool để inspection-service chọn assignee Level 1.5 (#160). Eligible = role <code>INSPECTOR</code> + <code>verificationStatus = VERIFIED</code> + <code>authorizationExpiresAt</code> <code>NULL</code> hoặc lớn hơn hẳn clock UTC của user-service. Không lọc reputation lock. Pool rỗng → <code>200 []</code>.</p>
 <p>Chỉ service identity (mTLS/service token; Phase 2 có thể dùng <code>SERVICE_INTERNAL_SECRET</code>) được gọi. Không tái dùng <code>UserInfoResponse</code> public cho Feign vì đó là nguyên nhân KI-3.</p>
 </section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Events <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
 <div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">

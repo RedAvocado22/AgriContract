@@ -549,6 +549,20 @@ paths:
       parameters: [{name: userId, in: path, required: true, schema: {type: string}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AssignUserRoleRequest'}}}}
       responses: {'2XX': {description: Role assigned; exact success status is not frozen.}, '400': {$ref: '#/components/responses/BadRequest'}, '403': {$ref: '#/components/responses/Forbidden'}, '404': {$ref: '#/components/responses/NotFound'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /internal/v1/users/inspectors/eligible:
+    x-service-owner: user-service
+    get:
+      x-internal: true
+      operationId: listEligibleInspectors
+      security: [{serviceAuth: []}]
+      description: >-
+        Private pool that inspection-service picks Level 1.5 assignees from (#160). An account
+        is eligible when its role is INSPECTOR, its verificationStatus is VERIFIED, and its
+        authorizationExpiresAt is NULL or strictly after the current user-service UTC clock.
+        Reputation locks are not applied here. The response carries only userId; callers that
+        need more fields use getInternalUserInfo. Order is not frozen. An empty pool is a 200
+        with an empty array.
+      responses: {'200': {description: Eligible inspectors, content: {application/json: {schema: {$ref: '#/components/schemas/EligibleInspectorList'}}}}, '401': {$ref: '#/components/responses/Unauthorized'}}
   /internal/v1/users/{userId}:
     x-service-owner: user-service
     get:
@@ -1192,6 +1206,14 @@ components:
         organizationName: {type: string}
         role: {enum: [BUYER, SELLER, ADMIN, INSPECTOR, OPERATOR, ARBITRATOR]}
         verificationStatus: {enum: [PENDING, VERIFIED, REJECTED]}
+    EligibleInspectorList:
+      type: array
+      items:
+        type: object
+        required: [userId]
+        additionalProperties: false
+        properties:
+          userId: {type: string}
     VerifyUserRequest:
       type: object
       required: [authorizationExpiresAt]
