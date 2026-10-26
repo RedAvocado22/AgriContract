@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       java: ${{ steps.modules.outputs.java }}
-      node: ${{ steps.modules.outputs.node }}
+      notification: ${{ steps.modules.outputs.notification }}
       analytics: ${{ steps.modules.outputs.analytics }}
       frontend: ${{ steps.modules.outputs.frontend }}
       contracts: ${{ steps.filter.outputs.contracts }}
@@ -42,13 +42,12 @@ jobs:
             product-service: 'backend/product-service/**'
             contract-service: 'backend/contract-service/**'
             escrow-service: 'backend/escrow-service/**'
-            notification-service: 'backend/notification-service/**'
             reputation-service: 'backend/reputation-service/**'
             inspection-service: 'backend/inspection-service/**'
             bank-service: 'backend/bank-service/**'
-            node:
+            notification:
               - 'backend/shared/node-eventing/**'
-              - 'backend/notification-service-nest/**'
+              - 'backend/notification-service/**'
             analytics:
               - 'backend/shared/node-eventing/**'
               - 'backend/analytics-service/**'
@@ -68,25 +67,25 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           # Keep in sync with the filters above (step 2 of "adding a Java service").
-          all='["shared/java-eventing","shared/java-web-error","api-gateway","user-service","product-service","contract-service","escrow-service","notification-service","reputation-service","inspection-service","bank-service"]'
+          all='["shared/java-eventing","shared/java-web-error","api-gateway","user-service","product-service","contract-service","escrow-service","reputation-service","inspection-service","bank-service"]'
           if [ "$EVENT" = "push" ] || echo "$CHANGES" | jq -e 'index("all")' > /dev/null; then
             java="$all"
-            node=true
+            notification=true
             analytics=true
             frontend=true
           else
             java=$(jq -cn --argjson all "$all" --argjson changed "$CHANGES" '$all - ($all - $changed)')
-            node=$(echo "$CHANGES" | jq 'index("node") != null')
+            notification=$(echo "$CHANGES" | jq 'index("notification") != null')
             analytics=$(echo "$CHANGES" | jq 'index("analytics") != null')
             frontend=$(echo "$CHANGES" | jq 'index("frontend") != null')
           fi
           {
             echo "java=$java"
-            echo "node=$node"
+            echo "notification=$notification"
             echo "analytics=$analytics"
             echo "frontend=$frontend"
           } >> "$GITHUB_OUTPUT"
-          echo "Java modules: $java | node: $node | analytics: $analytics | frontend: $frontend"
+          echo "Java modules: $java | notification: $notification | analytics: $analytics | frontend: $frontend"
 
   # Every PR closes exactly one issue (Definition of Done). Reads the current body through the API,
   # so fixing the description and re-running this job is enough; no new push needed.
@@ -181,9 +180,9 @@ jobs:
         working-directory: backend
         run: mvn -B -pl ${{ matrix.module }} -amd verify --no-transfer-progress
 
-  notification-service-node:
+  notification-service:
     needs: changes
-    if: needs.changes.outputs.node == 'true'
+    if: needs.changes.outputs.notification == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -196,7 +195,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             backend/shared/node-eventing/package-lock.json
-            backend/notification-service-nest/package-lock.json
+            backend/notification-service/package-lock.json
 
       - name: Build and test node-eventing
         working-directory: backend/shared/node-eventing
@@ -206,7 +205,7 @@ jobs:
           npm test
 
       - name: Lint, test and build notification-service
-        working-directory: backend/notification-service-nest
+        working-directory: backend/notification-service
         run: |
           npm ci
           npm run lint:check
@@ -265,7 +264,7 @@ jobs:
   # The only required check on main. Jobs skipped by the path filter count as passed;
   # a failed or cancelled job fails the gate.
   ci-gate:
-    needs: [changes, pr-policy, contracts, java, notification-service-node, analytics-service, frontend]
+    needs: [changes, pr-policy, contracts, java, notification-service, analytics-service, frontend]
     if: always()
     runs-on: ubuntu-latest
     steps:

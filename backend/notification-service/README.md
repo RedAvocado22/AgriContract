@@ -73,7 +73,7 @@ no-op.
   stop with `Found non-empty schema(s) ... but no schema history table`. Remove that volume
   (`docker compose rm -sf notification-db && docker volume rm backend_notification_db_data`), which deletes its
   data.
-- The image is built from `notification-service-nest/Dockerfile` with build context `backend/`, so
+- The image is built from `notification-service/Dockerfile` with build context `backend/`, so
   `shared/node-eventing` is built inside the image; nothing needs to be built on the host.
 - **Do not run it next to the Java service.** If you start the Java image by hand (for the M4 parity run), stop
   this one first: `docker compose stop notification-service`.
@@ -92,7 +92,7 @@ docker compose stop notification-service   # the compose container would consume
 
 # 2. Shared eventing package, then this service.
 cd shared/node-eventing && npm ci && npm run build
-cd ../../notification-service-nest && npm ci
+cd ../../notification-service && npm ci
 npm run start            # defaults match the ports compose exposes on localhost
 ```
 
