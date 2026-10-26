@@ -61,7 +61,7 @@ AgriContract adds escrow, milestone-based settlement, tiered dispute resolution,
 | product-service | 8082 | Commodity listings |
 | contract-service | 8083 | Contract lifecycle state machine, Outbox Poller |
 | escrow-service | 8084 | Escrow lock/release/penalty (Phase 1: mock DB balance) |
-| notification-service | 8085 | Email notifications via MailHog |
+| notification-service | 8085 | Email notifications via MailHog (NestJS 11 / Node 22) |
 
 ### Phase 2 — Production (designed, +7 services)
 
@@ -132,6 +132,7 @@ Phase 2 layers tamper-evidence onto the audit trail:
 ## Tech stack
 
 - **Java 21** / Spring Boot 3.3
+- **NestJS 11 / Node 22** — notification-service (ported from Spring Boot, behaviour unchanged)
 - **Spring Cloud Gateway** — API gateway with JWT validation
 - **Spring Security** — Keycloak RS256 JWT
 - **Spring Data JPA** + **Flyway** — per-service MySQL schema migrations

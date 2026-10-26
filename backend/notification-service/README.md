@@ -3,10 +3,10 @@
 NestJS port of the Spring Boot `notification-service`. Plan and status:
 `docs/planning/notification-service-nestjs-migration.md`.
 
-**Status: M3 (packaged, in compose and CI).** The service consumes the 9 Phase 1 queues, sends the same emails as
-the Java service and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient
-deduplication. The compose service `notification-service` now builds this service. Not done yet: parity run against
-Java with Bruno (M4).
+**Status: M5 (cutover done).** The service consumes the 9 Phase 1 queues, sends the same emails as the Java service
+did and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient deduplication.
+Parity with Java was signed off in M4 (`docs/planning/notification-service-parity-m4.md`). The Java service is
+removed; tag `notification-java-final` is the rollback point (plan §7).
 
 | Queue (`notification-svc.<key>`) | Recipients, in order |
 | --- | --- |
