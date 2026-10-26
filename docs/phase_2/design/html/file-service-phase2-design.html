@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>file-service-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">file-service</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 14 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Domain Model — File</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> ingestChannel — quyết định bởi entrypoint, không phải param caller tự khai</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> State machine</a></li><li class="toc__sub"><a href="#sec-2-3"><span class="toc__number">§2.3</span> Storage key trong MinIO</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Entrypoints — 3 cổng vào tách theo trust boundary (Hướng B)</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Async Processing Pipeline</a></li><li class="toc__sub"><a href="#sec-4-1"><span class="toc__number">§4.1</span> Email intake bridge</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Event Contract</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Access Control (Download)</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Retention &amp; Deletion</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Database Migration</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> Known Limitations / Out of Scope (có chủ đích)</a></li><li class="toc__top"><a href="#sec-10"><span class="toc__number">§10</span> Status — File-service Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>File-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-24">24/10/2026</time></span><a href="../file-service-phase2-design.md">Mở Markdown · 241 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="product-phase2-design.html" title="product-phase2-design.md">product</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="inspection-phase2-design.html" title="inspection-phase2-design.md">inspection</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="contract-document-consent-phase2-design.html" title="contract-document-consent-phase2-design.md">contract-document-consent</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Agnostic nghiệp vụ: chỉ blob + metadata kỹ thuật; ý nghĩa file nằm ở service giữ <code>fileId</code>.</li><li>3 entrypoint theo trust boundary: <code>StoreOnBehalfOf</code> (<code>DIRECT_UPLOAD</code>, scan, ≤10MB, JPG/PNG/PDF), email intake (<code>EMAIL_INTAKE</code>, ≤20MB streaming), <code>store()</code> nội bộ (<code>SYSTEM_GENERATED</code>, không scan, <code>uploadedBy</code> = serviceId).</li><li><code>ingestChannel</code> do entrypoint quyết, caller không tự khai; business service không được dùng <code>store()</code> cho file của end-user.</li><li>Email: <code>EmailParseConsumer</code> → cùng queue <code>file-service.virus-scan</code>; <code>VirusScanConsumer</code> là điểm duy nhất <code>markReady()</code>.</li><li>Consumer chỉ đổi state khi nhận <code>file.ready</code>/<code>file.failed</code>; không polling.</li><li>Download luôn proxy qua service sở hữu (ownership check); không lộ bucket/object key.</li><li>Không tự xoá file đã <code>attached</code>; xoá chỉ qua <code>DeleteFile</code> từ owner, 2 bước tombstone → blob; <code>legalHold</code> chặn mọi xoá.</li><li>Orphan: chưa <code>ConfirmAttached</code> sau 1 tuần thì xoá.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p><strong>7 dependency đã cam kết từ service khác (không phải "nice to have" — các service đó đã "đóng session" dựa trên giả định file-service tồn tại và hoạt động đúng như mô tả):</strong></p>
+<ol>
+<li><code>sellerEvidenceFileId</code>/<code>buyerEvidenceFileId</code> — ảnh cân hàng lúc milestone.</li>
+<li>Bằng chứng bất khả kháng — Admin xét qua file-service.</li>
+<li><code>cadastralExtractFileId</code> — scan/PDF trích lục địa chính.</li>
+<li>File KML gốc lúc <code>ImportPlotsFromKML</code> — <strong>quyết định (05/07/2026, xem §7): giữ lại</strong>, qua <code>originalKmlFileId</code>.</li>
+<li>PDF report SGS/Bureau Veritas ingest qua <code>intake@...</code> — tự động, không qua tay Admin lúc nhận.</li>
+<li>Output PDF/CSV báo cáo EUDR (<code>GenerateEUDRReport</code>) — chiều ngược lại, file-service <strong>nhận</strong> file do service khác sinh ra, không phải nơi tự build nội dung report.</li>
+<li>PDF <code>FINAL_SIGNED_CONTRACT</code> và các document hậu ký — contract-service render bằng durable worker rồi lưu qua <code>SYSTEM_GENERATED</code>; file-service không tự dựng nội dung hợp đồng.</li>
+</ol>
+<p><strong>3 quyết định kiến trúc đã chốt sẵn ở service khác, file-service phải tương thích:</strong></p>
+<ul>
+<li><code>fileId</code> mọi nơi tham chiếu là <strong>plain UUID</strong>, không <code>REFERENCES</code> cross-service — đúng pattern đã áp cho <code>report_id</code>/<code>sellerId</code>/<code>signerUserId</code> ở các service khác.</li>
+<li>File-service tự giữ <strong>hash riêng</strong> để detect tampering ở tầng MinIO storage — tách biệt hoàn toàn với <code>signedContentHash</code>/<code>reportHash</code> đã có ở service khác (2 lớp hash khác mục đích).</li>
+<li>Pain point đặt tên sẵn: <strong>async processing</strong> — ít nhất 1 luồng không chạy đồng bộ trong request (virus-scan hoặc parse email SGS), cần RabbitMQ.</li>
+</ul>
+<p><strong>Thứ tự ưu tiên đã chốt:</strong> file-service → pricing-service → analytics-service.</p>
+<p><strong>Tìm kiếm/lọc listing:</strong> dùng trực tiếp các query parameter trong <code>product-service</code>.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Domain Model — <code>File</code> <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<p>Aggregate root duy nhất, đơn giản, <strong>agnostic với nghiệp vụ</strong> (chốt 05/07/2026 — xem §2.1) — file-service không biết và không cần biết 1 file dùng để làm gì (evidence, cadastral, report...), chỉ biết nó là 1 blob + metadata kỹ thuật. Ý nghĩa nghiệp vụ nằm ở phía service đang giữ <code>fileId</code> đó (tên field tự nói lên ý nghĩa, VD <code>cadastralExtractFileId</code>).</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>fileId</code></td>
+<td>UUID</td>
+<td>Plain UUID, đúng pattern đã chốt toàn hệ thống</td>
+</tr>
+<tr>
+<td class="identifier"><code>storageHash</code></td>
+<td>VARCHAR(64)</td>
+<td>Hash riêng của file-service, detect tampering ở MinIO — tách biệt <code>signedContentHash</code>/<code>reportHash</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>uploadedBy</code></td>
+<td>VARCHAR(255)</td>
+<td><code>userId</code> (upload trực tiếp) hoặc <code>serviceId</code> (VD <code>"audit-service"</code>, cho <code>SYSTEM_GENERATED</code>). Plain, không FK cross-service</td>
+</tr>
+<tr>
+<td class="identifier"><code>ingestChannel</code></td>
+<td>Enum (<code>DIRECT_UPLOAD</code>, <code>EMAIL_INTAKE</code>, <code>SYSTEM_GENERATED</code>)</td>
+<td>Quyết định bởi <strong>entrypoint nào được gọi</strong> (§3), không phải giá trị caller tự khai — xem trade-off §3</td>
+</tr>
+<tr>
+<td class="identifier"><code>contentType</code></td>
+<td>VARCHAR(100)</td>
+<td><code>image/jpeg</code>, <code>image/png</code>, <code>application/pdf</code>, <code>text/csv</code>...</td>
+</tr>
+<tr>
+<td class="identifier"><code>fileSize</code></td>
+<td>BIGINT</td>
+<td>Bytes</td>
+</tr>
+<tr>
+<td class="identifier"><code>status</code></td>
+<td>Enum (<code>PROCESSING</code>, <code>READY</code>, <code>FAILED</code>)</td>
+<td>Trạng thái <strong>kỹ thuật</strong> (file toàn vẹn chưa) — không liên quan gì tới việc nội dung có được Admin duyệt hay không (đó là state machine riêng, thuộc service khác)</td>
+</tr>
+<tr>
+<td class="identifier"><code>failureReason</code></td>
+<td>TEXT, nullable</td>
+<td>Chỉ có giá trị khi <code>status = FAILED</code> — VD <code>"virus detected"</code>, <code>"email parse error: missing attachment"</code>. Giữ <code>status</code> gọn (3 giá trị), chi tiết debug nằm ở field phụ, không phình state machine</td>
+</tr>
+<tr>
+<td class="identifier"><code>attached</code></td>
+<td>Boolean, default <code>FALSE</code></td>
+<td>Cờ xác nhận đã có service khác lưu <code>fileId</code> này vào entity của nó — dùng cho orphan-cleanup (§7)</td>
+</tr>
+<tr>
+<td class="identifier"><code>createdAt</code></td>
+<td>Timestamp</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>Với contract document, <code>storageHash</code> phải được trả về contract-service để persist nguyên giá trị thành <code>ContractDocument.documentFileHash</code>. Hash này là hash bytes PDF; nó không thay <code>signedContentHash</code>/<code>sourceContentHash</code> của nội dung pháp lý.</p>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> <code>ingestChannel</code> — quyết định bởi entrypoint, không phải param caller tự khai <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<p><strong>Trade-off đã cân nhắc (05/07/2026):</strong></p>
+<ul>
+<li><strong>Hướng A — 1 API generic</strong> (<code>store(bytes, ingestChannel, uploadedBy)</code>, mọi nguồn dùng chung): ít code, dễ mở rộng — nhưng <code>ingestChannel</code> trở thành param caller tự khai, ai gọi cũng có thể tự xưng <code>SYSTEM_GENERATED</code> để né virus-scan. Lỗ hổng bảo mật thật, không phải lý thuyết.</li>
+<li><strong>Hướng B — 3 entrypoint mỏng, dùng chung 1 core logic bên trong</strong> (đã chốt, xem §3): ranh giới bảo mật theo đúng trust boundary thật (public vs internal network) — <code>ingestChannel</code> do chính entrypoint quyết định, không thể giả mạo vì con đường gọi vào đã tự quyết định channel.</li>
+</ul>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt: Hướng B.</strong></p></div>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> State machine <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<figure class="code" data-lang="text"><pre><code>PROCESSING → READY
+           ↘ FAILED
+</code></pre></figure>
+<p>Dùng chung 1 enum cho cả 3 channel (không tách nhánh riêng theo channel) — <code>SYSTEM_GENERATED</code> nhảy thẳng <code>PROCESSING → READY</code> gần như tức thì (không qua scan/parse), vẫn đi qua đúng state đó để nhất quán. Lý do fail khác nhau tuỳ channel (virus vs email-parse-error) nằm ở <code>failureReason</code>, không cần thêm state.</p>
+</section><section aria-labelledby="heading-sec-2-3" class="section" id="sec-2-3"><h3 id="heading-sec-2-3"><span class="sec-num">§2.3</span> Storage key trong MinIO <a aria-label="Sao chép liên kết tới §2.3" class="anchor" href="#sec-2-3">#</a></h3>
+<blockquote>
+<p><strong>Cập nhật 24/10/2026 (#91):</strong> "MinIO" trong tài liệu này hiểu là <em>object storage S3-compatible</em>. Compose dùng <strong>SeaweedFS</strong> (<code>object-storage</code>, S3 API <code>:8333</code>) vì MinIO ngừng phát hành image community từ 10/2025 và đã archive repo. file-service gọi qua S3 SDK nên thiết kế không đổi.</p>
+</blockquote>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> object key = chính <code>fileId</code> (UUID), 1 bucket phẳng — không phân cấp theo <code>contentType</code>/<code>ingestChannel</code> (VD không tạo <code>images/</code>, <code>documents/</code>). Không ai truy cập MinIO trực tiếp để "duyệt tìm" file — mọi truy xuất đi qua <code>GetFile(fileId)</code>, luôn có <code>fileId</code> trong tay trước khi cần đọc. Phân loại ảnh/tài liệu đã có sẵn ở <code>contentType</code> trong bảng <code>file</code> (DB là nguồn sự thật cho metadata, storage key chỉ là địa chỉ vật lý). Thêm hierarchy chỉ có giá trị nếu cần lifecycle policy theo ngày/tháng hoặc partition ở scale rất lớn — ngoài scope đồ án, không thêm structure không cần dùng.</p></div>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Entrypoints — 3 cổng vào tách theo trust boundary (Hướng B) <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Entrypoint</th>
+<th scope="col">Ai gọi</th>
+<th scope="col"><code>ingestChannel</code></th>
+<th scope="col">Validate trước khi nhận</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StoreOnBehalfOf(file, actingUserId)</code> — <strong>đổi từ <code>UploadFile</code> public, 17/07/2026</strong></td>
+<td>Business service (service-to-service, mTLS/service token) uỷ quyền từ end-user đã qua JWT ở business endpoint; <code>uploadedBy = actingUserId</code> truyền tường minh</td>
+<td class="identifier"><code>DIRECT_UPLOAD</code></td>
+<td><code>contentType</code> ∈ {JPG, PNG, PDF}, <code>fileSize</code> ≤ <strong>10MB</strong> (chốt 05/07/2026) — giữ nguyên validate + virus-scan</td>
+</tr>
+<tr>
+<td>Email intake bridge</td>
+<td>Scheduled job nội bộ (§4.1), không expose API</td>
+<td class="identifier"><code>EMAIL_INTAKE</code></td>
+<td><code>fileSize</code> ≤ <strong>20MB</strong> (chốt review pass 2, 05/07/2026 — cao hơn <code>DIRECT_UPLOAD</code> vì PDF report SGS/BV thường nhiều trang/nhúng ảnh chứng chỉ), check <strong>streaming</strong> trong lúc <code>EmailParseConsumer</code> đang đọc MIME part, không load hết vào memory rồi mới check — tránh OOM nếu mailbox bị compromise hoặc bên gửi nhầm file khủng. Vượt cap → lỗi nghiệp vụ, route <code>email_intake_failure</code> (không phải lỗi dev)</td>
+</tr>
+<tr>
+<td><code>store()</code> nội bộ</td>
+<td>Service-to-service (mTLS/service token, không phải JWT user) — VD <code>audit-service</code> tạo EUDR report hoặc <code>contract-service</code> tạo final contract PDF</td>
+<td class="identifier"><code>SYSTEM_GENERATED</code></td>
+<td>Không cần virus-scan (nội dung do chính hệ thống tạo, tin được); trả <code>fileId</code>, <code>storageHash</code>, size/content type</td>
+</tr>
+</tbody>
+</table></div>
+<p>Core logic (tính <code>storageHash</code>, lưu MinIO, insert <code>File</code> metadata) dùng chung 1 hàm nội bộ cho cả 3 entrypoint — không trùng lặp code, chỉ khác lớp validate/auth phía trước.</p>
+<p><strong>Sửa — đóng mâu thuẫn với <code>api-gateway-phase2-design.md</code> §3.5/§5.2:</strong> Gateway không expose file-service ra ngoài; mọi upload của end-user đi qua business endpoint của service sở hữu ngữ cảnh (product-service nhận KML/trích lục kèm tham số nghiệp vụ, contract-service nhận evidence gắn milestone). Hợp lý — các use case đó vốn cần file <em>đi kèm</em> business params, upload raw rời rạc chỉ đẻ orphan + 2 round-trip. Entrypoint <code>DIRECT_UPLOAD</code> vì vậy đổi từ public <code>UploadFile</code> thành <code>StoreOnBehalfOf</code> nội bộ, <strong>giữ nguyên toàn bộ semantics DIRECT_UPLOAD</strong> (virus-scan, cap 10MB, whitelist contentType). Ranh giới Hướng B (§2.1) không đổi: channel vẫn do entrypoint quyết định — business service <strong>không được</strong> gọi <code>store()</code>/<code>SYSTEM_GENERATED</code> cho file gốc từ end-user để né scan; <code>store()</code> chỉ dành cho file hệ thống tự sinh, và <code>uploadedBy</code> của <code>SYSTEM_GENERATED</code> bắt buộc là serviceId (validate được), không phải userId.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Async Processing Pipeline <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> tách riêng 2 consumer theo <strong>loại công việc</strong> (parsing concern vs security concern), không gộp branching vào 1 consumer duy nhất.</p></div>
+<p><strong>Trade-off:</strong> gộp 1 consumer rẽ nhánh if/else theo <code>ingestChannel</code> thì ít code hơn ban đầu, nhưng 2 việc (virus-scan vs email-parse) khác nhau về bản chất domain, khác tải (CPU-bound nhanh vs I/O-bound nặng), và nếu gộp chung thread pool thì 1 pipeline bị treo (VD parser loop vô hạn với file SGS định dạng lạ) sẽ kéo cả pipeline kia chết theo — 2 việc không liên quan lại phụ thuộc lẫn nhau. Tách riêng cho phép scale và fail-isolate độc lập, đúng tinh thần đã áp cho <code>EscrowEventConsumer</code> ở Phase 1.</p>
+<p><strong>Bug phát hiện ở review pass 2 (05/07/2026) — đã fix:</strong> thiết kế gốc coi 2 consumer là 2 pipeline <strong>song song, độc lập, mỗi file chỉ đi qua đúng 1 trong 2</strong> — hệ quả là file tới từ <code>EMAIL_INTAKE</code> (nguồn ngoài internet, unauthenticated sender, đúng vector tấn công phổ biến nhất) không bao giờ được virus-scan, trong khi <code>DIRECT_UPLOAD</code> (nguồn tin cậy hơn, đã qua JWT auth) lại là kênh duy nhất bắt buộc scan. Root cause: tách consumer theo <strong>nguồn gốc file</strong> (<code>ingestChannel</code>) thay vì theo <strong>loại công việc cần làm</strong> — dẫn tới giả định sai "1 file 1 pipeline" thay vì đúng bản chất "1 file có thể cần đi qua nhiều bước xử lý nối tiếp nhau".</p>
+<p><strong>Fix:</strong> nối chuỗi thay vì tách song song — <code>EmailParseConsumer</code> chỉ làm đúng việc của nó (extract MIME attachment, validate format/size §3), parse xong thì <strong>publish tiếp</strong> vào cùng queue <code>file-service.virus-scan</code> mà <code>DIRECT_UPLOAD</code> đang dùng, để <code>VirusScanConsumer</code> trở thành <strong>điểm chốt duy nhất</strong> quyết định <code>markReady()</code> — bất kể file tới từ đâu. Không tạo pipeline scan riêng cho email để tránh trùng logic virus-scan ở 2 chỗ.</p>
+<figure class="code" data-lang="text"><pre><code>file.uploaded.direct  → queue: file-service.virus-scan   → VirusScanConsumer  → markReady()/markFailed()
+file.email.received   → queue: file-service.email-parse  → EmailParseConsumer
+                                                              ├─ parse OK   → publish vào file-service.virus-scan (dùng lại VirusScanConsumer) → markReady()/markFailed()
+                                                              └─ parse FAIL → markFailed() + insert email_intake_failure
+</code></pre></figure>
+<p><code>status</code> vẫn ở <code>PROCESSING</code> xuyên suốt cả 2 bước (parse rồi scan) — consumer downstream (contract-service/inspection-service) không thấy khác biệt gì, vẫn chỉ chờ đúng 1 event <code>file.ready</code>/<code>file.failed</code> như §5 đã định nghĩa. Event contract §5 không đổi.</p>
+<p>Retry: <strong>3 lần</strong>, backoff cố định qua RabbitMQ dead-letter-exchange + TTL (không cần exponential backoff tự code cho scope này).</p>
+<p><strong>DLQ — 2 hàng đợi riêng, ý nghĩa khác nhau:</strong></p>
+<ul>
+<li><code>file-service.virus-scan.dlq</code> — lỗi hệ thống tạm thời (MinIO down...), alert kỹ thuật (dev/log), không phải nghiệp vụ. Nhận cả file từ <code>DIRECT_UPLOAD</code> lẫn file đã parse xong từ <code>EMAIL_INTAKE</code>.</li>
+<li><code>file-service.email-parse.dlq</code> — nghiệp vụ thật (SGS/Bureau Veritas gửi định dạng lạ hoặc vượt cap 20MB, parser không đọc được) — cần luồng báo <strong>Admin</strong> (VD insert <code>email_intake_failure</code>, notify), để Admin chủ động liên hệ bên gửi lại đúng định dạng. Không phải bug cần dev sửa.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-4-1" class="section" id="sec-4-1"><h3 id="heading-sec-4-1"><span class="sec-num">§4.1</span> Email intake bridge <a aria-label="Sao chép liên kết tới §4.1" class="anchor" href="#sec-4-1">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> dùng <strong>IMAP polling định kỳ</strong> (Spring <code>@Scheduled</code>, mỗi 5 phút, thư viện Jakarta Mail), không dùng webhook (AWS SES/Mailgun inbound parse) — webhook cần domain thật + verify DNS + public HTTPS endpoint, quá nặng cho scope đồ án. Job poll mailbox <code>intake@...</code>, mỗi mail mới → extract MIME attachment → lưu file thô (<code>ingestChannel = EMAIL_INTAKE</code>, <code>status = PROCESSING</code>) → publish <code>file.email.received</code>. <strong>Bổ sung:</strong> mail <strong>không có attachment</strong> (VD ack/case-ID reply từ org — inspection §3.5) không tạo <code>File</code> record — bridge publish event nhẹ <code>file.email_notice {senderDomain, spfDkimResult, subject, snippet, receivedAt}</code> cho inspection-service dùng gợi ý match case ID; không lưu bytes, không qua scan.</p></div>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Event Contract <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<figure class="code" data-lang="text"><pre><code>file.ready         (fileId, uploadedBy, ingestChannel, contentType, fileSize,
+                    emailMeta? {senderDomain, spfDkimResult, subject, receivedAt})
+                    -- emailMeta chỉ có khi ingestChannel = EMAIL_INTAKE (17/07/2026 —
+                    -- phục vụ inspection-service tính reportHash + match case ID,
+                    -- inspection §3.6); consumer khác bỏ qua theo tolerant-reader
+file.failed        (fileId, uploadedBy, ingestChannel, failureReason)
+file.email_notice  (senderDomain, spfDkimResult, subject, snippet, receivedAt)
+                    -- mail không attachment, xem §4.1 (17/07/2026) — không có File record
+</code></pre></figure>
+<p>Không đưa <code>storageHash</code> vào payload — service khác không cần biết hash, chỉ cần biết fileId dùng được hay không.</p>
+<p><strong>Idempotency:</strong> key = <code>fileId</code> (unique tuyệt đối theo bản chất business — khác bank-service phải dùng <code>sourceEventId</code> vì 1 <code>contractId</code> có nhiều entry; ở đây 1 <code>fileId</code> chỉ ra đúng 1 <code>file.ready</code>/<code>file.failed</code>). Consumer bên nhận (VD milestone-service) tự chịu trách nhiệm idempotent-check (kiểm tra state hiện tại trước khi xử lý lại) — không phải việc file-service phải làm thêm.</p>
+<p><strong>Lý do bắt buộc dùng event, không dùng polling:</strong> nếu contract-service/milestone-service coi <code>fileId</code> nhận được lúc <code>UploadFile</code> trả về là "đã có evidence hợp lệ" ngay lập tức — trong khi file vẫn <code>PROCESSING</code> — và vài giây sau file bị <code>FAILED</code> (virus/sai định dạng), thì 2 service lệch state, không ai biết cho tới khi có người mở file thủ công. Đúng dạng dual-write đã học ở bank-service, chỉ khác hướng (fire-and-forget không đợi confirm). Event bắt buộc consumer phải nhận <code>file.ready</code> mới đổi state tiếp — không có đường tắt để lỡ quên như polling (optional, dễ bị bỏ qua).</p>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Access Control (Download) <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> file-service <strong>không tự kiểm tra quyền nghiệp vụ</strong> (VD "user X có phải 1 bên của contract Y chứa evidence này không") — đúng nguyên tắc agnostic đã áp xuyên suốt, vì đó là kiến thức nghiệp vụ chỉ service sở hữu <code>fileId</code> mới có.</p></div>
+<p><strong>Pattern: proxy qua service sở hữu, không expose file-service trực tiếp ra ngoài cho end-user.</strong> Service đang giữ <code>fileId</code> (VD contract-service) tự expose endpoint riêng của nó (<code>GET /contracts/{id}/milestones/{id}/evidence</code>), tự validate quyền theo đúng business logic của nó, sau đó <strong>mới</strong> gọi <code>file-service.GetFile(fileId)</code> nội bộ (service-to-service, trusted) để lấy bytes và proxy ngược lại cho end-user. File-service chỉ enforce 1 lớp bảo vệ tối thiểu, chung cho mọi trường hợp: endpoint <code>GetFile</code> không public cho end-user gọi thẳng, chỉ nhận service-to-service call (mTLS/service token) hoặc chính <code>uploadedBy</code>/role Admin (cho case Admin cần xem trực tiếp qua UI quản trị).</p>
+<p>Document API của contract-service cũng theo pattern này: participant gọi endpoint contract document, contract-service kiểm tra ownership/document status rồi proxy bytes theo <code>fileId</code>. Response không lộ MinIO bucket/object key. <code>FINAL_SIGNED_CONTRACT</code> đã READY là immutable; không có replace/overwrite blob theo cùng <code>fileId</code>.</p>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Retention &amp; Deletion <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — neo vào luật thật, không phải chỉ tối ưu chi phí:</strong> EUDR (Regulation 2023/1115, Điều 9) bắt buộc operator giữ toàn bộ tài liệu due diligence (bao gồm evidence, geolocation) <strong>tối thiểu 5 năm</strong> kể từ ngày due diligence statement được nộp. Đây là lý do default phải là <strong>giữ</strong>, không phải xoá — sai lầm "xoá quá sớm 1 file cần cho audit EUDR" nghiêm trọng hơn nhiều so với sai lầm "tốn thêm vài GB storage".</p></div>
+<p><strong>Nguyên tắc: file-service không tự quyết retention theo nghiệp vụ (đúng agnostic), chỉ cung cấp cơ chế, để service sở hữu tự quyết khi nào an toàn để xoá.</strong></p>
+<ul>
+<li><strong>Default: giữ vĩnh viễn</strong> — nhưng từ 18/07/2026 "vĩnh viễn" là default khi CHƯA có retention policy, không phải luật: retention matrix <code>data-governance-phase2-design.md</code> §8 là source of truth (KYC 5 năm sau khi quan hệ chấm dứt, evidence theo hợp đồng 10 năm...). Execution:
+<ul>
+<li><code>File</code> metadata thêm: <code>retentionUntil</code> (nullable — NULL = chưa có policy/giữ vô hạn), <code>legalHold</code> (boolean — ADMIN set khi có tranh chấp/điều tra, <strong>chặn mọi xoá</strong> kể cả hết retention), <code>deletedAt</code>, <code>deletionReason</code>.</li>
+<li>Final contract PDF và document evidence hậu ký dùng retention của hồ sơ hợp đồng (ít nhất theo matrix governance hiện hành) và tự động bật/giữ <code>legalHold</code> khi contract có tranh chấp hoặc điều tra. Document owner không được gọi delete/replace để "sửa" bản đã ký.</li>
+<li><strong>Owning service</strong> (biết nghiệp vụ) chạy scheduled lifecycle job: xác định file hết retention theo domain của mình → gọi <code>DeleteFile</code>; file-service không tự quyết (vẫn agnostic nghiệp vụ). File thuộc nhiều domain (evidence vừa KYC vừa hợp đồng) → <strong>retention dài nhất thắng</strong>.</li>
+<li>Xoá 2 bước idempotent: (1) DB tombstone <code>deletedAt</code>+<code>deletionReason</code> trước, (2) xoá blob MinIO sau; lệch giữa 2 bước (blob xoá, DB fail hoặc ngược lại) → job re-run tự lành vì cả 2 bước đều idempotent. Không có TTL/cronjob nào bên trong file-service tự xoá file <code>READY</code> đã <code>attached = TRUE</code>.</li>
+</ul>
+</li>
+<li><strong><code>DeleteFile(fileId)</code></strong> — API tường minh, chỉ được gọi bởi chính service đang sở hữu <code>fileId</code> đó, khi service đó (biết rõ retention rule nghiệp vụ của riêng nó) xác định đã an toàn để xoá. File-service không bao giờ tự khởi xướng.</li>
+<li><strong>Orphan cleanup — cơ chế <code>ConfirmAttached(fileId)</code>, không dùng heuristic đoán:</strong> service nhận <code>fileId</code> từ <code>store()</code>/<code>UploadFile</code> phải tự lưu <code>fileId</code> vào entity của mình <strong>trước</strong>, thành công thì mới gọi <code>ConfirmAttached(fileId)</code> set <code>attached = TRUE</code>. Nếu service kia crash giữa chừng (nhận <code>fileId</code> nhưng chưa kịp lưu) → không bao giờ gọi <code>ConfirmAttached</code> → file vẫn <code>attached = FALSE</code>. Cùng pattern "không set state trước khi có confirmation" đã dùng ở bank-service, áp ngược cho chính file-service. File <code>attached = FALSE</code> quá <strong>1 tuần</strong> → coi là mồ côi, tự động xoá — không có compliance nào áp lên file chưa từng có chủ.</li>
+<li><strong>File cũ bị ghi đè khi re-import/upload lại</strong> (<code>cadastralExtractFileId</code> qua <code>UploadCadastralExtract</code>, <code>originalKmlFileId</code> qua re-import KML) — <strong>không</strong> rơi vào nhánh orphan, vì đã từng được <code>ConfirmAttached = TRUE</code>. Giữ nguyên theo policy "default giữ vĩnh viễn" — đây là <strong>chủ đích</strong>, không phải bug: giữ được lịch sử "trích lục/KML nào từng gắn với entry này trước khi bị thay", có giá trị audit trail.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Database Migration <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE file (
+    file_id           CHAR(36) PRIMARY KEY,
+    storage_hash      VARCHAR(64) NOT NULL,   -- MinIO tampering detection, tách biệt signedContentHash/reportHash
+    uploaded_by       VARCHAR(255) NOT NULL,  -- userId hoặc serviceId, plain, không FK cross-service
+    ingest_channel    VARCHAR(20) NOT NULL,   -- DIRECT_UPLOAD | EMAIL_INTAKE | SYSTEM_GENERATED — quyết định bởi entrypoint, không phải caller tự khai
+    content_type      VARCHAR(100) NOT NULL,
+    file_size         BIGINT NOT NULL,
+    status            VARCHAR(20) NOT NULL DEFAULT 'PROCESSING',  -- PROCESSING | READY | FAILED
+    failure_reason    TEXT NULL,              -- chỉ có giá trị khi status = FAILED
+    attached          BOOLEAN NOT NULL DEFAULT FALSE,  -- xem §7, orphan cleanup
+    retention_until   TIMESTAMP NULL,          -- NULL = no finite policy / keep indefinitely
+    legal_hold        BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_at        TIMESTAMP NULL,          -- governance tombstone; blob deletion follows
+    deletion_reason   TEXT NULL,
+    created_at        TIMESTAMP NOT NULL DEFAULT now(),
+    CONSTRAINT ck_file_deletion_metadata CHECK (
+      (deleted_at IS NULL AND deletion_reason IS NULL)
+      OR (deleted_at IS NOT NULL AND deletion_reason IS NOT NULL AND length(trim(deletion_reason)) &gt; 0)
+    )
+);
+CREATE INDEX idx_file_status ON file(status);
+CREATE INDEX idx_file_attached_created ON file(attached, created_at);  -- phục vụ query orphan cleanup
+CREATE INDEX idx_file_retention ON file(legal_hold, retention_until, deleted_at);
+
+CREATE TABLE email_intake_failure (
+    failure_id      CHAR(36) PRIMARY KEY,
+    file_id         CHAR(36) NULL REFERENCES file(file_id),  -- NULL nếu fail trước khi tạo được file record (VD parse MIME lỗi hoàn toàn)
+    source_mailbox  VARCHAR(255) NOT NULL,
+    failure_reason  TEXT NOT NULL,
+    detected_at     TIMESTAMP NOT NULL DEFAULT now(),
+    reviewed_by_admin BOOLEAN NOT NULL DEFAULT FALSE
+);
+-- Bảng riêng cho DLQ email-parse (§4) — Admin cần biết để chủ động liên hệ SGS/Bureau Veritas gửi lại,
+-- khác bản chất với lỗi kỹ thuật virus-scan (chỉ cần alert dev, không cần bảng riêng).
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> Known Limitations / Out of Scope (có chủ đích) <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<ul class="limitations">
+<li><strong>Orphan-cleanup dựa vào <code>ConfirmAttached</code> do service khác tự gọi đúng lúc</strong> — nếu service đó có bug quên gọi <code>ConfirmAttached</code> dù đã lưu <code>fileId</code> thành công, file hợp lệ có thể bị xoá nhầm sau 1 tuần. Rủi ro chấp nhận được cho scope đồ án, nhưng cần lưu ý khi code các service consumer.</li>
+<li><strong>Access control ở §6 dựa vào service sở hữu tự validate đúng</strong> — file-service không double-check lại quyền nghiệp vụ, nên nếu service sở hữu có lỗ hổng auth thì file-service không phải lớp phòng thủ thứ 2.</li>
+<li><strong>Không đối chiếu nội dung file với dữ liệu đã khai</strong> (đã nêu ở product-phase2-design §4 cho <code>cadastralExtractFileId</code>) — file-service chỉ lưu, không OCR/verify nội dung khớp với business data.</li>
+<li><strong>Retry/DLQ dùng cơ chế RabbitMQ built-in (dead-letter-exchange + TTL)</strong>, không tự code retry logic — đủ cho scope 5 tháng, không cần framework retry phức tạp hơn (Resilience4j...).</li>
+</ul>
+</section><section aria-labelledby="heading-sec-10" class="section" id="sec-10"><h2 id="heading-sec-10"><span class="sec-num">§10</span> Status — File-service Design <a aria-label="Sao chép liên kết tới §10" class="anchor" href="#sec-10">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> file-service là kho lưu trữ file <strong>agnostic với nghiệp vụ</strong> — chỉ biết blob + metadata kỹ thuật, không biết ý nghĩa nghiệp vụ của file. 3 entrypoint tách theo trust boundary (không phải 1 API generic) để <code>ingestChannel</code> không thể bị giả mạo. State machine kỹ thuật (<code>PROCESSING/READY/FAILED</code>) tách biệt hoàn toàn khỏi quyết định duyệt nghiệp vụ (thuộc service khác). 2 pipeline async — parse (email) và scan (security) — <strong>nối chuỗi cho file <code>EMAIL_INTAKE</code>, không chạy song song độc lập</strong> (xem §4, fix review pass 2). Event-driven (<code>file.ready</code>/<code>file.failed</code>), không polling — tránh dual-write giữa file-service và service tiêu thụ. Retention neo vào EUDR Điều 9 (tối thiểu 5 năm) — default giữ vĩnh viễn, xoá chỉ qua lệnh tường minh từ service sở hữu, trừ orphan cleanup (<code>ConfirmAttached</code> pattern, 1 tuần). Storage key trong MinIO = <code>fileId</code> phẳng, không phân cấp theo content-type (§2.3).</p></div>
+<p><strong>Review pass 2 (05/07/2026) — bug đã fix:</strong> kênh <code>EMAIL_INTAKE</code> (nguồn ngoài internet) từng bỏ qua virus-scan hoàn toàn do tách nhầm consumer theo nguồn gốc file thay vì theo loại công việc — xem §4. Đã fix bằng cách nối chuỗi <code>EmailParseConsumer</code> → <code>file-service.virus-scan</code> queue. Đồng thời chốt thêm size cap 20MB (streaming check) cho <code>EMAIL_INTAKE</code> — trước đó chưa có giới hạn nào (§3).</p>
+<p><strong>Known Limitation (không block thiết kế):</strong> khả năng dùng IMAP polling với mailbox thật của SGS/Bureau Veritas không khảo sát/xin cấp phép được trong phạm vi đồ án — giữ làm giả định đơn giản hoá. Thiết kế không phụ thuộc chi tiết cơ chế lấy mail cụ thể; nếu deployment thật dùng cơ chế khác (Inbound Parse webhook, API...), chỉ đổi adapter tầng intake, không đụng logic lõi.</p>
+<p><strong>Cập nhật:</strong> (1) entrypoint <code>DIRECT_UPLOAD</code> đổi từ public <code>UploadFile</code> sang <code>StoreOnBehalfOf</code> nội bộ cho business service uỷ quyền — đóng mâu thuẫn với gateway §3.5, giữ nguyên virus-scan/cap/whitelist, chặn đường né scan qua <code>store()</code>. (2) <code>file.ready</code> mang thêm <code>emailMeta</code> cho <code>EMAIL_INTAKE</code>; thêm <code>file.email_notice</code> cho mail không attachment — hoàn thiện handshake với inspection-service (inspection §3.3/§3.5/§3.6 cập nhật cùng ngày).</p>
+<p><strong>Cập nhật:</strong> final contract PDF dùng <code>SYSTEM_GENERATED</code>; <code>storageHash</code> được contract-service lưu thành <code>documentFileHash</code>, tải qua proxy có ownership check, final blob không overwrite và đi cùng retention/legal hold của hồ sơ hợp đồng.</p>
+<p>File-service — <strong>ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong></p>
+<p><em>Design session: 05/07/2026 · Review pass 2 (fix virus-scan gap + storage key + size cap): 05/07/2026 · Cập nhật 13/07/2026 (giả định IMAP mailbox SGS/BV chuyển thành Known Limitation) · Cập nhật 17/07/2026 (UploadFile → StoreOnBehalfOf uỷ quyền; emailMeta trên file.ready + file.email_notice cho inspection handshake) · Chưa code · <strong>Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong></em></p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">24/10/2026</span><p>Compose dùng SeaweedFS (S3-compatible) thay MinIO; thiết kế không đổi.</p>
+</li><li><span class="changelog__date">06/10/2026</span><p>Final contract PDF qua <code>SYSTEM_GENERATED</code>; <code>storageHash</code> thành <code>documentFileHash</code>; không overwrite.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Retention theo matrix data-governance §8; thêm <code>retentionUntil</code>, <code>legalHold</code>, tombstone 2 bước.</p>
+</li><li><span class="changelog__date">17/07/2026</span><p><code>UploadFile</code> public đổi thành <code>StoreOnBehalfOf</code> nội bộ; thêm <code>emailMeta</code> và <code>file.email_notice</code>.</p>
+</li><li><span class="changelog__date">13/07/2026</span><p>Giả định IMAP mailbox SGS/BV chuyển thành Known Limitation.</p>
+</li><li><span class="changelog__date">05/07/2026</span><p>Review pass 2: email intake phải qua virus-scan, cap 20MB, storage key phẳng = <code>fileId</code>.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li>§5 vẫn nhắc <code>fileId</code> "lúc <code>UploadFile</code> trả về"; entrypoint đã đổi thành <code>StoreOnBehalfOf</code> từ 17/07.</li><li>Doc dùng chữ "MinIO" xuyên suốt; compose thực tế là SeaweedFS (§2.3 note 24/10).</li></ul></aside><footer class="doc-footer"><a href="../file-service-phase2-design.md">file-service-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-24">24/10/2026</time></p><a href="../file-service-phase2-design.md">Markdown · 241 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="product-phase2-design.html" title="product-phase2-design.md">product</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="inspection-phase2-design.html" title="inspection-phase2-design.md">inspection</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="contract-document-consent-phase2-design.html" title="contract-document-consent-phase2-design.md">contract-document-consent</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

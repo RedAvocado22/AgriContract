@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>inspection-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">inspection</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 18 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Level 1.5 — Platform-integrated Inspector</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> Identity model — dùng chung Signature</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> KYC-gate — nội dung khác Buyer/Seller, cơ chế giống</a></li><li class="toc__sub"><a href="#sec-2-3"><span class="toc__number">§2.3</span> Inspection measurement result và hash commitment (chốt 18/07/2026; sửa ownership 23/07/2026)</a></li><li class="toc__sub"><a href="#sec-2-4"><span class="toc__number">§2.4</span> Session freshness — tách config riêng khỏi Signature</a></li><li class="toc__sub"><a href="#sec-2-5"><span class="toc__number">§2.5</span> Level 1.5 assignment — ai được nộp report cho milestone nào</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Level 2 — External Inspector (Admin-mediated → Auto-intake + Human-confirm)</a></li><li class="toc__sub"><a href="#sec-3-1"><span class="toc__number">§3.1</span> Không Signature, không RBAC</a></li><li class="toc__sub"><a href="#sec-3-2"><span class="toc__number">§3.2</span> Chọn tổ chức Level 2 — negotiate trong ContractTerms, không phải danh sách cố định</a></li><li class="toc__sub"><a href="#sec-3-3"><span class="toc__number">§3.3</span> Ingestion flow — hòm mail platform thay thế vị trí Admin trong 3-mail song song</a></li><li class="toc__sub"><a href="#sec-3-4"><span class="toc__number">§3.4</span> Commission — use case chủ động yêu cầu tổ chức kiểm định vào cuộc</a></li><li class="toc__sub"><a href="#sec-3-5"><span class="toc__number">§3.5</span> Case ID — join key giữa commission và report, không tự động gán thẳng</a></li><li class="toc__sub"><a href="#sec-3-6"><span class="toc__number">§3.6</span> Ingestion report cuối — hash đóng băng trước khi có người chạm vào</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Hash Chain — source_type mới</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Database — Additive</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Known Limitations (có chủ đích, không phải điểm mù)</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Status — Inspection Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>Inspection-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../inspection-phase2-design.md">Mở Markdown · 477 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li>Chỉ nhận contract <code>COFFEE</code>; <code>actualQualityMetrics</code> chỉ <code>CoffeeActualMetrics</code>.</li><li>Level 1.5 (Vinacontrol/Quatest) là actor thật, ký qua Signature; Level 2 (SGS/BV) không login, không RBAC.</li><li><code>InitiateLevel2Inspection</code> = ARBITRATOR; review report, xác nhận case ID, upload thủ công, email intake lỗi = OPERATOR.</li><li>Report Level 2 ingest tự động, hash đóng băng ngay khi nhận; chỉ vào audit chain khi OPERATOR <code>CONFIRMED</code>.</li><li>Match case ID chỉ là gợi ý; không match thì <code>PENDING_REVIEW</code>, không đoán.</li><li><code>signature.report_id</code> không FK cross-service; integrity ở application layer.</li><li>Hash hiện hành: <code>InspectionSettlementResultV1</code> + <code>resultHash</code> + <code>reportHash</code> (§2.3).</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p><strong>Scope override chốt 06/10/2026:</strong> Phase 2 inspection chỉ nhận contract có <code>commodity = COFFEE</code>. Mọi result schema public/canonical phải reject rice/rubber/cashew; các variant cũ bên dưới là lịch sử thiết kế, không phải executable contract.</p>
+<blockquote>
+<p><strong>Role vận hành — sync SRS v1.6 (12/10/2026, thay note 18/07):</strong> <code>InitiateLevel2Inspection</code> (kể cả duyệt tổ chức Level 2 nhóm "lạ" + nhập <code>verificationReference</code>) = <strong>ARBITRATOR</strong>. <code>ConfirmCommissionCaseId</code>, <code>ReviewPendingExternalReport</code>, upload thủ công (<code>OPERATOR_MANUAL</code>, đổi tên từ <code>OPERATOR_MANUAL</code>) và xử lý email intake lỗi = <strong>OPERATOR</strong>. Level 1 nội bộ = Arbitrator. Không có Admin fallback (<code>data-governance-phase2-design.md</code> §5). Field đổi tên: <code>confirmed_by_operator_id</code> → <code>confirmed_by_operator_id</code>, <code>verifiedByArbitratorId</code> → <code>verifiedByArbitratorId</code>, <code>ARBITRATOR_AD_HOC</code> → <code>ARBITRATOR_AD_HOC</code>. Prose lịch sử bên dưới còn chữ "Admin" — đọc theo mapping này.</p>
+</blockquote>
+<p>3-tier INSPECTOR (Level 1 Arbitrator nội bộ / Level 1.5 Vinacontrol-Quatest / Level 2 SGS-Bureau Veritas) đã chốt khái niệm ở <code>milestone-escrow-phase2-design.md</code> (§3.2 routing trong state machine, §5 force majeure cap ở Level 1.5, §8 config ngưỡng escalation). <code>signature-phase2-design.md</code> §8 chủ động để ngoài phạm vi lúc đó: <em>"INSPECTOR là third-party actor, không qua cùng luồng KYC buyer/seller ở §5 — 'same treatment' không áp trực tiếp được, cần session riêng xác định lại từ đầu."</em> Doc này là session đó.</p>
+<p><strong>Insight gốc của session (03/07/2026):</strong> Level 1.5 và Level 2 không phải 2 mức độ nghiêm trọng của cùng 1 vấn đề — chúng là 2 mô hình identity hoàn toàn khác nhau, không dùng chung được:</p>
+<ul>
+<li><strong>Level 1.5</strong> (Vinacontrol/Quatest): tổ chức kiểm định quy mô tỉnh, quan hệ hợp đồng dịch vụ trực tiếp với platform khả thi → trở thành 1 actor thật trên platform, dùng chung mô hình identity với Buyer/Seller (<code>Signature</code>).</li>
+<li><strong>Level 2</strong> (SGS/Bureau Veritas): tập đoàn quốc tế, quy trình bảo mật/IT riêng, không tích hợp login vào 1 platform agritech Việt Nam — và không cần, vì uy tín report của họ tự thân đã đủ (accreditation quốc tế, độc lập với platform). Platform chỉ cần bảo vệ integrity của file sau khi nhận, không cần chứng minh identity qua login flow.</li>
+</ul>
+<p><strong>Không detail lại:</strong> routing logic <code>DisputeRoutingService</code> (đã chốt ở milestone-escrow doc), Level 1 (Arbitrator nội bộ dùng account Arbitrator sẵn có, không cần thiết kế riêng).</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Level 1.5 — Platform-integrated Inspector <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> Identity model — dùng chung <code>Signature</code> <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<p>Actor thật: account, login, JWT — coi như loại thứ 3 bên cạnh Buyer/Seller, dùng chung schema <code>Signature</code> (<code>signature-phase2-design.md</code> §3).</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> mở rộng <code>signerRole</code> enum: <code>BUYER</code>, <code>SELLER</code>, <code>INSPECTOR</code>.</p></div>
+<p><code>UNIQUE(contractId, signerRole)</code> gốc không áp trực tiếp được cho <code>INSPECTOR</code> — 1 hợp đồng có thể phát sinh nhiều report từ nhiều lần dispute khác nhau, không phải 1 lần duy nhất như buyer/seller ký.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> không tạo <code>Dispute</code> aggregate mới chỉ để có unique key — <code>Dispute</code> hiện không tồn tại như 1 entity riêng, chỉ là state trong <code>Milestone</code> state machine (<code>milestone-escrow-phase2-design.md</code> §3.2). <em>(Ghi chú 19/07/2026: milestone-escrow §6.4 từ nay có <code>BreachCase</code> — aggregate cấp contract cho cáo buộc vi phạm/attribution. Nó KHÔNG đảo quyết định này: milestone <code>CONTESTED</code> vẫn là state, Signature vẫn key theo <code>UNIQUE(reportId)</code>, inspection không tham chiếu BreachCase — contract-service tự nối phán quyết từ report (<code>resultHash</code>) vào <code>AttributionDecision</code> §6.4b, inspection-service không cần biết.)</em> Thay vào đó, thêm field <code>reportId</code> (FK logic → <code>inspection_report.report_id</code>, §5 — <strong>không phải FK database</strong>, xem lý do ở §5) vào <code>Signature</code> cho nhánh <code>signerRole = INSPECTOR</code>. Đổi constraint: <code>UNIQUE(reportId)</code> — mỗi report chỉ ký đúng 1 lần, tự nhiên đúng cho cả trường hợp 1 milestone bị dispute nhiều lần (force majeure xong rồi lại dispute số lượng lần nữa), không cần khái niệm entity mới. <code>contractId</code> vẫn giữ trên <code>Signature</code> (denormalized, tiện query theo hợp đồng), nhưng không còn nằm trong unique constraint cho nhánh INSPECTOR.</p></div>
+<p><strong>Sửa — bảng vật lý dời về inspection-service, đóng lỗ cross-service write:</strong> thiết kế trên (mở rộng enum + <code>report_id</code> vào bảng <code>signature</code> của <code>contract_db</code>) để lại 1 lỗ chưa ai định nghĩa: inspector thao tác ở inspection-service, nhưng bảng nằm ở <code>contract_db</code> — inspection-service không được ghi DB của service khác (database-per-service), và không có internal API nào của contract-service cho việc này. Chốt: <strong>nhánh INSPECTOR dùng bảng riêng <code>inspector_signature</code> trong DB của inspection-service</strong> — cùng shape schema (<code>signerUserId</code>, <code>authTime</code>, <code>signedAt</code>, <code>reportHash</code> ở vị trí <code>signedContentHash</code>, <code>ipAddress</code>), <code>UNIQUE(report_id)</code>, và <code>report_id</code> giờ <code>REFERENCES inspection_report</code> <strong>hợp lệ</strong> (cùng DB — gọn hơn cả bản cũ vốn phải bỏ FK). Bảng <code>signature</code> bên <code>contract_db</code> giữ nguyên thuần <code>BUYER</code>/<code>SELLER</code> như <code>signature-phase2-design.md</code> §3 gốc, không mở rộng enum. Khái niệm "dùng chung mô hình identity với Buyer/Seller" không đổi — chung <em>cơ chế</em> (step-up, <code>authTime</code>, session freshness §2.4), không chung <em>bảng vật lý</em>.</p>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> KYC-gate — nội dung khác Buyer/Seller, cơ chế giống <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<p>Cùng gate lúc đăng ký account, fail-closed by default (<code>signature-phase2-design.md</code> §5), nhưng xác minh nội dung khác:</p>
+<ul>
+<li>Buyer/Seller: xác minh <strong>thẩm quyền đại diện</strong> (BLDS 2015 Điều 142) — người bấm nút có phải người có quyền đại diện pháp nhân không.</li>
+<li>INSPECTOR Level 1.5: xác minh <strong>chứng chỉ/giấy phép hoạt động kiểm định thương mại</strong> — câu hỏi khác hẳn, không phải "ai đại diện" mà "tổ chức này có đủ tư cách pháp lý phát hành report có giá trị làm bằng chứng không".</li>
+</ul>
+<p><code>authorizationExpiresAt</code> (đã có sẵn trên <code>User</code>) tái dùng được nguyên — giấy phép kiểm định cũng có ngày hết hạn, cùng cơ chế nhập tay từ giấy tờ thật, không hardcode. Timestamp/expiry theo UTC/ICT convention của <code>milestone-escrow-phase2-design.md</code> §1.1; giấy chỉ ghi date hết hạn cuối ngày ICT.</p>
+</section><section aria-labelledby="heading-sec-2-3" class="section" id="sec-2-3"><h3 id="heading-sec-2-3"><span class="sec-num">§2.3</span> Inspection measurement result và hash commitment (chốt 18/07/2026; sửa ownership 23/07/2026) <a aria-label="Sao chép liên kết tới §2.3" class="anchor" href="#sec-2-3">#</a></h3>
+<p>Inspection-service sở hữu schema finding/result dùng chung cho Level 1.5 và Level 2:</p>
+<figure class="code" data-lang="text"><pre><code>InspectionSettlementResultV1 {
+  resultSchemaVersion: "1.0",
+  measuredQuantityKg: decimal &gt;= 0,
+  acceptedQuantityKg: decimal &gt;= 0 and &lt;= measuredQuantityKg,
+  measurementStatus: COMPLETE | INCONCLUSIVE,
+  actualQualityMetrics: CoffeeActualMetrics,
+  inconclusiveReasons?: string[],
+  determinedAt: timestamp
+}
+</code></pre></figure>
+<p><code>actualQualityMetrics.commodity</code> bắt buộc <code>COFFEE</code> và phải khớp contract. Field đo được:</p>
+<ul>
+<li>Coffee: <code>type</code>, <code>moisturePercent</code>, <code>foreignMatterPercent</code>, <code>blackBrokenBeansPercent</code>.</li>
+</ul>
+<p>Inspection-service không còn sở hữu <code>qualityDisposition</code>. Nó chỉ cam kết quantity + actual measurements + việc report có kết luận được hay không. Contract-service đối chiếu committed coffee spec/deviation policy để tạo disposition, quality discount và final entitlement; coffee <code>type</code> là categorical field duy nhất được exact-match-reject.</p>
+<p>Certificate/phiếu kiểm theo batch mà Seller hoặc Buyer đính kèm lúc cân là delivery/dispute evidence riêng. Inspection-service không parse nó thành actual metric, không chép nó vào <code>InspectionSettlementResultV1</code>, không commit nó trong <code>resultHash</code>, không dùng nó để tự sinh disposition và không coi nó là bản thay thế cho report <code>CONFIRMED</code>.</p>
+<p>Snapshot này là kết quả normalized tối thiểu, bất biến sau khi report được <code>CONFIRMED</code>. Không mang raw file, contact PII hay nội dung report tự do. <code>actualQualityMetrics</code> nằm trong <code>normalizedResult</code>, nên mọi actual metric đều nằm trong bytes được hash commit:</p>
+<figure class="code" data-lang="text"><pre><code>normalizedResult = InspectionSettlementResultV1
+resultHash = SHA256(RFC8785_canonical_json(normalizedResult))
+reportHash = SHA256(RFC8785_canonical_json({
+  reportId,
+  contractId,
+  milestoneId,
+  tier,
+  reportFileHash,
+  resultHash,
+  sourceTimestamp,
+  actorOrSourceIdentity
+}))
+</code></pre></figure>
+<p><code>reportFileHash</code> là hash bytes bất biến do file-service/inspection intake cung cấp. <code>actorOrSourceIdentity</code> là <code>inspectorId</code> cho Level 1.5 hoặc định danh nguồn external + <code>confirmedByOperatorId</code> cho Level 2. Contract-service verify <code>resultHash</code> và <code>reportHash</code> trước khi dùng kết quả; inspection-service không tính tiền, không quyết định disposition và không quyết định escrow transition. Reviewer ở contract workflow chỉ xác nhận phép tính tất định giữa committed terms trong <code>signedContentHash</code> và actual metrics trong <code>resultHash</code>; không được thêm tiêu chí chủ quan ngoài deviation policy đã ký.</p>
+</section><section aria-labelledby="heading-sec-2-4" class="section" id="sec-2-4"><h3 id="heading-sec-2-4"><span class="sec-num">§2.4</span> Session freshness — tách config riêng khỏi Signature <a aria-label="Sao chép liên kết tới §2.4" class="anchor" href="#sec-2-4">#</a></h3>
+<p>Window freshness là elapsed duration từ system timestamp UTC; không phụ thuộc timezone/client clock, theo convention chung milestone-escrow §1.1.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> không tái dùng nguyên <code>signatureAuthMaxAgeSeconds</code> (300s). Lý do: 300s tính cho hành vi "đọc lại hợp đồng xong bấm ký ngay" — xác nhận tức thời. INSPECTOR thì khác: cân hàng/kiểm tra chất lượng ngoài hiện trường xong mới quay lại nộp report — khoảng cách giữa step-up và submit tự nhiên dài hơn, không phải vì session bị treo lâu mà vì bản chất công việc cần thời gian.</p></div>
+<p>Thêm config riêng <code>inspectionAuthMaxAgeSeconds</code> (<code>application.yml</code>, cùng nhóm invariant kỹ thuật, không phải <code>ContractTerms</code>) — <strong>chốt 1800s (30 phút).</strong> Đủ cho thao tác nộp report sau khi hoàn tất kiểm tra thực địa, không phải hành vi tức thời như buyer/seller ký. Giá trị chỉnh được sau khi có dữ liệu vận hành thật, không phải hằng số cứng vĩnh viễn.</p>
+</section><section aria-labelledby="heading-sec-2-5" class="section" id="sec-2-5"><h3 id="heading-sec-2-5"><span class="sec-num">§2.5</span> Level 1.5 assignment — ai được nộp report cho milestone nào <a aria-label="Sao chép liên kết tới §2.5" class="anchor" href="#sec-2-5">#</a></h3>
+<p><strong>Gap đã đóng:</strong> §2.1–2.4 chốt identity, KYC và chữ ký của INSPECTOR nhưng không nói inspector nào được nộp report cho milestone nào. Thiếu mảnh này thì mọi INSPECTOR đã KYC đều nộp được report cho bất kỳ milestone <code>CONTESTED</code> nào — lỗ ownership. Phát hiện khi implement #112 (PR #152), bảng <code>level1_5_inspection_assignment</code> của PR đó được chấp nhận làm schema chính thức (§5).</p>
+<p><strong>Assignment là authorization record, không phải aggregate workflow:</strong> submit report Level 1.5 chỉ hợp lệ khi actor (JWT <code>sub</code>, role <code>INSPECTOR</code>, eligibility §2.2 còn hiệu lực) khớp <code>inspector_id</code> của assignment <strong>đang active</strong> (<code>ended_at IS NULL</code>) cho đúng <code>(contract_id, milestone_id)</code>. Thiếu assignment, assignment đã kết thúc, hoặc assignment của inspector khác → 403, cùng một message (không phân biệt để tránh dò).</p>
+<p><strong>Ai quyết "cần Level 1.5", ai chọn inspector — tách 2 quyền:</strong></p>
+<ul>
+<li><strong>contract-service</strong> quyết milestone cần giám định Level 1.5 — đúng ownership đã có: <code>DisputeRoutingService</code> route <code>LEVEL_1_5</code> (milestone-escrow §3.2), <code>InspectionTerms.requirement = MANDATORY_BEFORE_SETTLEMENT</code> với <code>requiredTier = LEVEL_1_5</code>, FM contest (milestone-escrow §5), contest window sau quyết định (milestone-escrow §6.4, GB-50), provisional Level 1.5 khi hết <code>level2BufferWindowDays</code> (milestone-escrow §3.2). contract-service <strong>không</strong> chọn inspector.</li>
+<li><strong>inspection-service</strong> chọn inspector: <strong>random đều</strong> trong tập INSPECTOR eligible tại thời điểm chọn (<code>role = INSPECTOR</code>, KYC <code>VERIFIED</code>, <code>authorizationExpiresAt</code> NULL hoặc &gt; now — cùng điều kiện §2.2). Không role nào (OPERATOR, ARBITRATOR, ADMIN) được chọn tay hay chỉ định inspector — đồng nhất với nguyên tắc "không tự chọn tổ chức inspect" ở <code>reputation-service-phase2-design.md</code> §8 và lý do KI-2 (§3.2): người chọn được là người thông đồng được. Tập eligible rỗng → không tạo assignment, alert OPERATOR; milestone giữ nguyên state, không tự rơi về Level 1.</li>
+</ul>
+<p><strong>Transport:</strong> contract-service publish command event <code>inspection.level1_5_requested</code> (qua outbox) với payload <code>{contractId, milestoneId, reason, reportDueBusinessDays}</code>; inspection-service consume → chọn inspector → INSERT assignment với <code>assigned_by_service = 'contract-service'</code>, <code>initiated_by_actor_id</code> = actor gây ra yêu cầu nếu có (buyer flag, bên contest), NULL nếu system-triggered. <em>Event chưa có trong <code>contracts/events/*.yaml</code> — thêm ở đợt sync YAML v1.6.</em></p>
+<p><strong>Idempotency:</strong> dedup consumer theo <code>eventId</code> (<code>processed_event</code>, pattern chung). Thêm vào đó, <code>uk_l15_active_milestone</code> đảm bảo mỗi <code>(contract_id, milestone_id)</code> chỉ 1 assignment active — request trùng khi đã có assignment active là no-op, không chọn lại.</p>
+<p><strong>Kết thúc / đổi người:</strong></p>
+<ul>
+<li>Report của assignment chuyển <code>CONFIRMED</code> → set <code>ended_at = confirmed_at</code> trong cùng transaction với việc confirm report.</li>
+<li>Quá <code>reportDueBusinessDays</code> mà chưa có report → hệ thống set <code>ended_at</code> và random lại trong tập eligible <strong>trừ</strong> các inspector đã từng được giao cho milestone đó. Không có thao tác reassign bằng tay.</li>
+<li>Inspector mất eligibility (KYC bị thu hồi, giấy phép hết hạn) giữa chừng → submit bị chặn ở eligibility gate §2.2; assignment kết thúc theo nhánh quá hạn ở trên, không cần trigger riêng.</li>
+<li><code>ended_at</code> là cột duy nhất được UPDATE và chỉ đi từ NULL sang có giá trị; mọi lần đổi người là row mới, lịch sử giữ nguyên.</li>
+</ul>
+<p><strong>Binding report ↔ assignment:</strong> report <code>LEVEL_1_5</code> lưu <code>l15_commission_id</code> trỏ tới assignment đã cho phép nộp (§5) — trả lời được "report này nộp theo lần giao nào" khi 1 milestone bị giám định nhiều lần (FM contest rồi dispute số lượng). Không dùng chung cột <code>commission_id</code> của Level 2.</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Level 2 — External Inspector (Admin-mediated → Auto-intake + Human-confirm) <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+</section><section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1"><h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> Không Signature, không RBAC <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
+<p>SGS/Bureau Veritas không có account, không login, không role trên platform. Không áp KYC-gate §2.2, không áp <code>Signature</code> schema. <code>services.md</code> dòng 10 ("Role-based access granular INSPECTOR") chỉ đúng cho Level 1.5 — ghi chú lại ở đây thay vì sửa <code>services.md</code>, đúng nguyên tắc §1 (khung gốc không phải nơi giữ quyết định chi tiết).</p>
+</section><section aria-labelledby="heading-sec-3-2" class="section" id="sec-3-2"><h3 id="heading-sec-3-2"><span class="sec-num">§3.2</span> Chọn tổ chức Level 2 — negotiate trong <code>ContractTerms</code>, không phải danh sách cố định <a aria-label="Sao chép liên kết tới §3.2" class="anchor" href="#sec-3-2">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> không hardcode danh sách tổ chức — SGS, Bureau Veritas chỉ là ví dụ minh hoạ, không phải enum đóng. Buyer/seller có thể muốn dùng tổ chức kiểm định quốc tế khác tuỳ mặt hàng/thị trường xuất khẩu.</p></div>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>level2InspectorOrg</code></td>
+<td>String, nullable</td>
+<td>Free text — tên tổ chức Level 2 buyer/seller đồng thuận trước. Snapshot immutable lúc <code>sign()</code>, cùng nguyên tắc <code>milestoneSchedule</code>, <code>agreedPrice</code> (milestone-escrow §2.1).</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Vì sao negotiate lúc ký, không phải lúc dispute xảy ra:</strong> nếu để tới lúc escalate lên Level 2 mới bắt 2 bên thoả thuận tổ chức nào, họ đang trong tranh chấp — đúng lúc khó đồng thuận nhất — phải tự thương lượng thêm 1 lớp nữa trước khi tranh chấp gốc còn chưa giải quyết, tạo deadlock ngay tại bước cần giải quyết deadlock. Chốt sẵn lúc ký (khi 2 bên còn thiện chí) loại bỏ rủi ro này.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — NOT NULL có điều kiện, không phải tuyệt đối:</strong> bắt buộc điền <code>level2InspectorOrg</code> lúc <code>sign()</code> <strong>chỉ khi</strong> giá trị/loại hàng của hợp đồng nằm trong ngưỡng có thể escalate tới Level 2 (theo config ngưỡng đã có ở <code>milestone-escrow-phase2-design.md</code> §8). Hợp đồng nào bị cap cứng ở Level 1.5 theo đúng ngưỡng đó thì field này luôn <code>NULL</code>, không cần hỏi — buyer/seller không phải đàm phán thêm 1 lớp cho tình huống không bao giờ xảy ra với họ. Validate ở use case <code>Sign</code>: ngưỡng cho phép Level 2 mà <code>level2InspectorOrg</code> vẫn NULL → reject, yêu cầu negotiate trước khi ký.</p></div>
+<p><strong>KI-2 — ĐÃ ĐÓNG (04/07/2026).</strong> Vấn đề gốc: negotiate <code>level2InspectorOrg</code> hoàn toàn tự do, không allowlist — 2 bên thông đồng có thể tự chọn tổ chức dễ dãi/tự dựng.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — allowlist 3 nhóm, không phải danh sách phẳng:</strong></p></div>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Nhóm</th>
+<th scope="col">Cơ chế xác nhận</th>
+<th scope="col">Lưu trữ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Major quốc tế đã biết</strong> (SGS, Bureau Veritas...)</td>
+<td>Hardcode sẵn, không cần verify lại mỗi lần</td>
+<td>1 bảng DB Admin quản lý (<code>level2_inspector_allowlist</code>), thêm/bớt được không cần deploy code</td>
+</tr>
+<tr>
+<td><strong>Trong nước</strong></td>
+<td>Verify qua BoA-VIAS (<code>boa.gov.vn</code> — Văn phòng Công nhận Chất lượng Việt Nam)</td>
+<td>Cùng bảng trên, sau khi verify lần đầu</td>
+</tr>
+<tr>
+<td><strong>Lạ, ngoài 2 nhóm trên</strong></td>
+<td>Admin duyệt case-by-case</td>
+<td><strong>Private — không ghi vào danh sách dùng lại chung</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Cơ chế Admin verify nhóm "lạ":</strong> tổ chức phải cung cấp <strong>accreditation certificate number</strong>, Admin tra đúng cơ quan công nhận quốc gia đã phát hành số đó — trong nước tra thẳng BoA-VIAS, quốc tế tra theo chuỗi ILAC → national accreditation body của nước đó → registry của chính AB đó. Không có số hoặc tra không khớp → reject, không tạo <code>PlotRegistryEntry</code>/không cho chọn tổ chức đó.</p>
+<p><strong>Vì sao approval nhóm "lạ" cố tình để private, không thêm vào danh sách dùng chung:</strong> né hẳn bài toán "công ty phá sản/mất accreditation thì phải dọn danh sách" — vì không có state sống lâu nào cần dọn. Mỗi lần "lạ" là 1 lần verify mới, không tích luỹ nợ kỹ thuật kiểu danh sách cần bảo trì định kỳ. Chi phí verify (tra 1 mã số trên web BoA/ILAC, vài phút) không phụ thuộc scale — rẻ như nhau dù dùng 5 hay 500 lần, vì đây là việc người-làm-tốc-độ-người trên sự kiện tần suất thấp, không phải hot path cần tối ưu.</p>
+<p><strong>Không lưu để tái sử dụng, nhưng vẫn phải lưu để chịu trách nhiệm giải trình — 2 mục đích khác nhau, không được lẫn:</strong> dù không cache lại quyết định để dùng cho commission khác, quyết định <strong>cho đúng commission này</strong> phải để lại dấu vết đầy đủ — ai duyệt, dựa trên căn cứ gì, mã số nào, lúc nào — vì đây là bằng chứng có thể bị lôi ra khi tranh chấp report sau này.</p>
+<p><code>level2_inspection_commission</code> (§5) mở rộng thêm:</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>orgVerificationType</code></td>
+<td>Enum (<code>HARDCODED_MAJOR</code>, <code>BOA_VERIFIED</code>, <code>ARBITRATOR_AD_HOC</code>)</td>
+<td>Nhóm nào trong 3 nhóm allowlist</td>
+</tr>
+<tr>
+<td class="identifier"><code>verificationReference</code></td>
+<td>String, nullable</td>
+<td>Accreditation certificate number đã tra — <code>NULL</code> cho <code>HARDCODED_MAJOR</code> (đã verify 1 lần khi thêm vào bảng allowlist, không verify lại mỗi lần dùng)</td>
+</tr>
+<tr>
+<td class="identifier"><code>verifiedByArbitratorId</code></td>
+<td>UUID, nullable</td>
+<td><code>NULL</code> cho <code>HARDCODED_MAJOR</code> cùng lý do trên</td>
+</tr>
+<tr>
+<td class="identifier"><code>verifiedAt</code></td>
+<td>Timestamp, nullable</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>InitiateLevel2Inspection</code> (§3.4) bước 2 mở rộng: nếu <code>org</code> thuộc nhóm <code>BOA_VERIFIED</code>/<code>ARBITRATOR_AD_HOC</code>, bắt buộc Admin nhập <code>verificationReference</code> trước khi commission được tạo — không cho tạo commission mà thiếu căn cứ. Bước 5 (INSERT <code>audit_record</code>, <code>source_type = LEVEL2_INSPECTION_COMMISSIONED</code>) đã tồn tại sẵn — chỉ mở rộng <code>content</code> thêm 3 field trên, <strong>không cần event/source_type mới</strong>. Hash chain hiện có (<code>hash-chain-phase2-design.md</code>) tự động cho quyết định này tính bất biến — đúng cơ chế đã dùng cho mọi quyết định quan trọng khác trong hệ thống, không phải cơ chế riêng mới.</p>
+<p><strong>Đã thu hẹp (08/07/2026, L4) — từ "deferred, chưa biết tra ở đâu" sang "có nguồn tra online rõ ràng":</strong> verify accreditation không còn là hộp đen. Ba nguồn tra online cụ thể:</p>
+<ul>
+<li><strong>BoA-VIAS</strong> (<code>boa.gov.vn</code>) — VIAS = scheme Inspection Bodies theo ISO/IEC 17020, đúng loại tổ chức cho Level 2 inspector. BoA (nay thuộc STAMEQ, Bộ KH&amp;CN từ 01/01/2025) là signatory ILAC-MRA/IAF-MLA/APAC-MRA — tra thẳng cho tổ chức trong nước.</li>
+<li><strong>IAF CertSearch</strong> (<code>iafcertsearch.org</code>) — global database validate chứng nhận, BoA Vietnam có mặt.</li>
+<li><strong>ILAC Signatory Search</strong> (<code>ilac.org/signatory-search</code>) — directory accreditation body, có cả code nhúng vào website để host search facility.</li>
+</ul>
+<p>Admin tra tay trên 3 nguồn này (vài phút/lần, sự kiện tần suất thấp — không phải hot path). <strong>Tự động hoá full qua REST API là enhancement, không phải bây giờ:</strong> chưa xác nhận BoA có API export danh sách VIAS dạng JSON (có thể vẫn phải tra trên portal). Nhưng từ "không biết tra đâu" → "3 nguồn tra online xác định" là nâng cấp thật cho khả năng defend — không còn là điểm mù.</p>
+</section><section aria-labelledby="heading-sec-3-3" class="section" id="sec-3-3"><h3 id="heading-sec-3-3"><span class="sec-num">§3.3</span> Ingestion flow — hòm mail platform thay thế vị trí Admin trong 3-mail song song <a aria-label="Sao chép liên kết tới §3.3" class="anchor" href="#sec-3-3">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> giữ nguyên nguyên tắc 3-mail song song (SGS/Bureau Veritas gửi report trực tiếp tới 3 nơi cùng lúc, không qua tay 1 người trung gian) — nhưng đổi vị trí thứ 3: thay vì Admin dùng inbox cá nhân, dùng 1 hòm mail thuộc platform (<code>intake@...</code>), nhận qua <strong>IMAP polling do file-service vận hành</strong> (đồng bộ với quyết định đã chốt ở <code>file-service-phase2-design.md</code> §4.1, supersede phương án SendGrid Inbound Parse của bản 04/07: webhook cần domain thật + verify DNS + public HTTPS endpoint, quá nặng cho scope; file-service là owner duy nhất của mailbox <code>intake@...</code>, inspection-service không tự đọc mail — chỉ consume event). Buyer, seller vẫn nhận bản gốc trực tiếp từ tổ chức kiểm định như cũ, không đổi — chain-of-custody argument gốc (không để 1 actor làm gatekeeper duy nhất) không bị ảnh hưởng, vì hòm intake chỉ thay thế đúng vị trí Admin, không gộp cả 3 vị trí về 1 mối.</p></div>
+<p><strong>Vì sao đổi:</strong> hòm mail platform lưu được kèm metadata máy đọc được (kết quả SPF/DKIM, timestamp hệ thống, raw headers) mà 1 inbox cá nhân không có — và không phụ thuộc Admin có đọc mail đúng lúc, có xoá mail, hay đổi máy hay không. Buộc hành động của Admin đi qua hệ thống có audit, thay vì qua inbox không ai theo dõi được.</p>
+<p><strong>Giới hạn không giải quyết được (ghi rõ, không giả vờ):</strong> platform chỉ xác nhận được leg gửi tới <code>intake@...</code> — vì đó là hệ thống của mình, webhook fire tức là có bằng chứng nhận. Leg tới buyer/seller thì không xác nhận được, vì đó là inbox của người khác. Đây không phải thiếu sót kỹ thuật — nếu platform xác nhận được, nghĩa là platform phải có quyền truy cập inbox buyer/seller, và lúc đó "bản gốc độc lập ngoài platform" đã mất chính tính độc lập khiến nó có giá trị. Xử lý: buyer/seller có thể tự bấm 1 nút "đã nhận report từ [org]" trong app khi milestone đang chờ Level 2 report — không chứng minh được org có gửi hay không, chỉ ghi lại actor mình quản lý (buyer/seller) đã tuyên bố gì, cùng pattern với self-report vốn đã dùng ở các bước khác trong hệ thống.</p>
+</section><section aria-labelledby="heading-sec-3-4" class="section" id="sec-3-4"><h3 id="heading-sec-3-4"><span class="sec-num">§3.4</span> Commission — use case chủ động yêu cầu tổ chức kiểm định vào cuộc <a aria-label="Sao chép liên kết tới §3.4" class="anchor" href="#sec-3-4">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> thiếu bước platform chủ động yêu cầu tổ chức kiểm định vào cuộc trước khi report tự nhiên xuất hiện. Use case mới, đứng trước ingestion trong luồng thời gian:</p></div>
+<figure class="code" data-lang="text"><pre><code>InitiateLevel2Inspection(contractId):
+  Role: ARBITRATOR (12/10/2026). Trigger: DisputeRoutingService route = LEVEL_2 (milestone-escrow §3.2)
+
+  1. Validate contract đang ở state cho phép escalate Level 2
+  2. org = Contract.contractTerms.level2InspectorOrg
+     NULL → REJECT (theo §3.2, NULL chỉ hợp lệ khi hợp đồng cap cứng Level 1.5)
+  3. buyerEmail, sellerEmail lấy từ user-service (không nhập tay)
+  4. INSERT level2_inspection_commission (commission_id, contract_id, org,
+     status = REQUESTED, requested_at = now())
+  5. INSERT audit_record (contract_id, source_type = LEVEL2_INSPECTION_COMMISSIONED,
+     content = {commissionId, intakeAddress: "intake@agricontract.vn",
+                buyerEmail, sellerEmail, org}, timestamp = now())
+  6. Publish `notification.level2_commission_requested` tới notification-service bằng
+     executable command envelope `{eventId, eventType, eventVersion, occurredAt,
+     producer, aggregateId, correlationId, causationId, payload}`; `payload` chính xác là
+     `{commissionId, contractId, recipients:[{userId,email,role}], org,
+     intakeAddress, contractContext}`. Recipient của org dùng `userId = null`, role
+     `INSPECTOR`; buyer/seller dùng canonical user IDs. Notification gửi mail
+     transactional tới org và bản xác nhận cho buyer/seller; inspection-service không
+     gọi SendGrid trực tiếp.
+</code></pre></figure>
+<p><strong>Ranh giới rõ ràng, không tự huyễn:</strong> bước 6 chỉ tạo ra <em>yêu cầu</em>, không tạo ra <em>sự đồng ý</em>. SGS/Bureau Veritas có thật sự nhận job, lên lịch, cử người đi kiểm định hay không vẫn là quan hệ thương mại thật ngoài hệ thống (báo giá, PO, lịch hẹn) — không automate được, và không cần automate, vì đó không phải nơi tạo ra bằng chứng. Cái audit record ở bước 5 chứng minh <strong>platform đã yêu cầu gửi đi đâu, lúc nào</strong> — không chứng minh org có làm đúng theo yêu cầu đó.</p>
+</section><section aria-labelledby="heading-sec-3-5" class="section" id="sec-3-5"><h3 id="heading-sec-3-5"><span class="sec-num">§3.5</span> Case ID — join key giữa commission và report, không tự động gán thẳng <a aria-label="Sao chép liên kết tới §3.5" class="anchor" href="#sec-3-5">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> hầu hết tổ chức TIC (Testing, Inspection, Certification) track job nội bộ bằng mã case riêng của họ, độc lập với platform. Tận dụng mã này làm join key, thay vì xin org tuân theo format của mình — khác về bản chất so với việc yêu cầu nhét metadata tuỳ ý vào nội dung report.</p></div>
+<p>Khi org reply ack (có thể kèm case ID trong subject hoặc nội dung), inspection-service consume <code>file.email_notice</code> từ file-service (mail ack không attachment không tạo File, file-service §4.1) và parse best-effort, đưa ra <strong>gợi ý</strong>, không tự gán:</p>
+<figure class="code" data-lang="text"><pre><code>ParseCommissionAck(emailNotice):   // consumer của file.email_notice, system-triggered
+  1. Extract case ID string nếu tìm được pattern hợp lý trong subject/body
+  2. Match sender domain ↔ commission đang ở status = REQUESTED cho org tương ứng
+  3. Nếu tìm được đúng 1 commission khớp domain + đang REQUESTED:
+     → gợi ý cho Admin: "case-id X có thể thuộc commission Y"
+  4. KHÔNG tự update level2_inspection_commission — chỉ hiển thị gợi ý
+
+ConfirmCommissionCaseId(commissionId, caseId):
+  Role: OPERATOR
+  1. UPDATE level2_inspection_commission
+     SET intake_case_id = caseId, status = CASE_ID_CONFIRMED,
+         case_id_confirmed_at = now()
+     WHERE commission_id = commissionId
+</code></pre></figure>
+<p><strong>Vì sao không tự gán thẳng:</strong> subject/body email thật thường chứa nhiều số cùng lúc (báo giá, PO, ngày tháng, mã job) — quy ước không đồng nhất giữa các nhân viên/khu vực của org. Auto-match sai sẽ tạo ra <strong>confident wrong</strong> (hệ thống tự tin gắn nhầm hợp đồng) — nguy hiểm hơn nhiều so với <strong>honest fail</strong> (không match được, để <code>PENDING_REVIEW</code> chờ người xử lý), vì sai lầm loại đầu nằm im tới đúng lúc dispute thật cần dùng report mới lộ ra, lúc đó bằng chứng gắn sai hợp đồng là thứ bị khai thác đầu tiên. Chi phí xác nhận case ID sớm (1 click, lúc nhận ack) thấp hơn nhiều so với chi phí phát hiện sai ở report cuối — nên đẩy điểm quyết định lên sớm, nhưng không bỏ nó.</p>
+</section><section aria-labelledby="heading-sec-3-6" class="section" id="sec-3-6"><h3 id="heading-sec-3-6"><span class="sec-num">§3.6</span> Ingestion report cuối — hash đóng băng trước khi có người chạm vào <a aria-label="Sao chép liên kết tới §3.6" class="anchor" href="#sec-3-6">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> thay Admin tự tải và upload làm luồng chính bằng ingestion tự động + review, giữ use case gốc lại làm fallback. (Cơ chế nhận mail IMAP qua file-service — §3.3; luồng dưới viết lại theo handshake <code>file.ready</code>.)</p></div>
+<figure class="code" data-lang="text"><pre><code>IngestExternalInspectionReportEmail(fileReadyEvent):   // consumer file.ready
+                                                       // (ingestChannel = EMAIL_INTAKE)
+  0. (Ở file-service, TRƯỚC event này — owner: file-service §4) IMAP poll mailbox
+     intake@... → extract MIME attachment → storageHash tính ngay lúc lưu MinIO →
+     virus-scan → publish file.ready mang emailMeta {senderDomain, spfDkimResult,
+     subject, receivedAt}. Bytes bất biến từ điểm này (storageHash).
+  1. Đọc spfDkimResult từ emailMeta — lưu kết quả, KHÔNG dùng để reject cứng,
+     chỉ làm tín hiệu cho bước review (raise bar domain, không chứng minh thẩm quyền
+     người gửi — Admin vẫn là quyết định cuối)
+  2. Lấy bytes qua GetFile(fileId) nội bộ →
+     reportFileHash = SHA256(content)
+     — tính NGAY khi consume event, trước khi bất kỳ Admin nào thấy report.
+     storageHash + reportFileHash đóng băng raw bytes trước con người; reportHash cuối
+     chỉ được tính khi report CONFIRMED và đã có normalizedResult/resultHash (§2.3).
+  3. Giữ fileId làm reference (file đã nằm sẵn ở file-service từ bước 0,
+     không upload lại)
+  4. Tìm case ID trong subject/report, lookup intake_case_id trong
+     level2_inspection_commission (status = CASE_ID_CONFIRMED, cùng org)
+     → match được → commissionId cụ thể; không match → commissionId = NULL
+  5. INSERT inspection_report (tier = LEVEL_2, commission_id, contract_id (denormalized
+     từ commission nếu match được, NULL nếu không), status = PENDING_REVIEW,
+     ingestion_source = AUTO_EMAIL, spf_dkim_result, report_hash, ...)
+  6. KHÔNG publish audit-service ở bước này
+
+ReviewPendingExternalReport(pendingReportId, commissionId, decision, externalVerificationStatus):
+  Role: OPERATOR. Endpoint KHÔNG nhận tham số file — về mặt kỹ thuật Admin không có
+  khả năng thay file report qua đường này.
+
+  0. Reload report, commission, milestone và report hiệu lực hiện có trong cùng
+     transaction. Chỉ tiếp tục nếu report còn PENDING_REVIEW; milestone còn
+     BUYER_RECEIVED hoặc CONTESTED; commission vẫn là match của report và còn
+     khớp contract/org đã negotiate;
+     và chưa có report effective/CONFIRMED khác cho cùng milestone.
+     Stale ở bất kỳ guard nào → 409 REPORT_STATE_CONFLICT hoặc
+     COMMISSION_STATE_CONFLICT; không đổi state.
+  1. Nếu report đã auto-match commissionId khác với tham số truyền vào → REJECT request
+     (không cho Admin âm thầm đổi match tự động qua đường vòng)
+  2. commission = level2_inspection_commission WHERE commission_id = commissionId
+     org từ commission phải khớp Contract.contractTerms.level2InspectorOrg — không khớp → REJECT
+  3. decision = REJECT → status = REJECTED, dừng
+  4. decision = APPROVE:
+     status = CONFIRMED
+     confirmed_by_operator_id = jwt.sub
+     external_verification_status = externalVerificationStatus (optional — Admin tự đi
+       verify qua dịch vụ công khai của org, nếu có, rồi điền kết quả cùng lúc duyệt)
+     Publish audit-service, source_type = EXTERNAL_INSPECTION_REPORT
+</code></pre></figure>
+<p><strong>Publish dời sang lúc CONFIRMED, không phải lúc ingest</strong> — tránh mail rác/gắn nhầm hợp đồng lọt vào audit trail bất biến trước khi có người xác nhận.</p>
+<p><code>REJECTED</code> là terminal cho chính <code>inspection_report</code> đó. Nộp lại phải tạo commission/report mới; Phase 2 không thêm <code>rejectionReason</code>, resubmission state hoặc taxonomy lý do reject cho external report.</p>
+<p><strong>Fallback:</strong> giữ nguyên use case ingest thủ công gốc (<code>SubmitExternalInspectionReport</code>, Admin tự tải và upload report, <code>role OPERATOR</code>, không phải role <code>INSPECTOR</code>), đổi <code>ingestion_source = OPERATOR_MANUAL</code> — dùng khi org gửi về địa chỉ liên hệ quen thuộc thay vì <code>intake@...</code>, hoặc webhook lỗi. <code>org</code> vẫn lấy từ <code>Contract.contractTerms.level2InspectorOrg</code> (không cho Admin tự gõ lại); <code>reportFileHash = SHA256(content)</code> được tính ngay khi store, còn <code>reportHash</code> cuối tính theo §2.3 sau normalized confirmation. <code>uploadedByOperatorId</code>/<code>confirmed_by_operator_id</code> lấy từ JWT của Admin đang thao tác.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Hash Chain — <code>source_type</code> mới <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>audit_record.source_type</code> (<code>hash-chain-phase2-design.md</code> §3) hiện có <code>MILESTONE_EVENT | CONTRACT_SIGNED | INSPECTION_REPORT</code>. Doc này thêm 3 giá trị:</p></div>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">source_type</th>
+<th scope="col">Actor đứng sau</th>
+<th scope="col">Cơ chế xác thực</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>INSPECTION_REPORT</code> (Level 1.5)</td>
+<td>INSPECTOR đã KYC, đã login</td>
+<td><code>Signature</code> + RBAC</td>
+</tr>
+<tr>
+<td><code>EXTERNAL_INSPECTION_REPORT</code> (Level 2, report cuối)</td>
+<td>Không có actor login — chỉ Admin thao tác</td>
+<td>Auto-intake (SPF/DKIM signal) + Admin <code>CONFIRMED</code> qua <code>ReviewPendingExternalReport</code> (§3.6), hoặc <code>OPERATOR_MANUAL</code> fallback</td>
+</tr>
+<tr>
+<td><code>LEVEL2_INSPECTION_COMMISSIONED</code> (Level 2, yêu cầu commission)</td>
+<td>Admin</td>
+<td>RBAC bình thường — ghi nhận platform đã yêu cầu gửi report đi đâu, không chứng minh org có tuân theo</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Không gộp chung</strong> dù cùng mục đích nghiệp vụ tổng quát — vì sức nặng bằng chứng khác nhau thật sự. <code>INSPECTION_REPORT</code> đứng sau 1 actor đã KYC/login; <code>EXTERNAL_INSPECTION_REPORT</code> là <em>kết quả đã xác nhận</em> của 1 report không actor login; <code>LEVEL2_INSPECTION_COMMISSIONED</code> chỉ ghi lại <em>yêu cầu</em>, không phải kết quả. Gộp chung 1 nhãn là che giấu khác biệt evidentiary — đúng thứ hội đồng bảo vệ sẽ hỏi nếu phát hiện các loại report khác nhau về sức nặng pháp lý lại đứng chung 1 nhãn trong audit trail.</p>
+<p><strong>Bổ sung — transport vào chain, trước đây chưa đặt tên:</strong> "publish audit-service"/"INSERT audit_record" ở §3.4/§3.6 chưa định nghĩa đi bằng đường nào — và inspection-service không được INSERT thẳng DB của audit-service. Chốt 2 domain event RabbitMQ, audit-service là consumer duy nhất ghi <code>audit_record</code> (cơ chế thống nhất toàn hệ thống — <code>hash-chain-phase2-design.md</code> §2.4):</p>
+<ul>
+<li><code>inspection.level2_commissioned</code> — publish ở bước 5 của <code>InitiateLevel2Inspection</code> (§3.4; "INSERT audit_record" ở đó đọc là <em>yêu cầu ghi</em>, thực thi qua event này), payload = content của audit record → <code>source_type = LEVEL2_INSPECTION_COMMISSIONED</code>.</li>
+<li><code>inspection.report_confirmed</code> — publish khi report thành <code>CONFIRMED</code> (Level 1.5 lúc submit hợp lệ; Level 2 lúc <code>ReviewPendingExternalReport</code> APPROVE hoặc nhánh <code>OPERATOR_MANUAL</code>). Payload canonical: <code>{reportId, contractId, milestoneId, tier, normalizedResult: InspectionSettlementResultV1, resultHash, reportFileHash, reportHash, confirmedAt, inspectorId?, confirmedByOperatorId?}</code>. <code>reportFileHash</code> is the minimum verification material implied by the approved requirement that contract-service recompute <code>reportHash</code>; it is a hash only, not raw file content. Audit-service map <code>tier</code> sang <code>INSPECTION_REPORT</code> / <code>EXTERNAL_INSPECTION_REPORT</code>; contract-service consume idempotently theo <code>eventId</code>/<code>reportId</code>, verify hashes và chỉ apply cho milestone <code>BUYER_RECEIVED</code> hoặc <code>CONTESTED</code> có cùng <code>contractId</code>/<code>milestoneId</code>.</li>
+</ul>
+<p>Contract-service giữ ownership tính tiền và transition:</p>
+<figure class="code" data-lang="text"><pre><code>effectiveUnitPrice = acceptedPriceAdjustment?.effectiveUnitPrice ?? agreedPrice
+quantityAdjustedEntitlement =
+  min(lockedAmount, normalizedResult.acceptedQuantityKg * effectiveUnitPrice)
+qualityDiscountAmount =
+  quantityAdjustedEntitlement * max(applicablePenaltyMetric.discountRate, default 0)
+finalSellerEntitlement = quantityAdjustedEntitlement - qualityDiscountAmount
+buyerRefundAmount = lockedAmount - finalSellerEntitlement
+</code></pre></figure>
+<p>Contract-service tạo immutable <code>QualityAssessment</code>; <code>measurementStatus = INCONCLUSIVE</code> tiếp tục reinspection/Level 2 và không tạo attribution/remedy hoặc phát tiền. Nhiều metric penalty chỉ lấy discount rate lớn nhất một lần; reject zone tạo <code>NON_CONFORMING</code>. <code>min()</code> chỉ cap over-delivery; không áp quantity <code>toleranceRate</code>/Delta 2 lần thứ hai sau inspection.</p>
+<p>Nếu đây là quality dispute, contract-service luôn mở/resolve Rổ B rồi hội tụ <code>AttributionDecision -&gt; RemedyDecision -&gt; remedy.finalized</code>; không phát đồng thời <code>milestone.settled</code>. Mapping disposition, <code>QUALITY_BELOW_COMMITTED</code>, inspection fee <code>LOSER_PAYS</code>, penalty base và per-fund conservation thuộc owner design <code>milestone-escrow-phase2-design.md</code> §3.3. Inspection-service không thêm ledger enum, quality-specific leg hoặc disposition vào <code>InspectionSettlementResultV1</code>.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Database — Additive <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<figure class="code" data-lang="sql"><pre><code>-- SUPERSEDED (17/07/2026): KHÔNG mở rộng bảng signature của contract_db nữa — xem §2.1.
+-- Nhánh INSPECTOR dùng bảng riêng trong DB inspection-service: cross-service write là bất khả
+-- dưới database-per-service (bản 04/07 bỏ được FK nhưng không trả lời được "ai ghi row này").
+-- Bảng signature (contract_db) giữ nguyên BUYER/SELLER thuần — signature-phase2-design.md §3.
+CREATE TABLE inspector_signature (
+    signature_id     CHAR(36) PRIMARY KEY,
+    report_id        CHAR(36) NOT NULL UNIQUE REFERENCES inspection_report(report_id),
+                     -- cùng DB → REFERENCES hợp lệ, chặt hơn cả bản cũ (vốn phải bỏ FK)
+    contract_id      CHAR(36) NOT NULL,           -- denormalized, plain UUID lưu bằng CHAR(36), tiện query
+    signer_user_id   CHAR(36) NOT NULL,           -- JWT sub của INSPECTOR
+    auth_time        TIMESTAMP NOT NULL,      -- step-up, inspectionAuthMaxAgeSeconds = 1800s (§2.4)
+    signed_at        TIMESTAMP NOT NULL,
+    report_hash      VARCHAR(64) NOT NULL,    -- vị trí tương ứng signedContentHash của nhánh buyer/seller
+    ip_address       VARCHAR(45)
+);
+
+-- ContractTerms, thêm field mới (contract_db)
+ALTER TABLE contract_terms ADD COLUMN level2_inspector_org VARCHAR(255) NULL;
+
+-- inspection-service — bảng track việc commission Level 2 org, tách biệt khỏi report
+CREATE TABLE level2_inspection_commission (
+    commission_id         CHAR(36) PRIMARY KEY,
+    contract_id           CHAR(36) NOT NULL,        -- FK thường, KHÔNG unique — 1 hợp đồng có thể
+                                                  -- escalate Level 2 nhiều lần theo thời gian,
+                                                  -- cùng lý do đã áp cho Signature-INSPECTOR ở §2.1
+    org                    VARCHAR(255) NOT NULL,
+    intake_case_id         VARCHAR(255) NULL,    -- NULL cho tới khi Admin confirm ack
+    status                 VARCHAR(20) NOT NULL, -- REQUESTED | CASE_ID_CONFIRMED
+    requested_at           TIMESTAMP NOT NULL,
+    case_id_confirmed_at   TIMESTAMP NULL
+);
+-- UNIQUE(org, intake_case_id) — case ID do org tự phát hành, scope theo org tránh trùng
+
+-- inspection-service — 1 bảng, phân theo tier, schema cuối cùng sau khi merge auto-intake flow
+-- BỔ SUNG 12/10/2026 (§2.5) — schema lấy nguyên từ PR #152 (issue #112), chấp nhận làm chính thức.
+-- Authorization record: inspector nào được nộp report Level 1.5 cho milestone nào.
+CREATE TABLE level1_5_inspection_assignment (
+    commission_id           CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    contract_id             CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    milestone_id            CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    inspector_id            CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    assigned_at             TIMESTAMP(6) NOT NULL,
+    ended_at                TIMESTAMP(6) NULL,       -- cột duy nhất được UPDATE, chỉ NULL → giá trị (§2.5)
+    assigned_by_service     VARCHAR(64) NOT NULL,    -- metadata nguồn yêu cầu, KHÔNG phải quyền chọn inspector
+    initiated_by_actor_id   CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    active_slot             TINYINT GENERATED ALWAYS AS
+                            (CASE WHEN ended_at IS NULL THEN 1 ELSE NULL END) STORED,
+    PRIMARY KEY (commission_id),
+    UNIQUE KEY uk_l15_active_milestone (contract_id, milestone_id, active_slot),
+                                                 -- 1 assignment active / milestone, giữ được nhiều row lịch sử
+    CONSTRAINT chk_l15_assignment_time CHECK (ended_at IS NULL OR ended_at &gt;= assigned_at)
+);
+-- Không FK sang contract/milestone/user (khác service). Không liên quan level2_inspection_commission.
+-- Cần MySQL &gt;= 8.0.16 để CHECK được enforce.
+
+CREATE TABLE inspection_report (
+    report_id                        CHAR(36) PRIMARY KEY,
+    contract_id                      CHAR(36) NULL,     -- NOT NULL cho LEVEL_1_5 và LEVEL_2 OPERATOR_MANUAL;
+                                                       -- NULL tạm thời hợp lệ cho LEVEL_2 AUTO_EMAIL khi
+                                                       -- status = PENDING_REVIEW (chưa match được commission)
+                                                       -- Denormalized, tiện query — KHÔNG dùng làm join key
+                                                       -- thật cho LEVEL_2, xem commission_id bên dưới.
+    tier                              VARCHAR(10) NOT NULL,    -- 'LEVEL_1_5' | 'LEVEL_2'
+    content                           JSON NOT NULL,   -- MySQL 8 (sửa dialect 18/07/2026)
+    milestone_id                      CHAR(36) NULL,   -- bắt buộc trước khi CONFIRMED
+    report_file_hash                  VARCHAR(64) NOT NULL,
+    normalized_result                 JSON NULL,       -- InspectionSettlementResultV1; bắt buộc khi CONFIRMED
+    result_hash                       VARCHAR(64) NULL, -- SHA256 RFC8785 canonical normalized_result
+    report_hash                       VARCHAR(64) NULL,        -- bắt buộc khi CONFIRMED; commit resultHash + identity/file/timestamp/actor
+    -- nhánh LEVEL_1_5 — bắt buộc:
+    inspector_id                     CHAR(36) NULL,               -- = signerUserId, NOT NULL nếu tier = LEVEL_1_5
+    l15_commission_id                CHAR(36) NULL REFERENCES level1_5_inspection_assignment(commission_id),
+                                                                  -- NOT NULL nếu tier = LEVEL_1_5 (12/10/2026, §2.5):
+                                                                  -- assignment đã cho phép nộp report này
+    -- nhánh LEVEL_2 — bắt buộc:
+    external_org                     VARCHAR(255) NULL,       -- NOT NULL nếu tier = LEVEL_2
+    confirmed_by_operator_id            CHAR(36) NULL,               -- NOT NULL nếu tier = LEVEL_2 và status = CONFIRMED.
+                                                                  -- Đổi tên từ uploaded_by_admin_id (04/07/2026) —
+                                                                  -- semantics đổi từ "ai upload" sang "ai xác nhận",
+                                                                  -- vì AUTO_EMAIL không còn ai "upload" theo nghĩa cũ.
+    received_via                     VARCHAR(50) NULL,        -- 'EMAIL' | khác, chỉ LEVEL_2
+    status                           VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED',
+                                                                  -- 'PENDING_REVIEW' | 'CONFIRMED' | 'REJECTED' —
+                                                                  -- chỉ LEVEL_2 AUTO_EMAIL dùng hết 3 giá trị;
+                                                                  -- LEVEL_1_5 và LEVEL_2 OPERATOR_MANUAL giữ default CONFIRMED
+    ingestion_source                 VARCHAR(20) NULL,        -- 'AUTO_EMAIL' | 'OPERATOR_MANUAL' — chỉ LEVEL_2
+    spf_dkim_result                  VARCHAR(20) NULL,        -- chỉ AUTO_EMAIL
+    commission_id                    CHAR(36) NULL REFERENCES level2_inspection_commission(commission_id),
+                                                                  -- join key thật cho LEVEL_2 (cùng DB inspection-service,
+                                                                  -- REFERENCES hợp lệ ở đây — khác trường hợp signature.report_id
+                                                                  -- ở trên, vốn xuyên service)
+    external_verification_status     VARCHAR(20) NULL,        -- 'NOT_CHECKED' | 'VERIFIED' | 'UNVERIFIED' | 'UNAVAILABLE' —
+                                                                  -- optional, chỉ LEVEL_2, Admin tự điền nếu org có dịch vụ verify công khai
+    external_verification_checked_at TIMESTAMP NULL,
+    confirmed_at                     TIMESTAMP NULL,
+    created_at                       TIMESTAMP NOT NULL DEFAULT now()
+);
+-- Invariant (inspector_id XOR (external_org AND (confirmed_by_operator_id nếu status=CONFIRMED)))
+-- check ở use-case layer, không phải DB constraint — cùng pattern active-flag đã dùng ở product-service.
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Known Limitations (có chủ đích, không phải điểm mù) <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<ul class="limitations">
+<li><strong>Commission là hành động thương mại thật ngoài hệ thống.</strong> Platform ghi lại đã yêu cầu gửi report đi đâu, lúc nào (<code>LEVEL2_INSPECTION_COMMISSIONED</code>) — không chứng minh org có nhận lời, có tuân theo đúng 3 địa chỉ hay không. Không giải được bằng thiết kế, chỉ giảm được rủi ro qua fallback thủ công.</li>
+<li><strong>Xác nhận buyer/seller đã nhận mail là self-report, không phải bằng chứng độc lập.</strong> App chỉ ghi lại actor tuyên bố gì, không xác minh được nội dung mail họ nhận có khớp bản Admin xử lý hay không.</li>
+<li><strong>Case ID matching là best-effort, phụ thuộc quy ước riêng của từng org.</strong> Không match được luôn rơi về <code>PENDING_REVIEW</code>, không đoán bừa — honest fail được ưu tiên hơn confident wrong.</li>
+<li><strong>External verification (SGS document verification hoặc tương đương) là thao tác tay qua web form công khai, không phải API.</strong> Không thể là gate tự động trong <code>ReviewPendingExternalReport</code>, chỉ là field Admin điền song song lúc duyệt. <strong>Known Limitation:</strong> không xác nhận được trong phạm vi đồ án liệu Bureau Veritas có dịch vụ document-verification tương đương SGS hay không — nếu deployment chọn BV, dùng giá trị <code>UNAVAILABLE</code> cho field này, không block luồng duyệt.</li>
+<li><strong>Tự động hoá tra cứu accreditation qua API là enhancement, không phải Phase 2 (Known Limitation).</strong> 3 nguồn tra cứu (BoA-VIAS, IAF CertSearch, ILAC Signatory Search) hiện Admin tra tay; không xác nhận được BoA có API export JSON trong phạm vi đồ án — nối API là việc sau, không đổi logic duyệt (§3.2).</li>
+<li><strong>SPF/DKIM chỉ raise bar domain gửi, không chứng minh thẩm quyền người gửi.</strong> Admin vẫn là quyết định cuối cho tính hợp lệ của report.</li>
+<li><strong>Endpoint duyệt (<code>ReviewPendingExternalReport</code>) không nhận file, và <code>reportFileHash</code> đóng băng trước khi Admin chạm vào</strong>; <code>reportHash</code> cuối commit chính file hash đó cùng normalized result và attribution lúc CONFIRMED — ngăn Admin thay file hoặc sửa result ngoài hash.</li>
+<li><strong>3-mail chỉ là passive backup</strong>, không có active reconciliation tự động — không có bước nào chủ động so sánh bản buyer/seller nhận với bản platform xử lý, chỉ nằm đó dùng khi có tranh chấp thật cần lôi ra đối chiếu. Kế thừa đúng giới hạn "phải có người chủ động nhìn" từ <code>hash-chain-phase2-design.md</code> §6.</li>
+<li><strong>Random đều trong tập INSPECTOR eligible không xử lý xung đột lợi ích (§2.5).</strong> Hệ thống không biết inspector có quan hệ với buyer/seller hay không — không chọn tay giảm rủi ro thông đồng chủ động, nhưng không loại được trùng hợp. Inspector tự khai báo xung đột rồi từ chối là enhancement, không phải Phase 2.</li>
+<li><strong>WebAuthn/passkey cho INSPECTOR</strong> — cùng lý do đã ghi ở <code>signature-phase2-design.md</code> §8: không đổi tier pháp lý (vẫn thiếu chứng thư CA cấp phép, Điều 22 khoản 3(đ)), chỉ nâng chất lượng bằng chứng khi tranh chấp, không nâng presumption pháp lý mặc định. Để ngoài phạm vi, có chủ đích.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Status — Inspection Design <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> Level 1.5 = actor thật, nhánh signature thuộc inspection-service, KYC nội dung khác Buyer/Seller, session freshness <code>inspectionAuthMaxAgeSeconds</code> = 1800s. Level 2 = không Signature, không RBAC; <code>level2InspectorOrg</code> NOT NULL có điều kiện trong <code>ContractTerms</code>, negotiate lúc ký, không hardcode danh sách tổ chức. Hash contract hiện hành là <code>InspectionSettlementResultV1</code> + <code>resultHash</code> + revised <code>reportHash</code> ở §2.3.</p></div>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>InspectionSettlementResultV1.actualQualityMetrics</code> chỉ còn <code>CoffeeActualMetrics</code>; non-coffee payload fail schema validation trước khi report được CONFIRMED. Bộ tiêu chuẩn/phương pháp thử cụ thể được resolve qua <code>coffeeQualityProfileVersion</code> đã ký, chưa tự claim ISO/TCVN khi chưa duyệt nguồn.</p></div>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt — merge addendum + fix kiến trúc:</strong></p></div>
+<ul>
+<li><strong>Level 2 ingestion chuyển từ thuần thủ công sang auto-intake + human-confirm:</strong> hòm mail platform (<code>intake@...</code>, qua IMAP polling của file-service — sửa 17/07/2026, xem §3.3) thay thế vị trí Admin trong 3-mail song song gốc (buyer/seller không đổi, §3.3). Thêm use case <code>InitiateLevel2Inspection</code> ghi nhận platform đã yêu cầu commission org đi đâu, lúc nào (§3.4). Case ID của org dùng làm join key qua bảng <code>level2_inspection_commission</code>, match tự động chỉ ở mức gợi ý, Admin xác nhận thật (§3.5). Report cuối ingest tự động, hash đóng băng ngay khi nhận, publish audit chain dời sang lúc Admin <code>CONFIRMED</code> qua <code>ReviewPendingExternalReport</code> (§3.6). Giữ ingestion thủ công gốc làm fallback (<code>ingestion_source = OPERATOR_MANUAL</code>).</li>
+<li><strong><code>audit_record.source_type</code> có 3 giá trị mới:</strong> <code>INSPECTION_REPORT</code>, <code>EXTERNAL_INSPECTION_REPORT</code>, <code>LEVEL2_INSPECTION_COMMISSIONED</code> — tách riêng vì sức nặng bằng chứng khác nhau (§4).</li>
+<li><strong>Fix cross-service FK bug (phát hiện lúc rà kiến trúc 04/07/2026):</strong> <code>signature.report_id</code> <strong>không</strong> dùng <code>REFERENCES inspection_report(report_id)</code> nữa — vi phạm database-per-service, vì <code>signature</code> (contract_db) và <code>inspection_report</code> (inspection-service DB) là 2 database khác nhau. Giữ integrity ở application layer, cùng pattern các cross-service reference khác trong hệ thống (§5).</li>
+<li><strong>KI-2 đóng (§3.2):</strong> allowlist 3 nhóm cho <code>level2InspectorOrg</code> — major quốc tế hardcode, trong nước verify qua BoA-VIAS, "lạ" thì Admin duyệt case-by-case và <strong>không</strong> lưu vào danh sách dùng chung (né bài toán dọn danh sách khi tổ chức phá sản/mất accreditation). Verify qua accreditation certificate number, tra đúng cơ quan công nhận quốc gia đã phát hành. <strong>Nguồn tra cứu (thu hẹp 08/07/2026, L4):</strong> BoA-VIAS (<code>boa.gov.vn</code>) + IAF CertSearch (<code>iafcertsearch.org</code>) + ILAC Signatory Search (<code>ilac.org/signatory-search</code>) — 3 nguồn online xác định, Admin tra tay; tự động hoá full qua API là enhancement, chưa xác nhận BoA có API JSON.</li>
+</ul>
+<p><strong>Nguyên tắc xuyên suốt cho phần auto-intake:</strong> tự động hoá phần lặp lại, nhàm chán, không cần phán đoán (nhận mail, tính hash, gợi ý match) — giữ nguyên quyết định cuối (cái biến 1 file thành bằng chứng) ở người, có RBAC, có audit trail, không thể lặng lẽ override. Mục tiêu không phải loại bỏ con người khỏi quyết định — mục tiêu là không để 1 người là điểm duy nhất quyết định cái gì là bằng chứng thật.</p>
+<p>Inspection — <strong>đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong> File <code>inspection-phase2-design-addendum.md</code> đã merge vào đây — có thể xoá khỏi project knowledge.</p>
+<p><em>Sync role SRS v1.6: 12/10/2026 · Bổ sung Level 1.5 assignment §2.5/§5: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · <strong>Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong></em></p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>Sync role SRS v1.6; bổ sung Level 1.5 assignment §2.5/§5.</p>
+</li><li><span class="changelog__date">06/10/2026</span><p>Result chỉ còn <code>CoffeeActualMetrics</code>.</p>
+</li><li><span class="changelog__date">19/07/2026</span><p><code>BreachCase</code> không đảo quyết định UNIQUE(reportId).</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Hash contract thay bằng <code>InspectionSettlementResultV1</code> + <code>resultHash</code>.</p>
+</li><li><span class="changelog__date">17/07/2026</span><p>IMAP/<code>file.ready</code> handshake; <code>inspector_signature</code> tách bảng; 2 domain event vào chain.</p>
+</li><li><span class="changelog__date">08/07/2026</span><p>Nguồn tra accreditation: BoA-VIAS, IAF CertSearch, ILAC.</p>
+</li><li><span class="changelog__date">04/07/2026</span><p>Merge addendum, auto-intake + human-confirm, fix FK cross-service.</p>
+</li><li><span class="changelog__date">03/07/2026</span><p>Design session.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li>Note role đầu doc có các dòng đổi tên trùng hai vế (vd <code>confirmed_by_operator_id</code> → <code>confirmed_by_operator_id</code>); cần xác định tên cũ.</li><li>Prose lịch sử còn chữ "Admin"; đọc theo mapping role ở note đầu doc.</li></ul></aside><footer class="doc-footer"><a href="../inspection-phase2-design.md">inspection-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../inspection-phase2-design.md">Markdown · 477 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="milestone-escrow-phase2-design.html" title="milestone-escrow-phase2-design.md">milestone-escrow</a><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

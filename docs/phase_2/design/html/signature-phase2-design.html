@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>signature-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">signature</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 12 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Căn cứ pháp lý — Tier chữ ký điện tử</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Domain Model — Signature</a></li><li class="toc__sub"><a href="#sec-3-1"><span class="toc__number">§3.1</span> ConsentEvidence trước chữ ký</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> Sole Control — Session Freshness</a></li><li class="toc__sub"><a href="#sec-4-1"><span class="toc__number">§4.1</span> OTP Email — Lớp thứ 2 song song</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Xác minh thẩm quyền đại diện (BLDS 2015 Điều 142)</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Verify logic tại sign()</a></li><li class="toc__sub"><a href="#sec-6-0"><span class="toc__number">§6.0</span> HTTP contract (authoritative path)</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Database</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Out of Scope / Known Limitation (có chủ đích, không phải thiếu sót)</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> Status — Signature Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Core money flow</div><h1>Signature</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-12">12/10/2026</time></span><a href="../signature-phase2-design.md">Mở Markdown · 302 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a><a class="xref" href="notification-service-phase2-design.html" title="notification-service-phase2-design.md">notification-service</a><a class="xref" href="contract-document-consent-phase2-design.html" title="contract-document-consent-phase2-design.md">contract-document-consent</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li><code>UNIQUE(contractId, signerRole)</code>; chỉ BUYER/SELLER trong <code>contract_db.signature</code>; INSPECTOR ở inspection-service.</li><li>Initiate bind <code>SIGN_CONTRACT</code> consent + current hash; kiểm authorization và step-up trước tạo OTP.</li><li>Initiate/resend lock Contract row, atomically expire challenge cũ cùng signer/contract/hash rồi insert mới; provider fail expire challenge mới.</li><li>Verify theo <code>otpId</code>, bind <code>jwt.sub</code>, contract, role và terms hash; expiry/attempt guard, OTP HMAC với pepper.</li><li>Freeze terms từ chữ ký đầu; chữ ký thứ hai phải cùng hash; kiểm F18 reserved quantity trước insert và trước transition SIGNED.</li><li>OTP: 6 số, expiry 300s, 5 attempts, 5 resend/giờ, cooldown 60s; session freshness đề xuất 300 giây, độc lập OTP expiry.</li><li>Không render/gửi final PDF trong transaction ký; document worker → READY → <code>contract.document_generated</code> và notification command.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p><strong>Scope:</strong> consent checkbox và document representation thuộc owner design <code>contract-document-consent-phase2-design.md</code>. Checkbox là bằng chứng ý chí theo đúng hành vi/nội dung, không được mô tả là vân tay hoặc điểm chỉ vật lý. Phase 2 mới chỉ nhận hợp đồng nội địa Việt Nam cho <code>COFFEE</code>.</p>
+<p><code>Signature</code>, verify tại <code>sign()</code> và thẩm quyền đại diện áp dụng cho cả Buyer và Seller; tham chiếu <code>services.md</code> mục 9.</p>
+<p><strong>Không detail lại</strong> <code>reportHash</code> (<code>inspection-service</code>, mục 6 <code>services.md</code>) — INSPECTOR là third-party actor, khác luồng identity với buyer/seller, để dành session riêng.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Căn cứ pháp lý — Tier chữ ký điện tử <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> Điều 22 Luật GDĐT 2023 phân loại chữ ký điện tử thành 3 loại có tên riêng — chữ ký điện tử chuyên dùng (chỉ tổ chức tự tạo lập cho hoạt động riêng), chữ ký số công cộng, chữ ký số chuyên dùng công vụ. Không loại nào trong 3 loại này cho phép cá nhân tự tạo lập chữ ký điện tử của riêng mình. Buyer/seller trên AgriContract là cá nhân đại diện HTX/doanh nghiệp — nên approach JWT (<code>sub</code> + <code>auth_time</code> + <code>signedContentHash</code>) rơi vào <strong>base-tier chữ ký điện tử</strong> theo định nghĩa mở đầu Điều 22, không phải 1 trong 3 loại có tên.</p></div>
+<p><strong>Điều 23 — 2 vế không đối xứng:</strong></p>
+<ul>
+<li>Khoản 1: chữ ký điện tử (mọi dạng, kể cả JWT) <strong>không bị phủ nhận</strong> giá trị pháp lý chỉ vì là điện tử.</li>
+<li>Khoản 2: chỉ chữ ký điện tử chuyên dùng bảo đảm an toàn hoặc chữ ký số (có chứng thư từ CA được cấp phép) mới có giá trị pháp lý <strong>tương đương chữ ký tay</strong>.</li>
+</ul>
+<p>JWT đạt khoản 1, không đạt khoản 2. <strong>Không đồng nghĩa hợp đồng vô hiệu</strong> — Điều 34-36 (giá trị pháp lý hợp đồng điện tử) tách biệt hoàn toàn khỏi loại chữ ký, không đòi hỏi chữ ký số để hợp đồng có hiệu lực. Khác biệt thật nằm ở <strong>gánh nặng chứng minh khi tranh chấp</strong>: chữ ký số được luật tự động suy đoán là đúng người/đúng thời điểm; base-tier thì không — platform phải tự chứng minh.</p>
+<p><strong>Hệ quả thiết kế:</strong> vì không có presumption pháp lý mặc định, <code>Signature</code> + audit trail (<code>hash-chain-phase2-design.md</code>) đóng vai trò <strong>bằng chứng bù đắp</strong> cho phần luật không tự cho — không phải lớp phụ, mà là lý do tồn tại của toàn bộ thiết kế này.</p>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Domain Model — <code>Signature</code> <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<p>Value object, không phải aggregate riêng — sống/chết cùng <code>Contract</code>, không có state machine hay nghiệp vụ độc lập (cùng nguyên tắc Vernon đã áp cho <code>ProductPlot</code>, xem <code>product-phase2-design.md</code> §2.1).</p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>signatureId</code></td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>contractId</code></td>
+<td>UUID (FK)</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>signerRole</code></td>
+<td>Enum (<code>BUYER</code>, <code>SELLER</code>)</td>
+<td></td>
+</tr>
+<tr>
+<td class="identifier"><code>signerUserId</code></td>
+<td>UUID</td>
+<td>= claim <code>sub</code> trong JWT — định danh ổn định, không đổi theo <code>preferred_username</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>authTime</code></td>
+<td>Timestamp</td>
+<td>= claim <code>auth_time</code>, lấy từ JWT ngay sau step-up re-auth (<code>prompt=login</code>) trigger lúc bấm nút "Ký"</td>
+</tr>
+<tr>
+<td class="identifier"><code>signedAt</code></td>
+<td>Timestamp</td>
+<td>Server time lúc gọi <code>sign()</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>signedContentHash</code></td>
+<td>VARCHAR(64)</td>
+<td>Từ <code>services.md</code> mục 4 — cùng <code>ContractTerms</code> hash cho cả 2 chữ ký của 1 hợp đồng</td>
+</tr>
+<tr>
+<td class="identifier"><code>ipAddress</code></td>
+<td>VARCHAR</td>
+<td>Bằng chứng phụ, không dùng làm điều kiện chính</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>UNIQUE(contractId, signerRole)</code> — mỗi bên ký đúng 1 lần cho 1 hợp đồng. <code>Contract</code> chuyển <code>SIGNED</code> khi tồn tại đủ 2 dòng (<code>BUYER</code> + <code>SELLER</code>) cho cùng <code>contractId</code>, không cần thêm cờ <code>buyerSigned</code>/<code>sellerSigned</code> riêng trên <code>Contract</code>.</p>
+<div class="callout callout--invariant"><span class="callout__label">BẤT BIẾN</span><p><strong>Bất biến:</strong> bảng <code>signature</code> trong <code>contract_db</code> chỉ chứa BUYER/SELLER; INSPECTOR dùng <code>inspector_signature</code> trong DB inspection-service (<code>inspection-phase2-design.md</code> §2.1/§5), chung step-up/session freshness nhưng không chung bảng vật lý.</p></div>
+</section><section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1"><h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> <code>ConsentEvidence</code> trước chữ ký <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
+<p>Mỗi lần initiate ký phải persist một consent append-only theo model và rule ở <code>contract-document-consent-phase2-design.md</code> §4. Consent của action <code>SIGN_CONTRACT</code> bind <code>contractId</code>, signer, role, statement version/hash và <code>presentedContentHash</code> đúng bằng <code>signedContentHash</code> hiện hành. Consent không thay thế Signature; nó chứng minh người dùng đã được hiển thị statement/nội dung nào trước khi server phát OTP.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Sole Control — Session Freshness <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+<p>Mọi timestamp/session/OTP expiry theo convention chung <code>milestone-escrow-phase2-design.md</code> §1.1: lưu/serialize UTC, tính business instant theo <code>Asia/Ho_Chi_Minh</code>; các window 300 giây bên dưới vẫn là elapsed duration từ system timestamp, không dùng clock/timezone của client.</p>
+<details class="why"><summary>Vì sao</summary><p>JWT/password không tự bảo đảm sole control như private key (Điều 22 khoản 3(c)); giới hạn <code>auth_time</code> so với <code>signedAt</code> bảo đảm xác thực gần thời điểm ký.</p>
+</details>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> thêm config <code>signatureAuthMaxAgeSeconds</code> trong <code>application.yml</code> — không đặt trong <code>ContractTerms</code> (đây là invariant kỹ thuật, cùng loại với "Escalation cap Level 1.5" ở <code>milestone-escrow-phase2-design.md</code> §8). <strong>Giá trị đề xuất: 300 giây (5 phút).</strong></p></div>
+<p><strong>Flow đúng — tách 2 đoạn, không nhầm với "đọc hợp đồng trong 5 phút":</strong> người dùng đọc/xem lại hợp đồng bằng session đăng nhập bình thường, không giới hạn thời gian. Chỉ tới lúc bấm nút "Ký", UI mới trigger step-up re-auth. <code>authTime</code> được set ngay lúc đó. 5 phút chỉ tính từ đúng thời điểm step-up tới lúc gọi API <code>sign()</code> — quãng xác nhận cuối cùng, không phải quãng đọc hợp đồng.</p>
+<p><strong>Check ở <code>sign()</code>:</strong> <code>signedAt - authTime &lt;= signatureAuthMaxAgeSeconds</code>. Vi phạm → reject, bắt step-up lại.</p>
+</section><section aria-labelledby="heading-sec-4-1" class="section" id="sec-4-1"><h3 id="heading-sec-4-1"><span class="sec-num">§4.1</span> OTP Email — Lớp thứ 2 song song <a aria-label="Sao chép liên kết tới §4.1" class="anchor" href="#sec-4-1">#</a></h3>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> thêm OTP gửi qua email làm lớp thứ 2, <strong>song song</strong> với step-up re-auth ở trên — không thay thế. Lý do cần cả 2, không phải 1 đủ: 2 lớp chặn 2 hướng lộ khác nhau, không phải cùng 1 hướng kiểm 2 lần.</p></div>
+<ul>
+<li><strong>JWT/session bị đánh cắp</strong> (XSS, máy dùng chung không log out) nhưng attacker không biết password → step-up re-auth chặn được (attacker không qua nổi <code>prompt=login</code>).</li>
+<li><strong>Password bị lộ</strong> (phishing, dùng lại password cũ bị leak ở web khác) nhưng attacker không truy cập được hộp mail của buyer/seller → OTP chặn được (attacker qua được step-up bằng password đánh cắp, nhưng không đọc được mã gửi vào mail).</li>
+</ul>
+<p>Chỉ khi <strong>cả 2 cùng lúc</strong> bị lộ (password lẫn quyền truy cập mail) attacker mới qua được toàn bộ flow — đúng nghĩa defense-in-depth, không phải kiểm trùng.</p>
+<p><strong>OTP gắn liền pháp lý, không chỉ là mã xác thực:</strong> email gửi kèm OTP kèm luôn <code>signedContentHash</code> của <code>ContractTerms</code> hiện tại — không chỉ chứng minh "đúng người vừa xác thực", mà còn "xác nhận đúng cho <strong>nội dung cụ thể này</strong>". Nối liền cơ chế multi-location hash + email anchor đã có (<code>hash-chain-phase2-design.md</code> §4), không phải thêm 1 mảnh rời.</p>
+<p><strong>Config (<code>application.yml</code>, cùng nhóm invariant kỹ thuật với <code>signatureAuthMaxAgeSeconds</code>):</strong></p>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Config</th>
+<th scope="col">Giá trị</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>otpLength</code></td>
+<td>6 số</td>
+<td>Đủ entropy (10^6) kết hợp rate limit, chuẩn ngành banking</td>
+</tr>
+<tr>
+<td class="identifier"><code>otpExpirySeconds</code></td>
+<td>300s (5 phút)</td>
+<td>Tách biệt hoàn toàn khỏi <code>signatureAuthMaxAgeSeconds</code> — đo từ lúc gửi OTP tới lúc nhập đúng mã, không cộng dồn vào cửa sổ password freshness</td>
+</tr>
+<tr>
+<td class="identifier"><code>otpMaxAttempts</code></td>
+<td>5 lần</td>
+<td>Nhập sai quá số này → khoá OTP hiện tại, bắt resend mới</td>
+</tr>
+<tr>
+<td class="identifier"><code>otpMaxResendPerHour</code></td>
+<td>5 lần</td>
+<td>Chống spam gửi mail</td>
+</tr>
+<tr>
+<td class="identifier"><code>otpResendCooldownSeconds</code></td>
+<td>60s</td>
+<td>Cooldown giữa 2 lần gửi liên tiếp</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Lưu trữ:</strong> OTP lưu <strong>hash</strong>, không lưu plaintext — cùng nguyên tắc bảo mật áp cho password, dù sống ngắn hạn.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Xác minh thẩm quyền đại diện (BLDS 2015 Điều 142) <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<p><strong>Rủi ro pháp lý:</strong> giao dịch dân sự do người không có thẩm quyền đại diện xác lập có thể bị tuyên vô hiệu (BLDS 2015 Điều 142). HTX/doanh nghiệp là pháp nhân, nhưng người bấm nút ký trên platform phải đúng là người có thẩm quyền đại diện hợp lệ tại đúng thời điểm ký — không phải bất kỳ ai có account.</p>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> xác minh thẩm quyền đại diện áp dụng đối xứng Buyer/Seller theo BLDS 2015 Điều 142.</p></div>
+<p><strong>Gate đặt lúc đăng ký tài khoản, không phải check chèn thêm sau:</strong> cả Buyer và Seller đều phải nộp giấy đăng ký kinh doanh + xác nhận người đại diện (hoặc giấy uỷ quyền hợp lệ) trước khi tài khoản được kích hoạt đủ quyền tạo listing/ký hợp đồng. Operator duyệt thủ công (governance §5; Admin không duyệt KYC — SRS v1.6) — không pass, không được đăng listing/ký hợp đồng, đúng nguyên tắc gốc docx đã ghi cho Seller, mở rộng đối xứng.</p>
+<p><strong><code>authorizationExpiresAt</code> (field trên <code>User</code>, <code>user-service</code>):</strong> nhập tay bởi Operator lúc duyệt hồ sơ, đọc trực tiếp từ ngày hết hạn ghi trên giấy uỷ quyền/giấy tờ đã nộp — <strong>không phải hằng số cố định do platform tự áp</strong> (kiểu "6 tháng cho mọi người"). Nếu giấy chỉ ghi date, quyền hết hạn tại <code>23:59:59.999 ICT</code> của ngày đó rồi lưu instant UTC; nếu giấy ghi exact time thì convert exact instant sang UTC. Lý do: giấy tờ khác nhau có hạn khác nhau (1 năm, 2 năm, theo nhiệm kỳ, hoặc vô thời hạn) — hardcode 1 con số chung gây 2 lỗi ngược nhau: chặn nhầm người có giấy còn hiệu lực dài hơn mốc cứng, hoặc vẫn cho ký khi giấy đã hết hạn thật ngoài đời (đúng lỗ hổng Điều 142, chỉ trễ hơn thay vì biến mất). <code>NULL</code> nếu giấy ghi vô thời hạn.</p>
+<p><strong>Khác tầng với §4 — không gộp chung 1 check:</strong> freshness (§4) đo bằng phút, xác nhận "vừa mới xác thực xong". Authorization expiry (§5) đo bằng tháng/năm, xác nhận "thẩm quyền đại diện còn hiệu lực". Hai câu hỏi độc lập, có thể pass cái này fail cái kia.</p>
+<p><strong>Fail-closed by default:</strong> tài khoản chưa qua duyệt hồ sơ → không tạo được listing, không ký được hợp đồng. Không có trạng thái "account tồn tại nhưng chưa verify vẫn ký được" — verify là điều kiện cần để account có quyền ký, không phải cờ riêng kiểm tra lại mỗi lần <code>sign()</code>.</p>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Verify logic tại <code>sign()</code> <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+</section><section aria-labelledby="heading-sec-6-0" class="section" id="sec-6-0"><h3 id="heading-sec-6-0"><span class="sec-num">§6.0</span> HTTP contract (authoritative path) <a aria-label="Sao chép liên kết tới §6.0" class="anchor" href="#sec-6-0">#</a></h3>
+<p>The reconciliation API catalog is promoted to the authoritative design contract:</p>
+<ul>
+<li><code>POST /api/v1/contracts/{contractId}/sign/initiate</code> — <code>InitiateSign</code>.</li>
+<li><code>POST /api/v1/contracts/{contractId}/sign/verify</code> — <code>VerifyOtpAndSign</code>.</li>
+</ul>
+<p>Both routes use the existing SDS error envelope. Write requests carry the caller identity from Gateway JWT; contract-service remains the owner of authorization, OTP binding and signature state.</p>
+<p>Tách 2 bước, không còn 1 lệnh <code>sign()</code> duy nhất — buyer/seller phải qua đủ consent checkbox, step-up và OTP mới thật sự ký:</p>
+<figure class="code" data-lang="text"><pre><code>InitiateSign(contractId, signerRole, jwt):
+  1. authorizationExpiresAt = User.findById(signerUserId).authorizationExpiresAt
+     Nếu authorizationExpiresAt != NULL AND authorizationExpiresAt &lt;= now() → REJECT
+     (§5 — thẩm quyền đại diện còn hiệu lực)
+
+  2. authTime = jwt.claims["auth_time"]
+     Nếu now() - authTime &gt; signatureAuthMaxAgeSeconds → REJECT, yêu cầu step-up lại
+     (§4 — phiên xác thực đủ mới)
+
+  2a. Validate consent cho action SIGN_CONTRACT: consentStatementVersion đang active;
+      presentedContentHash == SHA256(ContractTermsSnapshot hiện hành). Server resolve
+      statementCode/hash, không tin statement text/hash do client gửi. Sai action/subject/hash
+      → REJECT trước khi tạo OTP; đúng → persist ConsentEvidence cùng correlationId.
+
+  3. Trong một DB transaction, lock Contract row để serialize initiate/resend; với đúng
+     tuple (user_id=jwt.sub, signer_role, contract_id, signed_content_hash hiện tại),
+     UPDATE expires_at=now() cho mọi challenge chưa verified, chưa hết hạn và chưa
+     exhausted; sau đó sinh OTP mới và INSERT signature_otp
+     (user_id=jwt.sub, auth_time (bước 2), signed_content_hash = SHA256(ContractTerms
+     hiện tại), sent_at=now(), expires_at=now()+otpExpirySeconds). Invalidate-old +
+     insert-new phải commit atomically: chỉ challenge mới nhất của cùng signer +
+     contractId + signedContentHash còn hợp lệ. Không thêm status enum/cột mới; row cũ
+     được biểu diễn là expired bằng field hiện có.
+
+  4. Gọi sync `POST /internal/v1/notifications/otp-email` với otpId làm requestId,
+     OTP + signedContentHash = SHA256(ContractTerms hiện tại). Chỉ trả thành công
+     khi notification-service xác nhận mail provider đã nhận request; lỗi → trả lỗi,
+     không nói "OTP đã gửi" và không có background retry gửi muộn.
+
+  5. Trả về "OTP đã gửi" — CHƯA tạo Signature, chưa chuyển Contract state.
+     Retry cùng otpId là idempotent; resend thật tạo OTP/otpId mới theo cooldown và
+     supersede OTP cũ theo bước 3. Nếu provider fail, challenge mới cũng bị expire và
+     không có background retry; caller phải initiate lại.
+
+VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify theo otpId,
+                                                // KHÔNG lấy "OTP mới nhất theo (contractId, signerRole)"
+  0. Lock/load challenge = signature_otp[otpId]; không tồn tại/đã verified → REJECT.
+     Bind challenge — đóng gap 2 HTTP request độc lập:
+       challenge.user_id  == jwt.sub                          → sai → 403
+       challenge.contract_id == contractId                    → sai → 409
+       challenge.signer_role == role của caller trong contract này (theo Contract, không theo request)
+       SHA256(ContractTerms hiện tại) == challenge.signed_content_hash
+         → lệch = terms đã đổi sau khi OTP phát → invalidate OTP này, yêu cầu InitiateSign lại
+
+  1. now() &gt;= expires_at → REJECT, yêu cầu resend. Check này áp cả challenge đã bị
+     resend supersede: verify theo đúng otpId cũ vẫn phải reject dù OTP code đúng.
+     attempt_count &gt;= otpMaxAttempts → REJECT, khoá, yêu cầu resend OTP mới
+     HMAC(otpCode, serverPepper) != otp_hash → attempt_count += 1, REJECT
+
+  2. Khớp → verified_at = now()
+
+  3. Trước khi INSERT Signature, recompute Σ milestoneSchedule[].committedQuantity và
+     REQUIRE bằng persisted reservedQuantity (F18). Mismatch → rollback toàn bộ verify
+     transaction (kể cả verified_at), trả 409 và yêu cầu tạo lại contract/terms flow;
+     không để lại một Signature dở dang và không publish contract.signed.
+
+  4. INSERT Signature (contractId, signerRole, signerUserId=jwt.sub,
+     authTime = challenge.auth_time, signedAt=verified_at,
+     signedContentHash = challenge.signed_content_hash, ipAddress)
+     — UNIQUE(contractId, signerRole) tự chặn ký 2 lần cho cùng 1 bên
+
+  5. INVARIANT 2 chữ ký cùng bản terms (sửa 18/07/2026 — trước đây chỉ đếm "đủ 2 dòng"):
+     - Freeze terms từ chữ ký ĐẦU TIÊN: mọi update ContractTerms khi đã tồn tại
+       &gt;= 1 Signature → REJECT 409; muốn sửa phải vô hiệu toàn bộ chữ ký
+       (xoá Signature + notify 2 bên) rồi ký lại từ đầu.
+     - Chữ ký thứ hai REQUIRE signedContentHash == signedContentHash của chữ ký đầu;
+       lệch → REJECT (không được để Buyer ký hash A, Seller ký hash B mà hệ vẫn
+       đếm đủ 2 dòng).
+     - F18 is rechecked immediately before transition as a defense-in-depth guard; the
+       transaction must not commit a second Signature if the value changed concurrently.
+     Đủ 2 dòng (BUYER + SELLER) CÙNG signedContentHash và pass F18
+     → Contract.transitionTo(SIGNED). Cùng transaction tạo ContractDocument
+     FINAL_SIGNED_CONTRACT ở PENDING; durable worker render/lưu PDF sau commit.
+     Render fail không rollback Signature hoặc SIGNED.
+
+  6. Không gửi email/PDF final trực tiếp trong transaction ký. Sau commit, document
+     worker render FINAL_SIGNED_CONTRACT từ đúng snapshot/hash, lưu SYSTEM_GENERATED,
+     chuyển ContractDocument READY và publish `contract.document_generated`.
+     Contract-service sau đó publish `notification.contract_document_ready_requested`;
+     retry/dedup theo documentId + recipient + type. Compatibility command
+     `notification.contract_anchor_requested` không còn là đường final canonical.
+
+  7. Publish `contract.signed` (RabbitMQ, domain event — mới 06/07/2026; payload mở
+     rộng 08/07/2026 và 17/07/2026). Payload mang `buyerDepositAmount`/
+     `sellerDepositAmount` (đã tính sẵn, không phải rate thô) cho escrow-service,
+     và `signedContentHash` (17/07/2026) cho audit-service nối chain
+     (source_type CONTRACT_SIGNED). Consumer: escrow-service, analytics-service,
+     audit-service. Payload + consumer đầy đủ — chi tiết catalog ở
+     milestone-escrow-phase2-design.md §7.2.
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Database <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<p>Additive trên <code>contract_db</code> (Signature) và <code>user_db</code> (authorization fields) — không sửa bảng <code>contract</code> hay <code>user</code> cốt lõi:</p>
+<figure class="code" data-lang="sql"><pre><code>CREATE TABLE signature (
+    signature_id         CHAR(36) PRIMARY KEY,
+    contract_id          CHAR(36) NOT NULL REFERENCES contract(contract_id),
+    signer_role           VARCHAR(10) NOT NULL,   -- 'BUYER' | 'SELLER' (inspection-service thêm 'INSPECTOR' + cột report_id, xem inspection §5 — schema đầy đủ ở đó)
+    signer_user_id         CHAR(36) NOT NULL,
+    auth_time              TIMESTAMP NOT NULL,
+    signed_at              TIMESTAMP NOT NULL,
+    signed_content_hash    VARCHAR(64) NOT NULL,
+    ip_address              VARCHAR(45),
+    UNIQUE (contract_id, signer_role)
+);
+
+-- ConsentEvidence đầy đủ/DDL canonical thuộc contract-document-consent-phase2-design.md.
+-- signature_otp reference consent_id của đúng initiate để chứng minh challenge nào
+-- được phát sau statement/hash nào; consent row là append-only.
+
+-- OTP layer (bổ sung 03/07/2026, §4.1) — bảng riêng, vòng đời khác Signature
+CREATE TABLE signature_otp (
+    otp_id          CHAR(36) PRIMARY KEY,
+    consent_id      CHAR(36) NOT NULL REFERENCES consent_evidence(consent_id),
+    contract_id      CHAR(36) NOT NULL REFERENCES contract(contract_id),
+    signer_role       VARCHAR(10) NOT NULL,
+    user_id           CHAR(36) NOT NULL,
+    auth_time          TIMESTAMP NOT NULL,       -- SỬA 18/07/2026: challenge persistence — step-up authTime
+                                                -- từ InitiateSign; VerifyOtpAndSign là HTTP request độc lập,
+                                                -- không có chỗ nào khác lấy lại giá trị này
+    signed_content_hash VARCHAR(64) NOT NULL,    -- SỬA 18/07/2026: hash terms tại thời điểm phát OTP —
+                                                -- verify so với terms hiện tại, lệch = terms đã đổi
+    otp_hash          VARCHAR(64) NOT NULL,     -- SỬA 18/07/2026: HMAC-SHA256(otp, serverPepper) — pepper từ
+                                                -- secret/env, KHÔNG SHA-256 trần: chỉ 10^6 mã, ai đọc được DB
+                                                -- brute-force xong trong tích tắc
+    sent_at           TIMESTAMP NOT NULL,
+    expires_at        TIMESTAMP NOT NULL,       -- sent_at + otpExpirySeconds
+    verified_at       TIMESTAMP NULL,
+    attempt_count     INT NOT NULL DEFAULT 0
+);
+
+-- user_db: migration authorization_expires_at do user-service sở hữu — bảng thật là
+-- `user_profiles` (KHÔNG phải `app_user` như bản cũ ghi; sửa 17/07/2026, defer sang
+-- user-service-phase2-design.md §6 làm source of truth cho user_db).
+-- NULL = giấy uỷ quyền vô thời hạn, hoặc chưa qua duyệt (fail-closed ở use case, không phải ở DB constraint)
+</code></pre></figure>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Out of Scope / Known Limitation (có chủ đích, không phải thiếu sót) <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<ul class="limitations">
+<li><strong>Contract amendment sau khi ký:</strong> không hỗ trợ Phase 2 — <code>ContractTerms</code> đóng băng + hash là nền evidence model; đổi điều khoản = huỷ theo điều khoản hoặc ký hợp đồng thay thế. Roadmap <code>ContractVersion</code> chain: milestone-escrow §8b.</li>
+</ul>
+<p><strong>WebAuthn/passkey (sole control mạnh hơn):</strong> đóng đúng gap của §4 theo nghĩa kỹ thuật — private key sinh và giữ trong secure enclave thiết bị, không transmit qua network, thoả sole-control theo nghĩa đen thay vì "trust password". <strong>Không</strong> đổi tier pháp lý ở §2 — vẫn thiếu điều kiện "phải được bảo đảm bởi chứng thư chữ ký số" (Điều 22 khoản 3(đ)), một certificate chỉ do CA được Bộ TT&amp;TT cấp phép mới phát hành được, platform không tự phong được. Giá trị thật của WebAuthn: nâng chất lượng bằng chứng khi cần chứng minh trong tranh chấp, không nâng presumption pháp lý mặc định. Ghi nhận làm hướng nâng cấp tương lai, chưa thiết kế chi tiết trong doc này.</p>
+<p><strong><code>reportHash</code>/INSPECTOR:</strong> INSPECTOR là third-party actor, không qua cùng luồng KYC buyer/seller ở §5 — "same treatment" không áp trực tiếp được, cần session riêng xác định lại từ đầu.</p>
+<p><strong>Chi tiết nghiệp vụ buyer KYC (form nào, giấy tờ nào cụ thể):</strong> doc này chỉ chốt <strong>nguyên tắc đối xứng</strong> với Seller (§5) — checklist giấy tờ cụ thể cho từng loại hình doanh nghiệp buyer (TNHH, cổ phần, hộ kinh doanh...) là việc tra quy định nghiệp vụ/pháp lý thật khi soạn form đăng ký, không phải quyết định thiết kế treo ở tầng này — điền chi tiết lúc làm màn hình KYC, không block phần còn lại của design.</p>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> Status — Signature Design <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> <code>Signature</code> là value object trong <code>Contract</code> aggregate, <code>UNIQUE(contractId, signerRole)</code> thay cho 2 cờ riêng trên <code>Contract</code>. Base-tier chữ ký điện tử theo Điều 22-23 Luật GDĐT 2023 — không bị phủ nhận giá trị pháp lý, không tương đương chữ ký tay, hợp đồng vẫn có hiệu lực đầy đủ, khác biệt nằm ở gánh nặng chứng minh khi tranh chấp. <code>signatureAuthMaxAgeSeconds</code> = 300s (<code>application.yml</code>) cho session freshness. Xác minh thẩm quyền đại diện (BLDS 2015 Điều 142) áp dụng đối xứng Buyer/Seller, gate lúc đăng ký tài khoản, <code>authorizationExpiresAt</code> nhập tay từ giấy tờ thật — không hardcode. Fail-closed mặc định khi chưa qua duyệt. WebAuthn và <code>reportHash</code>/INSPECTOR để ngoài phạm vi, có chủ đích.</p></div>
+<p><code>InitiateSignRequest</code> có <code>consentStatementVersion</code> và <code>presentedContentHash</code>; chỉ phát OTP sau khi tạo <code>ConsentEvidence</code> hợp lệ. Chữ ký thứ hai tạo final document <code>PENDING</code> cùng transaction; render sau commit, khi READY mới publish <code>contract.document_generated</code>.</p>
+<p>Signature — <strong>đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong></p>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>KYC chỉ OPERATOR, không ADMIN fallback theo SRS v1.6 để tách role vận hành.</p>
+</li><li><span class="changelog__date">06/10/2026</span><p>Thêm consent bind nội dung và final document async: <code>InitiateSignRequest</code> thêm hai field, chỉ gửi final sau READY để bảo toàn chữ ký khi render lỗi.</p>
+</li><li><span class="changelog__date">23/07/2026</span><p>Atomically supersede OTP cũ cùng <code>signer + contractId + signedContentHash</code> bằng expiry dưới lock Contract, không đổi API/DDL, để resend không để nhiều challenge hợp lệ; bổ sung F18 reserved quantity guard.</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Persist auth_time/hash trong challenge, verify theo otpId và bind user/contract/terms, dùng HMAC pepper, freeze terms và kiểm hai hash bằng nhau để chặn replay và ký khác nội dung.</p>
+</li><li><span class="changelog__date">17/07/2026</span><p>Supersede mở enum <code>INSPECTOR</code> + <code>report_id</code> trên signature: chuyển sang <code>inspector_signature</code> inspection DB, thêm <code>signedContentHash</code> cho audit consumer và defer migration <code>user_profiles</code> thay <code>app_user</code> để tránh cross-service write/push riêng.</p>
+</li><li><span class="changelog__date">08/07/2026</span><p>Mở payload <code>contract.signed</code> với <code>buyerDepositAmount</code>/<code>sellerDepositAmount</code> và thêm escrow-service consumer để khoá đúng số tiền khi SIGNED.</p>
+</li><li><span class="changelog__date">06/07/2026</span><p>Publish domain event <code>contract.signed</code> để các consumer nhận sự kiện ký sau transaction.</p>
+</li><li><span class="changelog__date">03/07/2026</span><p>Chốt base-tier Điều 22–23 và OTP email song song password step-up: không đạt <code>chữ ký điện tử chuyên dùng bảo đảm an toàn</code> hay <code>chữ ký số</code>, chỉ nâng bằng chứng; chọn OTP vì tận dụng SendGrid, không thêm dependency.</p>
+</li><li><span class="changelog__date">03/07/2026</span><p>Mở xác minh thẩm quyền từ Seller trong <code>AgriContract_02_GiaiPhap_MoHinh_v5.docx</code> Rủi ro 3 sang cả Buyer vì BLDS 2015 Điều 142 áp đối xứng.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li><strong>DDL còn comment INSPECTOR cũ.</strong> §7 vẫn nói mở <code>signer_role</code> thêm INSPECTOR/report_id; §3 đã supersede sang bảng riêng inspection-service, giữ nguyên SQL từng ký tự.</li><li><strong>Sửa terms và bất biến signature.</strong> Pseudocode §6 nói xoá Signature rồi ký lại nếu sửa terms; §8 không hỗ trợ amendment, document-consent §7 nói signature append-only về nghiệp vụ; không tự chọn flow thay thế.</li><li><strong>Session freshness.</strong> §4 yêu cầu check tại <code>sign()</code> nhưng pseudocode §6 check trong InitiateSign, chưa ghi re-check freshness tại VerifyOtpAndSign; không thêm guard ngoài nguồn.</li><li><strong>Gate KYC.</strong> §5 mô tả gate đăng ký, các bước verify không ghi explicit verificationStatus trong khi user-service yêu cầu runtime eligibility; giữ nguyên pseudocode và ghi nhận điểm cần đồng bộ.</li></ul></aside><footer class="doc-footer"><a href="../signature-phase2-design.md">signature-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-12">12/10/2026</time></p><a href="../signature-phase2-design.md">Markdown · 302 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="hash-chain-phase2-design.html" title="hash-chain-phase2-design.md">hash-chain</a><a class="xref" href="user-service-phase2-design.html" title="user-service-phase2-design.md">user-service</a><a class="xref" href="notification-service-phase2-design.html" title="notification-service-phase2-design.md">notification-service</a><a class="xref" href="contract-document-consent-phase2-design.html" title="contract-document-consent-phase2-design.md">contract-document-consent</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+

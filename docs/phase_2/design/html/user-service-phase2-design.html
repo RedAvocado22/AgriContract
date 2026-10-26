@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>user-service-phase2-design</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="assets/design.css" rel="stylesheet"/>
+<script defer="" src="assets/design.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Đến nội dung</a>
+<header class="topbar">
+<a class="topbar__back" href="index.html">← Tất cả design doc</a><span class="topbar__title">user-service</span>
+<button aria-controls="toc" aria-expanded="false" class="mobile-toc-toggle" type="button">Mục lục</button>
+<form class="topbar__search" role="search"><label class="sr-only" for="page-search">Tìm heading trong trang</label><input aria-describedby="search-count" autocomplete="off" id="page-search" placeholder="Tìm mục… /" type="search"/><output aria-live="polite" class="search-count" id="search-count"></output></form>
+<button class="theme-toggle" type="button">Giao diện: Hệ thống</button></header>
+<button aria-label="Đóng mục lục" class="drawer-backdrop" tabindex="-1" type="button"></button>
+<div class="page"><div aria-label="Mục lục" class="toc" id="toc" role="navigation"><div class="toc__header"><span class="eyebrow">Mục lục · 15 mục</span><button class="toc__close" type="button">Đóng</button></div><ol><li class="toc__top"><a href="#sec-1"><span class="toc__number">§1</span> Bối cảnh &amp; Scope</a></li><li class="toc__top"><a href="#sec-2"><span class="toc__number">§2</span> Domain Model — UserProfile</a></li><li class="toc__sub"><a href="#sec-2-1"><span class="toc__number">§2.1</span> State machine KYC</a></li><li class="toc__sub"><a href="#sec-2-2"><span class="toc__number">§2.2</span> Lock projection</a></li><li class="toc__top"><a href="#sec-3"><span class="toc__number">§3</span> Enforcement Matrix</a></li><li class="toc__top"><a href="#sec-4"><span class="toc__number">§4</span> API &amp; DTO Boundary</a></li><li class="toc__sub"><a href="#sec-4-1"><span class="toc__number">§4.1</span> End-user API — qua Gateway</a></li><li class="toc__sub"><a href="#sec-4-2"><span class="toc__number">§4.2</span> KYC API — qua Gateway, role OPERATOR (sửa 12/10/2026 theo SRS v1.6 — bỏ ADMIN fallback; matrix quyền ở data-governance-phase2-design.md §5.4)</a></li><li class="toc__sub"><a href="#sec-4-2b"><span class="toc__number">§4.2b</span> Role assignment API — qua Gateway, role ADMIN (mới 13/10/2026, #161; contract assignUserRole trong golden-flow-api.yaml)</a></li><li class="toc__sub"><a href="#sec-4-3"><span class="toc__number">§4.3</span> Internal API — tuyệt đối không route qua Gateway</a></li><li class="toc__top"><a href="#sec-5"><span class="toc__number">§5</span> Events</a></li><li class="toc__top"><a href="#sec-6"><span class="toc__number">§6</span> Database Migration</a></li><li class="toc__top"><a href="#sec-7"><span class="toc__number">§7</span> Security &amp; Failure Modes</a></li><li class="toc__top"><a href="#sec-8"><span class="toc__number">§8</span> Known Limitations / Out of Scope</a></li><li class="toc__top"><a href="#sec-9"><span class="toc__number">§9</span> Status — User-service Design</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#editor-notes">Ghi chú biên tập</a></li></ol></div><main class="content" id="main"><header class="doc-header"><div class="eyebrow">Services</div><h1>User-service</h1><div class="doc-header__sub"><span class="status status--designed">DESIGNED — chưa code</span><span>Cập nhật nguồn (Git): <time datetime="2026-10-25">25/10/2026</time></span><a href="../user-service-phase2-design.md">Mở Markdown · 180 dòng</a></div><div class="header-meta"><div class="header-meta__links"><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="reputation-service-phase2-design.html" title="reputation-service-phase2-design.md">reputation-service</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a></div><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div></header><div aria-labelledby="tldr-title" class="tldr"><h2 id="tldr-title">TL;DR · LUẬT KHI CODE</h2><ul><li><code>verify()</code>/<code>reject(reason)</code> chỉ từ <code>PENDING</code>; <code>resubmit()</code> từ <code>REJECTED</code> về <code>PENDING</code>; hết hạn authorization không tự đổi KYC state.</li><li>Chỉ apply lock event khi <code>lockRevision &gt; last_lock_revision</code>, atomic cùng UPDATE; <code>reputation.unlocked</code> set <code>lockedUntil = effectiveLockedUntil</code>, không clear mù.</li><li>Tạo listing/offer và <code>sign()</code> đều fail-closed với KYC/authorization/lock; Gateway không làm eligibility gate.</li><li>KYC chỉ <code>OPERATOR</code>; role assignment chỉ <code>ADMIN</code>; cấm tự đổi role và đổi thẳng <code>OPERATOR</code> ↔ <code>ARBITRATOR</code>.</li><li>Public DTO không email/phone/address; internal API dùng <code>SERVICE_INTERNAL_SECRET</code>, không route Gateway.</li><li>Chi tiết KYC ghi read-audit trước khi trả data; audit lỗi không trả data, không thấy user → 404 và không ghi audit.</li><li>Publish <code>notification.user_lock_changed_requested</code> sau apply lock thành công, đã enrich contact; không để notification gọi sync ngược.</li></ul></div><section aria-labelledby="heading-sec-1" class="section" id="sec-1"><h2 id="heading-sec-1"><span class="sec-num">§1</span> Bối cảnh &amp; Scope <a aria-label="Sao chép liên kết tới §1" class="anchor" href="#sec-1">#</a></h2>
+<p>Phase 1 có <code>UserProfile</code> tối giản (<code>organizationName</code>, <code>role</code>, contact info, <code>verificationStatus</code>) và ba API đăng ký/đọc profile. Phase 2 giữ <code>user-service</code> là cầu nối profile với Keycloak, đồng thời bổ sung hai trách nhiệm đã được các design khác yêu cầu nhưng chưa có owner document:</p>
+<ol>
+<li>Xác minh pháp nhân và thẩm quyền đại diện của Buyer/Seller trước khi họ tham gia giao dịch có ràng buộc.</li>
+<li>Enforce trạng thái khoá do <code>reputation-service</code> quyết định, không tự tính điểm hay thời hạn khoá.</li>
+</ol>
+<p><code>user-service</code> <strong>không</strong> lưu password/token, không ký hợp đồng và không sở hữu <code>Signature</code>. Keycloak sở hữu credential; <code>contract-service</code> sở hữu <code>Signature</code>, <code>signature_otp</code>, <code>signedContentHash</code> và transition <code>SIGNED</code>; <code>reputation-service</code> sở hữu lock ledger và công thức <code>lockDurationDays</code>.</p>
+</section><section aria-labelledby="heading-sec-2" class="section" id="sec-2"><h2 id="heading-sec-2"><span class="sec-num">§2</span> Domain Model — <code>UserProfile</code> <a aria-label="Sao chép liên kết tới §2" class="anchor" href="#sec-2">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Field</th>
+<th scope="col">Loại</th>
+<th scope="col">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>userId</code></td>
+<td>String/UUID</td>
+<td>Keycloak <code>sub</code>, identity ổn định</td>
+</tr>
+<tr>
+<td class="identifier"><code>organizationName</code></td>
+<td>VARCHAR</td>
+<td>Tên pháp nhân/HTX</td>
+</tr>
+<tr>
+<td class="identifier"><code>role</code></td>
+<td class="identifier"><code>BUYER | SELLER | ADMIN | INSPECTOR | OPERATOR | ARBITRATOR</code></td>
+<td>Role nguồn từ Keycloak; Phase 1 cần mở enum cho INSPECTOR; <strong>OPERATOR mới 18/07/2026</strong> — vận hành hằng ngày (KYC, review, moderate, retry activation); <strong>ARBITRATOR mới 12/10/2026</strong> (SRS v1.6) — phán xử breach/FM, khởi tạo Level 2, approve maker-checker reputation. Matrix ở <code>data-governance-phase2-design.md</code> §5. API gán role <strong>reject</strong> tổ hợp <code>OPERATOR</code> + <code>ARBITRATOR</code> trên cùng account (chống tự propose rồi tự approve)</td>
+</tr>
+<tr>
+<td class="identifier"><code>contactInfo</code></td>
+<td>VO</td>
+<td>Email, phone, address; dữ liệu riêng tư</td>
+</tr>
+<tr>
+<td class="identifier"><code>verificationStatus</code></td>
+<td class="identifier"><code>PENDING | VERIFIED | REJECTED</code></td>
+<td>State KYC hiện tại</td>
+</tr>
+<tr>
+<td class="identifier"><code>authorizationExpiresAt</code></td>
+<td>TIMESTAMP nullable</td>
+<td>Instant UTC của hạn trên giấy uỷ quyền; giấy date-only hết hạn <code>23:59:59.999 ICT</code>, <code>NULL</code> chỉ khi giấy ghi vô thời hạn (time convention: milestone-escrow §1.1)</td>
+</tr>
+<tr>
+<td class="identifier"><code>lockedUntil</code></td>
+<td>TIMESTAMP nullable</td>
+<td>Projection/cache từ reputation events; không phải source of truth</td>
+</tr>
+<tr>
+<td class="identifier"><code>verifiedByActorId</code></td>
+<td>UUID nullable</td>
+<td>Người thực hiện quyết định KYC gần nhất — OPERATOR (đổi tên 18/07/2026 từ <code>verifiedByAdminId</code>; từ 12/10/2026 ADMIN không duyệt KYC, giữ tên <code>actor</code> cho trung tính)</td>
+</tr>
+<tr>
+<td class="identifier"><code>verifiedAt</code></td>
+<td>TIMESTAMP nullable</td>
+<td>Thời điểm verify</td>
+</tr>
+<tr>
+<td class="identifier"><code>rejectionReason</code></td>
+<td>TEXT nullable</td>
+<td>Bắt buộc khi reject, xoá khi hồ sơ được nộp lại</td>
+</tr>
+</tbody>
+</table></div>
+</section><section aria-labelledby="heading-sec-2-1" class="section" id="sec-2-1"><h3 id="heading-sec-2-1"><span class="sec-num">§2.1</span> State machine KYC <a aria-label="Sao chép liên kết tới §2.1" class="anchor" href="#sec-2-1">#</a></h3>
+<figure class="code" data-lang="text"><pre><code>REGISTER → PENDING ──verify──▶ VERIFIED
+                 └─reject───▶ REJECTED ──resubmit──▶ PENDING
+</code></pre></figure>
+<ul>
+<li><code>verify()</code> chỉ chạy từ <code>PENDING</code>; ghi Operator, thời điểm và <code>authorizationExpiresAt</code> đúng theo giấy tờ thật.</li>
+<li><code>reject(reason)</code> chỉ chạy từ <code>PENDING</code>; <code>reason</code> không được rỗng.</li>
+<li><code>resubmit()</code> chạy từ <code>REJECTED</code>, đưa về <code>PENDING</code>; file hồ sơ nằm ở file-service, user-service chỉ giữ reference/metadata cần thiết khi implementation chốt form.</li>
+<li><code>authorizationExpiresAt &lt;= now()</code> làm thẩm quyền <strong>không còn hợp lệ</strong> nhưng không tự đổi <code>verificationStatus</code>; giữ lịch sử quyết định KYC, còn gate runtime kiểm cả hai điều kiện.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-2-2" class="section" id="sec-2-2"><h3 id="heading-sec-2-2"><span class="sec-num">§2.2</span> Lock projection <a aria-label="Sao chép liên kết tới §2.2" class="anchor" href="#sec-2-2">#</a></h3>
+<p><code>lockedUntil</code> là bản sao trạng thái phục vụ enforce nhanh. <code>reputation-service</code> vẫn là nguồn quyết định duy nhất:</p>
+<ul>
+<li><code>reputation.locked {eventId, userId, lockedUntil, lockRevision, occurredAt}</code> → apply nếu <code>lockRevision &gt; last_lock_revision</code> (atomic, cùng UPDATE), set <code>lockedUntil = max(current, incoming)</code> + <code>last_lock_revision = lockRevision</code>.</li>
+<li><code>reputation.unlocked {eventId, userId, effectiveLockedUntil, occurredAt}</code>  → set <code>lockedUntil = effectiveLockedUntil</code> (timestamp nếu user còn lock khác đang hiệu lực, <code>NULL</code> nếu hết khoá). Không tự "clear": user có thể có <strong>nhiều lock chồng nhau</strong> (cancel 2 hợp đồng → 2 <code>lock_entry</code>), unlock sớm 1 cái không có nghĩa hết khoá — reputation-service (source of truth, giữ toàn bộ <code>lock_entry</code>) tính lại effective lock rồi gửi kết quả; user-service chỉ set theo, không suy luận. <strong>Ordering bằng <code>lockRevision</code> persist :</strong> reputation-service cấp revision tăng dần per user (đếm số event lock/unlock đã phát cho user đó); user_profiles lưu <code>last_lock_revision</code>, chỉ apply khi incoming lớn hơn — atomic trong cùng UPDATE. <code>occurredAt</code> giữ lại cho audit/debug nhưng KHÔNG dùng làm ordering: nó không được persist trước đây (restart xong không còn gì để so — idempotency log chỉ chặn đúng eventId đã thấy, không chặn event CŨ có eventId khác tới muộn) và timestamp dính clock skew/tie.</li>
+<li>Consumer lưu <code>eventId</code> vào idempotency log; RabbitMQ redelivery không được apply hai lần.</li>
+<li>Sau khi apply thành công, user-service publish notification command đã enrich contact info (<code>notification.user_lock_changed_requested</code>); reputation-service không cần và không được gọi ngược để lấy email.</li>
+<li>Reconciliation endpoint nội bộ của reputation-service là fallback vận hành, không được gọi trên mọi request nghiệp vụ.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Enforcement Matrix <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Hành động</th>
+<th scope="col">KYC/thẩm quyền</th>
+<th scope="col">Reputation lock</th>
+<th scope="col">Failure policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Xem public listing/price/reputation</td>
+<td>Không gate</td>
+<td>Không gate</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>Tạo listing</td>
+<td><code>VERIFIED</code> và authorization còn hạn</td>
+<td>Không cho nếu đang khoá</td>
+<td><strong>Fail-closed (sửa 18/07/2026, round 2):</strong> user-service down → 503, không tạo. Fail-open cũ tự mâu thuẫn — lúc dependency chết caller không biết CẢ 3 điều kiện mà vẫn cho qua, người chưa KYC/đang khoá tạo được listing đúng lúc đó. Listing không khẩn cấp tới mức hy sinh policy; giờ MỌI gate eligibility đều fail-closed, nhất quán với <code>sign()</code></td>
+</tr>
+<tr>
+<td>Tạo offer</td>
+<td><code>VERIFIED</code> và authorization còn hạn</td>
+<td>Không cho nếu đang khoá</td>
+<td>Cùng chính sách create listing — fail-closed (18/07/2026)</td>
+</tr>
+<tr>
+<td>Ký hợp đồng</td>
+<td><code>VERIFIED</code> và authorization còn hạn</td>
+<td>Không cho nếu đang khoá</td>
+<td><strong>Fail-closed</strong>; circuit breaker fallback phải reject</td>
+</tr>
+<tr>
+<td>Operator/Arbitrator/Admin/Inspector workflow</td>
+<td>Role + ownership riêng</td>
+<td>Không dùng seller/buyer lock</td>
+<td>Enforce ở service sở hữu use case</td>
+</tr>
+</tbody>
+</table></div>
+<p>Gate nằm tại use-case của <code>product-service</code>/<code>contract-service</code>, không nằm ở Gateway. Gateway chỉ xác thực JWT và truyền identity.</p>
+</section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> API &amp; DTO Boundary <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
+</section><section aria-labelledby="heading-sec-4-1" class="section" id="sec-4-1"><h3 id="heading-sec-4-1"><span class="sec-num">§4.1</span> End-user API — qua Gateway <a aria-label="Sao chép liên kết tới §4.1" class="anchor" href="#sec-4-1">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Method</th>
+<th scope="col">Path</th>
+<th scope="col">Quyền</th>
+<th scope="col">Response/ý nghĩa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>POST</code></td>
+<td class="identifier"><code>/api/v1/users/register</code></td>
+<td>Authenticated</td>
+<td>Idempotent theo Keycloak <code>sub</code>; tạo <code>PENDING</code> nếu mới</td>
+</tr>
+<tr>
+<td class="identifier"><code>GET</code></td>
+<td class="identifier"><code>/api/v1/users/me</code></td>
+<td>Chính chủ</td>
+<td><code>UserProfileResponse</code> đầy đủ contact/KYC/authorization/lock</td>
+</tr>
+<tr>
+<td class="identifier"><code>GET</code></td>
+<td class="identifier"><code>/api/v1/users/{userId}</code></td>
+<td>Authenticated</td>
+<td><code>PublicUserResponse</code>: <code>userId</code>, <code>organizationName</code>, <code>role</code>, <code>verificationStatus</code>; <strong>không email/phone/address</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>Reputation công khai không nhét vào DTO này; client gọi <code>GET /api/v1/reputation/{userId}/public-summary</code> ở service sở hữu.</p>
+</section><section aria-labelledby="heading-sec-4-2" class="section" id="sec-4-2"><h3 id="heading-sec-4-2"><span class="sec-num">§4.2</span> KYC API — qua Gateway, role <code>OPERATOR</code> (sửa 12/10/2026 theo SRS v1.6 — bỏ ADMIN fallback; matrix quyền ở <code>data-governance-phase2-design.md</code> §5.4) <a aria-label="Sao chép liên kết tới §4.2" class="anchor" href="#sec-4-2">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Method</th>
+<th scope="col">Path</th>
+<th scope="col">Ý nghĩa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>GET</code></td>
+<td class="identifier"><code>/api/v1/admin/users?verificationStatus=PENDING</code></td>
+<td>Hàng đợi duyệt — chỉ <code>userId</code>, <code>organizationName</code>, <code>role</code>, <code>verificationStatus</code>; không contact, không metadata quyết định (<strong>19/10/2026, #155</strong>)</td>
+</tr>
+<tr>
+<td class="identifier"><code>GET</code></td>
+<td class="identifier"><code>/api/v1/admin/users/{userId}</code></td>
+<td>Xem đầy đủ hồ sơ KYC — <strong>mỗi lần gọi ghi 1 dòng read-audit</strong> (governance §8) trước khi trả data; ghi audit lỗi → không trả data. Không tìm thấy → 404, không ghi audit (<strong>19/10/2026, #155</strong>)</td>
+</tr>
+<tr>
+<td class="identifier"><code>POST</code></td>
+<td class="identifier"><code>/api/v1/admin/users/{userId}/verify</code></td>
+<td>Body <strong>bắt buộc có key</strong> <code>authorizationExpiresAt</code> — giá trị là instant theo giấy thật hoặc <code>null</code> tường minh (vô thời hạn). Thiếu key → 400 (, phát hiện ở PR #151: body <code>{}</code> từng được hiểu là vô thời hạn — Operator quên nhập thành cấp quyền vĩnh viễn)</td>
+</tr>
+<tr>
+<td class="identifier"><code>POST</code></td>
+<td class="identifier"><code>/api/v1/admin/users/{userId}/reject</code></td>
+<td>Body chứa <code>reason</code> bắt buộc</td>
+</tr>
+</tbody>
+</table></div>
+<p>Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào hash chain là enhancement, không phải Phase 2 golden flow.</p>
+<p><strong>Read-audit (19/10/2026, #155):</strong> response của <code>verify</code>/<code>reject</code> chỉ trả kết quả quyết định (<code>userId</code>, <code>verificationStatus</code>, thời điểm, actor, lý do), không contact — chi tiết hồ sơ chỉ đọc được qua <code>GET /{userId}</code>, nên đó là cửa đọc Restricted duy nhất và luôn có vết. Log nằm ở bảng append-only <code>kyc_read_audit</code> trong <code>user_db</code> <code>{actor_id, actor_role, resource_type=KYC_PROFILE, resource_id, case_context, accessed_at}</code>. <strong>Known limitation:</strong> chưa có job xoá log quá 2 năm; <code>case_context</code> để null vì KYC chưa có case ID.</p>
+</section><section aria-labelledby="heading-sec-4-2b" class="section" id="sec-4-2b"><h3 id="heading-sec-4-2b"><span class="sec-num">§4.2b</span> Role assignment API — qua Gateway, role <code>ADMIN</code> (mới 13/10/2026, #161; contract <code>assignUserRole</code> trong <code>golden-flow-api.yaml</code>) <a aria-label="Sao chép liên kết tới §4.2b" class="anchor" href="#sec-4-2b">#</a></h3>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Method</th>
+<th scope="col">Path</th>
+<th scope="col">Ý nghĩa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>PUT</code></td>
+<td class="identifier"><code>/api/v1/admin/users/{userId}/role</code></td>
+<td>Body <code>{"role": "&lt;BUYER|SELLER|ADMIN|INSPECTOR|OPERATOR|ARBITRATOR&gt;"}</code>, field lạ → 400; user không tồn tại → 404</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Một account một role</strong> (cột <code>role</code> đơn trị) — tổ hợp <code>OPERATOR</code> + <code>ARBITRATOR</code> không biểu diễn được trong <code>user_db</code>. Lỗ hổng còn lại là <strong>đổi thẳng</strong> <code>OPERATOR</code> ↔ <code>ARBITRATOR</code> (người vừa propose đổi role rồi tự approve) → <strong>409 <code>ROLE_SEPARATION_VIOLATION</code></strong>, rule nằm ở domain (<code>UserProfile.assignRole</code>). Cần người khác thì dùng account khác. Gán lại đúng role hiện tại → no-op.</li>
+<li>Token mang cả 2 role cũng bị chặn: <code>HeaderAuthenticationFilter</code> trả 403 cho <strong>mọi request</strong> có <code>X-User-Role</code> (realm roles từ JWT) chứa cả <code>OPERATOR</code> và <code>ARBITRATOR</code> — gồm cả <code>register</code>, nên không lặng lẽ chọn role đầu tiên.</li>
+<li><strong>Không ADMIN fallback:</strong> ADMIN chỉ gán role, không được gọi KYC (§4.2) hay bất kỳ action OPERATOR/ARBITRATOR nào trong user-service (governance §5.2/§5.4).</li>
+<li><strong>Không tự đổi role (chốt 25/10/2026, #215):</strong> actor = target → <strong>403</strong>, kể cả gán lại đúng role hiện tại; mỗi lần đổi role ghi <code>actorId</code> (từ principal, không từ header thô) cùng role cũ/mới và thời điểm. Chặn một ADMIN tự chuyển sang ARBITRATOR/OPERATOR rồi hành động trên chính hệ thống mình quản trị.</li>
+<li><strong>Known limitation:</strong> endpoint chỉ đổi role trong <code>user_db</code>, chưa đồng bộ realm role sang Keycloak (cần Keycloak admin client — follow-up). Tới lúc đó ADMIN gán realm role trên Keycloak bằng tay và realm export không seed account nào mang cả 2 role.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-4-3" class="section" id="sec-4-3"><h3 id="heading-sec-4-3"><span class="sec-num">§4.3</span> Internal API — tuyệt đối không route qua Gateway <a aria-label="Sao chép liên kết tới §4.3" class="anchor" href="#sec-4-3">#</a></h3>
+<p><code>GET /internal/v1/users/{userId}</code> trả <code>InternalUserInfoResponse</code>:</p>
+<figure class="code" data-lang="json"><pre><code>{
+  "userId": "...",
+  "organizationName": "...",
+  "email": "...",
+  "role": "BUYER",
+  "verificationStatus": "VERIFIED",
+  "authorizationExpiresAt": "2027-06-30T16:59:59.999Z",
+  "lockedUntil": null
+}
+</code></pre></figure>
+<p>Chỉ service identity (mTLS/service token; Phase 2 có thể dùng <code>SERVICE_INTERNAL_SECRET</code>) được gọi. Không tái dùng <code>UserInfoResponse</code> public cho Feign vì đó là nguyên nhân KI-3.</p>
+</section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> Events <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
+<div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
+<thead>
+<tr>
+<th scope="col">Event</th>
+<th scope="col">Publisher</th>
+<th scope="col">Consumer</th>
+<th scope="col">Payload tối thiểu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="identifier"><code>notification.user_kyc_result_requested</code></td>
+<td>user-service</td>
+<td>notification-service</td>
+<td class="identifier"><code>{eventId, userId, recipientEmail, organizationName, result: VERIFIED|REJECTED, reason?, decidedAt}</code></td>
+</tr>
+<tr>
+<td class="identifier"><code>reputation.locked</code></td>
+<td>reputation-service</td>
+<td>user-service</td>
+<td><code>{eventId, userId, lockedUntil, reasonCode, lockRevision, occurredAt}</code>; không mang email</td>
+</tr>
+<tr>
+<td class="identifier"><code>reputation.unlocked</code></td>
+<td>reputation-service</td>
+<td>user-service</td>
+<td><code>{eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}</code>; mang effective lock còn lại do reputation tính lại (đóng edge case nhiều lock chồng nhau); không mang email</td>
+</tr>
+<tr>
+<td class="identifier"><code>notification.user_lock_changed_requested</code></td>
+<td>user-service</td>
+<td>notification-service</td>
+<td class="identifier"><code>{eventId, sourceEventId, userId, recipientEmail, action: LOCKED|UNLOCKED, effectiveUntil?, reasonCode}</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Email trong event là routing data nội bộ RabbitMQ, không được expose qua API/log plaintext ngoài nhu cầu vận hành.</p>
+</section><section aria-labelledby="heading-sec-6" class="section" id="sec-6"><h2 id="heading-sec-6"><span class="sec-num">§6</span> Database Migration <a aria-label="Sao chép liên kết tới §6" class="anchor" href="#sec-6">#</a></h2>
+<p>Migration additive trên <code>user_db</code>:</p>
+<figure class="code" data-lang="sql"><pre><code>ALTER TABLE user_profiles
+  MODIFY role ENUM('SELLER','BUYER','ADMIN','INSPECTOR','OPERATOR','ARBITRATOR') NOT NULL,  -- OPERATOR 18/07, ARBITRATOR 12/10/2026 (SRS v1.6)
+  ADD COLUMN authorization_expires_at DATETIME(6) NULL,
+  ADD COLUMN locked_until DATETIME(6) NULL,
+  ADD COLUMN verified_by_actor_id VARCHAR(255) NULL,  -- SỬA 18/07/2026: đổi tên từ verified_by_admin_id —
+                                                      -- OPERATOR cũng duyệt KYC (governance §5), tên cũ nói dối
+  ADD COLUMN last_lock_revision BIGINT NOT NULL DEFAULT 0,  -- ordering lock events, §2.2 (18/07/2026)
+  ADD COLUMN verified_at DATETIME(6) NULL,
+  ADD COLUMN rejection_reason TEXT NULL;
+
+CREATE TABLE user_event_idempotency (
+  event_id VARCHAR(255) PRIMARY KEY,
+  processed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+</code></pre></figure>
+<p>Không thêm credential, password hoặc Keycloak token vào <code>user_db</code>.</p>
+</section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Security &amp; Failure Modes <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
+<ul>
+<li>Downstream chỉ tin identity headers khi có gateway/internal secret hợp lệ; client không được tự tiêm header.</li>
+<li><code>/users/{userId}</code> không trả contact info. Chính chủ dùng <code>/me</code>; service dùng <code>/internal</code>.</li>
+<li><code>sign()</code> fail-closed nếu user-service unavailable hoặc response không xác định được verification/lock state.</li>
+<li>Event lock/unlock xử lý idempotent; ordering theo <code>lockRevision</code> <strong>persist trong <code>last_lock_revision</code></strong> (<code>occurredAt</code> 17/07 chưa đủ: không persist thì restart xong không còn gì để so, và timestamp dính clock skew). Unlock không clear mù — set theo <code>effectiveLockedUntil</code> (§2.2).</li>
+<li>Operator không được tự đặt <code>authorizationExpiresAt</code> theo hằng số platform; phải đọc từ giấy thật, <code>NULL</code> chỉ cho vô thời hạn. "Vô thời hạn" phải là lựa chọn chủ động (gửi <code>null</code>), không bao giờ là default khi thiếu field.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-8" class="section" id="sec-8"><h2 id="heading-sec-8"><span class="sec-num">§8</span> Known Limitations / Out of Scope <a aria-label="Sao chép liên kết tới §8" class="anchor" href="#sec-8">#</a></h2>
+<ul class="limitations">
+<li>Checklist giấy tờ chi tiết theo từng loại hình pháp nhân cần legal review khi làm form thật.</li>
+<li>Tự động đối soát giấy phép/đăng ký doanh nghiệp với cơ sở dữ liệu Nhà nước ngoài scope; Operator duyệt thủ công.</li>
+<li><code>lockedUntil</code> là eventually consistent projection; cửa sổ trễ event nhỏ vẫn tồn tại. Hành động rủi ro cao <code>sign()</code> có sync check/fail-closed để thu hẹp.</li>
+<li>mTLS là hướng production; scope đồ án có thể dùng internal secret trong network cô lập.</li>
+</ul>
+</section><section aria-labelledby="heading-sec-9" class="section" id="sec-9"><h2 id="heading-sec-9"><span class="sec-num">§9</span> Status — User-service Design <a aria-label="Sao chép liên kết tới §9" class="anchor" href="#sec-9">#</a></h2>
+<div class="callout callout--decision"><span class="callout__label">CHỐT</span><p><strong>Chốt:</strong> user-service sở hữu profile/KYC/authorization và cache lock; Keycloak sở hữu credential; contract-service sở hữu Signature. Public/internal DTO tách hẳn để đóng KI-3. Enforcement ở use-case, không ở Gateway; <code>sign()</code> fail-closed. Events KYC và lock đủ dữ liệu cho notification nhưng không làm notification gọi sync ngược. <strong>Cập nhật 17/07/2026:</strong> <code>reputation.unlocked</code> mang <code>effectiveLockedUntil</code> do reputation-service tính lại từ các <code>lock_entry</code> còn hiệu lực — đóng edge case user có nhiều lock chồng nhau bị mở khoá nhầm khi unlock sớm 1 lock; cả 2 event lock/unlock thêm <code>occurredAt</code> cho ordering (§2.2, §5, §7).</p></div>
+</section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">25/10/2026</span><p>Cấm actor tự đổi role (kể cả no-op) và ghi <code>actorId</code> từ principal, role cũ/mới, thời điểm để chặn ADMIN tự chuyển sang OPERATOR/ARBITRATOR (#215).</p>
+</li><li><span class="changelog__date">19/10/2026</span><p>Tách queue/decision DTO khỏi contact và đưa đọc chi tiết qua <code>kyc_read_audit</code> để Restricted data luôn có vết trước khi trả (#155).</p>
+</li><li><span class="changelog__date">13/10/2026</span><p>Thêm <code>assignUserRole</code> và chặn chuyển thẳng OPERATOR ↔ ARBITRATOR để người vừa propose không tự đổi role rồi approve (#161).</p>
+</li><li><span class="changelog__date">12/10/2026</span><p>Thêm ARBITRATOR theo SRS v1.6, bỏ ADMIN fallback KYC và bắt buộc key <code>authorizationExpiresAt</code> (không coi <code>{}</code> là vô thời hạn) để tách quyền và tránh cấp authorization vĩnh viễn do thiếu field (#151).</p>
+</li><li><span class="changelog__date">18/07/2026</span><p>Thêm OPERATOR, đổi <code>verifiedByAdminId</code> thành <code>verifiedByActorId</code>, thay ordering <code>occurredAt</code> bằng <code>lockRevision</code> persist và đổi create listing/offer từ fail-open sang fail-closed vì timestamp không bền qua restart/clock skew và dependency lỗi không chứng minh eligibility.</p>
+</li><li><span class="changelog__date">17/07/2026</span><p><code>reputation.unlocked</code> mang <code>effectiveLockedUntil</code> do reputation tính từ các lock còn hiệu lực để unlock một lock không xoá nhầm mọi lock; bản này từng dùng <code>occurredAt</code> cho ordering, được thay bằng revision ngày 18/07/2026.</p>
+</li><li><span class="changelog__date">16/07/2026</span><p>Chốt owner profile/KYC, lock projection và public/internal DTO để đóng KI-3 mà không chuyển quyền sở hữu credential/Signature về user-service.</p>
+</li></ol></details><aside aria-labelledby="editor-notes-title" class="editor-notes" id="editor-notes"><h2 id="editor-notes-title">Ghi chú cho người biên tập</h2><ul><li><strong>Payload unlock chưa đồng bộ tại hai mục.</strong> §2.2 ghi envelope <code>reputation.unlocked</code> không có <code>lockRevision</code>, nhưng cùng mục và bảng §5 yêu cầu ordering theo field này; giữ nguyên hai mô tả.</li><li><strong>Status nguồn còn lịch sử ordering.</strong> §9 nói <code>occurredAt</code> cho ordering ngày 17/07/2026, trong khi §2.2/§7 đã chốt <code>lockRevision</code> persist ngày 18/07/2026; đoạn cũ được đưa vào Changelog.</li><li><strong>DDL chưa bao phủ mọi bảng được mô tả.</strong> §4.2 mô tả <code>kyc_read_audit</code> nhưng migration §6 chưa tạo bảng này; không bổ sung SQL ngoài nguồn.</li></ul></aside><footer class="doc-footer"><a href="../user-service-phase2-design.md">user-service-phase2-design.md</a> · Nguồn quyết định</footer></main><aside aria-label="Thông tin tài liệu" class="meta-rail"><div class="meta-rail__group"><p class="rail-label">Trạng thái nguồn</p><span class="status status--designed">DESIGNED — chưa code</span><p class="caption">Cập nhật Git<br/><time datetime="2026-10-25">25/10/2026</time></p><a href="../user-service-phase2-design.md">Markdown · 180 dòng</a></div><div class="meta-rail__group"><p class="rail-label">Tra cứu liên quan</p><a class="xref" href="signature-phase2-design.html" title="signature-phase2-design.md">signature</a><a class="xref" href="reputation-service-phase2-design.html" title="reputation-service-phase2-design.md">reputation-service</a><a class="xref" href="file-service-phase2-design.html" title="file-service-phase2-design.md">file-service</a></div><div class="meta-rail__group"><div class="details-controls"><button data-details="open" type="button">Mở tất cả</button><button data-details="close" type="button">Đóng tất cả</button></div></div><div class="meta-rail__group"><a href="#changelog">Lịch sử quyết định</a><a href="#editor-notes">Ghi chú biên tập</a></div></aside></div>
+<div aria-live="polite" class="toast" hidden="" role="status"></div>
+</body></html>
+
