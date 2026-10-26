@@ -56,6 +56,20 @@ class EventEnvelopeCodecTest {
     }
 
     @Test
+    void toJson_nullPayloadValues_stayOnTheWire() throws Exception {
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("remedyLegId", null);
+        EventEnvelope envelope = new EventEnvelope(UUID.fromString(EVENT_ID), "bank.lock_completed", 1,
+                Instant.parse("2026-10-23T03:00:00Z"), "bank-service", "contract-1", null, null, null, payload);
+
+        JsonNode json = plain.readTree(codec.toJson(envelope));
+
+        assertThat(json.get("payload").has("remedyLegId")).isTrue();
+        assertThat(json.get("payload").get("remedyLegId").isNull()).isTrue();
+        assertThat(json.has("correlationId")).isFalse();
+    }
+
+    @Test
     void toJson_emitsOnlySchemaFieldNames() throws Exception {
         JsonNode json = plain.readTree(codec.toJson(envelope(new EventSubject(SubjectType.CONTRACT, "contract-1"), "corr-1")));
 

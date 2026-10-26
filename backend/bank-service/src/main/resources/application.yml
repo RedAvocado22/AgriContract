@@ -12,6 +12,22 @@ spring:
     user: ${BANK_MIGRATION_USERNAME}
     password: ${BANK_MIGRATION_PASSWORD}
     clean-disabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    # Required by the outbox poller: it must know a result was routed and confirmed before marking it published.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+agricontract:
+  eventing:
+    outbox:
+      enabled: true
+      exchange: agricontract.bank
+bank:
+  dlq-monitor:
+    interval-ms: 300000
 server:
   port: ${SERVER_PORT:8086}
 management:

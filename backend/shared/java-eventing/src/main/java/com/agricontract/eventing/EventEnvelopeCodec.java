@@ -25,7 +25,10 @@ public class EventEnvelopeCodec {
         this.mapper = JsonMapper.builder()
                 .addModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-                .serializationInclusion(JsonInclude.Include.NON_NULL)
+                // Optional envelope fields (correlationId, causationId, subject) are left out when null, but a null
+                // inside the payload stays: contracts list nullable payload fields (remedyLegId...) as required.
+                .defaultPropertyInclusion(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL,
+                        JsonInclude.Include.ALWAYS))
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)

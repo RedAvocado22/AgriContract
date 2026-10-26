@@ -3,6 +3,7 @@ package com.agricontract.bank.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.agricontract.bank.domain.exception.DuplicateLedgerEntryException;
 import com.agricontract.bank.domain.exception.InvalidLedgerEntryException;
 import com.agricontract.bank.domain.model.EntryType;
 import com.agricontract.bank.domain.model.FundType;
@@ -67,6 +68,23 @@ class LedgerSchemaMySqlTest {
                 .isEqualByComparingTo("2500000.00");
         assertThat(runtime.queryForObject("SELECT created_at FROM ledger_entry WHERE entry_id = ?",
                 Timestamp.class, entryId).toInstant()).isEqualTo(createdAt);
+    }
+
+    /** The race path in the use case depends on this translation, which reads MySQL's constraint name. */
+    @Test
+    void repositoryTurnsARepeatedSourceEventIntoDuplicateLedgerEntry() {
+        JdbcLedgerEntryRepository repository = new JdbcLedgerEntryRepository(runtime);
+        LedgerEntry first = LedgerEntry.create(UUID.randomUUID().toString(), UUID.randomUUID().toString(), null,
+                UUID.randomUUID().toString(), EntryType.LOCK_BUYER_DEPOSIT, FundType.BUYER_DEPOSIT, null, null,
+                new Money(new BigDecimal("40000000.00")), Instant.parse("2026-10-27T03:00:00Z"));
+        repository.append(first);
+        LedgerEntry again = LedgerEntry.create(first.getSourceEventId(), first.getContractId(), null,
+                first.getUserId(), first.getEntryType(), first.getFundType(), null, null, first.getAmount(),
+                Instant.parse("2026-10-27T03:00:01Z"));
+
+        assertThatThrownBy(() -> repository.append(again)).isInstanceOf(DuplicateLedgerEntryException.class);
+        assertThat(repository.findBySourceEventId(first.getSourceEventId()))
+                .hasValueSatisfying(found -> assertThat(found.getEntryId()).isEqualTo(first.getEntryId()));
     }
 
     @Test
