@@ -8,7 +8,6 @@ COPY user-service/pom.xml ./user-service/pom.xml
 COPY product-service/pom.xml ./product-service/pom.xml
 COPY contract-service/pom.xml ./contract-service/pom.xml
 COPY escrow-service/pom.xml ./escrow-service/pom.xml
-COPY notification-service/pom.xml ./notification-service/pom.xml
 COPY reputation-service/pom.xml ./reputation-service/pom.xml
 COPY inspection-service/pom.xml ./inspection-service/pom.xml
 COPY bank-service/pom.xml ./bank-service/pom.xml
