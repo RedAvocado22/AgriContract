@@ -3,3 +3,5 @@
 -- No global/schema grants or inherited roles may be attached to this account.
 -- The ledger is append-only: no UPDATE or DELETE, ever.
 GRANT SELECT, INSERT ON bank_db.ledger_entry TO 'bank_runtime'@'%';
+-- The outbox poller marks rows PUBLISHED and records failed attempts; nothing ever deletes them.
+GRANT SELECT, INSERT, UPDATE ON bank_db.event_outbox TO 'bank_runtime'@'%';
