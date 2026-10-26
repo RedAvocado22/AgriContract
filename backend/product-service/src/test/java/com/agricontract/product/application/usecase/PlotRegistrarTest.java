@@ -1,6 +1,7 @@
 package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.RegisteredPlot;
+import com.agricontract.product.common.exception.DuplicatePlotHouseholdException;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.PlotSource;
@@ -85,7 +86,8 @@ class PlotRegistrarTest {
         when(plotRegistryRepository.findBySellerIdAndHouseholdLabel("seller-1", "Hộ Lê Văn A"))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existing()));
-        when(plotRegistryRepository.create(any())).thenThrow(new DataIntegrityViolationException("uk"));
+        when(plotRegistryRepository.create(any()))
+                .thenThrow(new DuplicatePlotHouseholdException("Hộ Lê Văn A", new DataIntegrityViolationException("uk")));
         when(plotRegistryRepository.update(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RegisteredPlot result = registrar.register("seller-1", "Hộ Lê Văn A", PlotFixtures.point(),
@@ -96,5 +98,24 @@ class PlotRegistrarTest {
         verify(plotRegistryRepository).update(updated.capture());
         assertThat(updated.getValue().getRegistryEntryId().value()).isEqualTo("plot-1");
         assertThat(updated.getValue().getImportedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void otherIntegrityError_isNotTakenForARace() {
+        when(plotRegistryRepository.findBySellerIdAndHouseholdLabel("seller-1", "Ho A")).thenReturn(Optional.empty());
+        DataIntegrityViolationException dataTooLong = new DataIntegrityViolationException("Data too long");
+        when(plotRegistryRepository.create(any())).thenThrow(dataTooLong);
+
+        assertThatThrownBy(() -> registrar.register("seller-1", "Ho A", PlotFixtures.point(), PlotSource.KML_IMPORT,
+                null, Province.DAK_LAK)).isSameAs(dataTooLong);
+        verify(plotRegistryRepository, times(1)).findBySellerIdAndHouseholdLabel(any(), any());
+        verify(plotRegistryRepository, never()).update(any());
+    }
+
+    @Test
+    void labelOver255Characters_isRejectedBeforeTheDatabase() {
+        assertThatThrownBy(() -> registrar.register("seller-1", "a".repeat(256), PlotFixtures.point(),
+                PlotSource.KML_IMPORT, null, Province.DAK_LAK)).isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(plotRegistryRepository);
     }
 }

@@ -16,7 +16,7 @@ public interface PlotRegistryRepository {
 
     /**
      * Insert only — a concurrent insert of the same (sellerId, householdLabel) violates the unique key
-     * and surfaces as DataIntegrityViolationException.
+     * and surfaces as DuplicatePlotHouseholdException; any other integrity error is not translated.
      */
     PlotRegistryEntry create(PlotRegistryEntry entry);
 

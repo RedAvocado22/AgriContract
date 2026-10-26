@@ -31,6 +31,9 @@ public final class PlotGeometries {
 
     // EUDR: a plot over 4 ha must be described by a polygon. A polygon is accepted at any size (design §2.3).
     public static final BigDecimal POINT_MAX_HECTARES = new BigDecimal("4");
+    // One household plot is a few hectares; an area this large means wrong coordinates or a whole region drawn.
+    // Also keeps area_hectares well inside DECIMAL(10,4).
+    public static final BigDecimal POLYGON_MAX_HECTARES = new BigDecimal("10000");
 
     // Mainland Viet Nam with a small margin; coffee plots never lie offshore.
     private static final double MIN_LAT = 8.0;
@@ -74,6 +77,10 @@ public final class PlotGeometries {
         BigDecimal hectares = BigDecimal.valueOf(squareMeters / 10_000d).setScale(4, RoundingMode.HALF_UP);
         if (hectares.signum() <= 0) {
             throw new IllegalArgumentException("Polygon area rounds to 0 ha");
+        }
+        if (hectares.compareTo(POLYGON_MAX_HECTARES) > 0) {
+            throw new IllegalArgumentException("Polygon area " + hectares.toPlainString() + " ha is above "
+                    + POLYGON_MAX_HECTARES + " ha for one household plot; check the coordinates");
         }
         return of(GeometryType.POLYGON, polygon, hectares);
     }

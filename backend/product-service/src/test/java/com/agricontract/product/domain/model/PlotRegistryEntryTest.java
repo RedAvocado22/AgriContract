@@ -102,6 +102,20 @@ class PlotRegistryEntryTest {
     }
 
     @Test
+    void normalizeLabel_over255Characters_isRejected_countedAfterNfc() {
+        assertThat(PlotRegistryEntry.normalizeLabel("a".repeat(255))).hasSize(255);
+        assertThatThrownBy(() -> PlotRegistryEntry.normalizeLabel("a".repeat(256)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("255");
+        // 255 "ộ" are 765 chars in NFD but 255 characters as stored
+        String nfd = java.text.Normalizer.normalize("ộ".repeat(255), java.text.Normalizer.Form.NFD);
+        assertThat(nfd.length()).isGreaterThan(255);
+        assertThat(PlotRegistryEntry.normalizeLabel(nfd)).hasSize(255);
+        assertThatThrownBy(() -> PlotRegistryEntry.register(new RegistryEntryId("plot-1"), "seller-1",
+                "a".repeat(256), PlotFixtures.point(), PlotSource.KML_IMPORT, null, Province.DAK_LAK, T0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void ownership() {
         assertThat(checked().isOwnedBy("seller-1")).isTrue();
         assertThat(checked().isOwnedBy("seller-2")).isFalse();
