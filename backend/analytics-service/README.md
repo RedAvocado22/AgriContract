@@ -5,7 +5,7 @@ It only listens to canonical RabbitMQ events and never calls core services. This
 delivers **persistence and a working, idempotent ingestion path** (#118); #133 adds the first projections
 (signed contracts and milestone outcomes); #148 adds the contract-level settlement and termination facts.
 
-The service runs on NestJS 11 (CommonJS, Node >= 22.12, Jest; same setup as `notification-service-nest`) for HTTP, modules and lifecycle hooks. Domain and application code stay framework-free;
+The service runs on NestJS 11 (CommonJS, Node >= 22.12, Jest; same setup as `notification-service`) for HTTP, modules and lifecycle hooks. Domain and application code stay framework-free;
 Nest is used only in `infrastructure/` and `main.ts`. `/health` listens first and answers 503 until MySQL and
 RabbitMQ are up (`AnalyticsLifecycle` connects in the background). SIGTERM/SIGINT run the graceful shutdown.
 
@@ -156,7 +156,7 @@ npm test             # Jest
 
 `@agricontract/eventing` is ESM-only. At runtime the CommonJS app loads it through Node's `require(esm)` (Node >= 22.12). Jest
 cannot do that, so `package.json` maps `@agricontract/eventing` to the library's TypeScript source and strips `.js` from its
-relative imports, and `tsconfig.spec.json` compiles specs and that source to CommonJS (same setup as `notification-service-nest`).
+relative imports, and `tsconfig.spec.json` compiles specs and that source to CommonJS (same setup as `notification-service`).
 
 In-memory broker and database cover the wiring, validation, DLQ monitor and shutdown (including a handler that
 never finishes). `test/mysql.spec.ts` runs the real transaction, dedupe and landing table against MySQL when

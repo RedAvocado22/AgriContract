@@ -482,7 +482,7 @@ services:
     container_name: notification-migrate
     command: -url=jdbc:mysql://notification-db:3306/notification_db?allowPublicKeyRetrieval=true -user=${DB_USERNAME:-root} -password=${DB_PASSWORD:-password} -connectRetries=20 migrate
     volumes:
-      - ./notification-service-nest/db/migration:/flyway/sql:ro
+      - ./notification-service/db/migration:/flyway/sql:ro
     depends_on:
       notification-db:
         condition: service_healthy
@@ -493,7 +493,7 @@ services:
   notification-service:
     build:
       context: .
-      dockerfile: notification-service-nest/Dockerfile
+      dockerfile: notification-service/Dockerfile
     container_name: notification-service
     # Above the app's 40s shutdown drain (a send in progress may take the 30s SMTP timeout)
     stop_grace_period: 60s
