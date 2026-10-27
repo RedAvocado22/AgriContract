@@ -17,6 +17,12 @@ from inserting different reports for the same assignment. Duplicate insertion of
 is also rejected by the primary key; this is conflict handling, not a public Idempotency-Key
 replay protocol. An identity object is not an authorization token.
 
+There is no durable pre-persistence idempotency allocation: allocating again creates a new UUID.
+There is no database UNIQUE(l15_commission_id). The frozen design specifies the assignment
+binding and UNIQUE(report_id) for signatures, but does not explicitly require a database-level
+one-report-per-assignment constraint. Keep the current application locking/check behavior;
+direct inserts with different report IDs are not covered by that application guarantee.
+
 The repository has insert/read operations only, with no save/merge/update/delete path. Identity
 fields are private and final, report snapshots are immutable records, and retrying an INSERT
 cannot replace existing identity, ownership or evidence. This is application/persistence-boundary
@@ -66,21 +72,42 @@ The persistence adapter accepts already verified material from trusted in-proces
 not a validator for user-supplied hashes or normalized results. There is no production submission
 caller in this change. Tests use explicitly synthetic storage fixtures, not real signatures.
 
-A future complete confirmation caller must:
+Issue #143 owns the complete confirmation caller and publication. That future caller must:
 
 1. Obtain authoritative file evidence and validate typed COFFEE results, hashes and trusted
    session freshness. No client-supplied authentication timestamp is trusted here.
 2. Acquire #160's milestone lifecycle lock BEFORE this adapter's assignment row lock, to retain
    consistent lock ordering with timeout/reassignment.
 3. Persist this report, the inspector signature, #160's assignment closure (including its
-   deadline checks) and the confirmed-event outbox entry in one caller transaction.
+   deadline checks) and the confirmed-event outbox entry in one caller transaction, using
+   shared OutboxWriter rather than a private outbox implementation.
 4. Return the frozen signed-submission success only after all requirements are satisfied.
 
-Dependencies remain: #160 assignment lifecycle/closeConfirmed; #208 its external pool contract;
-#107 live actor eligibility; #130 deterministic commitments; trusted gateway auth_time/session
-freshness; approved file/state lookup integration. No code from those issues is copied, no
-second service is changed, and no fake hash/signature/timestamp is generated. This subset does
-not validate the current remote milestone state or publish inspection.report_confirmed.
+Dependency status refreshed on 2026-10-27 against main
+`2a1febcf9c32b67149dae5e23e2d7a6bcebc15b4`:
+
+- #107 is closed and its internal user endpoint exists on main. Live provider compatibility
+  is not established by this branch's mocked eligibility tests. The frozen serviceAuth header
+  versus runtime X-Internal-Secret discrepancy remains an owner integration decision.
+- #208's eligible-inspector contract has merged and is no longer a blocker.
+- #160 assignment lifecycle/closeConfirmed (PR #209) and #130 deterministic commitments
+  (PR #227) remain separate, unmerged integration dependencies.
+- #143 owns confirmation, signature/session-freshness orchestration and publishing
+  inspection.report_confirmed; #146 owns trusted READY/owned file evidence.
+- Trusted gateway auth_time/session freshness and approved file/state integration remain
+  prerequisites for a real signed submission, not capabilities implemented by #129.
+
+No code from these issues is copied, no second service is changed, and no fake hash/signature/
+timestamp is generated. This subset does not validate current remote milestone state or publish
+events. It duplicates no shared eventing implementation and has no MVC adapter requiring
+java-web-error; domain/application exceptions remain HTTP-agnostic.
+
+The frozen inspection.report_confirmed payload requires reportId, contractId, milestoneId,
+tier, normalizedResult, resultHash, reportFileHash, reportHash and confirmedAt. Optional
+attribution fields are inspectorId and confirmedByOperatorId.
+Optional UUID fields may be omitted but cannot be explicit null; additional properties are
+forbidden. Level 1.5 attribution must carry the inspector identity per the design. Publication
+belongs to #143. This clarification changes no contract and adds no publisher.
 
 ## Acceptance criteria
 
@@ -92,13 +119,18 @@ not validate the current remote milestone state or publish inspection.report_con
 
 ## Verification
 
-Verified on 2026-10-26 against main at `763ef5e80f9a321a4ff048f7cb6b68d5b32e24ca`:
-clean Maven verification passed **111 tests, 0 failures, 0 errors, 0 skipped**
-(91 existing cases and 20 new cases). Contract validation passed all 5 files;
+Reverified on 2026-10-27 after rebase onto main at `2a1febcf9c32b67149dae5e23e2d7a6bcebc15b4`:
+focused #129 tests passed **20 cases**; full Maven verification passed **111 tests,
+0 failures, 0 errors, 0 skipped** (91 existing cases and 20 #129 cases). Stale build
+outputs were cleaned before testing. The first focused attempt could not start MySQL because
+Docker was stopped; after starting Docker, the focused and full suites both passed without
+skipping tests. Contract validation passed all 5 files;
 all 11 validator tests passed. `git diff --check` passed. Commands:
 
 ```text
-mvn -B -pl inspection-service -am clean verify --no-transfer-progress -Dapi.version=1.44
+mvn -B -pl inspection-service -am clean test -Dtest=Level15ReportPersistenceTest,ReportIdentityTest -Dsurefire.failIfNoSpecifiedTests=false --no-transfer-progress -Dapi.version=1.44
+mvn -B -pl inspection-service -am test -Dtest=Level15ReportPersistenceTest,ReportIdentityTest -Dsurefire.failIfNoSpecifiedTests=false --no-transfer-progress -Dapi.version=1.44
+mvn -B -pl inspection-service -am verify --no-transfer-progress -Dapi.version=1.44
 python scripts/validate-contracts.py
 python -m pytest scripts/test_validate_contracts.py -q
 git diff --check
@@ -112,7 +144,8 @@ commitments. Existing scaffold tests retain the no-cross-service-FK invariant wh
 the new same-database report-to-assignment FK. Live user/file/hash/signature integrations and an
 actual process restart were not exercised; durable storage is verified via database reload.
 
-This branch starts directly from main and contains no #160/#208/#130 implementation commits.
+This branch is rebased directly onto main and contains no #160/#130 implementation commits;
+the already-merged #208 contract is inherited from main, not duplicated in the PR diff.
 The Draft PR is a reviewable persistence subset, not a claim that all #129 criteria are complete.
 
 ## Changed files (all in inspection-service)
