@@ -13,6 +13,6 @@ public class UserPortAdapter implements UserPort {
 
     @Override
     public UserInfo getUser(String userId) {
-        return userServiceClient.getUser(userId).getData();
+        return userServiceClient.getUser(userId);
     }
 }
