@@ -49,20 +49,8 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
         // Service-to-service calls carry no end-user identity, so they never get role-based authorities.
         String internalSecret = request.getHeader("X-Internal-Secret");
-        String applicationPath = request.getRequestURI().substring(request.getContextPath().length());
-        if (applicationPath.startsWith("/internal/")) {
-            // Internal routes require the existing service credential, never gateway/end-user identity.
-            if (serviceInternalSecret == null || serviceInternalSecret.isBlank()
-                    || internalSecret == null || hasMultipleValues(request, "X-Internal-Secret")
-                    || !MessageDigest.isEqual(serviceInternalSecret.getBytes(StandardCharsets.UTF_8),
-                            internalSecret.getBytes(StandardCharsets.UTF_8))) {
-                writeForbidden(response);
-                return;
-            }
-            filterChain.doFilter(request, response);
-            return;
-        }
-        if (internalSecret != null && MessageDigest.isEqual(
+        if (serviceInternalSecret != null && !serviceInternalSecret.isBlank()
+                && internalSecret != null && !hasMultipleValues(request, "X-Internal-Secret") && MessageDigest.isEqual(
                 serviceInternalSecret.getBytes(StandardCharsets.UTF_8), internalSecret.getBytes(StandardCharsets.UTF_8))) {
             filterChain.doFilter(request, response);
             return;

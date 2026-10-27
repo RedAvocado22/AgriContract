@@ -1,5 +1,33 @@
 # Issue #160 — automatic Level 1.5 assignment lifecycle
 
+## Rebase verification — 2026-10-27
+
+Rebased implementation onto main `2a1febcf9c32b67149dae5e23e2d7a6bcebc15b4`,
+excluding the old prerequisite commit `8bbc81e`. Main now contains the owner-delivered
+pool contract (`9e1e2a3`); there is no contracts/** diff in this PR.
+The only textual conflict was EventEnvelopeCodec: main's nullable map-value handling
+was retained and the redundant branch mixin removed. Main's internal API authentication
+returns 401 and recognizes context-relative paths; the pool tests now follow that behavior,
+while retaining blank/repeated service credential rejection. No assignment behavior changed.
+
+After cleaning affected build outputs, this exact command passed from backend/:
+
+```text
+mvn -B -pl inspection-service,user-service -am verify --no-transfer-progress -Dapi.version=1.44
+```
+
+User-service: 124 tests; inspection-service: 126; shared java-eventing: 119.
+Total: **369 passed, 0 failures, 0 errors, 0 skipped**. MySQL/RabbitMQ integrations ran.
+The earlier rebase onto 1ce745a passed 377 tests. Main then moved eight error-handler tests
+out of java-eventing into java-web-error, outside this affected reactor. The second rebase
+had no conflicts and reran the full verification; no tests were removed or skipped by #160.
+PR #280 is confirmed merged at 9e1e2a3; it supplies the prerequisite contract and design §4.3.
+`python scripts/validate-contracts.py` validated all 5 files;
+`python -m pytest scripts/test_validate_contracts.py -q` passed all 11 tests.
+`git diff --check` passed. Earlier verification below is retained as historical evidence.
+The contract/runtime header discrepancy below and existing notification/report-confirmation
+gaps remain explicit; this rebase does not claim to complete those integrations.
+
 ## A. Architecture and user-service dependency
 
 User-service now exposes private `GET /internal/v1/users/inspectors/eligible`.
@@ -11,8 +39,12 @@ The application supplies `now` using its existing UTC Clock. No buyer/seller rep
 The existing `X-Internal-Secret` service credential is required. Gateway credentials,
 end-user identities/JWTs, missing/wrong/repeated service headers cannot authorize this route.
 API Gateway already rejects `/internal/**`; no gateway route was added.
-The additive OpenAPI path uses `internalServiceAuth` to accurately describe existing executable
-security; the legacy `serviceAuth` scheme and other endpoint contracts are unchanged.
+The prerequisite OpenAPI path is now merged into main (9e1e2a3), outside this PR.
+The merged contract references `serviceAuth` (currently documented as X-Gateway-Secret),
+while main's executable internal-user security and this client require X-Internal-Secret.
+This existing contract/runtime header discrepancy requires contract-owner review; this rebase
+does not change frozen contracts or weaken service-only authentication. Invalid internal
+credentials return 401 using main's current implementation and the endpoint's frozen response.
 
 `InspectorEligibilityPort.load(userId)` is preserved. Its new pool method calls only the
 private pool route and rejects malformed/duplicate identities or dependency failures rather
@@ -39,7 +71,7 @@ the pool or drawing randomness.
 
 The consumer fixtures use the real shared codec. The RabbitMQ integration test reads the
 serialized envelope written by shared OutboxWriter before delivering it to the broker.
-See frozen-contract verification below for the localized serializer correction.
+The nullable-payload correction is now supplied by main; the #160 regression test remains.
 
 A stable local lock row serializes request, timeout and confirmation mutations for each
 contract+milestone, including the initially absent-assignment case. Current locking reads
@@ -104,7 +136,7 @@ invent a new cross-command exclusion rule.
 contracts/events/golden-flow-events.yaml lists initiatedByActorId in required and defines it
 as nullableUuid. It is **required but nullable**: explicit null is valid; omission is invalid.
 The schema is unchanged. A regression test reproduced shared EventEnvelopeCodec omitting this
-null map entry. A private mixin now preserves payload null entries in the codec's own mapper;
+null map entry. Main now preserves payload null entries through defaultPropertyInclusion;
 optional envelope metadata remains omitted. No application-wide Jackson setting was changed.
 EventEnvelopeCodecTest.level15RequestPreservesRequiredNullableActorWithoutInventingMissingFields
 proves explicit null survives serialization and omission stays distinguishable. The real
@@ -116,7 +148,8 @@ Two other demonstrated defects were corrected without redesign:
 
 - HeaderAuthenticationFilter used the full URI to recognize internal routes. With a servlet
   context path, gateway identity could bypass the service-only check (regression returned 200
-  instead of 403). It now matches the application-relative path; valid service access still works.
+  instead of denial). Main now matches the application-relative path and returns 401;
+  valid service access still works. The rebase retains #160's repeated/blank credential guards.
 - AssignmentConfiguration accepted comma-only holiday input as an empty calendar. It now rejects
   an empty parsed set, with tests for missing, blank, invalid and delimiter-only configuration.
 
@@ -148,7 +181,7 @@ not force the optimizer to choose the newly added index or claim that index is i
 | Additive migrations and safe legacy handling | PASS | V1 unchanged; legacyRowsAreIgnoredAndQueriesUseSupportingIndexes verifies deadline-NULL rows ignored and EXPLAIN index selection on MySQL |
 | Report CONFIRMED closes assignment | DEFERRED TO #129 | closeConfirmed MANDATORY boundary tested with caller rollback; no real report confirmation caller yet |
 | OPERATOR attention | PARTIAL | structuredOperationalAlertIsEmittedOnlyAfterCommit; no suitable existing human-facing notification contract, so log routing/delivery remains unavailable |
-| Narrow scope | PASS | Full diff review: assignment lifecycle, minimum pool dependency/contract and localized shared codec fix; no #129/#130/Level 2 implementation |
+| Narrow scope | PASS | Assignment lifecycle, minimum pool implementation and shared-codec regression test; contract and codec production fix already in main; no #129/#130/Level 2 implementation |
 
 ## E. Remaining gaps: operational alert and report boundary
 
@@ -197,8 +230,8 @@ git diff --check
 
 Contract validation passed for all five files; all 11 validator tests passed; diff whitespace check passed.
 The Maven executable and Python dependencies were resolved from installed local runtimes because
-Maven/Python were not on PATH. No CI configuration was changed. The only shared production
-change is the codec payload inclusion fix described above. The red regression runs first
+Maven/Python were not on PATH. No CI configuration was changed. The original shared production
+codec fix has since been superseded by main during rebase; only its regression test remains. The red regression runs first
 demonstrated all three defects; final verification uses the corrected code.
 The first full review reactor also exposed an overly specific new EXPLAIN assertion: MySQL
 selected the existing matching unique index for history instead of the new history index.
@@ -254,11 +287,10 @@ also requires holiday configuration and an explicit decision for any legacy acti
 - `backend/inspection-service/src/test/java/com/agricontract/inspection/infrastructure/config/AssignmentConfigurationTest.java`
 - `backend/inspection-service/src/test/java/com/agricontract/inspection/infrastructure/messaging/Level15RequestedConsumerTest.java`
 
-### Executable contract (separate prerequisite delivery)
+### Executable contract (already in main; not in this PR diff)
 
-- `contracts/openapi/golden-flow-api.yaml`
+The eligible pool endpoint is present in `contracts/openapi/golden-flow-api.yaml` on main.
 
 ### Shared serialization hardening
 
-- `backend/shared/java-eventing/src/main/java/com/agricontract/eventing/EventEnvelopeCodec.java`
 - `backend/shared/java-eventing/src/test/java/com/agricontract/eventing/EventEnvelopeCodecTest.java`
