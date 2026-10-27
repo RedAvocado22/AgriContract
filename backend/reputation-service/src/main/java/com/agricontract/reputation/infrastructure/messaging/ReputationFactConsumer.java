@@ -4,13 +4,11 @@ import com.agricontract.reputation.application.exception.ImmutableFactConflictEx
 import com.agricontract.reputation.application.usecase.AppendReputationFact;
 import com.agricontract.reputation.application.dto.AppendCompletedContractCommand;
 import com.agricontract.reputation.application.dto.AppendDisputeOutcomeCommand;
-import java.io.IOException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.agricontract.eventing.EventEnvelope;
+import com.agricontract.eventing.EventEnvelopeCodec;
+import com.agricontract.eventing.InvalidEnvelopeException;
 import java.time.Instant;
-import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
@@ -20,13 +18,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ReputationFactConsumer {
-    private static final Set<String> ENVELOPE = Set.of("eventId", "eventType", "eventVersion", "occurredAt",
-            "producer", "aggregateId", "payload", "correlationId", "causationId", "subject");
-    private final ObjectReader json;
+    private final EventEnvelopeCodec codec;
     private final AppendReputationFact append;
-    public ReputationFactConsumer(ObjectMapper json, AppendReputationFact append) {
-        this.json = json.reader().with(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY)
-                .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    public ReputationFactConsumer(EventEnvelopeCodec codec, AppendReputationFact append) {
+        this.codec = codec;
         this.append = append;
     }
     @RabbitListener(queues = "reputation-svc.contract.settled")
@@ -35,28 +30,16 @@ public class ReputationFactConsumer {
     @RabbitListener(queues = "reputation-svc.milestone.dispute_resolved")
     public void dispute(Message message) { accept(message, "milestone.dispute_resolved"); }
 
-    // These are two service-owned adapters, not a replacement for #89's shared event infrastructure.
     private void accept(Message message, String expectedType) {
         try {
-            JsonNode event = json.readTree(message.getBody());
-            fields(event, ENVELOPE);
-            if (!expectedType.equals(text(event, "eventType")) || !"contract-service".equals(text(event, "producer")))
+            EventEnvelope envelope = codec.parse(message.getBody());
+            if (!expectedType.equals(envelope.eventType()) || !"contract-service".equals(envelope.producer()))
                 throw new IllegalArgumentException("Unexpected fact event");
-            if (!event.path("eventVersion").isIntegralNumber() || !event.path("eventVersion").canConvertToInt()
-                    || event.path("eventVersion").intValue() != 1)
+            if (envelope.eventVersion() != 1)
                 throw new IllegalArgumentException("Unsupported event version");
-            text(event, "aggregateId");
-            optionalText(event, "correlationId"); optionalText(event, "causationId");
-            if (event.has("subject")) {
-                JsonNode subject = event.get("subject");
-                fields(subject, Set.of("type", "id"));
-                if (!Set.of("CONTRACT", "USER_PAIR", "SYSTEM").contains(text(subject, "type")))
-                    throw new IllegalArgumentException("Invalid subject");
-                text(subject, "id");
-            }
-            UUID source = id(event, "eventId");
-            Instant occurred = OffsetDateTime.parse(text(event, "occurredAt")).toInstant();
-            JsonNode payload = event.path("payload");
+            UUID source = envelope.eventId();
+            Instant occurred = envelope.occurredAt();
+            Map<String, Object> payload = envelope.payload();
             if (expectedType.equals("contract.settled")) {
                 fields(payload, Set.of("contractId", "buyerId", "sellerId"));
                 append.execute(new AppendCompletedContractCommand(id(payload, "contractId"), id(payload, "buyerId"),
@@ -68,27 +51,23 @@ public class ReputationFactConsumer {
                         id(payload, "flaggedByUserId"), text(payload, "resolutionFavors"),
                         occurred, source));
             }
-        } catch (IOException | IllegalArgumentException | java.time.DateTimeException | ImmutableFactConflictException e) {
+        } catch (InvalidEnvelopeException | IllegalArgumentException | java.time.DateTimeException | ImmutableFactConflictException e) {
             // Do not include raw payload/PII or credentials in exception messages or logs.
             throw new AmqpRejectAndDontRequeueException("Invalid or conflicting reputation fact");
         }
     }
-    private static void fields(JsonNode node, Set<String> allowed) {
-        if (node == null || !node.isObject()) throw new IllegalArgumentException("Expected object");
-        node.fieldNames().forEachRemaining(name -> {
+    private static void fields(Map<String, Object> payload, Set<String> allowed) {
+        payload.keySet().forEach(name -> {
             if (!allowed.contains(name)) throw new IllegalArgumentException("Unexpected field");
         });
     }
-    private static String text(JsonNode node, String name) {
-        JsonNode value = node.path(name);
-        if (!value.isTextual() || value.textValue().isBlank()) throw new IllegalArgumentException("Missing field");
-        return value.textValue();
+    private static String text(Map<String, Object> payload, String name) {
+        if (!(payload.get(name) instanceof String value) || value.isBlank())
+            throw new IllegalArgumentException("Missing field");
+        return value;
     }
-    private static void optionalText(JsonNode node, String name) {
-        if (node.hasNonNull(name)) text(node, name);
-    }
-    private static UUID id(JsonNode node, String name) {
-        String value = text(node, name);
+    private static UUID id(Map<String, Object> payload, String name) {
+        String value = text(payload, name);
         UUID id = UUID.fromString(value);
         if (!id.toString().equalsIgnoreCase(value)) throw new IllegalArgumentException("Invalid UUID");
         return id;
