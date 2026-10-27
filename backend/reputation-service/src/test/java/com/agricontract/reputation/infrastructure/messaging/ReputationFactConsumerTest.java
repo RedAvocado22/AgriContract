@@ -1,4 +1,5 @@
 package com.agricontract.reputation.infrastructure.messaging;
+import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.reputation.application.exception.ImmutableFactConflictException;
 import com.agricontract.reputation.application.usecase.AppendReputationFact;
 import com.agricontract.reputation.application.dto.*;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -22,7 +24,7 @@ public class ReputationFactConsumerTest {
     static final ObjectMapper JSON = new ObjectMapper();
     AppendReputationFact append;
     ReputationFactConsumer consumer;
-    @BeforeEach void setup() { append = mock(AppendReputationFact.class); consumer = new ReputationFactConsumer(JSON, append); }
+    @BeforeEach void setup() { append = mock(AppendReputationFact.class); consumer = new ReputationFactConsumer(new EventEnvelopeCodec(), append); }
     public static ObjectNode event(String type) {
         ObjectNode root = JSON.createObjectNode();
         root.put("eventId", UUID.randomUUID().toString()).put("eventType", type).put("eventVersion", 1)
@@ -73,6 +75,25 @@ public class ReputationFactConsumerTest {
     void malformedOrUnapprovedInputDoesNotWrite(Consumer<ObjectNode> mutate) {
         ObjectNode event=event("contract.settled"); mutate.accept(event);
         assertThatThrownBy(() -> consumer.completed(message(event))).isInstanceOf(AmqpRejectAndDontRequeueException.class);
+        verifyNoInteractions(append);
+    }
+    @ParameterizedTest
+    @ValueSource(strings = {"contract.settled", "milestone.dispute_resolved"})
+    void stringEventVersionIsRejectedWithoutAppending(String type) {
+        var event = event(type);
+        event.put("eventVersion", "1");
+        Consumer<Message> listener = type.equals("contract.settled") ? consumer::completed : consumer::dispute;
+        assertThatThrownBy(() -> listener.accept(message(event)))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+        verifyNoInteractions(append);
+    }
+    @Test void invalidEnvelopeIsTranslatedWithoutExposingValuesOrCause() {
+        var event = event("contract.settled");
+        event.put("eventVersion", "private-buyer@example.test");
+        assertThatThrownBy(() -> consumer.completed(message(event)))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class)
+                .hasMessage("Invalid or conflicting reputation fact")
+                .hasNoCause();
         verifyNoInteractions(append);
     }
     @Test void badDisputeRoleRejected() {
