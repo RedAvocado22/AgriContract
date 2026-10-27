@@ -2,7 +2,11 @@
 
 Issue #129 adds an internal report persistence and pending-work query foundation.
 See [ISSUE_129.md](ISSUE_129.md) for its exact scope, migration ordering and remaining
-signed-submission dependencies. The sections below describe the original #112 baseline.
+signed-submission dependencies. #129's pending query is internal application capability for
+active owned Level 1.5 assignments awaiting a report, not a PENDING_REVIEW report state or
+an approved HTTP query. Confirmation/publication belongs to #143; trusted READY/owned file
+evidence belongs to #146. Identity immutability is enforced at the application/persistence
+boundary, not against privileged SQL. The sections below describe the original #112 baseline.
 
 Implements the user-approved scope: scaffold, local Level 1.5 assignment persistence,
 inspector eligibility and owner-service authorization. No business API, assignment
@@ -50,8 +54,8 @@ reservation of permission for a later transaction.
 
 [Inspection design sections 2.5 and 5](https://github.com/RedAvocado22/AgriContract/blob/d6be0e00b56cf434d68670af045755569c9e2cc6/docs/phase_2/design/inspection-phase2-design.md),
 merged in [PR #158](https://github.com/RedAvocado22/AgriContract/pull/158),
-now adopt the assignment schema in V1. These sources are pinned because this
-feature branch has not merged main. The implemented read-only foundation contains:
+adopt the assignment schema in V1. The design is also present in the latest main onto
+which #129 was rebased. The original read-only foundation contains:
 
 - `level1_5_inspection_assignment` belongs exclusively to `inspection_db`.
 - Primary key: `commission_id`; cross-service references: `contract_id`,
@@ -108,16 +112,21 @@ by #112**:
 - Level 1.5 reports bind through `inspection_report.l15_commission_id`.
   `inspection_report.commission_id` remains exclusively Level 2.
 
-Production creation/selection/termination/reassignment and report persistence are
-follow-up work under [#129](https://github.com/RedAvocado22/AgriContract/issues/129)
-and the owning contract-service producer work; they are not enabled by this
-read-only repository. Report submission/signing, file/hash/event workflows,
-Level 2 and the 1800-second step-up freshness check also remain outside #112.
+Production creation/selection/termination/reassignment belongs to #160 and the owning
+contract-service producer work. #129 adds the internal report persistence foundation;
+#130 owns deterministic hashes, #143 owns confirmation/signing/event orchestration, and
+#146 owns trusted file evidence. None of those integration workflows is supplied by the
+original read-only assignment repository. Level 2 remains outside this branch.
+
+V4 remains unique; main currently contains inspection V1 and #160 separately supplies
+V2/V3. Do not deploy V4 first and expect default Flyway to backfill lower versions later.
+Coordinate deployment in V1,V2,V3,V4 order; this branch does not enable out-of-order migrations.
 
 ## Remaining integration dependencies
 
 - [User-service #107](https://github.com/RedAvocado22/AgriContract/issues/107)
-  must provide the internal profile and real provider integration verification.
+  is closed and its internal profile endpoint exists on main. Real provider integration
+  verification remains separate from this branch's tests.
   The current client tests use an HTTP stub; they do not establish live compatibility.
 - The internal authentication discrepancy remains unresolved: the adapter sends
   `X-Internal-Secret` using `SERVICE_INTERNAL_SECRET`, while frozen OpenAPI
@@ -127,9 +136,9 @@ Level 2 and the 1800-second step-up freshness check also remain outside #112.
   semantics and verify success, invalid credentials, unavailable/malformed profile
   and identity mismatch across services. This branch changes neither convention
   nor any shared contract and does not accept both headers as a workaround.
-- Repository prerequisites tracked by [#87](https://github.com/RedAvocado22/AgriContract/issues/87)
-  remain a merge dependency under the team workflow; this service does not supply
-  shared repository configuration.
+- #208's eligible-inspector contract has merged; it is no longer a blocker. PR #209
+  (#160) and PR #227 (#130) remain unmerged integration dependencies as of 2026-10-27.
+  Shared eventing/error infrastructure exists on main; #129 adds no unused dependency.
 
 ## Run and validate
 
