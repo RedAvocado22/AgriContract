@@ -19,6 +19,7 @@
 
     <modules>
         <module>shared/java-eventing</module>
+        <module>shared/java-web-error</module>
         <module>api-gateway</module>
         <module>user-service</module>
         <module>product-service</module>
