@@ -6,10 +6,14 @@ import com.agricontract.product.domain.model.vo.ReservationStatus;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -30,6 +34,21 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     public Optional<Reservation> findByContractId(ContractId contractId) {
         return reservationJpaRepository.findByContractId(contractId.value())
                 .map(reservationMapper::toDomain);
+    }
+
+    @Override
+    public Optional<Reservation> lockByContractId(ContractId contractId) {
+        return reservationJpaRepository.lockByContractId(contractId.value())
+                .map(reservationMapper::toDomain);
+    }
+
+    @Override
+    public List<ContractId> findOrphanCandidates(Instant createdBefore, int limit) {
+        // created_at is a JVM-local LocalDateTime (@CreationTimestamp), so compare in the same zone
+        LocalDateTime cutoff = LocalDateTime.ofInstant(createdBefore, ZoneId.systemDefault());
+        return reservationJpaRepository.findOrphanCandidates(cutoff, Limit.of(limit)).stream()
+                .map(ContractId::new)
+                .toList();
     }
 
     @Override

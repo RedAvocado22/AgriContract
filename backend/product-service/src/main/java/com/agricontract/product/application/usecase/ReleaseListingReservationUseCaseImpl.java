@@ -1,14 +1,12 @@
 package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.ReleaseListingReservationRequest;
-import com.agricontract.product.common.exception.InventoryInvariantViolationException;
 import com.agricontract.product.common.exception.ReservationConflictException;
 import com.agricontract.product.common.exception.ReservationNotFoundException;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ReservationStatus;
-import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +24,8 @@ import static com.agricontract.product.common.exception.ReservationConflictExcep
 @RequiredArgsConstructor
 public class ReleaseListingReservationUseCaseImpl implements ReleaseListingReservationUseCase {
 
-    private final ListingRepository listingRepository;
     private final ReservationRepository reservationRepository;
+    private final ReservationReleaser reservationReleaser;
     private final TransactionTemplate transactionTemplate;
 
     @Override
@@ -46,7 +44,8 @@ public class ReleaseListingReservationUseCaseImpl implements ReleaseListingReser
             throw notCompensable(contractId, reservation.getStatus());
         }
 
-        boolean released = Boolean.TRUE.equals(transactionTemplate.execute(status -> releaseAtomically(reservation)));
+        boolean released = Boolean.TRUE.equals(
+                transactionTemplate.execute(status -> reservationReleaser.releaseReserved(reservation)));
         if (released) {
             log.info("Released reservation for contract {} on listing {} ({})",
                     contractId.value(), reservation.getListingId().value(), reservation.getReservedQuantity());
@@ -58,19 +57,6 @@ public class ReleaseListingReservationUseCaseImpl implements ReleaseListingReser
         if (current != ReservationStatus.RELEASED) {
             throw notCompensable(contractId, current);
         }
-    }
-
-    // Status transition and counter restore commit together, so the quantity is restored exactly once.
-    private boolean releaseAtomically(Reservation reservation) {
-        if (!reservationRepository.transition(reservation.getContractId(),
-                ReservationStatus.RESERVED, ReservationStatus.RELEASED)) {
-            return false;
-        }
-        if (!listingRepository.releaseAvailable(reservation.getListingId(), reservation.getReservedQuantity())) {
-            throw new InventoryInvariantViolationException("Restoring " + reservation.getReservedQuantity()
-                    + " to listing " + reservation.getListingId().value() + " would exceed its offered quantity");
-        }
-        return true;
     }
 
     private Reservation load(ContractId contractId) {
