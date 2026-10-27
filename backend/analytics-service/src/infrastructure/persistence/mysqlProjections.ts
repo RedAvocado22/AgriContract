@@ -1,6 +1,15 @@
 import { isDuplicateKey, type MysqlConnectionLike } from '@agricontract/eventing';
-import type { ContractDimensionRepository, MilestoneFactRepository } from '../../application/port';
-import type { ContractDimension, MilestoneFact } from '../../domain/projections';
+import type {
+  ContractDimensionRepository,
+  ContractOutcomeFactRepository,
+  MilestoneFactRepository,
+} from '../../application/port';
+import type {
+  ContractDimension,
+  ContractSettlementFact,
+  ContractTerminationFact,
+  MilestoneFact,
+} from '../../domain/projections';
 import { toMysqlDateTime } from './ingestedEventStore';
 
 /** dim_contract. */
@@ -81,5 +90,48 @@ export class MysqlMilestoneFactRepository implements MilestoneFactRepository<Mys
 
   async deletePendingForceMajeure(tx: MysqlConnectionLike, milestoneId: string): Promise<void> {
     await tx.query('DELETE FROM pending_force_majeure_flag WHERE milestone_id = ?', [milestoneId]);
+  }
+}
+
+/** fact_contract_termination and fact_contract_settlement. */
+export class MysqlContractOutcomeFactRepository implements ContractOutcomeFactRepository<MysqlConnectionLike> {
+  async insertTerminationIfAbsent(tx: MysqlConnectionLike, f: ContractTerminationFact): Promise<boolean> {
+    return insertIgnoringDuplicate(
+      tx,
+      `INSERT INTO fact_contract_termination
+         (fact_id, contract_id, termination_type, requested_by, final_breaching_role, breach_reason_code,
+          remedy_decision_id, terminated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        f.factId,
+        f.contractId,
+        f.terminationType,
+        f.requestedBy,
+        f.finalBreachingRole,
+        f.breachReasonCode,
+        f.remedyDecisionId,
+        toMysqlDateTime(f.terminatedAt),
+      ],
+    );
+  }
+
+  async insertSettlementIfAbsent(tx: MysqlConnectionLike, f: ContractSettlementFact): Promise<boolean> {
+    return insertIgnoringDuplicate(
+      tx,
+      'INSERT INTO fact_contract_settlement (fact_id, contract_id, settled_at) VALUES (?, ?, ?)',
+      [f.factId, f.contractId, toMysqlDateTime(f.settledAt)],
+    );
+  }
+}
+
+/** Runs an INSERT; a duplicate key (same fact_id or same contract_id) means the fact exists and returns false. */
+async function insertIgnoringDuplicate(tx: MysqlConnectionLike, sql: string, values: unknown[]): Promise<boolean> {
+  try {
+    await tx.query(sql, values);
+    return true;
+  } catch (err) {
+    // A failed statement does not abort the surrounding transaction in MySQL.
+    if (isDuplicateKey(err)) return false;
+    throw err;
   }
 }

@@ -3,7 +3,7 @@
 Non-critical CQRS projection for AgriContract Phase 2 (`docs/phase_2/design/analytics-service-phase2-design.md`).
 It only listens to canonical RabbitMQ events and never calls core services. This increment (issue #118)
 delivers **persistence and a working, idempotent ingestion path** (#118); #133 adds the first projections
-(signed contracts and milestone outcomes); the contract-level facts come with #148.
+(signed contracts and milestone outcomes); #148 adds the contract-level settlement and termination facts.
 
 The service runs on NestJS 11 (CommonJS, Node >= 22.12, Jest; same setup as `notification-service-nest`) for HTTP, modules and lifecycle hooks. Domain and application code stay framework-free;
 Nest is used only in `infrastructure/` and `main.ts`. `/health` listens first and answers 503 until MySQL and
@@ -20,6 +20,7 @@ src/
     port.ts                     IngestEventCommand, IngestedEventStore, ProjectionHandler, repositories
     usecase/ingestEvent.ts      persist the event, then run the projections registered for its type
     usecase/recordSignedContract.ts, recordMilestoneOutcome.ts, flagForceMajeure.ts   the #133 projections
+    usecase/recordContractSettlement.ts, recordContractTermination.ts                  the #148 projections
   infrastructure/
     messaging/                  topology, validation (eventContracts), mapping to the command, consumers, DLQ monitor
     persistence/                MySQL: landing table store, migrations, projection repositories and registry
@@ -83,6 +84,24 @@ Subscribed events: `contract.signed`, `milestone.settled`, `milestone.cancelled_
 - `milestone.cancelled_with_penalty` carries no `lockedAmount` (the contract only has `penaltyAmount`), so its
   fact stores 0.00 for locked, actual and shortfall instead of inventing money. Monthly aggregates must not
   read efficiency from those rows.
+
+## Contract outcome facts (issue #148, matrix 26g)
+
+| Event | Effect (same transaction as the dedupe row) |
+|---|---|
+| `contract.settled` | INSERT `fact_contract_settlement` (the breach-rate denominator; not derived from milestone facts) |
+| `contract.terminated` | INSERT `fact_contract_termination` with `termination_type`, `requested_by`, `final_breaching_role`, `breach_reason_code`, `remedy_decision_id` |
+
+| Acceptance criterion | How it is met | Test |
+|---|---|---|
+| `requestedBy` and `finalBreachingRole` are separate | Two columns, each copied from its own payload field; `requested_by` is never used to fill or infer the breaching role. | `contract-outcomes.spec.ts` "requestedBy and finalBreachingRole are separate", mirror case; `mysql-projections.spec.ts` |
+| Mutual outcomes do not count as default | `terminationOutcome()` in `domain/projections.ts` is the one rule: only `TERMINATION_FOR_BREACH` with a final role is a default (`SELLER_BREACH` / `BUYER_BREACH`). Mutual exits are `MUTUAL_EXIT` even if a role is present; FM and activation failure are `NO_FAULT_EXIT`; `WITHDRAW_OFFER` (never signed) is outside every rate. It does not read `requestedBy`. | `contract-outcomes.spec.ts` "terminationOutcome", "every termination branch" |
+| Replay is ignored | Same `eventId`: dedupe log. Same contract under a new `eventId`: `UNIQUE (contract_id)` on both fact tables, the insert is skipped. | `contract-outcomes.spec.ts` "replay is ignored", restart catch-up; `mysql-projections.spec.ts` |
+
+- Migration `V4__create_contract_outcome_facts.sql` is additive (two new tables).
+- The payload has no termination / settlement time, so the event's `occurredAt` is stored.
+- Not in #148: the nightly `MonthlyAggregationJob` (design §3.4) and the API. They must bucket terminations
+  with `terminationOutcome()` / `countsAsDefault()`.
 
 To add a projection, implement `ProjectionHandler`, build it in `buildProjections`
 (`infrastructure/persistence/projections.ts`) and provide its repository in `infrastructure/nest/projections.module.ts`;

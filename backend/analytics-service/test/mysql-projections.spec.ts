@@ -1,5 +1,5 @@
 /**
- * The #133 projections against a real MySQL (the SQL itself: unique keys, upsert, UPDATE/SELECT, staging merge).
+ * The #133 and #148 projections against a real MySQL (the SQL itself: unique keys, upsert, UPDATE/SELECT, staging merge).
  * Runs only when ANALYTICS_TEST_MYSQL_URL is set, e.g. with the docker-compose MySQL:
  *   ANALYTICS_TEST_MYSQL_URL=mysql://root:root@localhost:3306/analytics_test npm test
  */
@@ -7,13 +7,21 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import mysql from 'mysql2/promise';
 import { MysqlTransactionRunner, type MysqlConnectionLike } from '@agricontract/eventing';
-import { MysqlContractDimensionRepository, MysqlMilestoneFactRepository } from '../src/infrastructure/persistence/mysqlProjections';
+import {
+  MysqlContractDimensionRepository,
+  MysqlContractOutcomeFactRepository,
+  MysqlMilestoneFactRepository,
+} from '../src/infrastructure/persistence/mysqlProjections';
 import { buildProjections } from '../src/infrastructure/persistence/projections';
 import { event } from './fakes';
 import { createTestDatabase, type TestDatabase } from './mysqlTestDb';
 
 const URL = process.env.ANALYTICS_TEST_MYSQL_URL;
-const PROJECTIONS = buildProjections(new MysqlContractDimensionRepository(), new MysqlMilestoneFactRepository());
+const PROJECTIONS = buildProjections(
+  new MysqlContractDimensionRepository(),
+  new MysqlMilestoneFactRepository(),
+  new MysqlContractOutcomeFactRepository(),
+);
 
 (URL ? describe : describe.skip)('real MySQL projections (ANALYTICS_TEST_MYSQL_URL)', () => {
   let pool: mysql.Pool;
@@ -30,7 +38,14 @@ const PROJECTIONS = buildProjections(new MysqlContractDimensionRepository(), new
     await testDb?.drop();
   });
   beforeEach(async () => {
-    for (const t of ['dim_contract', 'fact_milestone_performance', 'pending_force_majeure_flag', 'milestone_projection_lock']) await pool.query(`DELETE FROM ${t}`);
+    for (const t of [
+      'dim_contract',
+      'fact_milestone_performance',
+      'pending_force_majeure_flag',
+      'milestone_projection_lock',
+      'fact_contract_termination',
+      'fact_contract_settlement',
+    ]) await pool.query(`DELETE FROM ${t}`);
   });
 
   const toCommand = (e: ReturnType<typeof event>) => ({
@@ -119,7 +134,8 @@ const PROJECTIONS = buildProjections(new MysqlContractDimensionRepository(), new
     return { promise, open };
   };
   const settle = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-  const handlersWith = (facts: MysqlMilestoneFactRepository) => buildProjections(new MysqlContractDimensionRepository(), facts);
+  const handlersWith = (facts: MysqlMilestoneFactRepository) =>
+    buildProjections(new MysqlContractDimensionRepository(), facts, new MysqlContractOutcomeFactRepository());
 
   it('overlapping transactions: settlement has read "no flag yet" while the approval arrives -> the flag is not lost', async () => {
     const contractId = randomUUID();
@@ -194,5 +210,55 @@ const PROJECTIONS = buildProjections(new MysqlContractDimensionRepository(), new
     await apply(event('milestone.settled', contractId, { contractId, milestoneId, lockedAmount: '9999999999999999.99', actualAmount: '1.01' }));
     assert.equal((await rows('SELECT total_amount FROM dim_contract WHERE contract_id = ?', [contractId]))[0]!['total_amount'], '9999999999999999.99');
     assert.equal((await rows('SELECT delta_shortfall_amount FROM fact_milestone_performance WHERE milestone_id = ?', [milestoneId]))[0]!['delta_shortfall_amount'], '9999999999999998.98');
+  });
+
+  it('contract.terminated: requested_by and final_breaching_role are stored in separate columns; a replay is not counted twice', async () => {
+    const contractId = randomUUID();
+    const payload = {
+      contractId,
+      terminationType: 'TERMINATION_FOR_BREACH',
+      requestedBy: 'SELLER',
+      finalBreachingRole: 'BUYER',
+      breachReasonCode: 'FUNDING_FAILURE',
+    };
+    const first = event('contract.terminated', contractId, payload);
+    await apply(first);
+    await apply(event('contract.terminated', contractId, payload)); // new event id, same contract
+    const r = await rows('SELECT * FROM fact_contract_termination WHERE contract_id = ?', [contractId]);
+    assert.equal(r.length, 1);
+    assert.equal(r[0]!['fact_id'], first.eventId);
+    assert.equal(r[0]!['termination_type'], 'TERMINATION_FOR_BREACH');
+    assert.equal(r[0]!['requested_by'], 'SELLER');
+    assert.equal(r[0]!['final_breaching_role'], 'BUYER');
+    assert.equal(r[0]!['breach_reason_code'], 'FUNDING_FAILURE');
+    assert.equal(r[0]!['remedy_decision_id'], first.payload['remedyDecisionId']);
+  });
+
+  it('contract.terminated: a mutual exit stores NULL attribution', async () => {
+    const contractId = randomUUID();
+    await apply(
+      event('contract.terminated', contractId, {
+        contractId,
+        terminationType: 'MUTUAL_TERMINATION',
+        requestedBy: 'BUYER',
+        finalBreachingRole: null,
+        breachReasonCode: null,
+        remedyDecisionId: null,
+        breachCaseId: null,
+      }),
+    );
+    const r = await rows('SELECT * FROM fact_contract_termination WHERE contract_id = ?', [contractId]);
+    assert.equal(r.length, 1);
+    assert.equal(r[0]!['requested_by'], 'BUYER');
+    assert.equal(r[0]!['final_breaching_role'], null);
+    assert.equal(r[0]!['breach_reason_code'], null);
+    assert.equal(r[0]!['remedy_decision_id'], null);
+  });
+
+  it('contract.settled writes one settlement fact per contract', async () => {
+    const contractId = randomUUID();
+    await apply(event('contract.settled', contractId, { contractId }));
+    await apply(event('contract.settled', contractId, { contractId })); // new event id, same contract
+    assert.equal((await rows('SELECT * FROM fact_contract_settlement WHERE contract_id = ?', [contractId])).length, 1);
   });
 });

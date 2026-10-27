@@ -5,7 +5,11 @@ import yaml from 'js-yaml';
 import { consumerName } from '../src/application/usecase/ingestEvent';
 import { loadConfig } from '../src/infrastructure/config';
 import { migrationFiles } from '../src/infrastructure/persistence/migrate';
-import { MysqlContractDimensionRepository, MysqlMilestoneFactRepository } from '../src/infrastructure/persistence/mysqlProjections';
+import {
+  MysqlContractDimensionRepository,
+  MysqlContractOutcomeFactRepository,
+  MysqlMilestoneFactRepository,
+} from '../src/infrastructure/persistence/mysqlProjections';
 import { buildProjections } from '../src/infrastructure/persistence/projections';
 import {
   ANALYTICS_DLX,
@@ -95,9 +99,16 @@ describe('frozen event contract', () => {
     }
   });
 
-  it('#133 registers exactly its four projections (contract-level facts arrive in #148)', () => {
-    deepEqual(buildProjections(new MysqlContractDimensionRepository(), new MysqlMilestoneFactRepository()).map((p) => p.eventType).sort(), [
+  it('#133 and #148 register exactly their six projections', () => {
+    const projections = buildProjections(
+      new MysqlContractDimensionRepository(),
+      new MysqlMilestoneFactRepository(),
+      new MysqlContractOutcomeFactRepository(),
+    );
+    deepEqual(projections.map((p) => p.eventType).sort(), [
+      'contract.settled',
       'contract.signed',
+      'contract.terminated',
       'milestone.cancelled_with_penalty',
       'milestone.force_majeure_resolved',
       'milestone.settled',
@@ -173,11 +184,24 @@ describe('persistence and config', () => {
     assert.equal((statements.match(/DECIMAL\(/g) ?? []).length, 4);
   });
 
+  it('V4 is additive and creates the contract-level facts of design 2.2 with requested_by and final_breaching_role apart', () => {
+    const statements = strip('V4__create_contract_outcome_facts.sql');
+    for (const table of ['fact_contract_termination', 'fact_contract_settlement']) {
+      assert.match(statements, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
+    }
+    assert.match(statements, /requested_by\s+VARCHAR\(10\)\s+NOT NULL/);
+    assert.match(statements, /final_breaching_role\s+VARCHAR\(10\)\s+NULL/);
+    assert.match(statements, /UNIQUE KEY uq_fact_termination_contract \(contract_id\)/);
+    assert.match(statements, /UNIQUE KEY uq_fact_settlement_contract \(contract_id\)/);
+    assert.doesNotMatch(statements, /\b(ALTER|DROP|TRUNCATE|DELETE|UPDATE)\b/i);
+  });
+
   it('migration runner finds all migrations in order', () => {
     deepEqual(migrationFiles(resolve(here, '../migrations')), [
       'V1__create_analytics_idempotency_log.sql',
       'V2__create_analytics_ingested_event.sql',
       'V3__create_signed_and_milestone_facts.sql',
+      'V4__create_contract_outcome_facts.sql',
     ]);
   });
 
@@ -206,7 +230,7 @@ describe('NestJS wiring', () => {
     const module = read('infrastructure/nest/projections.module.ts');
     assert.match(module, /@Module\(/);
     assert.match(module, /provide: PROJECTIONS/);
-    assert.match(module, /inject: \[CONTRACT_DIMENSION, MILESTONE_FACTS\]/);
+    assert.match(module, /inject: \[CONTRACT_DIMENSION, MILESTONE_FACTS, CONTRACT_OUTCOME_FACTS\]/);
     assert.match(read('infrastructure/nest/analytics.module.ts'), /imports: \[ProjectionsModule\]/);
     assert.match(lifecycle, /new MysqlIngestedEventStore\(\)/);
   });

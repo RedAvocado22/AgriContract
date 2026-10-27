@@ -11,12 +11,14 @@ import { PROJECTIONS } from '../src/infrastructure/nest/tokens';
 import { deepEqual } from './deepEqual';
 
 describe('ProjectionsModule (Nest DI)', () => {
-  it('provides the four #133 projections', async () => {
+  it('provides the #133 and #148 projections', async () => {
     const context = await NestFactory.createApplicationContext(ProjectionsModule, { logger: false });
     try {
       const projections = context.get<ProjectionHandler<unknown>[]>(PROJECTIONS);
       deepEqual(projections.map((p) => p.eventType).sort(), [
+        'contract.settled',
         'contract.signed',
+        'contract.terminated',
         'milestone.cancelled_with_penalty',
         'milestone.force_majeure_resolved',
         'milestone.settled',
