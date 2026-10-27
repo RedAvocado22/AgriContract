@@ -8,11 +8,17 @@ import type {
 } from '@agricontract/eventing';
 import type {
   ContractDimensionRepository,
+  ContractOutcomeFactRepository,
   IngestEventCommand,
   IngestedEventStore,
   MilestoneFactRepository,
 } from '../src/application/port';
-import type { ContractDimension, MilestoneFact } from '../src/domain/projections';
+import type {
+  ContractDimension,
+  ContractSettlementFact,
+  ContractTerminationFact,
+  MilestoneFact,
+} from '../src/domain/projections';
 import type { TopologyChannel } from '../src/infrastructure/messaging/topology';
 import { validEvent } from './fixtures';
 
@@ -147,11 +153,21 @@ export interface DbState {
   dimContract: ContractDimension[];
   milestoneFacts: MilestoneFact[];
   pendingForceMajeure: Array<{ milestoneId: string; flaggedAt: Date }>;
+  contractTerminations: ContractTerminationFact[];
+  contractSettlements: ContractSettlementFact[];
 }
 export type FakeTx = { state: DbState };
 
 export class InMemoryDb implements TransactionRunner<FakeTx>, ProcessedEventStore<FakeTx> {
-  committed: DbState = { processed: [], ingested: [], dimContract: [], milestoneFacts: [], pendingForceMajeure: [] };
+  committed: DbState = {
+    processed: [],
+    ingested: [],
+    dimContract: [],
+    milestoneFacts: [],
+    pendingForceMajeure: [],
+    contractTerminations: [],
+    contractSettlements: [],
+  };
   private lock: Promise<void> = Promise.resolve();
 
   async inTransaction<T>(work: (tx: FakeTx) => Promise<T>): Promise<T> {
@@ -213,6 +229,22 @@ export class InMemoryMilestoneFacts implements MilestoneFactRepository<FakeTx> {
   }
   async deletePendingForceMajeure(tx: FakeTx, milestoneId: string): Promise<void> {
     tx.state.pendingForceMajeure = tx.state.pendingForceMajeure.filter((p) => p.milestoneId !== milestoneId);
+  }
+}
+
+/** fact_contract_termination + fact_contract_settlement fake, with the unique keys of the real tables. */
+export class InMemoryContractOutcomeFacts implements ContractOutcomeFactRepository<FakeTx> {
+  async insertTerminationIfAbsent(tx: FakeTx, fact: ContractTerminationFact): Promise<boolean> {
+    const rows = tx.state.contractTerminations;
+    if (rows.some((f) => f.contractId === fact.contractId || f.factId === fact.factId)) return false;
+    rows.push(fact);
+    return true;
+  }
+  async insertSettlementIfAbsent(tx: FakeTx, fact: ContractSettlementFact): Promise<boolean> {
+    const rows = tx.state.contractSettlements;
+    if (rows.some((f) => f.contractId === fact.contractId || f.factId === fact.factId)) return false;
+    rows.push(fact);
+    return true;
   }
 }
 

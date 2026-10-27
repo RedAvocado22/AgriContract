@@ -1,4 +1,9 @@
-import type { ContractDimension, MilestoneFact } from '../domain/projections';
+import type {
+  ContractDimension,
+  ContractSettlementFact,
+  ContractTerminationFact,
+  MilestoneFact,
+} from '../domain/projections';
 
 /**
  * What the ingest use case needs from the outside, and what it receives. The messaging adapter validates
@@ -30,7 +35,7 @@ export interface IngestedEventStore<Tx> {
 
 /**
  * Projection work for one event type (fact and dimension tables). Runs in the same transaction as the
- * ingest write. Registered by #133 and #148; none is registered yet, and events are ingested anyway.
+ * ingest write. Registered by #133 and #148; event types without a handler are still ingested.
  */
 export interface ProjectionHandler<Tx> {
   readonly eventType: string;
@@ -59,4 +64,12 @@ export interface MilestoneFactRepository<Tx> {
   addPendingForceMajeure(tx: Tx, milestoneId: string, flaggedAt: Date): Promise<void>;
   hasPendingForceMajeure(tx: Tx, milestoneId: string): Promise<boolean>;
   deletePendingForceMajeure(tx: Tx, milestoneId: string): Promise<void>;
+}
+
+/** fact_contract_termination and fact_contract_settlement (design §2.2, §3.3). */
+export interface ContractOutcomeFactRepository<Tx> {
+  /** Insert unless the contract already has a termination fact. Returns true when a row was written. */
+  insertTerminationIfAbsent(tx: Tx, fact: ContractTerminationFact): Promise<boolean>;
+  /** Insert unless the contract already has a settlement fact. Returns true when a row was written. */
+  insertSettlementIfAbsent(tx: Tx, fact: ContractSettlementFact): Promise<boolean>;
 }
