@@ -7,15 +7,21 @@ import com.agricontract.inspection.domain.model.*;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
 import com.agricontract.inspection.infrastructure.messaging.Level15RequestedConsumer;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.amqp.core.Message;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.*;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -89,6 +95,8 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(rows()).isEqualTo(1);
         assertThat(active().inspectorId()).isEqualTo(c);
         assertThat(active().assignedAt()).isEqualTo(NOW);
+        assertThat(active().reportDueBusinessDays()).isEqualTo(1);
+        assertThat(active().reportDueAt()).isEqualTo(Instant.parse("2026-10-26T16:59:59.999Z"));
         verify(inspectors, times(1)).loadEligibleInspectors();
         verify(random).nextInt(3);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_event", Integer.class)).isEqualTo(2);
@@ -145,12 +153,26 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(active().inspectorId()).isEqualTo(b);
     }
 
-    @Test void confirmedAtDeadlineCannotReviveExpiredAuthority() {
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1})
+    void confirmedAtOrAfterDeadlineCannotReviveExpiredAuthority(long secondsAfterDeadline) {
         deliver(event()); var old = active();
-        when(clock.instant()).thenReturn(old.reportDueAt());
+        var confirmedAt = old.reportDueAt().plusSeconds(secondsAfterDeadline);
+        when(clock.instant()).thenReturn(confirmedAt);
         assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status ->
-                lifecycle.closeConfirmed(contract,milestone,old.commissionId(),a,old.reportDueAt())))
+                lifecycle.closeConfirmed(contract,milestone,old.commissionId(),a,confirmedAt)))
                 .isInstanceOf(IllegalStateException.class);
+        assertThat(active().commissionId()).isEqualTo(old.commissionId());
+        assertThat(active().endedAt()).isNull();
+    }
+
+    @Test void confirmationImmediatelyBeforeDeadlineClosesAssignment() {
+        deliver(event()); var old = active();
+        var confirmedAt = old.reportDueAt().minusNanos(1000);
+        when(clock.instant()).thenReturn(confirmedAt);
+        new TransactionTemplate(transactions).executeWithoutResult(status ->
+                lifecycle.closeConfirmed(contract,milestone,old.commissionId(),a,confirmedAt));
+        assertThat(assignments.find(old.commissionId()).orElseThrow().endedAt()).isEqualTo(confirmedAt);
     }
 
     @Test void structuredOperationalAlertIsEmittedOnlyAfterCommit() {
@@ -241,15 +263,61 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(assignments.find(old.commissionId()).orElseThrow().endedAt()).isEqualTo(old.reportDueAt());
     }
 
-    @Test void legacyRowsAreIgnoredAndQueriesUseSupportingIndexes() {
-        for (int i = 0; i < 200; i++) {
-            jdbc.update("""
+    @Test void missingDeadlineFieldsAreRejectedByMysql() {
+        assertDatabaseRejects(() -> jdbc.update("""
                 INSERT INTO level1_5_inspection_assignment
                 (commission_id,contract_id,milestone_id,inspector_id,assigned_at,assigned_by_service)
                 VALUES (?,?,?,?,?,'contract-service')
-                """, UUID.randomUUID().toString(),contract,UUID.randomUUID().toString(),a,java.sql.Timestamp.from(NOW));
+                """, UUID.randomUUID().toString(),contract,milestone,a,Timestamp.from(NOW)), 1364);
+        assertThat(rows()).isZero();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, 0, 3819", "31, 0, 3819", "1, -1, 3819",
+            ", 0, 1048", "1, , 1048", ", , 1048"})
+    void invalidDeadlineFieldsAreRejectedByMysql(Integer days, Long secondsAfterAssignment, int errorCode) {
+        assertDatabaseRejects(() -> insertDeadline(days, secondsAfterAssignment), errorCode);
+        assertThat(rows()).isZero();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1, 0", "30, 0", "1, 86400", "30, 2592000"})
+    void validDeadlineBoundariesAreAcceptedByMysql(int days, long secondsAfterAssignment) {
+        insertDeadline(days, secondsAfterAssignment);
+        assertThat(active().reportDueBusinessDays()).isEqualTo(days);
+        assertThat(active().reportDueAt()).isEqualTo(NOW.plusSeconds(secondsAfterAssignment));
+    }
+
+    private void insertDeadline(Integer days, Long secondsAfterAssignment) {
+        jdbc.update("""
+                INSERT INTO level1_5_inspection_assignment
+                (commission_id,contract_id,milestone_id,inspector_id,assigned_at,assigned_by_service,
+                 report_due_business_days,report_due_at)
+                VALUES (?,?,?,?,?,'contract-service',?,?)
+                """, UUID.randomUUID().toString(),contract,milestone,a,Timestamp.from(NOW),days,
+                secondsAfterAssignment == null ? null : Timestamp.from(NOW.plusSeconds(secondsAfterAssignment)));
+    }
+
+    private void assertDatabaseRejects(Runnable insert, int errorCode) {
+        var failure = catchThrowableOfType(insert::run, DataAccessException.class);
+        assertThat(failure).isNotNull();
+        assertThat(failure.getMostSpecificCause()).isInstanceOfSatisfying(SQLException.class, sql -> {
+            assertThat(sql.getErrorCode()).isEqualTo(errorCode);
+            if (errorCode == 3819) assertThat(sql.getMessage()).contains("chk_l15_deadline");
+        });
+    }
+
+    @Test void deadlineQueriesUseSupportingIndexes() {
+        for (int i = 0; i < 200; i++) {
+            jdbc.update("""
+                INSERT INTO level1_5_inspection_assignment
+                (commission_id,contract_id,milestone_id,inspector_id,assigned_at,assigned_by_service,
+                 report_due_business_days,report_due_at)
+                VALUES (?,?,?,?,?,'contract-service',30,?)
+                """, UUID.randomUUID().toString(),contract,UUID.randomUUID().toString(),a,
+                    Timestamp.from(NOW),Timestamp.from(NOW.plusSeconds(86400*42)));
         }
-        assertThat(assignments.overdue(NOW.plusSeconds(86400*365),100)).isEmpty();
+        assertThat(assignments.overdue(NOW,100)).isEmpty();
         deliver(event()); var current = active();
         assertThat(assignments.overdue(current.reportDueAt(),100)).extracting(TimedAssignment::commissionId)
                 .containsExactly(current.commissionId());

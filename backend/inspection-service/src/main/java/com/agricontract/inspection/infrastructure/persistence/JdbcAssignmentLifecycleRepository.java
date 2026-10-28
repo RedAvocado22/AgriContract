@@ -19,8 +19,8 @@ public class JdbcAssignmentLifecycleRepository implements AssignmentLifecycleRep
     private static final RowMapper<TimedAssignment> ROW = (rs, n) -> new TimedAssignment(
             rs.getString("commission_id"), rs.getString("contract_id"), rs.getString("milestone_id"),
             rs.getString("inspector_id"), rs.getTimestamp("assigned_at").toInstant(),
-            instant(rs.getTimestamp("ended_at")), (Integer) rs.getObject("report_due_business_days"),
-            instant(rs.getTimestamp("report_due_at")), rs.getString("initiated_by_actor_id"));
+            instant(rs.getTimestamp("ended_at")), rs.getInt("report_due_business_days"),
+            rs.getTimestamp("report_due_at").toInstant(), rs.getString("initiated_by_actor_id"));
     private static Instant instant(Timestamp value) { return value == null ? null : value.toInstant(); }
 
     @Override

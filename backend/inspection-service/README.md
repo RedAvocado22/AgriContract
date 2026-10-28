@@ -31,6 +31,13 @@ database foreign keys. `ended_at` is set only when an assignment ends.
 Assignment lifecycle and eventing migrations follow the initial assignment
 schema. MySQL 8.0.16 or later is required for enforced CHECK constraints.
 
+V2 requires `report_due_business_days` and `report_due_at` to be NOT NULL.
+`chk_l15_deadline` enforces a duration of 1–30 business days and a deadline at
+or after `assigned_at`. The timeout and previous-inspector indexes remain intact.
+There is no production legacy data to migrate. Development databases initialized
+with the old V2 migration must be reset before verification; this change does not
+reset databases automatically. Tests use fresh disposable MySQL containers.
+
 ## Configuration and validation
 
 Provision an `inspection_db` database and set `DB_USERNAME`, `DB_PASSWORD`,

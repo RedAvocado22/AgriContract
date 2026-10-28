@@ -42,7 +42,7 @@ public class ManageLevel15Assignments {
         Instant now = now();
         if (current.isEmpty() || !current.get().commissionId().equals(commissionId)) return;
         var old = current.get();
-        if (old.reportDueAt() == null || old.reportDueAt().isAfter(now)) return;
+        if (old.reportDueAt().isAfter(now)) return;
         assignments.end(commissionId, old.reportDueAt());
         pick(old.contractId(), old.milestoneId(), old.reportDueBusinessDays(), old.initiatedByActorId(),
                 commissionId, true, assignments.previousInspectors(old.contractId(), old.milestoneId()));
@@ -72,7 +72,7 @@ public class ManageLevel15Assignments {
         var active = assignments.active(contract, milestone).orElseThrow(() -> new IllegalStateException("No active assignment"));
         if (!active.commissionId().equals(commission) || !active.inspectorId().equals(inspector)
                 || confirmedAt == null || confirmedAt.isBefore(active.assignedAt()) || confirmedAt.isAfter(clock.instant())
-                || (active.reportDueAt() != null && !confirmedAt.isBefore(active.reportDueAt())))
+                || !confirmedAt.isBefore(active.reportDueAt()))
             throw new IllegalStateException("Report does not match active assignment");
         if (!assignments.end(commission, confirmedAt))
             throw new IllegalStateException("Assignment already ended");

@@ -1,11 +1,9 @@
--- Preserve V1 rows: no invented deadline for historical/manual scaffold fixtures.
+-- Every assignment requires a deadline; reset development databases using the old V2.
 ALTER TABLE level1_5_inspection_assignment
-    ADD COLUMN report_due_business_days INT NULL,
-    ADD COLUMN report_due_at TIMESTAMP(6) NULL,
+    ADD COLUMN report_due_business_days INT NOT NULL,
+    ADD COLUMN report_due_at TIMESTAMP(6) NOT NULL,
     ADD CONSTRAINT chk_l15_deadline CHECK (
-        (report_due_business_days IS NULL AND report_due_at IS NULL) OR
-        (report_due_business_days IS NOT NULL AND report_due_at IS NOT NULL
-         AND report_due_business_days BETWEEN 1 AND 30 AND report_due_at >= assigned_at)),
+        report_due_business_days BETWEEN 1 AND 30 AND report_due_at >= assigned_at),
     ADD INDEX idx_l15_timeout (active_slot, report_due_at),
     ADD INDEX idx_l15_previous_inspectors (contract_id, milestone_id, inspector_id);
 
