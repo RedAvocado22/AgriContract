@@ -28,7 +28,6 @@ management:
 
 inspection:
   assignment:
-    holidays: ${INSPECTION_VIETNAM_HOLIDAYS}
     scan-interval-ms: ${INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS:60000}
     scheduler-enabled: true
   user-service:

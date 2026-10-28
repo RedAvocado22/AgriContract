@@ -42,10 +42,18 @@ reset databases automatically. Tests use fresh disposable MySQL containers.
 
 Provision an `inspection_db` database and set `DB_USERNAME`, `DB_PASSWORD`,
 `GATEWAY_INTERNAL_SECRET`, `SERVICE_INTERNAL_SECRET`, and
-`INSPECTION_VIETNAM_HOLIDAYS`. The holiday value is a nonempty comma-separated
-list of ISO dates and must be maintained for the operating years. Business
-days use Vietnam weekdays and the configured holidays; timestamps are stored
-in UTC. Missing or invalid holiday configuration fails startup.
+`VIETNAM_HOLIDAYS`. This required startup value is a comma-separated list of
+ISO dates (`YYYY-MM-DD`) interpreted as Vietnam local calendar dates. Operations
+must update the national holiday list annually for the operating years; no
+holiday table is built into the application. Missing, blank, comma-only,
+malformed or impossible-date configuration fails startup. Surrounding token
+whitespace is trimmed, duplicate dates collapse, and empty comma tokens are
+ignored provided at least one valid date remains.
+
+The shared `com.agricontract:java-business-calendar` module calculates business
+days as Monday-Friday excluding configured holidays in `Asia/Ho_Chi_Minh`.
+The assignment date is day zero; the deadline is 23:59:59.999 ICT on the Nth
+subsequent business date, returned and persisted as a UTC `Instant`.
 
 Optional settings include `DB_HOST` (default `localhost`), `DB_PORT` (3312),
 `SERVER_PORT` (8086), `USER_SERVICE_URL` (`http://localhost:8081`), and

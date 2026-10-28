@@ -46,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {"SERVICE_INTERNAL_SECRET=test-service-secret", "GATEWAY_INTERNAL_SECRET=test-gateway-secret",
         "spring.rabbitmq.listener.simple.auto-startup=false", "management.health.rabbit.enabled=false",
-        "inspection.assignment.scheduler-enabled=false", "inspection.assignment.holidays=2026-01-01"})
+        "inspection.assignment.scheduler-enabled=false", "VIETNAM_HOLIDAYS=2026-01-01"})
 @AutoConfigureMockMvc
 @Testcontainers
 class ScaffoldBoundaryTest {

@@ -11,6 +11,11 @@
     <name>AgriContract Inspection Service</name>
     <dependencies>
         <dependency>
+            <groupId>com.agricontract</groupId>
+            <artifactId>java-business-calendar</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>rabbitmq</artifactId>
             <scope>test</scope>
