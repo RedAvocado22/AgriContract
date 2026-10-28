@@ -1,15 +1,7 @@
-# Inspection service
+# Inspection service foundation — issue 112
 
-Issue #160 adds automatic Level 1.5 assignment consumption, timeout/reselection,
-and the transactional close boundary. See [ISSUE_160.md](ISSUE_160.md) for current
-configuration, migrations, verification and the acceptance matrix.
-`INSPECTION_VIETNAM_HOLIDAYS` is required (comma-separated ISO dates, maintained annually).
-The private eligible pool endpoint is owned by user-service and uses `X-Internal-Secret`.
-
-## Issue #112 foundation baseline
-
-The remainder records the original scaffold scope and its historical deferrals;
-the #160 document supersedes the assignment creation/lifecycle deferrals below.
+The foundation sections below describe the original #112 baseline. The Level 1.5
+assignment lifecycle added by #160 is described at the end of this document.
 
 Implements the user-approved scope: scaffold, local Level 1.5 assignment persistence,
 inspector eligibility and owner-service authorization. No business API, assignment
@@ -172,3 +164,31 @@ controller endpoint. MockMvc verifies the actual health/closed HTTP surface.
 - Design and contract references above are read at `d6be0e00b56cf434d68670af045755569c9e2cc6`; no frozen YAML is changed.
 - `docs/design/data-governance-phase2-design.md` section 5 (SRS v1.6 roles)
 - `docs/design/verification-matrix-phase2.md` (inspection and eligibility checks)
+
+## Level 1.5 assignment lifecycle
+
+Consume `inspection.level1_5_requested` with shared `EventEnvelopeCodec` and
+`ProcessedEventStore`. The processed-event claim and assignment changes share a
+transaction. An existing active assignment is a no-op; database milestone locks
+and the active-slot unique key protect concurrent requests.
+
+The client reads the authoritative pool from user-service's private
+`GET /internal/v1/users/inspectors/eligible` using `X-Internal-Secret`. The endpoint
+and its security implementation are owned by merged PR #307, not this service.
+The frozen serviceAuth header now agrees with the runtime header. Candidates are
+INSPECTOR + VERIFIED with authorization expiry null or strictly after the UTC clock;
+Buyer/Seller reputation locks do not apply. Selection is uniformly random with no
+ADMIN/OPERATOR/ARBITRATOR override. Empty pools create no assignment and emit a
+structured OPERATOR operational alert; human-facing delivery remains a gap.
+
+Timeout ends the previous assignment and inserts a new row, excluding every
+inspector previously assigned to the milestone. Empty replacement pools leave the
+old assignment ended. `ended_at` moves only from NULL to a value. `closeConfirmed()`
+requires the caller's transaction; the downstream report workflow owns the actual
+call and atomic report confirmation. No report persistence or submission is added.
+
+Set `INSPECTION_VIETNAM_HOLIDAYS` to a nonempty comma-separated list of ISO holiday
+dates for the operating years. Missing or invalid configuration fails startup.
+Business dates use Asia/Ho_Chi_Minh weekdays excluding configured holidays;
+timestamps persist in UTC. The assignment scan interval defaults to 60000 ms
+(`INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS`). The service port remains 8087.
