@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserProfileRepository {
+    List<String> findEligibleInspectorIds(java.time.Instant now);
     // Insert only: a duplicate userId raises UserAlreadyExistsException.
     UserProfile save(UserProfile userProfile);
 
