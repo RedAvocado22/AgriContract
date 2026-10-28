@@ -2,7 +2,7 @@ package com.agricontract.product.infrastructure.messaging;
 
 import com.agricontract.product.application.dto.ContractCreatedCommand;
 import com.agricontract.product.application.usecase.ConfirmContractCreatedUseCase;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.agricontract.eventing.EventEnvelopeCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -25,7 +25,7 @@ class ContractCreatedConsumerTest {
     private static final String LISTING_ID = "c4ca4238-a0b9-4382-8dcc-509a6f75849b";
 
     private final ConfirmContractCreatedUseCase useCase = mock(ConfirmContractCreatedUseCase.class);
-    private final ContractCreatedConsumer consumer = new ContractCreatedConsumer(new ObjectMapper(), useCase);
+    private final ContractCreatedConsumer consumer = new ContractCreatedConsumer(new EventEnvelopeCodec(), useCase);
 
     @Test
     void validEvent_isHandedToUseCaseWithExactQuantity() {
@@ -35,9 +35,29 @@ class ContractCreatedConsumerTest {
                 UUID.fromString(EVENT_ID), CONTRACT_ID, LISTING_ID, new BigDecimal("40.125")));
     }
 
+    // the codec reads decimals as Double; the command must still carry the exact decimal
+    @ParameterizedTest
+    @ValueSource(strings = {"0.1", "12.345", "10.50", "40", "999999999999.999"})
+    void decimalQuantity_isHandedToUseCaseExactly(String quantity) {
+        consumer.onContractCreated(message(event("contract.created", quantity)));
+
+        verify(useCase).execute(argThat(command -> command.reservedQuantity().compareTo(new BigDecimal(quantity)) == 0));
+    }
+
     @Test
     void otherEventType_isRejectedToDlq() {
         assertRejected(event("contract.signed", "40"));
+    }
+
+    @Test
+    void otherProducerOrVersion_isRejectedToDlq() {
+        assertRejected(event("contract.created", "40").replace("\"contract-service\"", "\"escrow-service\""));
+        assertRejected(event("contract.created", "40").replace("\"eventVersion\":1", "\"eventVersion\":2"));
+    }
+
+    @Test
+    void unknownEnvelopeField_isRejectedToDlq() {
+        assertRejected(event("contract.created", "40").replace("\"eventVersion\":1", "\"eventVersion\":1,\"extra\":1"));
     }
 
     @ParameterizedTest
