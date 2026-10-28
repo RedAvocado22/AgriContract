@@ -5,7 +5,7 @@ import com.agricontract.eventing.inbox.ProcessedEventStore;
 import com.agricontract.inspection.application.port.*;
 import com.agricontract.inspection.domain.model.*;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
-import com.agricontract.inspection.application.service.VietnamBusinessDays;
+import com.agricontract.calendar.VietnamBusinessDays;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
