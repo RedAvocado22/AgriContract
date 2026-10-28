@@ -2,7 +2,6 @@ package com.agricontract.contract.domain.model;
 
 import com.agricontract.contract.domain.event.*;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
-import com.agricontract.contract.domain.model.vo.CancelledBy;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
@@ -15,10 +14,8 @@ import java.util.List;
 import java.util.Set;
 
 // Aggregate Root
-// State machine:
-//   OFFERED → NEGOTIATING → SIGNED → ACTIVE → DELIVERED → SETTLED
-//   ACTIVE  → CANCELLED
-//   DELIVERED → DISPUTED
+// State machine (Phase 2, milestone-escrow design §3.1): OFFERED → NEGOTIATING → SIGNED → ACTIVE → SETTLED.
+// Phase 1 delivery/cancel/dispute paths are removed; Phase 2 termination and milestones replace them.
 @Getter
 public class Contract {
 
@@ -33,8 +30,6 @@ public class Contract {
     private String sellerEmail;       // snapshot at offer time
     private ContractTerms terms;
     private ContractStatus status;
-    private String cancelReason;
-    private CancelledBy cancelledBy;       // "BUYER" or "SELLER"
     @Getter(AccessLevel.NONE)
     private Set<String> signatories;
     @Getter(AccessLevel.NONE)
@@ -51,7 +46,6 @@ public class Contract {
             String productName, String buyerOrgName, String sellerOrgName,
             String buyerEmail, String sellerEmail,
             ContractTerms terms, ContractStatus status,
-            String cancelReason, CancelledBy cancelledBy,
             Set<String> signatories) {
         Contract contract = new Contract();
 
@@ -66,8 +60,6 @@ public class Contract {
         contract.sellerEmail = sellerEmail;
         contract.terms = terms;
         contract.status = status;
-        contract.cancelReason = cancelReason;
-        contract.cancelledBy = cancelledBy;
         contract.signatories = new HashSet<>(signatories);
 
         return contract;
@@ -143,7 +135,7 @@ public class Contract {
     }
 
     /**
-     * Called when escrow.locked event received
+     * SIGNED → ACTIVE once deposits are locked (escrow.deposit_locked wiring is #103)
      */
     public void activate() {
         //Guard
@@ -154,79 +146,6 @@ public class Contract {
         this.status = ContractStatus.ACTIVE;
         //Emit
         this.domainEvents.add(new ContractActivatedEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail));
-    }
-
-    /**
-     * Only BUYER can call, only from ACTIVE
-     */
-    public void confirmDelivery(String buyerId) {
-        //Guard
-        if (!buyerId.equals(this.buyerId)) {
-            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
-        }
-        if (this.status != ContractStatus.ACTIVE) {
-            throw new IllegalArgumentException("This contract can't be confirmed.");
-        }
-        //Mutate
-        this.status = ContractStatus.DELIVERED;
-        //Emit
-        this.domainEvents.add(new ContractDeliveredEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, buyerId));
-    }
-
-    /**
-     * Called when escrow.released event received
-     */
-    public void settle() {
-        //Guard
-        if (this.status != ContractStatus.DELIVERED) {
-            throw new IllegalArgumentException("This contract can't be settled.");
-        }
-        //Mutate
-        this.status = ContractStatus.SETTLED;
-        //Emit
-        this.domainEvents.add(new ContractSettledEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, this.buyerId, this.sellerId));
-    }
-
-    /**
-     * Only from ACTIVE, both parties can cancel
-     */
-    public void cancel(String userId, String reason) {
-        //Guard
-        if (!userId.equals(this.sellerId) && !userId.equals(this.buyerId)) {
-            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
-        }
-
-        if (this.status != ContractStatus.ACTIVE) {
-            throw new IllegalArgumentException("This contract can't be cancelled.");
-        }
-        //Mutate
-        this.status = ContractStatus.CANCELLED;
-        if (userId.equals(this.buyerId)) {
-            this.cancelledBy = CancelledBy.BUYER;
-        } else {
-            this.cancelledBy = CancelledBy.SELLER;
-        }
-        this.cancelReason = reason;
-        //Emit
-        this.domainEvents.add(new ContractCancelledEvent(this.contractId.value(), buyerEmail, sellerEmail, this.cancelledBy, terms.buyerPenaltyRate(), reason));
-    }
-
-    /**
-     * Only BUYER, only from DELIVERED
-     */
-    public void dispute(String buyerId, String reason) {
-        //Guard
-        if (!buyerId.equals(this.buyerId)) {
-            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
-        }
-
-        if (this.status != ContractStatus.DELIVERED) {
-            throw new IllegalArgumentException("This contract can't be disputed.");
-        }
-        //Mutate
-        this.status = ContractStatus.DISPUTED;
-        //Emit
-        this.domainEvents.add(new ContractDisputedEvent(contractId.value(), buyerEmail, sellerEmail, buyerId, reason));
     }
 
     public List<DomainEvent> pullDomainEvents() {

@@ -17,7 +17,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -25,28 +24,13 @@ import java.util.Map;
 @EnableRabbit
 public class RabbitMQConfig {
 
+    // Phase 1 escrow.locked/escrow.released queues are gone; #103 adds the escrow.deposit_locked consumer here.
     @Bean
-    public Declarables escrowEventDeclarables() {
-        TopicExchange exchangeContracts = new TopicExchange("agricontract.contracts", true, false);
-        TopicExchange exchangeEscrow = new TopicExchange("agricontract.escrow", true, false);
-        DirectExchange dlx = new DirectExchange("agricontract.escrow.dlx", true, false);
-
-        List<Declarable> declarables = new ArrayList<>(List.of(exchangeContracts, exchangeEscrow, dlx));
-
-        for (String event : List.of("locked", "released")) {
-            String routingKey = "escrow." + event;
-            Queue queue = QueueBuilder.durable("contract-svc." + routingKey)
-                    .withArgument("x-dead-letter-exchange", dlx.getName())
-                    .build();
-            Queue dlq = QueueBuilder.durable("contract-svc." + routingKey + ".dlq").build();
-
-            declarables.add(queue);
-            declarables.add(dlq);
-            declarables.add(BindingBuilder.bind(queue).to(exchangeEscrow).with(routingKey));
-            declarables.add(BindingBuilder.bind(dlq).to(dlx).with(routingKey));
-        }
-
-        return new Declarables(declarables);
+    public Declarables contractDeclarables() {
+        return new Declarables(List.of(
+                new TopicExchange("agricontract.contracts", true, false),
+                new TopicExchange("agricontract.escrow", true, false),
+                new DirectExchange("agricontract.escrow.dlx", true, false)));
     }
 
     @Bean

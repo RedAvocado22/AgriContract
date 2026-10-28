@@ -1,6 +1,5 @@
 package com.agricontract.contract.infrastructure.persistence.entity;
 
-import com.agricontract.contract.domain.model.vo.CancelledBy;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -80,13 +79,6 @@ public class ContractJpaEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ContractStatus status;
-
-    @Column(name = "cancel_reason", columnDefinition = "TEXT")
-    private String cancelReason;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "cancelled_by", length = 10)
-    private CancelledBy cancelledBy;
 
     @Column(columnDefinition = "TEXT")
     private String signatories;

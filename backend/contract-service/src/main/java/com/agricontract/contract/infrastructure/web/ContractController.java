@@ -22,9 +22,6 @@ public class ContractController {
     private final CreateContractUseCase createContractUseCase;
     private final NegotiateContractUseCase negotiateContractUseCase;
     private final SignContractUseCase signContractUseCase;
-    private final CancelContractUseCase cancelContractUseCase;
-    private final ConfirmDeliveryUseCase confirmDeliveryUseCase;
-    private final DisputeContractUseCase disputeContractUseCase;
     private final GetContractUseCase getContractUseCase;
     private final ListContractsUseCase listContractsUseCase;
 
@@ -57,38 +54,6 @@ public class ContractController {
             Authentication auth) {
         signContractUseCase.execute(new SignContractCommand(contractId, auth.getName()));
         return ResponseEntity.ok(ApiResponse.ok(null));
-    }
-
-    @PutMapping("/{contractId}/cancel")
-    public ResponseEntity<ApiResponse<ContractResponse>> cancel(
-            @PathVariable String contractId,
-            @RequestBody CancelContractRequest request,
-            Authentication auth) {
-        ContractResponse response = cancelContractUseCase.execute(
-                new CancelContractCommand(contractId, auth.getName(), request.reason())
-        );
-        return ResponseEntity.ok(ApiResponse.ok(response));
-    }
-
-    @PutMapping("/{contractId}/confirm-delivery")
-    public ResponseEntity<ApiResponse<ContractResponse>> confirmDelivery(
-            @PathVariable String contractId,
-            Authentication auth) {
-        ContractResponse response = confirmDeliveryUseCase.execute(
-                new ConfirmDeliveryCommand(contractId, auth.getName())
-        );
-        return ResponseEntity.ok(ApiResponse.ok(response));
-    }
-
-    @PutMapping("/{contractId}/dispute")
-    public ResponseEntity<ApiResponse<ContractResponse>> dispute(
-            @PathVariable String contractId,
-            @RequestBody DisputeContractRequest request,
-            Authentication auth) {
-        ContractResponse response = disputeContractUseCase.execute(
-                new DisputeContractCommand(contractId, auth.getName(), request.reason())
-        );
-        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @GetMapping("/{contractId}")
