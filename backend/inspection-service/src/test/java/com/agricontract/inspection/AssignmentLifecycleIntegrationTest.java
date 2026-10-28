@@ -33,7 +33,7 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest(properties = {"SERVICE_INTERNAL_SECRET=test-service", "GATEWAY_INTERNAL_SECRET=test-gateway",
         "inspection.assignment.scheduler-enabled=false",
-        "inspection.assignment.holidays=2026-01-01", "management.health.rabbit.enabled=false"})
+        "VIETNAM_HOLIDAYS=2026-01-01", "management.health.rabbit.enabled=false"})
 @Testcontainers
 class AssignmentLifecycleIntegrationTest {
     @Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.42").withDatabaseName("inspection_db");
