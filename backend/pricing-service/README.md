@@ -63,7 +63,7 @@ src/
 ```
 
 Dependency rule: `domain` imports nothing else, `application` imports only `domain`, and HTTP statuses exist only in `infrastructure/http`.
-NestJS 11 (CommonJS, Node >= 22.12, Jest, same setup as `notification-service-nest`) is used only in `infrastructure/` and `main.ts`;
+NestJS 11 (CommonJS, Node >= 22.12, Jest, same setup as `notification-service`) is used only in `infrastructure/` and `main.ts`;
 `domain/` and `application/` are unchanged and framework-free.
 
 How a request flows: `ManualPriceGuard` (gateway secret, then OPERATOR role) -> `PricesController` (reads the JSON body, calls the
