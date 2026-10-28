@@ -121,11 +121,11 @@ Thêm config riêng `inspectionAuthMaxAgeSeconds` (`application.yml`, cùng nhó
 **Kết thúc / đổi người:**
 
 - Report của assignment chuyển `CONFIRMED` → set `ended_at = confirmed_at` trong cùng transaction với việc confirm report.
-- Quá `reportDueBusinessDays` mà chưa có report → hệ thống set `ended_at` và random lại trong tập eligible **trừ** các inspector đã từng được giao cho milestone đó. Không có thao tác reassign bằng tay.
+- Quá `reportDueBusinessDays` mà chưa có report → hệ thống set `ended_at` và random lại trong tập eligible **trừ** các inspector đã từng được giao cho milestone đó. Không có thao tác reassign bằng tay. Deadline `report_due_at` tính 1 lần lúc tạo assignment và luôn có giá trị (`NOT NULL`, §5).
 - Inspector mất eligibility (KYC bị thu hồi, giấy phép hết hạn) giữa chừng → submit bị chặn ở eligibility gate §2.2; assignment kết thúc theo nhánh quá hạn ở trên, không cần trigger riêng.
 - `ended_at` là cột duy nhất được UPDATE và chỉ đi từ NULL sang có giá trị; mọi lần đổi người là row mới, lịch sử giữ nguyên.
 
-**Binding report ↔ assignment:** report `LEVEL_1_5` lưu `l15_commission_id` trỏ tới assignment đã cho phép nộp (§5) — trả lời được "report này nộp theo lần giao nào" khi 1 milestone bị giám định nhiều lần (FM contest rồi dispute số lượng). Không dùng chung cột `commission_id` của Level 2.
+**Binding report ↔ assignment:** report `LEVEL_1_5` lưu `l15_commission_id` trỏ tới assignment đã cho phép nộp (§5) — trả lời được "report này nộp theo lần giao nào" khi 1 milestone bị giám định nhiều lần (FM contest rồi dispute số lượng). Không dùng chung cột `commission_id` của Level 2. **DB enforce (28/10/2026):** mỗi assignment có tối đa 1 report (`UNIQUE(l15_commission_id)`), và composite FK chặn report trỏ lệch contract/milestone/inspector của assignment (§5).
 
 ## 3. Level 2 — External Inspector (Admin-mediated → Auto-intake + Human-confirm)
 
@@ -383,12 +383,20 @@ CREATE TABLE level1_5_inspection_assignment (
     ended_at                TIMESTAMP(6) NULL,       -- cột duy nhất được UPDATE, chỉ NULL → giá trị (§2.5)
     assigned_by_service     VARCHAR(64) NOT NULL,    -- metadata nguồn yêu cầu, KHÔNG phải quyền chọn inspector
     initiated_by_actor_id   CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    report_due_business_days INT NOT NULL,          -- từ inspection.level1_5_requested (1–30, contract frozen)
+    report_due_at           TIMESTAMP(6) NOT NULL,   -- assigned_at + reportDueBusinessDays theo business day
+                                                     -- (milestone-escrow §1.1), lưu UTC. NOT NULL: thiếu deadline
+                                                     -- thì assignment không bao giờ timeout (28/10/2026)
     active_slot             TINYINT GENERATED ALWAYS AS
                             (CASE WHEN ended_at IS NULL THEN 1 ELSE NULL END) STORED,
     PRIMARY KEY (commission_id),
     UNIQUE KEY uk_l15_active_milestone (contract_id, milestone_id, active_slot),
                                                  -- 1 assignment active / milestone, giữ được nhiều row lịch sử
-    CONSTRAINT chk_l15_assignment_time CHECK (ended_at IS NULL OR ended_at >= assigned_at)
+    UNIQUE KEY uk_l15_report_binding (commission_id, contract_id, milestone_id, inspector_id),
+                                                 -- đích của composite FK từ inspection_report (28/10/2026)
+    CONSTRAINT chk_l15_assignment_time CHECK (ended_at IS NULL OR ended_at >= assigned_at),
+    CONSTRAINT chk_l15_deadline CHECK (report_due_business_days BETWEEN 1 AND 30
+                                       AND report_due_at >= assigned_at)
 );
 -- Không FK sang contract/milestone/user (khác service). Không liên quan level2_inspection_commission.
 -- Cần MySQL >= 8.0.16 để CHECK được enforce.
@@ -409,9 +417,9 @@ CREATE TABLE inspection_report (
     report_hash                       VARCHAR(64) NULL,        -- bắt buộc khi CONFIRMED; commit resultHash + identity/file/timestamp/actor
     -- nhánh LEVEL_1_5 — bắt buộc:
     inspector_id                     CHAR(36) NULL,               -- = signerUserId, NOT NULL nếu tier = LEVEL_1_5
-    l15_commission_id                CHAR(36) NULL REFERENCES level1_5_inspection_assignment(commission_id),
-                                                                  -- NOT NULL nếu tier = LEVEL_1_5 (12/10/2026, §2.5):
-                                                                  -- assignment đã cho phép nộp report này
+    l15_commission_id                CHAR(36) NULL,               -- NOT NULL nếu tier = LEVEL_1_5 (12/10/2026, §2.5):
+                                                                  -- assignment đã cho phép nộp report này.
+                                                                  -- FK + UNIQUE khai báo cuối bảng (28/10/2026)
     -- nhánh LEVEL_2 — bắt buộc:
     external_org                     VARCHAR(255) NULL,       -- NOT NULL nếu tier = LEVEL_2
     confirmed_by_operator_id            CHAR(36) NULL,               -- NOT NULL nếu tier = LEVEL_2 và status = CONFIRMED.
@@ -433,10 +441,29 @@ CREATE TABLE inspection_report (
                                                                   -- optional, chỉ LEVEL_2, Admin tự điền nếu org có dịch vụ verify công khai
     external_verification_checked_at TIMESTAMP NULL,
     confirmed_at                     TIMESTAMP NULL,
-    created_at                       TIMESTAMP NOT NULL DEFAULT now()
+    created_at                       TIMESTAMP NOT NULL DEFAULT now(),
+
+    -- BỔ SUNG 28/10/2026 — nhánh LEVEL_1_5 enforce ở DB (§2.5):
+    UNIQUE KEY uk_report_l15_commission (l15_commission_id),
+                                                 -- 1 assignment ↔ tối đa 1 report; nhiều NULL (LEVEL_2) hợp lệ
+    CONSTRAINT fk_report_l15_assignment FOREIGN KEY
+        (l15_commission_id, contract_id, milestone_id, inspector_id)
+        REFERENCES level1_5_inspection_assignment (commission_id, contract_id, milestone_id, inspector_id),
+                                                 -- report khớp đúng assignment + contract + milestone + inspector;
+                                                 -- row LEVEL_2 có cột NULL nên FK không áp (MATCH SIMPLE)
+    CONSTRAINT chk_report_tier CHECK (tier IN ('LEVEL_1_5', 'LEVEL_2')),
+    CONSTRAINT chk_report_l15_required CHECK (
+        tier <> 'LEVEL_1_5' OR (
+            contract_id IS NOT NULL AND milestone_id IS NOT NULL
+            AND inspector_id IS NOT NULL AND l15_commission_id IS NOT NULL
+            AND status = 'CONFIRMED' AND confirmed_at IS NOT NULL
+            AND normalized_result IS NOT NULL AND result_hash IS NOT NULL AND report_hash IS NOT NULL
+            AND external_org IS NULL AND commission_id IS NULL))
 );
--- Invariant (inspector_id XOR (external_org AND (confirmed_by_operator_id nếu status=CONFIRMED)))
--- check ở use-case layer, không phải DB constraint — cùng pattern active-flag đã dùng ở product-service.
+-- Nhánh LEVEL_1_5: mọi cột bắt buộc đã biết lúc INSERT (report L1.5 sinh ra là CONFIRMED), nên enforce
+-- bằng chk_report_l15_required + FK + UNIQUE ở DB. Bảng giữ đủ cột LEVEL_2 ngay từ đầu, không ALTER sau.
+-- Invariant nhánh LEVEL_2 (external_org; confirmed_by_operator_id nếu status=CONFIRMED; contract_id NULL
+-- tạm thời khi PENDING_REVIEW) vẫn check ở use-case layer — cùng pattern active-flag của product-service.
 ```
 
 ---
@@ -474,4 +501,4 @@ Inspection — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technic
 
 ---
 
-*Sync role SRS v1.6: 12/10/2026 · Bổ sung Level 1.5 assignment §2.5/§5: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Sync role SRS v1.6: 12/10/2026 · 28/10/2026 (§2.5/§5: report LEVEL_1_5 enforce ở DB — composite FK, UNIQUE(l15_commission_id), CHECK theo tier; assignment deadline NOT NULL) · Bổ sung Level 1.5 assignment §2.5/§5: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
