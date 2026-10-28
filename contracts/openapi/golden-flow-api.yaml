@@ -678,7 +678,7 @@ paths:
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
-    serviceAuth: {type: apiKey, in: header, name: X-Gateway-Secret, description: Internal deployment secret; never accepted from an external client.}
+    serviceAuth: {type: apiKey, in: header, name: X-Internal-Secret, description: 'Service-to-service identity (SERVICE_INTERNAL_SECRET). The gateway never routes /internal/**, and X-Gateway-Secret is not accepted here. mTLS is the production evolution, out of Phase 2 scope.'}
     apiKeyAuth: {type: apiKey, in: header, name: X-Api-Key}
   schemas:
     CreateContractRequest:
