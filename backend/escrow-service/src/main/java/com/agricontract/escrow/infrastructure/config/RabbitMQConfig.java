@@ -16,35 +16,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Configuration
 public class RabbitMQConfig {
 
+    // No consumer yet: Phase 2 activation (#101/#102) adds its queues here. The DLX stays the one escrow already owns.
     @Bean
-    public Declarables contractEventDeclarables() {
-        TopicExchange exchangeContracts = new TopicExchange("agricontract.contracts", true, false);
-        TopicExchange exchangeEscrow = new TopicExchange("agricontract.escrow", true, false);
-        DirectExchange dlx = new DirectExchange("agricontract.contracts.dlx", true, false);
-
-        List<Declarable> declarables = new ArrayList<>(List.of(exchangeContracts, exchangeEscrow, dlx));
-
-        for (String event : List.of("signed", "delivered", "cancelled")) {
-            String routingKey = "contract." + event;
-            Queue queue = QueueBuilder.durable("escrow-svc." + routingKey)
-                    .withArgument("x-dead-letter-exchange", dlx.getName())
-                    .build();
-            Queue dlq = QueueBuilder.durable("escrow-svc." + routingKey + ".dlq").build();
-
-            declarables.add(queue);
-            declarables.add(dlq);
-            declarables.add(BindingBuilder.bind(queue).to(exchangeContracts).with(routingKey));
-            declarables.add(BindingBuilder.bind(dlq).to(dlx).with(routingKey));
-        }
-
-        return new Declarables(declarables);
+    public Declarables escrowDeclarables() {
+        return new Declarables(List.of(
+                new TopicExchange("agricontract.escrow", true, false),
+                new DirectExchange("agricontract.contracts.dlx", true, false)));
     }
 
     // JSON <-> Object converter, shared by both the sender (rabbitTemplate) and receiver (rabbitListenerContainerFactory) below
@@ -63,7 +46,7 @@ public class RabbitMQConfig {
         return template;
     }
 
-    // RECEIVE side (every @RabbitListener, e.g. ContractEventConsumer) — same converter parses JSON -> the param type declared in the method
+    // RECEIVE side (every @RabbitListener) — same converter parses JSON -> the param type declared in the method
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory, MessageConverter jsonMessageConverter) {
