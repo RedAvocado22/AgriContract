@@ -216,7 +216,9 @@ $defs:
             properties:
               contractId: {$ref: "#/$defs/uuid"}
               buyerDepositState: {enum: [DEPOSIT_LOCKED, DEPOSIT_RELEASED, DEPOSIT_SEIZED]}
-              sellerDepositState: {enum: [DEPOSIT_LOCKED, DEPOSIT_RELEASED, DEPOSIT_SEIZED]}
+              sellerDepositState:
+                description: null when the contract has no seller deposit (sellerDepositAmount = 0); the key is still present.
+                oneOf: [{enum: [DEPOSIT_LOCKED, DEPOSIT_RELEASED, DEPOSIT_SEIZED]}, {type: "null"}]
             additionalProperties: false
         x-publisher: escrow-service
         x-consumers: [contract-service, escrow-service]
