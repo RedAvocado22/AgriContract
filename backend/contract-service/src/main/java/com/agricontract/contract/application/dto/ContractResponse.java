@@ -14,9 +14,7 @@ public record ContractResponse(
         String buyerEmail,
         String sellerEmail,
         ContractTerms terms,
-        String status,
-        String cancelReason,
-        String cancelledBy
+        String status
 ) {
     public static ContractResponse from(Contract contract) {
         return new ContractResponse(
@@ -30,9 +28,7 @@ public record ContractResponse(
                 contract.getBuyerEmail(),
                 contract.getSellerEmail(),
                 contract.getTerms(),
-                contract.getStatus().name(),
-                contract.getCancelReason(),
-                contract.getCancelledBy() != null ? contract.getCancelledBy().name() : null
+                contract.getStatus().name()
         );
     }
 }

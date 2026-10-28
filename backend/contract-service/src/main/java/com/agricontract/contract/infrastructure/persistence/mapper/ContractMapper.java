@@ -39,8 +39,6 @@ public class ContractMapper {
                 .sellerDepositRate(terms.sellerDepositRate())
                 .qualitySpec(terms.qualitySpec())
                 .status(contract.getStatus())
-                .cancelReason(contract.getCancelReason())
-                .cancelledBy(contract.getCancelledBy())
                 .signatories(serializeSignatories(contract.getSignatories()))
                 .build();
     }
@@ -66,8 +64,6 @@ public class ContractMapper {
                 e.getSellerEmail(),
                 terms,
                 e.getStatus(),
-                e.getCancelReason(),
-                e.getCancelledBy(),
                 deserializeSignatories(e.getSignatories())
         );
     }
