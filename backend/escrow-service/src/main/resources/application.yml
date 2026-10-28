@@ -23,6 +23,15 @@ spring:
     port: 5672
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    # Required by the outbox poller: it must know a command was routed and confirmed before marking it published.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+agricontract:
+  eventing:
+    outbox:
+      enabled: true
+      exchange: agricontract.escrow
 
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
