@@ -93,6 +93,22 @@ class RequestActivationDepositsUseCaseImplTest {
         assertThat(published).isEmpty();
     }
 
+    @Test
+    void aNegativeSellerDepositIsRejectedNotTreatedAsNoDeposit() {
+        assertThatThrownBy(() -> useCase.execute(command("1500000.00", "-500.00")))
+                .isInstanceOf(InvalidDepositLegException.class).hasMessageContaining("sellerDepositAmount");
+        assertThat(inserted).isEmpty();
+        assertThat(published).isEmpty();
+    }
+
+    @Test
+    void anInvalidSellerAmountFailsBeforeTheBuyerLegIsStored() {
+        assertThatThrownBy(() -> useCase.execute(command("1500000.00", "10.005")))
+                .isInstanceOf(InvalidDepositLegException.class);
+        assertThat(inserted).isEmpty();
+        assertThat(published).isEmpty();
+    }
+
     private static ContractSignedCommand command(String buyerDeposit, String sellerDeposit) {
         return new ContractSignedCommand(EVENT_ID, CORRELATION_ID, CONTRACT_ID, BUYER_ID, SELLER_ID,
                 new BigDecimal(buyerDeposit), new BigDecimal(sellerDeposit));
