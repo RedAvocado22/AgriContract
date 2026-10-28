@@ -1,6 +1,7 @@
 package com.agricontract.escrow.infrastructure.config;
 
 import com.agricontract.escrow.application.exception.InvalidEventPayloadException;
+import com.agricontract.escrow.domain.exception.InvalidDepositLegException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.*;
@@ -16,18 +17,42 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Configuration
 public class RabbitMQConfig {
 
-    // No consumer yet: Phase 2 activation (#101/#102) adds its queues here. The DLX stays the one escrow already owns.
+    public static final String CONTRACT_SIGNED_QUEUE = "escrow-svc.contract.signed";
+    public static final String LOCK_COMPLETED_QUEUE = "escrow-svc.bank.lock_completed";
+    public static final String LOCK_FAILED_QUEUE = "escrow-svc.bank.lock_failed";
+
+    // One Declarables bean on purpose: DlqMonitor reads the .dlq queues from it.
+    // The bank.lock_* queues have no listener until #102, but must exist now: bank's outbox poller stops its whole
+    // batch on a result it cannot route (D23), so an unbound result would stall bank-service.
     @Bean
     public Declarables escrowDeclarables() {
-        return new Declarables(List.of(
-                new TopicExchange("agricontract.escrow", true, false),
-                new DirectExchange("agricontract.contracts.dlx", true, false)));
+        TopicExchange contracts = new TopicExchange("agricontract.contracts", true, false);
+        TopicExchange bank = new TopicExchange("agricontract.bank", true, false);
+        DirectExchange dlx = new DirectExchange("agricontract.contracts.dlx", true, false);
+
+        List<Declarable> declarables = new ArrayList<>(List.of(
+                new TopicExchange("agricontract.escrow", true, false), contracts, bank, dlx));
+        bindWithDlq(declarables, CONTRACT_SIGNED_QUEUE, contracts, "contract.signed", dlx);
+        bindWithDlq(declarables, LOCK_COMPLETED_QUEUE, bank, "bank.lock_completed", dlx);
+        bindWithDlq(declarables, LOCK_FAILED_QUEUE, bank, "bank.lock_failed", dlx);
+        return new Declarables(declarables);
+    }
+
+    private static void bindWithDlq(List<Declarable> declarables, String queueName, TopicExchange exchange,
+                                    String routingKey, DirectExchange dlx) {
+        Queue queue = QueueBuilder.durable(queueName).deadLetterExchange(dlx.getName()).build();
+        Queue dlq = QueueBuilder.durable(queueName + ".dlq").build();
+        declarables.add(queue);
+        declarables.add(dlq);
+        declarables.add(BindingBuilder.bind(queue).to(exchange).with(routingKey));
+        declarables.add(BindingBuilder.bind(dlq).to(dlx).with(routingKey));
     }
 
     // JSON <-> Object converter, shared by both the sender (rabbitTemplate) and receiver (rabbitListenerContainerFactory) below
@@ -60,7 +85,9 @@ public class RabbitMQConfig {
     @Bean
     public RetryOperationsInterceptor retryInterceptor() {
         Map<Class<? extends Throwable>, Boolean> retryableExceptions = Map.of(
-                InvalidEventPayloadException.class, false
+                InvalidEventPayloadException.class, false,
+                // A payload that passed the schema but breaks a deposit rule will not pass on a retry either.
+                InvalidDepositLegException.class, false
         );
         SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(3, retryableExceptions, true, true);
 
