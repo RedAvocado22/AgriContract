@@ -187,6 +187,13 @@ old assignment ended. `ended_at` moves only from NULL to a value. `closeConfirme
 requires the caller's transaction; the downstream report workflow owns the actual
 call and atomic report confirmation. No report persistence or submission is added.
 
+V2 requires `report_due_business_days INT NOT NULL` and `report_due_at TIMESTAMP(6)
+NOT NULL`, with duration 1..30 and deadline at or after assignment time enforced
+by `chk_l15_deadline`. There is no nullable legacy-deadline path. Inspection has
+no production legacy rows requiring guessed deadlines; development databases
+using the old V2 must be reset explicitly before verification. V1/V3 are unchanged.
+Timeout occurs at the deadline; confirmation must be strictly before it.
+
 Set `INSPECTION_VIETNAM_HOLIDAYS` to a nonempty comma-separated list of ISO holiday
 dates for the operating years. Missing or invalid configuration fails startup.
 Business dates use Asia/Ho_Chi_Minh weekdays excluding configured holidays;
