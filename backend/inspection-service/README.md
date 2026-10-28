@@ -194,8 +194,14 @@ no production legacy rows requiring guessed deadlines; development databases
 using the old V2 must be reset explicitly before verification. V1/V3 are unchanged.
 Timeout occurs at the deadline; confirmation must be strictly before it.
 
-Set `INSPECTION_VIETNAM_HOLIDAYS` to a nonempty comma-separated list of ISO holiday
-dates for the operating years. Missing or invalid configuration fails startup.
-Business dates use Asia/Ho_Chi_Minh weekdays excluding configured holidays;
-timestamps persist in UTC. The assignment scan interval defaults to 60000 ms
+Set `VIETNAM_HOLIDAYS` to a nonempty comma-separated list of ISO holiday dates
+(`YYYY-MM-DD`) for the operating years. Operations must maintain this list annually;
+no holiday dates are hardcoded. Missing, blank, comma-only, malformed or impossible
+dates fail startup. Tokens are trimmed, duplicates collapse, and empty comma tokens
+are ignored only when at least one valid date remains.
+
+The pure-Java shared `com.agricontract:java-business-calendar` implementation uses
+Asia/Ho_Chi_Minh Monday-Friday dates excluding configured holidays. Assignment date
+is day zero; the deadline is 23:59:59.999 ICT on the Nth subsequent business day,
+returned and persisted as a UTC Instant. The scan interval defaults to 60000 ms
 (`INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS`). The service port remains 8087.
