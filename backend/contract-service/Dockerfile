@@ -3,6 +3,7 @@ WORKDIR /app
 COPY pom.xml ./pom.xml
 COPY shared/java-eventing/pom.xml ./shared/java-eventing/pom.xml
 COPY shared/java-web-error/pom.xml ./shared/java-web-error/pom.xml
+COPY shared/java-business-calendar/pom.xml ./shared/java-business-calendar/pom.xml
 COPY api-gateway/pom.xml ./api-gateway/pom.xml
 COPY user-service/pom.xml ./user-service/pom.xml
 COPY product-service/pom.xml ./product-service/pom.xml
@@ -16,6 +17,7 @@ RUN mvn dependency:go-offline -pl contract-service -am -q
 # Shared library modules the service may depend on; -am builds them in the same reactor.
 COPY shared/java-eventing/src ./shared/java-eventing/src
 COPY shared/java-web-error/src ./shared/java-web-error/src
+COPY shared/java-business-calendar/src ./shared/java-business-calendar/src
 COPY contract-service/src ./contract-service/src
 RUN mvn clean package -pl contract-service -am -DskipTests -q
 

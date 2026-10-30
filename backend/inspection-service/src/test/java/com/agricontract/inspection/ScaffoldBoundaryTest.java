@@ -44,7 +44,9 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties = {"SERVICE_INTERNAL_SECRET=test-service-secret", "GATEWAY_INTERNAL_SECRET=test-gateway-secret"})
+@SpringBootTest(properties = {"SERVICE_INTERNAL_SECRET=test-service-secret", "GATEWAY_INTERNAL_SECRET=test-gateway-secret",
+        "spring.rabbitmq.listener.simple.auto-startup=false", "management.health.rabbit.enabled=false",
+        "inspection.assignment.scheduler-enabled=false", "VIETNAM_HOLIDAYS=2026-01-01"})
 @AutoConfigureMockMvc
 @Testcontainers
 class ScaffoldBoundaryTest {
@@ -225,9 +227,11 @@ class ScaffoldBoundaryTest {
     // Test fixture only: there is deliberately no production assignment creation API/repository method.
     private void insert(String id, String contract, String milestone, String inspector, Instant endedAt) {
         jdbc.update("INSERT INTO level1_5_inspection_assignment "
-                        + "(commission_id, contract_id, milestone_id, inspector_id, assigned_at, ended_at, assigned_by_service) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?)", id, contract, milestone, inspector,
-                Timestamp.from(ASSIGNED), endedAt == null ? null : Timestamp.from(endedAt), "test-fixture");
+                        + "(commission_id, contract_id, milestone_id, inspector_id, assigned_at, ended_at, assigned_by_service, "
+                        + "report_due_business_days, report_due_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, contract, milestone, inspector,
+                Timestamp.from(ASSIGNED), endedAt == null ? null : Timestamp.from(endedAt), "test-fixture",
+                1, Timestamp.from(ASSIGNED.plusSeconds(86400)));
     }
 
     // Exercise filter -> authenticated context -> eligibility -> real MySQL ownership, without a test-only endpoint.

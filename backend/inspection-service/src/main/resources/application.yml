@@ -27,6 +27,9 @@ management:
         include: health
 
 inspection:
+  assignment:
+    scan-interval-ms: ${INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS:60000}
+    scheduler-enabled: true
   user-service:
     base-url: ${USER_SERVICE_URL:http://localhost:8081}
     internal-secret: ${SERVICE_INTERNAL_SECRET}
