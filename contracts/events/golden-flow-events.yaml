@@ -58,9 +58,9 @@ $defs:
     properties:
       commodity: {const: COFFEE}
       type: {enum: [ARABICA, ROBUSTA]}
-      moisturePercent: {type: number, minimum: 0, maximum: 100}
-      foreignMatterPercent: {type: number, minimum: 0, maximum: 100}
-      blackBrokenBeansPercent: {type: number, minimum: 0, maximum: 100}
+      moisturePercent: {type: number, minimum: 0, maximum: 100, multipleOf: 0.01}
+      foreignMatterPercent: {type: number, minimum: 0, maximum: 100, multipleOf: 0.01}
+      blackBrokenBeansPercent: {type: number, minimum: 0, maximum: 100, multipleOf: 0.01}
     examples:
       - {commodity: COFFEE, type: ROBUSTA, moisturePercent: 13.0, foreignMatterPercent: 0.7, blackBrokenBeansPercent: 5.5}
   actualQualityMetrics:
@@ -79,8 +79,8 @@ $defs:
             inconclusiveReasons: {}
     properties:
       resultSchemaVersion: {const: "1.0"}
-      measuredQuantityKg: {type: number, minimum: 0, description: Inspector-measured quantity in canonical kilograms (kg).}
-      acceptedQuantityKg: {type: number, minimum: 0, description: Quantity accepted for entitlement in canonical kilograms (kg).}
+      measuredQuantityKg: {type: number, minimum: 0, maximum: 1000000, multipleOf: 0.001, description: Inspector-measured quantity in canonical kilograms (kg).}
+      acceptedQuantityKg: {type: number, minimum: 0, maximum: 1000000, multipleOf: 0.001, description: Quantity accepted for entitlement in canonical kilograms (kg).}
       measurementStatus: {enum: [COMPLETE, INCONCLUSIVE]}
       actualQualityMetrics: {$ref: "#/$defs/actualQualityMetrics"}
       inconclusiveReasons:
@@ -89,6 +89,11 @@ $defs:
         items: {type: string, minLength: 1}
       determinedAt: {type: string, format: date-time}
     x-invariant: acceptedQuantityKg must be <= measuredQuantityKg; inconclusiveReasons is required when measurementStatus is INCONCLUSIVE.
+    x-numeric-bounds: >-
+      Technical guardrails, not business policy. Quantities are at most 1,000,000 kg (the per-milestone
+      committedQuantity cap) with at most 3 decimals; percentages have at most 2 decimals. Every accepted value
+      then has at most 10 significant digits and round-trips exactly through the IEEE double that RFC 8785
+      uses, so two different results can never share a resultHash. Producers reject values outside these bounds.
   baseEnvelope:
     $ref: "./event-envelope.yaml"
   contractCreated:

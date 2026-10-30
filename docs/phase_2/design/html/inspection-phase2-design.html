@@ -50,8 +50,8 @@
 <p>Inspection-service sở hữu schema finding/result dùng chung cho Level 1.5 và Level 2:</p>
 <figure class="code" data-lang="text"><pre><code>InspectionSettlementResultV1 {
   resultSchemaVersion: "1.0",
-  measuredQuantityKg: decimal &gt;= 0,
-  acceptedQuantityKg: decimal &gt;= 0 and &lt;= measuredQuantityKg,
+  measuredQuantityKg: decimal &gt;= 0 and &lt;= 1,000,000, tối đa 3 số lẻ,
+  acceptedQuantityKg: decimal &gt;= 0 and &lt;= measuredQuantityKg, tối đa 3 số lẻ,
   measurementStatus: COMPLETE | INCONCLUSIVE,
   actualQualityMetrics: CoffeeActualMetrics,
   inconclusiveReasons?: string[],
@@ -62,6 +62,7 @@
 <ul>
 <li>Coffee: <code>type</code>, <code>moisturePercent</code>, <code>foreignMatterPercent</code>, <code>blackBrokenBeansPercent</code>.</li>
 </ul>
+<p><strong>Biên số kỹ thuật (chốt 31/10/2026, không phải business policy):</strong> quantity tối đa <code>1,000,000 kg</code> (cùng cap <code>committedQuantity</code> mỗi milestone, milestone-escrow §2) và tối đa 3 số lẻ; các field <code>%</code> trong khoảng 0–100, tối đa 2 số lẻ. RFC 8785 serialize số qua IEEE double; với biên này mọi giá trị hợp lệ có tối đa 10 chữ số có nghĩa nên round-trip chính xác, hai kết quả khác nhau không thể ra cùng <code>resultHash</code>. Inspection-service reject giá trị ngoài biên trước khi tính hash.</p>
 <p>Inspection-service không còn sở hữu <code>qualityDisposition</code>. Nó chỉ cam kết quantity + actual measurements + việc report có kết luận được hay không. Contract-service đối chiếu committed coffee spec/deviation policy để tạo disposition, quality discount và final entitlement; coffee <code>type</code> là categorical field duy nhất được exact-match-reject.</p>
 <p>Certificate/phiếu kiểm theo batch mà Seller hoặc Buyer đính kèm lúc cân là delivery/dispute evidence riêng. Inspection-service không parse nó thành actual metric, không chép nó vào <code>InspectionSettlementResultV1</code>, không commit nó trong <code>resultHash</code>, không dùng nó để tự sinh disposition và không coi nó là bản thay thế cho report <code>CONFIRMED</code>.</p>
 <p>Snapshot này là kết quả normalized tối thiểu, bất biến sau khi report được <code>CONFIRMED</code>. Không mang raw file, contact PII hay nội dung report tự do. <code>actualQualityMetrics</code> nằm trong <code>normalizedResult</code>, nên mọi actual metric đều nằm trong bytes được hash commit:</p>

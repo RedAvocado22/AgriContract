@@ -57,8 +57,8 @@ Inspection-service sở hữu schema finding/result dùng chung cho Level 1.5 v�
 ```text
 InspectionSettlementResultV1 {
   resultSchemaVersion: "1.0",
-  measuredQuantityKg: decimal >= 0,
-  acceptedQuantityKg: decimal >= 0 and <= measuredQuantityKg,
+  measuredQuantityKg: decimal >= 0 and <= 1,000,000, tối đa 3 số lẻ,
+  acceptedQuantityKg: decimal >= 0 and <= measuredQuantityKg, tối đa 3 số lẻ,
   measurementStatus: COMPLETE | INCONCLUSIVE,
   actualQualityMetrics: CoffeeActualMetrics,
   inconclusiveReasons?: string[],
@@ -69,6 +69,8 @@ InspectionSettlementResultV1 {
 `actualQualityMetrics.commodity` bắt buộc `COFFEE` và phải khớp contract. Field đo được:
 
 - Coffee: `type`, `moisturePercent`, `foreignMatterPercent`, `blackBrokenBeansPercent`.
+
+**Biên số kỹ thuật (chốt 31/10/2026, không phải business policy):** quantity tối đa `1,000,000 kg` (cùng cap `committedQuantity` mỗi milestone, milestone-escrow §2) và tối đa 3 số lẻ; các field `%` trong khoảng 0–100, tối đa 2 số lẻ. RFC 8785 serialize số qua IEEE double; với biên này mọi giá trị hợp lệ có tối đa 10 chữ số có nghĩa nên round-trip chính xác, hai kết quả khác nhau không thể ra cùng `resultHash`. Inspection-service reject giá trị ngoài biên trước khi tính hash.
 
 Inspection-service không còn sở hữu `qualityDisposition`. Nó chỉ cam kết quantity + actual measurements + việc report có kết luận được hay không. Contract-service đối chiếu committed coffee spec/deviation policy để tạo disposition, quality discount và final entitlement; coffee `type` là categorical field duy nhất được exact-match-reject.
 
