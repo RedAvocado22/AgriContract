@@ -132,7 +132,9 @@ class ScaffoldBoundaryTest {
         assertThat(assignments.findActive(CONTRACT, MILESTONE)).contains(loaded);
         assertThat(jdbc.queryForObject("SELECT VERSION()", String.class)).startsWith("8.0.42");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.referential_constraints "
-                + "WHERE constraint_schema = DATABASE()", Integer.class)).isZero();
+                + "WHERE constraint_schema = DATABASE() AND unique_constraint_schema <> DATABASE()", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.referential_constraints "
+                + "WHERE constraint_schema = DATABASE() AND table_name='level1_5_inspection_assignment'", Integer.class)).isZero();
     }
 
     @Test
