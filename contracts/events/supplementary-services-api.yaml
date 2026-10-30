@@ -485,9 +485,9 @@ components:
       properties:
         commodity: { const: COFFEE }
         type: { enum: [ARABICA, ROBUSTA] }
-        moisturePercent: { type: number, minimum: 0, maximum: 100 }
-        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
-        blackBrokenBeansPercent: { type: number, minimum: 0, maximum: 100 }
+        moisturePercent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
+        blackBrokenBeansPercent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
       example: { commodity: COFFEE, type: ROBUSTA, moisturePercent: 13.0, foreignMatterPercent: 0.7, blackBrokenBeansPercent: 5.5 }
     ActualQualityMetrics:
       $ref: '#/components/schemas/CoffeeActualMetrics'
@@ -506,13 +506,13 @@ components:
               inconclusiveReasons: {}
       properties:
         resultSchemaVersion: { const: '1.0' }
-        measuredQuantityKg: { type: number, minimum: 0, description: Inspector-measured quantity in canonical kilograms (kg). }
-        acceptedQuantityKg: { type: number, minimum: 0, description: Quantity accepted for entitlement in canonical kilograms (kg). }
+        measuredQuantityKg: { type: number, minimum: 0, maximum: 1000000, multipleOf: 0.001, description: Inspector-measured quantity in canonical kilograms (kg). }
+        acceptedQuantityKg: { type: number, minimum: 0, maximum: 1000000, multipleOf: 0.001, description: Quantity accepted for entitlement in canonical kilograms (kg). }
         measurementStatus: { enum: [COMPLETE, INCONCLUSIVE] }
         actualQualityMetrics: { $ref: '#/components/schemas/ActualQualityMetrics' }
         inconclusiveReasons: { type: array, minItems: 1, items: { type: string, minLength: 1 } }
         determinedAt: { type: string, format: date-time }
-      x-invariant: acceptedQuantityKg must not exceed measuredQuantityKg; inconclusiveReasons is required when measurementStatus is INCONCLUSIVE; no delivery certificate may be parsed or copied into actualQualityMetrics.
+      x-invariant: acceptedQuantityKg must not exceed measuredQuantityKg; inconclusiveReasons is required when measurementStatus is INCONCLUSIVE; no delivery certificate may be parsed or copied into actualQualityMetrics. Numeric bounds (max 1,000,000 kg, 3 decimals for kg, 2 for percentages) are technical guardrails so values round-trip exactly through RFC 8785; see golden-flow-events.yaml inspectionSettlementResultV1.
     InspectionReportSubmission:
       type: object
       required: [reportFileId, normalizedResult]
