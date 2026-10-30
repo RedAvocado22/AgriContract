@@ -2,6 +2,7 @@ package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.application.dto.InternalUserInfoResponse;
 import com.agricontract.user.application.usecase.GetInternalUserInfoUseCase;
+import com.agricontract.user.application.usecase.ListEligibleInspectorsUseCase;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import com.agricontract.user.infrastructure.config.SecurityConfig;
@@ -48,6 +49,7 @@ class InternalUserControllerTest {
     @Autowired private ObjectMapper objectMapper;
 
     @MockBean private GetInternalUserInfoUseCase getInternalUserInfoUseCase;
+    @MockBean private ListEligibleInspectorsUseCase listEligibleInspectorsUseCase;
 
     @Test
     void validInternalSecret_returnsExactlyTheFrozenFieldsAtTopLevel() throws Exception {

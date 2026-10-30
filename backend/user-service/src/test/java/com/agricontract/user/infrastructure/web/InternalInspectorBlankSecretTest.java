@@ -1,6 +1,7 @@
 package com.agricontract.user.infrastructure.web;
 
-import com.agricontract.user.application.usecase.ListEligibleInspectors;
+import com.agricontract.user.application.usecase.GetInternalUserInfoUseCase;
+import com.agricontract.user.application.usecase.ListEligibleInspectorsUseCase;
 import com.agricontract.user.infrastructure.config.HeaderAuthenticationFilter;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -17,8 +18,8 @@ class InternalInspectorBlankSecretTest {
     @ParameterizedTest
     @ValueSource(strings = {"", " \t "})
     void blankConfiguredSecretNeverGrantsInternalAccess(String configuredSecret) throws Exception {
-        var inspectors = mock(ListEligibleInspectors.class);
-        var mvc = MockMvcBuilders.standaloneSetup(new InternalInspectorController(inspectors))
+        var inspectors = mock(ListEligibleInspectorsUseCase.class);
+        var mvc = MockMvcBuilders.standaloneSetup(new InternalUserController(mock(GetInternalUserInfoUseCase.class), inspectors))
                 .addFilters(new HeaderAuthenticationFilter("gateway", configuredSecret))
                 .build();
 
