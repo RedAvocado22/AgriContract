@@ -1,29 +1,45 @@
 package com.agricontract.user.infrastructure.persistence.repository;
 
-import com.agricontract.user.application.usecase.ListEligibleInspectors;
 import com.agricontract.user.application.dto.EligibleInspectorResponse;
-import java.sql.Timestamp;
-import java.time.*;
-import java.util.UUID;
+import com.agricontract.user.application.usecase.ListEligibleInspectorsUseCaseImpl;
+import com.agricontract.user.domain.repository.UserProfileRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.*;
-import static org.assertj.core.api.Assertions.assertThat;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = "service.internal-secret=service")
+@AutoConfigureMockMvc
 @Testcontainers
 class EligibleInspectorQueryTest {
-    @Container @ServiceConnection static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0.42");
-    @Autowired UserProfileJpaRepository query;
-    @Autowired com.agricontract.user.domain.repository.UserProfileRepository users;
-    @Autowired JdbcTemplate jdbc;
+    @Container
+    @ServiceConnection
+    static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0.42");
+    @Autowired private UserProfileJpaRepository query;
+    @Autowired private UserProfileRepository users;
+    @Autowired private JdbcTemplate jdbc;
+    @Autowired private MockMvc mvc;
     private static final Instant NOW = Instant.parse("2026-10-24T03:00:00Z");
 
-    @Test void authoritativePredicateIncludesOnlyVerifiedCurrentlyLicensedInspectors() {
+    @Test
+    void authoritativePredicateIncludesOnlyVerifiedCurrentlyLicensedInspectors() {
         jdbc.update("DELETE FROM user_profiles");
         String unlimited = insert("INSPECTOR", "VERIFIED", null);
         String future = insert("INSPECTOR", "VERIFIED", NOW.plusSeconds(1));
@@ -31,10 +47,24 @@ class EligibleInspectorQueryTest {
         insert("INSPECTOR", "VERIFIED", NOW.minusSeconds(1));
         insert("INSPECTOR", "PENDING", null);
         insert("INSPECTOR", "REJECTED", null);
-        for (String role : new String[]{"BUYER", "SELLER", "ADMIN", "OPERATOR"}) insert(role, "VERIFIED", null);
+        for (String role : new String[]{"BUYER", "SELLER", "ADMIN", "OPERATOR", "ARBITRATOR"}) {
+            insert(role, "VERIFIED", null);
+        }
         assertThat(query.findEligibleInspectorIds(NOW)).containsExactlyInAnyOrder(unlimited, future);
-        var service = new ListEligibleInspectors(users, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = new ListEligibleInspectorsUseCaseImpl(users, Clock.fixed(NOW, ZoneOffset.UTC));
         assertThat(service.execute()).extracting(EligibleInspectorResponse::userId).containsExactlyInAnyOrder(unlimited, future);
+    }
+
+    @Test
+    void futureReputationLockDoesNotExcludeEligibleInspectorFromEndpoint() throws Exception {
+        jdbc.update("DELETE FROM user_profiles");
+        String inspector = insert("INSPECTOR", "VERIFIED", null);
+        jdbc.update("UPDATE user_profiles SET locked_until = ? WHERE user_id = ?",
+                LocalDateTime.ofInstant(Instant.now().plusSeconds(86400), ZoneOffset.UTC), inspector);
+
+        mvc.perform(get("/internal/v1/users/inspectors/eligible").header("X-Internal-Secret", "service"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[{\"userId\":\"" + inspector + "\"}]", true));
     }
 
     private String insert(String role, String status, Instant expiry) {
