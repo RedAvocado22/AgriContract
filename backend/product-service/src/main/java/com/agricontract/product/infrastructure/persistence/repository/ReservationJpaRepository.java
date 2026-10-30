@@ -2,16 +2,36 @@ package com.agricontract.product.infrastructure.persistence.repository;
 
 import com.agricontract.product.domain.model.vo.ReservationStatus;
 import com.agricontract.product.infrastructure.persistence.entity.ReservationJpaEntity;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface ReservationJpaRepository extends JpaRepository<ReservationJpaEntity, Long> {
     Optional<ReservationJpaEntity> findByContractId(String contractId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM ReservationJpaEntity r WHERE r.contractId = :contractId")
+    Optional<ReservationJpaEntity> lockByContractId(@Param("contractId") String contractId);
+
+    @Query("""
+            SELECT r.contractId FROM ReservationJpaEntity r
+            WHERE r.status = com.agricontract.product.domain.model.vo.ReservationStatus.RESERVED
+              AND r.createdAt < :createdBefore
+              AND NOT EXISTS (
+                  SELECT 1 FROM ProcessedContractEventJpaEntity e
+                  WHERE e.contractId = r.contractId
+                    AND e.eventType = com.agricontract.product.domain.model.vo.ContractLifecycleEventType.CONTRACT_CREATED)
+            ORDER BY r.createdAt
+            """)
+    List<String> findOrphanCandidates(@Param("createdBefore") LocalDateTime createdBefore, Limit limit);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

@@ -18,6 +18,7 @@ spring:
     port: 5672
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    # listener retry and no-requeue live in RabbitMQConfig: Boot's listener.simple.retry also retries rejected deliveries
 
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
@@ -30,6 +31,18 @@ plot:
   geo-verification-timeout-hours: ${PLOT_GEO_VERIFICATION_TIMEOUT_HOURS:6}
   # local/Bruno runs: PLOT_GEO_VERIFICATION_TIMEOUT_HOURS=0 and a short check interval so a new plot is usable at once
   geo-verification-timeout-check-ms: ${PLOT_GEO_VERIFICATION_TIMEOUT_CHECK_MS:600000}
+
+reservation:
+  # a RESERVED reservation with no contract.created after this is an orphan and gets released (design §8b.2)
+  orphan-grace-minutes: ${RESERVATION_ORPHAN_GRACE_MINUTES:30}
+  orphan-reaper-check-ms: ${RESERVATION_ORPHAN_REAPER_CHECK_MS:60000}
+
+product:
+  dlq-monitor:
+    # WARN event=product_dlq_nonempty while product-svc.*.dlq has messages
+    enabled: ${PRODUCT_DLQ_MONITOR_ENABLED:true}
+    interval-ms: ${PRODUCT_DLQ_MONITOR_INTERVAL_MS:300000}
+    timeout-ms: ${PRODUCT_DLQ_MONITOR_TIMEOUT_MS:3000}
 
 server:
   port: ${SERVER_PORT:8082}
