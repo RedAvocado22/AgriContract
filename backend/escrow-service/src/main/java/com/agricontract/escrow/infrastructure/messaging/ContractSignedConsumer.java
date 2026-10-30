@@ -17,6 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -33,6 +34,11 @@ public class ContractSignedConsumer {
     static final String CONSUMER_NAME = "escrow-service.contract-signed";
     static final String EVENT_TYPE = "contract.signed";
     static final String PRODUCER = "contract-service";
+
+    // contractSigned payload: every field is required and nothing else is allowed (additionalProperties: false).
+    private static final Set<String> FIELDS = Set.of(
+            "contractId", "listingId", "reservedQuantity", "commodity", "buyerId", "sellerId", "totalAmount",
+            "buyerDepositAmount", "sellerDepositAmount", "signedContentHash", "signedAt");
 
     private static final Pattern UUID =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -67,13 +73,29 @@ public class ContractSignedConsumer {
         }
     }
 
-    /**
-     * TODO(#101): check eventType/producer/version, check the payload keys against contractSigned
-     *  (required + additionalProperties: false), read the fields escrow needs, decide the correlationId
-     *  (contract.signed does not require one; bank.lock_requested does).
-     */
     ContractSignedCommand toCommand(EventEnvelope envelope) {
-        throw new UnsupportedOperationException("TODO #101");
+        if (!EVENT_TYPE.equals(envelope.eventType()) || !PRODUCER.equals(envelope.producer())
+                || envelope.eventVersion() != 1) {
+            throw new InvalidEventPayloadException("Unexpected event type, producer or version");
+        }
+        Map<String, Object> payload = envelope.payload();
+        if (!payload.keySet().equals(FIELDS)) {
+            throw new InvalidEventPayloadException("Payload fields do not match contract.signed");
+        }
+
+        String eventId = envelope.eventId().toString();
+        // contract.signed may omit correlationId but bank.lock_requested may not: without one, the signed event
+        // starts the activation chain (D27). A present correlationId is kept so the chain stays joined to the sign request.
+        String correlationId = envelope.correlationId() != null ? envelope.correlationId() : eventId;
+
+        return new ContractSignedCommand(
+                eventId,
+                correlationId,
+                uuid(payload, "contractId"),
+                uuid(payload, "buyerId"),
+                uuid(payload, "sellerId"),
+                money(payload, "buyerDepositAmount"),
+                money(payload, "sellerDepositAmount"));
     }
 
     private static String uuid(Map<String, Object> payload, String field) {
