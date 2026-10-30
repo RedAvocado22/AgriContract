@@ -91,7 +91,7 @@ reportHash = SHA256(RFC8785_canonical_json({
 }))
 ```
 
-`reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByOperatorId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền, không quyết định disposition và không quyết định escrow transition. Reviewer ở contract workflow chỉ xác nhận phép tính tất định giữa committed terms trong `signedContentHash` và actual metrics trong `resultHash`; không được thêm tiêu chí chủ quan ngoài deviation policy đã ký.
+Tên key là một phần của bytes được hash, nên projection dùng đúng 8 key trên. Event `inspection.report_confirmed` không có field `sourceTimestamp`: giá trị của nó là `confirmedAt` trong payload (chốt 31/10/2026, #310). `reportFileHash` là hash bytes bất biến do file-service/inspection intake cung cấp. `actorOrSourceIdentity` là `inspectorId` cho Level 1.5 hoặc định danh nguồn external + `confirmedByOperatorId` cho Level 2. Contract-service verify `resultHash` và `reportHash` trước khi dùng kết quả; inspection-service không tính tiền, không quyết định disposition và không quyết định escrow transition. Reviewer ở contract workflow chỉ xác nhận phép tính tất định giữa committed terms trong `signedContentHash` và actual metrics trong `resultHash`; không được thêm tiêu chí chủ quan ngoài deviation policy đã ký.
 
 ### 2.4 Session freshness — tách config riêng khỏi Signature
 

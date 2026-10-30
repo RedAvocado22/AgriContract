@@ -902,7 +902,11 @@ $defs:
           and uses QUALITY_BELOW_COMMITTED. INCONCLUSIVE emits no attribution or money.
         x-hash-contract:
           resultHash: SHA256(RFC8785 canonical JSON of normalizedResult, including every actualQualityMetrics field)
-          reportHash: SHA256(RFC8785 canonical JSON of report identity, reportFileHash, resultHash, confirmedAt and actor/source identity)
+          reportHash: >-
+            SHA256(RFC8785 canonical JSON of exactly {reportId, contractId, milestoneId, tier, reportFileHash,
+            resultHash, sourceTimestamp, actorOrSourceIdentity}). sourceTimestamp carries this payload's confirmedAt
+            value; actorOrSourceIdentity carries inspectorId for LEVEL_1_5 (LEVEL_2 composition not yet defined).
+            Key names are part of the hashed bytes (inspection-phase2-design.md section 2.3).
   milestoneSellerWeighed:
     allOf:
       - $ref: "./event-envelope.yaml"
