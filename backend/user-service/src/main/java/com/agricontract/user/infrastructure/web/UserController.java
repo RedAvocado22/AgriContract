@@ -2,7 +2,7 @@ package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.application.dto.RegisterUserCommand;
 import com.agricontract.user.application.dto.RegisterUserResult;
-import com.agricontract.user.application.dto.UserInfoResponse;
+import com.agricontract.user.application.dto.PublicUserResponse;
 import com.agricontract.user.application.dto.UserProfileResponse;
 import com.agricontract.user.application.usecase.GetUserInfoUseCase;
 import com.agricontract.user.application.usecase.GetUserProfileUseCase;
@@ -13,6 +13,7 @@ import com.agricontract.user.infrastructure.web.dto.RegisterUserRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
@@ -48,15 +49,17 @@ public class UserController {
                 : ResponseEntity.ok(ApiResponse.ok(result.profile()));
     }
 
+    // The owner is the authenticated principal set by HeaderAuthenticationFilter, never the raw X-User-Id header:
+    // an internal-secret call carries no principal and must not read a full profile by sending any X-User-Id.
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserProfileResponse>> getMyProfile(
-            @RequestHeader("X-User-Id") String userId
+            @AuthenticationPrincipal String userId
     ) {
         return ResponseEntity.ok(ApiResponse.ok(getUserProfileUseCase.execute(userId)));
     }
 
     @GetMapping("/{userId}")
-    public ResponseEntity<ApiResponse<UserInfoResponse>> getProfile(
+    public ResponseEntity<ApiResponse<PublicUserResponse>> getProfile(
             @PathVariable String userId
     ) {
         return ResponseEntity.ok(ApiResponse.ok(getUserInfoUseCase.execute(userId)));

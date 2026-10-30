@@ -31,12 +31,16 @@ tests {
     expect(res.getBody().data.organizationName).to.be.a("string");
   });
 
-  test("email is present (Feign contract)", function() {
-    expect(res.getBody().data.email).to.be.a("string");
+  test("role is present", function() {
+    expect(res.getBody().data.role).to.be.a("string");
   });
 
-  test("role is present (Feign contract)", function() {
-    expect(res.getBody().data.role).to.be.a("string");
+  test("verificationStatus is present", function() {
+    expect(res.getBody().data.verificationStatus).to.be.a("string");
+  });
+
+  test("email is not exposed (#108, services use /internal/v1/users)", function() {
+    expect(res.getBody().data.email).to.equal(undefined);
   });
 
   test("phone is not exposed (IDOR fix)", function() {
