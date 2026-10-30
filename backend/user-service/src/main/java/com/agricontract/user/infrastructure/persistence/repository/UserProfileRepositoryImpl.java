@@ -17,6 +17,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -27,6 +28,11 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
 
     private final UserProfileJpaRepository jpaRepository;
     private final UserProfileMapper mapper;
+
+    @Override
+    public List<String> findEligibleInspectorIds(Instant now) {
+        return jpaRepository.findEligibleInspectorIds(now);
+    }
 
     @Override
     @Transactional
