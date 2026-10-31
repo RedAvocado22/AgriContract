@@ -1,11 +1,11 @@
 ---
 name: notification-service-nestjs-migration
 description: "Kế hoạch chuyển notification-service từ Spring Boot (Java 21) sang NestJS (TypeScript) — parity Phase 1 trước, Phase 2 viết thẳng trên Nest."
-status: "IN PROGRESS: M0–M4 xong (M4: PR #206, checklist parity đã ký), M5 chưa làm"
+status: "DONE: M0–M5 xong (M4: PR #206, checklist parity đã ký; M5: issue #230, rollback tag notification-java-final)"
 metadata:
   type: plan
   owner: "P3 (Node) — xem team-assignment-plan.md"
-  related: "phase_2/design/notification-service-phase2-design.md; planning/implementation-plan.md T2/T10; backend/shared/node-eventing/README.md"
+  related: "phase_2/design/notification-service-phase2-design.md; backend/shared/node-eventing/README.md"
 ---
 
 # Notification-service: Spring Boot → NestJS
@@ -275,12 +275,23 @@ Tiêu chí cũ "tương đương hoặc hơn Java" không kiểm được, vì J
 
 ### M5 — Cutover & dọn Java (1 ngày, 1 PR riêng)
 
-- [ ] Xoá `backend/notification-service/` (Java), đổi tên `notification-service-nest` thành `notification-service`.
-- [ ] Bỏ `<module>notification-service</module>` khỏi `backend/pom.xml`.
-- [ ] **Xoá dòng `COPY notification-service/pom.xml ...`** trong Dockerfile của `api-gateway`, `user-service`, `product-service`, `contract-service`, `escrow-service`. Nếu sót, các service này build fail.
-- [ ] Sửa đường dẫn trong compose và CI theo tên mới. Chạy lại `mvn clean verify` cho phần Java còn lại.
-- [ ] Cập nhật `README.md` (bảng service: stack NestJS), `notification-service-phase2-design.md` (metadata `extends`) và `implementation-plan.md` T2/T10 (module/file path mới).
-- [ ] Cắt tag `notification-java-final` trên commit trước PR này để rollback.
+- [x] Xoá `backend/notification-service/` (Java), đổi tên `notification-service-nest` thành `notification-service`.
+- [x] Bỏ `<module>notification-service</module>` khỏi `backend/pom.xml`.
+- [x] **Xoá dòng `COPY notification-service/pom.xml ...`** trong Dockerfile của `api-gateway`, `user-service`, `product-service`, `contract-service`, `escrow-service`. Nếu sót, các service này build fail.
+- [x] Sửa đường dẫn trong compose và CI theo tên mới. Chạy lại `mvn clean verify` cho phần Java còn lại.
+- [x] Cập nhật `README.md` (bảng service: stack NestJS), `notification-service-phase2-design.md` (metadata `extends`) và `implementation-plan.md` T2/T10 (module/file path mới). `implementation-plan.md` đã bị xoá ở `342dc5f` (19/10/2026), không còn gì để cập nhật.
+- [x] Cắt tag `notification-java-final` trên commit trước PR này để rollback.
+
+**Kết quả M5 (26/10/2026, issue #230):**
+
+- **Tag rollback:** `notification-java-final` (annotated, object `6450060`) trỏ vào `main` `b2376914adb8f50e5ef3e3d0b00252f85b9f6143`, commit cuối còn Java.
+- **Đường dẫn:** compose (build `notification-service/Dockerfile`, mount `notification-service/db/migration`), Dockerfile của service (`WORKDIR /app/notification-service`), CI, CODEOWNERS, README của service và của analytics-service. CI: bỏ `notification-service` khỏi filter và matrix Maven. Job Node đổi tên `notification-service-node` → `notification-service`, output `node` → `notification`. `ci-gate` vẫn là check bắt buộc duy nhất.
+- **`mvn clean verify`** (8 module còn lại, không còn notification; chạy trong `maven:3.9-eclipse-temurin-21` vì máy không có Maven): BUILD SUCCESS, 848 test, 0 fail. Hai lần chạy trước fail ở `reputation-service`, đều do môi trường chạy, không do code: lần 1 thiếu thư mục `contracts/` ở gốc repo (test đọc `../../contracts`), lần 2 có 1 test `ReputationMySqlTest` timeout khi kết nối MySQL Testcontainers (`Connect timed out`, 27 test còn lại cùng class đạt). Lần 3 không đổi gì, đạt toàn bộ.
+- **Node:** `npm ci`, `lint:check`, `test` (392 pass, 1 skip), `build` đạt. Test bị skip là "golden fixture freshness", tự skip khi không còn file Java (đúng như thiết kế ở M2).
+- **`docker compose build`:** đạt cả 6 image (5 service Java + `notification-service`).
+- **Compose từ volume trống:** chạy trên stack riêng (compose project `agri-m5`, override tạm không commit, `container_name`/port khác, volume mới; stack và volume dùng chung không bị đụng). Flyway áp dụng V1 (checksum `-1380183233`, giống M3), service `healthy`, health `db`/`rabbit` `UP`, 9 queue + 9 DLQ, mỗi queue chính 1 consumer. Đã `down -v` sau khi chạy.
+- **Bruno `notification-service` 00–19 trên stack đó:** giống lượt Nest ở M4. 00–03 pass (01: 3/3, 2 mail; 03: vẫn 2 mail). Tổng 18/20 request, 32/39 test, chỉ 17 và 19 fail (lỗi collection, báo cáo M4 §5.1). 14 dòng `SENT` (`retry_count` max 0), 14 mail, DLQ 0.
+- **Grep:** không còn `notification-service-nest` hay module Java của notification ngoài tài liệu lịch sử (§5, M3, báo cáo M4) và tên file `notification-service-nestjs-migration.md`. Phần còn sót (`test/support/java-templates.ts` trỏ tới file Java đã xoá, test "golden fixture freshness" tự skip, script `npm run fixtures:java` không chạy được) đã dọn trong cùng PR theo review: bỏ script `fixtures:java`, `scripts/extract-java-templates.ts`, phần extract trong `test/support/java-templates.ts` cùng spec của nó, và test freshness. `test/fixtures/java-templates.json` giữ làm fixture parity đóng băng từ tag `notification-java-final`. Sau khi dọn: `lint:check` đạt, `test` 389 pass, 0 skip.
 
 ## 7. Cutover & rollback
 

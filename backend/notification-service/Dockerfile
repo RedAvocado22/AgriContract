@@ -1,25 +1,28 @@
-FROM maven:3.9-eclipse-temurin-21 AS builder
-WORKDIR /app
-COPY pom.xml ./pom.xml
-COPY shared/java-eventing/pom.xml ./shared/java-eventing/pom.xml
-COPY shared/java-web-error/pom.xml ./shared/java-web-error/pom.xml
-COPY api-gateway/pom.xml ./api-gateway/pom.xml
-COPY user-service/pom.xml ./user-service/pom.xml
-COPY product-service/pom.xml ./product-service/pom.xml
-COPY contract-service/pom.xml ./contract-service/pom.xml
-COPY escrow-service/pom.xml ./escrow-service/pom.xml
-COPY notification-service/pom.xml ./notification-service/pom.xml
-COPY reputation-service/pom.xml ./reputation-service/pom.xml
-COPY inspection-service/pom.xml ./inspection-service/pom.xml
-COPY bank-service/pom.xml ./bank-service/pom.xml
-RUN mvn dependency:go-offline -pl notification-service -am -q
-# Shared library modules the service may depend on; -am builds them in the same reactor.
-COPY shared/java-eventing/src ./shared/java-eventing/src
-COPY shared/java-web-error/src ./shared/java-web-error/src
-COPY notification-service/src ./notification-service/src
-RUN mvn clean package -pl notification-service -am -DskipTests -q
+FROM node:22-alpine AS builder
+WORKDIR /app/shared/node-eventing
+COPY shared/node-eventing/package.json shared/node-eventing/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY shared/node-eventing/ ./
+RUN npm run build
 
-FROM eclipse-temurin:21-jre-alpine
-WORKDIR /app
-COPY --from=builder /app/notification-service/target/*.jar app.jar
-ENTRYPOINT ["java", "-jar", "app.jar"]
+WORKDIR /app/notification-service
+COPY notification-service/package.json notification-service/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY notification-service/ ./
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+
+FROM node:22-alpine AS runtime
+ENV NODE_ENV=production
+# Same layout as the builder: node_modules/@agricontract/eventing is a relative
+# symlink to ../shared/node-eventing, which has no runtime dependencies of its own.
+WORKDIR /app/notification-service
+COPY --from=builder /app/shared/node-eventing/package.json /app/shared/node-eventing/package.json
+COPY --from=builder /app/shared/node-eventing/dist /app/shared/node-eventing/dist
+COPY --from=builder /app/notification-service/package.json ./package.json
+COPY --from=builder /app/notification-service/node_modules ./node_modules
+COPY --from=builder /app/notification-service/dist ./dist
+USER node
+EXPOSE 8085
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.SERVER_PORT || 8085) + '/actuator/health').then((r) => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
+CMD ["node", "dist/main.js"]

@@ -5,7 +5,7 @@ status: DESIGNED — chưa code.
 metadata:
   type: design
   phase: 2
-  extends: "notification-service Phase 1; AgriContract Architecture v2 §3.12; SDS Phần 5 §3"
+  extends: "notification-service Phase 1 (NestJS, `backend/notification-service/`, sau cutover M5 #230); AgriContract Architecture v2 §3.12; SDS Phần 5 §3"
   related: "signature-phase2-design.md §4.1/§6; hash-chain-phase2-design.md §4-5; milestone-escrow-phase2-design.md §7; contract-document-consent-phase2-design.md §5-7"
 ---
 
