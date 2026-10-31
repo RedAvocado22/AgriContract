@@ -8,6 +8,7 @@ import com.agricontract.product.domain.model.Category;
 import com.agricontract.product.domain.model.Product;
 import com.agricontract.product.domain.model.vo.CategoryId;
 import com.agricontract.product.domain.model.vo.CategoryStatus;
+import com.agricontract.product.domain.model.vo.Commodity;
 import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.repository.CategoryRepository;
 import com.agricontract.product.domain.repository.ProductRepository;
@@ -35,7 +36,7 @@ class CreateProductUseCaseImplTest {
 
     private Category approvedCategory() {
         Category category = Category.propose(new CategoryId("category-1"), "Gao", "gao", "admin", "admin@test.com");
-        category.approve();
+        category.approve(Commodity.COFFEE);
         return category;
     }
 
@@ -81,6 +82,23 @@ class CreateProductUseCaseImplTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("COFFEE");
 
         verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void execute_legacyCategoryAfterOperatorAssignsCommodity_createsProduct() {
+        useCase = new CreateProductUseCaseImpl(productRepository, categoryRepository);
+        when(productRepository.findById(any())).thenReturn(Optional.empty());
+        Category legacy = Category.reconstruct(new CategoryId("category-1"), "Ca phe", "ca phe", CategoryStatus.APPROVED,
+                null, "admin", "admin@test.com", null);
+        legacy.assignCommodity(Commodity.COFFEE);
+        when(categoryRepository.findById(new CategoryId("category-1"))).thenReturn(Optional.of(legacy));
+        when(productRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductResponse response = useCase.execute(
+                new CreateProductRequest("product-1", "Ca phe Robusta", "kg", "category-1", IMAGES, null, null, null));
+
+        assertThat(response.categoryId()).isEqualTo("category-1");
+        verify(productRepository).save(any());
     }
 
     @Test
