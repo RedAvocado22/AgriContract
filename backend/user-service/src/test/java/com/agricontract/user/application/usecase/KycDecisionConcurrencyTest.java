@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -66,6 +67,7 @@ class KycDecisionConcurrencyTest {
     @Autowired private UserProfileRepository userProfileRepository;
     @Autowired private VerifyUserUseCase verifyUserUseCase;
     @Autowired private RejectUserUseCase rejectUserUseCase;
+    @Autowired private JdbcTemplate jdbc;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -84,6 +86,7 @@ class KycDecisionConcurrencyTest {
                 () -> rejectUserUseCase.execute(new RejectUserCommand(targetId, "operator-b", "Blurry ID scan")));
 
         assertOneWinnerOneConflict(outcomes);
+        assertOneCommandFor(targetId);
         UserProfile stored = userProfileRepository.findById(new UserId(targetId)).orElseThrow();
         if (outcomes.get(0).succeeded()) {
             assertThat(stored.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
@@ -107,6 +110,7 @@ class KycDecisionConcurrencyTest {
                 () -> verifyUserUseCase.execute(new VerifyUserCommand(targetId, "operator-b", null)));
 
         assertOneWinnerOneConflict(outcomes);
+        assertOneCommandFor(targetId);
         UserProfile stored = userProfileRepository.findById(new UserId(targetId)).orElseThrow();
         String winner = outcomes.get(0).succeeded() ? "operator-a" : "operator-b";
         assertThat(stored.getVerificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
@@ -141,6 +145,13 @@ class KycDecisionConcurrencyTest {
         assertThat(outcomes).filteredOn(o -> !o.succeeded()).singleElement()
                 .extracting(Outcome::failure)
                 .isInstanceOf(ConcurrentProfileUpdateException.class);
+    }
+
+    // The losing transaction rolls back, taking its outbox row with it.
+    private void assertOneCommandFor(String targetId) {
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM event_outbox WHERE event_type = 'notification.user_kyc_result_requested'"
+                        + " AND aggregate_id = ?", Integer.class, targetId)).isEqualTo(1);
     }
 
     private record Outcome(Throwable failure) {
