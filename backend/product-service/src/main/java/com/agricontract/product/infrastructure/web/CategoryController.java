@@ -1,9 +1,11 @@
 package com.agricontract.product.infrastructure.web;
 
+import com.agricontract.product.application.dto.CategoryCommodityRequest;
 import com.agricontract.product.application.dto.CategoryResponse;
 import com.agricontract.product.application.dto.ProposeCategoryRequest;
 import com.agricontract.product.application.dto.RejectCategoryRequest;
 import com.agricontract.product.application.usecase.ApproveCategoryUseCase;
+import com.agricontract.product.application.usecase.AssignCategoryCommodityUseCase;
 import com.agricontract.product.application.usecase.ProposeCategoryUseCase;
 import com.agricontract.product.application.usecase.RejectCategoryUseCase;
 import com.agricontract.product.common.ApiResponse;
@@ -21,6 +23,7 @@ public class CategoryController {
     private final ProposeCategoryUseCase proposeCategoryUseCase;
     private final ApproveCategoryUseCase approveCategoryUseCase;
     private final RejectCategoryUseCase rejectCategoryUseCase;
+    private final AssignCategoryCommodityUseCase assignCategoryCommodityUseCase;
 
     @PreAuthorize("hasAnyRole('SELLER','BUYER')")
     @PostMapping
@@ -34,8 +37,10 @@ public class CategoryController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{categoryId}/approve")
-    public ResponseEntity<ApiResponse<CategoryResponse>> approve(@PathVariable String categoryId) {
-        CategoryResponse response = approveCategoryUseCase.execute(categoryId);
+    public ResponseEntity<ApiResponse<CategoryResponse>> approve(
+            @PathVariable String categoryId,
+            @RequestBody @Valid CategoryCommodityRequest request) {
+        CategoryResponse response = approveCategoryUseCase.execute(categoryId, request.commodity());
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
@@ -45,6 +50,16 @@ public class CategoryController {
             @PathVariable String categoryId,
             @RequestBody @Valid RejectCategoryRequest request) {
         CategoryResponse response = rejectCategoryUseCase.execute(categoryId, request.reason());
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    // Maps a category approved before V7 (commodity NULL) so it can back products and listings again.
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{categoryId}/commodity")
+    public ResponseEntity<ApiResponse<CategoryResponse>> assignCommodity(
+            @PathVariable String categoryId,
+            @RequestBody @Valid CategoryCommodityRequest request) {
+        CategoryResponse response = assignCategoryCommodityUseCase.execute(categoryId, request.commodity());
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 }
