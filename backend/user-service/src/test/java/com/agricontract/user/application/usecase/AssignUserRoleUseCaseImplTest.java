@@ -106,4 +106,14 @@ class AssignUserRoleUseCaseImplTest {
         verify(userProfileRepository, never()).update(any());
         verifyNoInteractions(roleChangeAuditRepository);
     }
+
+    @Test
+    void execute_adminReassignsOwnCurrentRole_throwsInsteadOfNoOp() {
+        when(userProfileRepository.findById(new UserId(ACTOR_ID))).thenReturn(Optional.of(profileWithRole(ACTOR_ID, Role.ADMIN)));
+
+        assertThatThrownBy(() -> useCase.execute(new AssignUserRoleCommand(ACTOR_ID, ACTOR_ID, Role.ADMIN)))
+                .isInstanceOf(SelfRoleChangeException.class);
+        verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(roleChangeAuditRepository);
+    }
 }
