@@ -19,6 +19,7 @@ import com.agricontract.user.domain.exception.InvalidVerificationTransitionExcep
 import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.ReadAuditUnavailableException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
+import com.agricontract.user.domain.exception.SelfRoleChangeException;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import com.agricontract.user.infrastructure.config.SecurityConfig;
@@ -505,7 +506,7 @@ class AdminUserControllerTest {
     // --- role assignment ---
 
     @Test
-    void assignRole_asAdmin_passesTargetAndRole() throws Exception {
+    void assignRole_asAdmin_passesTargetActorAndRole() throws Exception {
         when(assignUserRoleUseCase.execute(any())).thenReturn(AdminUserResponse.builder()
                 .userId(TARGET_ID).role(Role.ARBITRATOR).verificationStatus(VerificationStatus.PENDING).build());
 
@@ -514,7 +515,7 @@ class AdminUserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role").value("ARBITRATOR"));
 
-        verify(assignUserRoleUseCase).execute(new AssignUserRoleCommand(TARGET_ID, Role.ARBITRATOR));
+        verify(assignUserRoleUseCase).execute(new AssignUserRoleCommand(TARGET_ID, ACTOR_ID, Role.ARBITRATOR));
     }
 
     @Test
@@ -542,6 +543,17 @@ class AdminUserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ARBITRATOR\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("ROLE_SEPARATION_VIOLATION")));
+    }
+
+    @Test
+    void assignRole_ownRole_forbidden() throws Exception {
+        when(assignUserRoleUseCase.execute(any())).thenThrow(new SelfRoleChangeException(ACTOR_ID));
+
+        mockMvc.perform(viaGateway(put("/api/v1/admin/users/" + ACTOR_ID + "/role"), "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ARBITRATOR\"}"))
+                .andExpect(status().isForbidden());
+
+        verify(assignUserRoleUseCase).execute(new AssignUserRoleCommand(ACTOR_ID, ACTOR_ID, Role.ARBITRATOR));
     }
 
     @Test

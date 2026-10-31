@@ -90,10 +90,11 @@ public class AdminUserController {
     @PutMapping("/{userId}/role")
     public ResponseEntity<ApiResponse<AdminUserResponse>> assignRole(
             @PathVariable String userId,
-            @RequestBody @Valid AssignUserRoleRequest req
+            @RequestBody @Valid AssignUserRoleRequest req,
+            @AuthenticationPrincipal String actorId
     ) {
         return ResponseEntity.ok(ApiResponse.ok(assignUserRoleUseCase.execute(
-                new AssignUserRoleCommand(userId, req.role()))));
+                new AssignUserRoleCommand(userId, actorId, req.role()))));
     }
 
     // Application roles from the token, sorted, without Keycloak defaults such as default-roles-agricontract.
