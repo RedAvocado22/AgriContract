@@ -2,6 +2,8 @@ package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.VerifyUserCommand;
+import com.agricontract.user.application.port.KycResultPublisher;
+import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.model.UserProfile;
@@ -36,12 +38,13 @@ class VerifyUserUseCaseImplTest {
     private static final Instant EXPIRES_AT = Instant.parse("2027-06-30T16:59:59.999Z");
 
     @Mock private UserProfileRepository userProfileRepository;
+    @Mock private KycResultPublisher kycResultPublisher;
 
     private VerifyUserUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new VerifyUserUseCaseImpl(userProfileRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        useCase = new VerifyUserUseCaseImpl(userProfileRepository, kycResultPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private UserProfile pendingProfile() {
@@ -56,6 +59,7 @@ class VerifyUserUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, EXPIRES_AT)))
                 .isInstanceOf(NoSuchElementException.class);
         verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(kycResultPublisher);
     }
 
     @Test
@@ -72,6 +76,7 @@ class VerifyUserUseCaseImplTest {
         assertThat(updated.getVerifiedByActorId()).isEqualTo(ACTOR_ID);
         assertThat(updated.getVerifiedAt()).isEqualTo(NOW);
         assertThat(updated.getAuthorizationExpiresAt()).isEqualTo(EXPIRES_AT);
+        verify(kycResultPublisher).decided(updated);
 
         assertThat(response.userId()).isEqualTo(TARGET_ID);
         assertThat(response.verificationStatus()).isEqualTo(VerificationStatus.VERIFIED);
@@ -80,8 +85,18 @@ class VerifyUserUseCaseImplTest {
     }
 
     @Test
+    void execute_staleVersion_propagatesConflictAndDoesNotPublish() {
+        when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(pendingProfile()));
+        when(userProfileRepository.update(any())).thenThrow(new ConcurrentProfileUpdateException(TARGET_ID));
+
+        assertThatThrownBy(() -> useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, EXPIRES_AT)))
+                .isInstanceOf(ConcurrentProfileUpdateException.class);
+        verifyNoInteractions(kycResultPublisher);
+    }
+
+    @Test
     void execute_truncatesDecisionTimeToDatabasePrecision() {
-        useCase = new VerifyUserUseCaseImpl(userProfileRepository,
+        useCase = new VerifyUserUseCaseImpl(userProfileRepository, kycResultPublisher,
                 Clock.fixed(Instant.parse("2026-10-07T03:00:00.123456789Z"), ZoneOffset.UTC));
         when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(pendingProfile()));
         when(userProfileRepository.update(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -100,6 +115,7 @@ class VerifyUserUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, EXPIRES_AT)))
                 .isInstanceOf(InvalidVerificationTransitionException.class);
         verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(kycResultPublisher);
     }
 
     @Test
@@ -109,6 +125,7 @@ class VerifyUserUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(new VerifyUserCommand(TARGET_ID, ACTOR_ID, NOW)))
                 .isInstanceOf(IllegalArgumentException.class);
         verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(kycResultPublisher);
     }
 
     @Test
@@ -118,5 +135,6 @@ class VerifyUserUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(new VerifyUserCommand(TARGET_ID, TARGET_ID, EXPIRES_AT)))
                 .isInstanceOf(SelfKycDecisionException.class);
         verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(kycResultPublisher);
     }
 }

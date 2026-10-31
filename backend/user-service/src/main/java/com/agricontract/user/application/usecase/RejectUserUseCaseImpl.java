@@ -2,6 +2,7 @@ package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.RejectUserCommand;
+import com.agricontract.user.application.port.KycResultPublisher;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.UserProfileRepository;
@@ -18,6 +19,7 @@ import java.util.NoSuchElementException;
 @RequiredArgsConstructor
 public class RejectUserUseCaseImpl implements RejectUserUseCase {
     private final UserProfileRepository userProfileRepository;
+    private final KycResultPublisher kycResultPublisher;
     private final Clock clock;
 
     @Override
@@ -29,7 +31,8 @@ public class RejectUserUseCaseImpl implements RejectUserUseCase {
         profile.reject(command.actorId(), Instant.now(clock).truncatedTo(ChronoUnit.MICROS), command.reason());
 
         UserProfile saved = userProfileRepository.update(profile);
-        // TODO(#154): publish notification.user_kyc_result_requested via outbox in this transaction
+        // Same transaction as the update: a 409 or a rollback leaves no command behind.
+        kycResultPublisher.decided(saved);
         return KycDecisionResponse.from(saved);
     }
 }

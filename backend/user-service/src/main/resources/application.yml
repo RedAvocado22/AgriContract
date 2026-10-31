@@ -13,6 +13,21 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    # Required by the outbox poller: it must know a command was routed and confirmed before marking it published.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+agricontract:
+  eventing:
+    outbox:
+      enabled: ${OUTBOX_POLLER_ENABLED:true}
+      exchange: agricontract.user
+
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
 
