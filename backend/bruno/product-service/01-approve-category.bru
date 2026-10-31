@@ -29,7 +29,7 @@ tests {
     expect(res.getBody().data.status).to.equal("APPROVED");
   });
 
-  test("approval maps the category to COFFEE", function() {
+  test("approval stores the commodity the Operator assigned", function() {
     expect(res.getBody().data.commodity).to.equal("COFFEE");
   });
 }

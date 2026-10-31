@@ -1,0 +1,34 @@
+meta {
+  name: PUT /api/v1/categories/:categoryId/commodity (already mapped)
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{product_service_url}}/api/v1/categories/{{category_id}}/commodity
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: admin-1
+  X-User-Role: ADMIN
+}
+
+body:json {
+  {
+    "commodity": "COFFEE"
+  }
+}
+
+tests {
+  // only categories approved before V7 (commodity NULL) can be mapped; approval already mapped this one
+  test("should return 409", function() {
+    expect(res.getStatus()).to.equal(409);
+  });
+
+  test("success flag is false", function() {
+    expect(res.getBody().success).to.equal(false);
+  });
+}

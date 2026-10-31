@@ -45,7 +45,7 @@ class CategoryTest {
     void approve_fromPending_statusApprovedAndEventEmitted() {
         Category category = pending();
 
-        category.approve();
+        category.approve(Commodity.COFFEE);
 
         assertThat(category.getStatus()).isEqualTo(CategoryStatus.APPROVED);
         assertThat(category.getCommodity()).isEqualTo(Commodity.COFFEE);
@@ -61,9 +61,59 @@ class CategoryTest {
     @Test
     void approve_notPending_throws() {
         Category category = pending();
-        category.approve();
+        category.approve(Commodity.COFFEE);
 
-        assertThatThrownBy(category::approve).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> category.approve(Commodity.COFFEE)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void approve_nullCommodity_throwsAndStaysPending() {
+        Category category = pending();
+
+        assertThatThrownBy(() -> category.approve(null)).isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(category.getStatus()).isEqualTo(CategoryStatus.PENDING);
+        assertThat(category.pullDomainEvents()).isEmpty();
+    }
+
+    private Category approvedBeforeV7() {
+        return Category.reconstruct(CATEGORY_ID, NAME, NORMALIZED_NAME, CategoryStatus.APPROVED, null,
+                PROPOSED_BY, PROPOSED_BY_EMAIL, null);
+    }
+
+    @Test
+    void assignCommodity_legacyApproved_becomesApprovedCoffeeWithoutEvent() {
+        Category category = approvedBeforeV7();
+        assertThat(category.isApprovedCoffee()).isFalse();
+
+        category.assignCommodity(Commodity.COFFEE);
+
+        assertThat(category.getCommodity()).isEqualTo(Commodity.COFFEE);
+        assertThat(category.isApprovedCoffee()).isTrue();
+        assertThat(category.pullDomainEvents()).isEmpty();
+    }
+
+    @Test
+    void assignCommodity_alreadyAssigned_throws() {
+        Category category = pending();
+        category.approve(Commodity.COFFEE);
+
+        assertThatThrownBy(() -> category.assignCommodity(Commodity.COFFEE)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void assignCommodity_notApproved_throws() {
+        Category category = pending();
+
+        assertThatThrownBy(() -> category.assignCommodity(Commodity.COFFEE)).isInstanceOf(IllegalStateException.class);
+        assertThat(category.getCommodity()).isNull();
+    }
+
+    @Test
+    void assignCommodity_null_throws() {
+        Category category = approvedBeforeV7();
+
+        assertThatThrownBy(() -> category.assignCommodity(null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -99,7 +149,7 @@ class CategoryTest {
     @Test
     void pullDomainEvents_clearsInternalList() {
         Category category = pending();
-        category.approve();
+        category.approve(Commodity.COFFEE);
 
         category.pullDomainEvents();
 

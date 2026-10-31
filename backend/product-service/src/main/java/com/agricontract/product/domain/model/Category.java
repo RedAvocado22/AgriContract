@@ -23,7 +23,7 @@ public class Category {
     private String rejectionReason;
     private String proposedBy;
     private String proposedByEmail;
-    // set on approval; null for categories approved before Phase 2, which cannot back new products or listings
+    // set by the Operator on approval; null for categories approved before V7 until assignCommodity() maps them
     private Commodity commodity;
 
     private final List<DomainEvent> domainEvents = new ArrayList<>();
@@ -64,14 +64,28 @@ public class Category {
         return category;
     }
 
-    public void approve() {
+    // The Operator maps the category to its commodity at approval (design §9): the single, one-time mapping point.
+    public void approve(Commodity commodity) {
         if (this.status != CategoryStatus.PENDING) {
             throw new IllegalStateException("Category status must be PENDING");
         }
+        requireCommodity(commodity);
         this.status = CategoryStatus.APPROVED;
-        // the only Phase 2 commodity (design §9): approval is where the category is mapped, once
-        this.commodity = Commodity.COFFEE;
+        this.commodity = commodity;
         this.domainEvents.add(new CategoryApprovedEvent(this.categoryId.value(), this.name, this.proposedByEmail));
+    }
+
+    // Maps a category approved before V7 added the commodity column. Still one-time: a category that already has a
+    // commodity cannot be remapped, since products and listings have snapshotted it.
+    public void assignCommodity(Commodity commodity) {
+        if (this.status != CategoryStatus.APPROVED) {
+            throw new IllegalStateException("Category status must be APPROVED");
+        }
+        if (this.commodity != null) {
+            throw new IllegalStateException("Category commodity is already assigned");
+        }
+        requireCommodity(commodity);
+        this.commodity = commodity;
     }
 
     public void reject(String reason) {
@@ -89,6 +103,12 @@ public class Category {
     // New products and listings need an approved coffee category (design §1, matrix 22).
     public boolean isApprovedCoffee() {
         return status == CategoryStatus.APPROVED && commodity == Commodity.COFFEE;
+    }
+
+    private static void requireCommodity(Commodity commodity) {
+        if (commodity == null) {
+            throw new IllegalArgumentException("Category commodity must not be null");
+        }
     }
 
     public List<DomainEvent> pullDomainEvents() {
