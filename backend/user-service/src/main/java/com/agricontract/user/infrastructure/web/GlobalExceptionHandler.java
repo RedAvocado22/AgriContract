@@ -7,6 +7,7 @@ import com.agricontract.user.domain.exception.InvalidVerificationTransitionExcep
 import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.ReadAuditUnavailableException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
+import com.agricontract.user.domain.exception.SelfRoleChangeException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -45,6 +46,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(SelfKycDecisionException.class)
     public ResponseEntity<ApiResponse<Void>> handleSelfKycDecision(SelfKycDecisionException ex) {
+        return ResponseEntity.status(403).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(SelfRoleChangeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSelfRoleChange(SelfRoleChangeException ex) {
         return ResponseEntity.status(403).body(ApiResponse.error(ex.getMessage()));
     }
 
