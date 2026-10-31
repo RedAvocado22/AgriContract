@@ -4,9 +4,9 @@ import type { NotificationSettings } from '../notification-settings';
 
 /*
  * Subjects, bodies and recipient order are copied verbatim from the Java
- * ProcessNotificationUseCaseImpl; test/fixtures/java-templates.json, extracted
- * from the Java source, guards them. A null value renders as "null", as Java
- * string concatenation does.
+ * ProcessNotificationUseCaseImpl; test/fixtures/java-templates.json, frozen
+ * from the Java service at tag notification-java-final, guards them. A null
+ * value renders as "null", as Java string concatenation does.
  */
 
 export class NotifyContractDisputedUseCase {
