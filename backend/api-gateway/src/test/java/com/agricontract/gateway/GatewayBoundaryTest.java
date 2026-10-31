@@ -122,6 +122,7 @@ class GatewayBoundaryTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
                 .header("X-User-Id", "attacker")
                 .header("X-User-Role", "ADMIN")
+                .header("X-User-Email", "attacker@evil.test")
                 .header("X-Internal-Secret", "guessed")
                 .header("X-Gateway-Secret", "forged")
                 .exchange()
@@ -131,6 +132,7 @@ class GatewayBoundaryTest {
         assertThat(received).isNotNull();
         assertThat(received.getHeaders().values("X-User-Id")).containsExactly("user-123");
         assertThat(received.getHeaders().values("X-User-Role")).containsExactly("BUYER");
+        assertThat(received.getHeader("X-User-Email")).isNull();
         assertThat(received.getHeaders().values("X-Gateway-Secret")).containsExactly(SECRET);
         assertThat(received.getHeader("X-Internal-Secret")).isNull();
         assertThat(received.getHeader(HttpHeaders.AUTHORIZATION)).isNull();
