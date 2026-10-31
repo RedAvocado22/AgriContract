@@ -4,6 +4,7 @@ import com.agricontract.user.domain.model.vo.Role;
 
 public record AssignUserRoleCommand(
         String targetUserId,
+        String actorId,
         Role role
 ) {
 }
