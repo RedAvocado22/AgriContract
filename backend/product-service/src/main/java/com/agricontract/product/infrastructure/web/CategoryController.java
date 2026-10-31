@@ -26,9 +26,8 @@ public class CategoryController {
     @PostMapping
     public ResponseEntity<ApiResponse<CategoryResponse>> propose(
             @RequestBody @Valid ProposeCategoryRequest request,
-            @RequestHeader("X-User-Id") String userId,
-            @RequestHeader("X-User-Email") String userEmail) {
-        CategoryResponse response = proposeCategoryUseCase.execute(request, userId, userEmail);
+            @RequestHeader("X-User-Id") String userId) {
+        CategoryResponse response = proposeCategoryUseCase.execute(request, userId);
         return ResponseEntity.status(201).body(ApiResponse.ok(response));
     }
 

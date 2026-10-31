@@ -31,6 +31,9 @@ plot:
   # local/Bruno runs: PLOT_GEO_VERIFICATION_TIMEOUT_HOURS=0 and a short check interval so a new plot is usable at once
   geo-verification-timeout-check-ms: ${PLOT_GEO_VERIFICATION_TIMEOUT_CHECK_MS:600000}
 
+user-service:
+  url: ${USER_SERVICE_URL:http://localhost:8081}
+
 server:
   port: ${SERVER_PORT:8082}
 
