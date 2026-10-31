@@ -48,11 +48,7 @@ public class UserContextInjectionFilter implements GlobalFilter {
                         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token: Missing subject");
                     }
 
-                    String email = jwt.getClaimAsString("email");
-                    if (email == null || email.isEmpty()) {
-                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token: Missing email");
-                    }
-
+                    // No X-User-Email: services read contact email from user-service (contactInfo is the source of truth, #153).
                     // Authorities hold only application roles (KeycloakRealmRoleConverter); realm housekeeping roles are dropped.
                     List<String> roleList = jwtAuth.getAuthorities().stream()
                             .map(GrantedAuthority::getAuthority)
@@ -65,10 +61,10 @@ public class UserContextInjectionFilter implements GlobalFilter {
 
                     String roles = String.join(",", roleList);
 
-                    return (ServerHttpRequest) new UserContextRequestDecorator(request, id, email, roles,
+                    return (ServerHttpRequest) new UserContextRequestDecorator(request, id, roles,
                             authTimeEpochSeconds(jwt), internalSecret);
                 })
-                .defaultIfEmpty(new UserContextRequestDecorator(request, null, null, null, null, internalSecret))
+                .defaultIfEmpty(new UserContextRequestDecorator(request, null, null, null, internalSecret))
                 .flatMap(decorated -> chain.filter(exchange.mutate().request(decorated).build()));
     }
 
@@ -97,8 +93,8 @@ public class UserContextInjectionFilter implements GlobalFilter {
 
         private final HttpHeaders headers;
 
-        UserContextRequestDecorator(ServerHttpRequest delegate, String userId, String email,
-                                     String roles, String authTime, String gatewaySecret) {
+        UserContextRequestDecorator(ServerHttpRequest delegate, String userId, String roles, String authTime,
+                                     String gatewaySecret) {
             super(delegate);
             HttpHeaders copy = new HttpHeaders();
             copy.addAll(delegate.getHeaders());
@@ -110,7 +106,6 @@ public class UserContextInjectionFilter implements GlobalFilter {
             forgedUserHeaders.forEach(copy::remove);
             if (userId != null) {
                 copy.set("X-User-Id", userId);
-                copy.set("X-User-Email", email);
                 copy.set("X-User-Role", roles);
                 if (authTime != null) {
                     copy.set(AUTH_TIME_HEADER, authTime);
