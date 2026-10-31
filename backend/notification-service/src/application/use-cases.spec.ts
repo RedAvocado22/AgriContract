@@ -1,11 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
 import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
 } from '../../test/support/fakes';
 import {
-  JAVA_SOURCE,
-  extractJavaTemplates,
   readFixture,
   type JavaTemplate,
 } from '../../test/support/java-templates';
@@ -124,7 +121,7 @@ function recipientsOf(
   );
 }
 
-describe('Notify*UseCase (golden fixtures from the Java source)', () => {
+describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => {
   let logs: InMemoryNotificationLogRepository;
   let email: FakeEmailPort;
   let useCases: Record<string, UseCase>;
@@ -226,18 +223,5 @@ describe('Notify*UseCase (golden fixtures from the Java source)', () => {
     await run('handleEscrowReleased', command);
 
     expect(email.sent).toHaveLength(2);
-  });
-});
-
-// Until the Java service is removed (M5), the committed fixture must match it.
-const describeWhileJavaExists = existsSync(JAVA_SOURCE)
-  ? describe
-  : describe.skip;
-
-describeWhileJavaExists('golden fixture freshness', () => {
-  it('test/fixtures/java-templates.json matches the Java source (npm run fixtures:java)', () => {
-    expect(extractJavaTemplates(readFileSync(JAVA_SOURCE, 'utf8'))).toEqual(
-      fixture,
-    );
   });
 });
