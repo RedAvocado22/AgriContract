@@ -1,7 +1,7 @@
 # notification-service (NestJS)
 
-NestJS port of the Spring Boot `notification-service`. Plan and status:
-`docs/planning/notification-service-nestjs-migration.md`.
+Migrated from the Spring Boot `notification-service`; see `docs/planning/notification-service-nestjs-migration.md`
+(done, M5).
 
 **Status: M5 (cutover done).** The service consumes the 9 Phase 1 queues, sends the same emails as the Java service
 did and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient deduplication.
@@ -119,14 +119,13 @@ Unlike Spring Boot's actuator, health does not check SMTP.
 | `npm run lint` | ESLint + Prettier, fixing what it can |
 | `npm run lint:check` | Same without `--fix`, for CI |
 | `npm run test:int` | Integration tests against the compose MySQL (`DB_*` env, table `notification_logs` must exist) |
-| `npm run fixtures:java` | Regenerate `test/fixtures/java-templates.json` from the Java `ProcessNotificationUseCaseImpl` |
 
 ## Golden email fixtures
 
 Subjects, bodies and recipient order must stay identical to the Java service. `test/fixtures/java-templates.json`
-is extracted from the Java source by `npm run fixtures:java`; `src/application/use-cases.spec.ts` checks every
-use case against it, and, while the Java service is still in the repo, checks that the fixture matches the Java
-source.
+holds the templates of the Java `ProcessNotificationUseCaseImpl`, frozen from the Java service at tag
+`notification-java-final`; `src/application/use-cases.spec.ts` checks every use case against it. The Java source
+is gone, so the fixture is not regenerated: change it only together with an intended change to an email.
 
 ## Code layout
 

@@ -17,7 +17,6 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test,scripts}/**/*.ts\" --fix",
     "lint:check": "eslint \"{src,apps,libs,test,scripts}/**/*.ts\"",
-    "fixtures:java": "ts-node --transpile-only -P tsconfig.spec.json scripts/extract-java-templates.ts",
     "test": "jest",
     "test:int": "jest --testRegex \"\\.int-spec\\.ts$\" --runInBand",
     "test:watch": "jest --watch",
