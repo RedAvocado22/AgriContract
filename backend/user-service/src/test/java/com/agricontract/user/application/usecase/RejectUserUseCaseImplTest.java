@@ -2,6 +2,8 @@ package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.RejectUserCommand;
+import com.agricontract.user.application.port.KycResultPublisher;
+import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.ContactInfo;
@@ -34,12 +36,13 @@ class RejectUserUseCaseImplTest {
     private static final Instant NOW = Instant.parse("2026-10-07T03:00:00Z");
 
     @Mock private UserProfileRepository userProfileRepository;
+    @Mock private KycResultPublisher kycResultPublisher;
 
     private RejectUserUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new RejectUserUseCaseImpl(userProfileRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        useCase = new RejectUserUseCaseImpl(userProfileRepository, kycResultPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private UserProfile pendingProfile() {
@@ -54,6 +57,7 @@ class RejectUserUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(new RejectUserCommand(TARGET_ID, ACTOR_ID, "Thieu giay phep")))
                 .isInstanceOf(NoSuchElementException.class);
         verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(kycResultPublisher);
     }
 
     @Test
@@ -70,9 +74,20 @@ class RejectUserUseCaseImplTest {
         assertThat(updated.getVerifiedByActorId()).isEqualTo(ACTOR_ID);
         assertThat(updated.getVerifiedAt()).isEqualTo(NOW);
         assertThat(updated.getRejectionReason()).isEqualTo("Thieu giay phep");
+        verify(kycResultPublisher).decided(updated);
 
         assertThat(response.verificationStatus()).isEqualTo(VerificationStatus.REJECTED);
         assertThat(response.rejectionReason()).isEqualTo("Thieu giay phep");
+    }
+
+    @Test
+    void execute_staleVersion_propagatesConflictAndDoesNotPublish() {
+        when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(pendingProfile()));
+        when(userProfileRepository.update(any())).thenThrow(new ConcurrentProfileUpdateException(TARGET_ID));
+
+        assertThatThrownBy(() -> useCase.execute(new RejectUserCommand(TARGET_ID, ACTOR_ID, "Thieu giay phep")))
+                .isInstanceOf(ConcurrentProfileUpdateException.class);
+        verifyNoInteractions(kycResultPublisher);
     }
 
     @Test
@@ -82,6 +97,7 @@ class RejectUserUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(new RejectUserCommand(TARGET_ID, ACTOR_ID, "  ")))
                 .isInstanceOf(IllegalArgumentException.class);
         verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(kycResultPublisher);
     }
 
     @Test
@@ -93,5 +109,6 @@ class RejectUserUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(new RejectUserCommand(TARGET_ID, ACTOR_ID, "Lan 2")))
                 .isInstanceOf(InvalidVerificationTransitionException.class);
         verify(userProfileRepository, never()).update(any());
+        verifyNoInteractions(kycResultPublisher);
     }
 }
