@@ -38,7 +38,7 @@ public class AssignUserRoleUseCaseImpl implements AssignUserRoleUseCase {
         }
         UserProfile saved = userProfileRepository.update(profile);
         roleChangeAuditRepository.append(new RoleChangeAuditEntry(command.actorId(), command.targetUserId(),
-                oldRole, saved.getRole(), Instant.now(clock).truncatedTo(ChronoUnit.MICROS)));
+                oldRole, command.role(), Instant.now(clock).truncatedTo(ChronoUnit.MICROS)));
         return AdminUserResponse.from(saved);
     }
 }
