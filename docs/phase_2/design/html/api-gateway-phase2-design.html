@@ -333,7 +333,7 @@
 </section><section aria-labelledby="heading-sec-5-3" class="section" id="sec-5-3"><h3 id="heading-sec-5-3"><span class="sec-num">§5.3</span> Rate limit <a aria-label="Sao chép liên kết tới §5.3" class="anchor" href="#sec-5-3">#</a></h3>
 <ul>
 <li>Nginx giữ coarse per-IP rate limit.</li>
-<li>Gateway/Redis áp route bucket cho public pricing/reputation/audit-hash và auth endpoints.</li>
+<li>Gateway áp route bucket per-IP cho verifier lock/unlock (10/phút), audit-hash (60/phút) và các route public/auth cần chống flood; trả 429 kèm <code>Retry-After</code>, không forward request bị chặn. <strong>Chốt 02/11/2026 (#320):</strong> counter giữ trong memory của gateway, không dùng Redis — Phase 2 chạy 1 instance gateway nên limit chính xác, và edge không phụ thuộc Redis (<code>RedisRateLimiter</code> fail-open khi Redis lỗi, tức route kill-switch mất limit mà không có tín hiệu). Khi chạy nhiều replica gateway phải chuyển sang store dùng chung (limit thực tế thành N × limit, counter reset khi restart). IP lấy từ socket peer; chỉ đọc <code>X-Forwarded-For</code> khi <code>gateway.rate-limit.trusted-proxies</code> &gt; 0, để client không tự chọn bucket.</li>
 <li>OTP resend/attempt business limits nằm ở contract-service theo <code>signature-phase2-design.md</code>; Gateway chỉ chống flood thô, không thay counter nghiệp vụ.</li>
 </ul>
 </section><section aria-labelledby="heading-sec-5-4" class="section" id="sec-5-4"><h3 id="heading-sec-5-4"><span class="sec-num">§5.4</span> CORS &amp; observability <a aria-label="Sao chép liên kết tới §5.4" class="anchor" href="#sec-5-4">#</a></h3>
