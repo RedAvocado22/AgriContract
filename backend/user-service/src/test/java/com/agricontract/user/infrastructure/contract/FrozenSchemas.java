@@ -31,4 +31,28 @@ public final class FrozenSchemas {
         schema.put("$ref", "#/$defs/" + definition);
         assertThat(FACTORY.getSchema(schema, CONFIG).validate(instance)).as(definition).isEmpty();
     }
+
+    /** Domain events (golden-flow-events.yaml); the external envelope $ref is resolved locally, as in bank-service. */
+    public static void assertEvent(String definition, JsonNode instance) throws IOException {
+        ObjectNode schema = read("events/golden-flow-events.yaml");
+        ObjectNode envelope = read("events/event-envelope.yaml");
+        envelope.remove("$id");
+        ((ObjectNode) envelope.path("properties").path("subject")).put("$ref", "#/$defs/envelope/$defs/subject");
+        ((ObjectNode) schema.get("$defs")).set("envelope", envelope);
+        replaceEnvelopeRef(schema);
+        schema.remove("oneOf");
+        schema.put("$ref", "#/$defs/" + definition);
+        assertThat(FACTORY.getSchema(schema, CONFIG).validate(instance)).as(definition).isEmpty();
+    }
+
+    private static ObjectNode read(String file) throws IOException {
+        return (ObjectNode) YAML.readTree(Path.of(System.getProperty("contracts.directory"), file).toFile());
+    }
+
+    private static void replaceEnvelopeRef(JsonNode node) {
+        if (node.isObject() && "./event-envelope.yaml".equals(node.path("$ref").asText())) {
+            ((ObjectNode) node).put("$ref", "#/$defs/envelope");
+        }
+        node.elements().forEachRemaining(FrozenSchemas::replaceEnvelopeRef);
+    }
 }

@@ -25,4 +25,13 @@ public interface UserProfileRepository {
     List<UserProfile> findByVerificationStatus(VerificationStatus status, int page, int size);
 
     long countByVerificationStatus(VerificationStatus status);
+
+    // Lock projection (design §2.2). Both apply only when lockRevision is greater than the stored revision, checked
+    // and written in one statement, and return false otherwise (older revision or unknown user). Caller's transaction.
+
+    // lockedUntil becomes the later of the stored and the incoming value: a new lock never shortens a longer one.
+    boolean applyLock(UserId userId, Instant lockedUntil, long lockRevision);
+
+    // lockedUntil becomes effectiveLockedUntil as computed by reputation-service; null means no active lock.
+    boolean applyUnlock(UserId userId, Instant effectiveLockedUntil, long lockRevision);
 }
