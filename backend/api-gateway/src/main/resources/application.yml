@@ -8,6 +8,17 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWK_URI:http://localhost:8180/realms/agricontract/protocol/openid-connect/certs}
   cloud:
     gateway:
+      # Gateway design 5.1: explicit timeouts, downstream timeout answers 504. No route has a Retry filter
+      # and HttpClientConfig turns off the transport retry, so no request is ever re-sent by the gateway.
+      httpclient:
+        connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:2000}
+        response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:10s}
+      default-filters:
+        # Gateway design 5.2: JSON API default cap. Routes with a tighter cap add their own RequestBodyLimit.
+        - name: RequestBodyLimit
+          args:
+            maxBytes: ${GATEWAY_MAX_BODY_BYTES:1048576}
+      # Order: /internal/** deny first, then exact-path routes, then the service wildcards they narrow.
       routes:
         # Internal APIs are never exposed externally. SecurityConfig's internal chain already answers 404;
         # this route is a second layer in case a request ever gets past it.
@@ -18,26 +29,105 @@ spring:
             - Path=/internal/**
           filters:
             - SetStatus=404
+
+        # External Verifier kill switch (gateway design 3.4): no JWT, raw signed body, 64 KB cap,
+        # small per-IP bucket so junk signatures are shed before bank-service spends CPU verifying them.
+        - id: bank-external-verifier
+          uri: ${BANK_SERVICE_URL:http://localhost:8086}
+          order: 0
+          predicates:
+            - Path=/api/v1/security/emergency-lock, /api/v1/security/emergency-unlock
+            - Method=POST
+          filters:
+            - name: ClientIpRateLimit
+              args:
+                requestsPerMinute: ${GATEWAY_VERIFIER_RATE_LIMIT_PER_MINUTE:10}
+            - name: RequestBodyLimit
+              args:
+                maxBytes: 65536
+        # Audit chain hash for External Verifier reconciliation: X-Api-Key is checked by audit-service and
+        # passes through untouched; the contract requires a rate limit.
+        - id: audit-hash
+          uri: ${AUDIT_SERVICE_URL:http://localhost:8092}
+          order: 0
+          predicates:
+            - Path=/api/v1/security/audit-hash
+            - Method=GET
+          filters:
+            - name: ClientIpRateLimit
+              args:
+                requestsPerMinute: ${GATEWAY_AUDIT_HASH_RATE_LIMIT_PER_MINUTE:60}
+        # Statement export is a file download: it gets its own, longer response timeout (gateway design 5.1).
+        - id: escrow-statements
+          uri: ${ESCROW_SERVICE_URL:http://localhost:8084}
+          order: 0
+          predicates:
+            - Path=/api/v1/escrows/statements
+            - Method=GET
+          metadata:
+            response-timeout: ${GATEWAY_DOWNLOAD_RESPONSE_TIMEOUT_MS:60000}
+
         - id: user-service
           uri: ${USER_SERVICE_URL:http://localhost:8081}
+          order: 1
           predicates:
             # KYC admin API is owned by user-service; other /api/v1/admin/** prefixes belong to their own services.
             - Path=/api/v1/users/**, /api/v1/admin/users/**
         - id: product-service
           uri: ${PRODUCT_SERVICE_URL:http://localhost:8082}
+          order: 1
           predicates:
-            - Path=/api/v1/products/**, /api/v1/listings/**, /api/v1/categories/**, /api/v1/plots/**
+            - Path=/api/v1/products/**, /api/v1/listings/**, /api/v1/categories/**, /api/v1/plots/**, /api/v1/admin/categories/**, /api/v1/admin/products/**
         - id: contract-service
           uri: ${CONTRACT_SERVICE_URL:http://localhost:8083}
+          order: 1
           predicates:
             - Path=/api/v1/contracts/**
         - id: escrow-service
           uri: ${ESCROW_SERVICE_URL:http://localhost:8084}
+          order: 1
           predicates:
             - Path=/api/v1/escrows/**
+        - id: bank-service
+          uri: ${BANK_SERVICE_URL:http://localhost:8086}
+          order: 1
+          predicates:
+            - Path=/api/v1/admin/security/**
+        - id: inspection-service
+          uri: ${INSPECTION_SERVICE_URL:http://localhost:8087}
+          order: 1
+          predicates:
+            - Path=/api/v1/inspections/**, /api/v1/inspector/**, /api/v1/admin/inspections/**
+        - id: reputation-service
+          uri: ${REPUTATION_SERVICE_URL:http://localhost:8088}
+          order: 1
+          predicates:
+            - Path=/api/v1/reputation/**, /api/v1/admin/reputation/**
+        - id: pricing-service
+          uri: ${PRICING_SERVICE_URL:http://localhost:8091}
+          order: 1
+          predicates:
+            - Path=/api/v1/prices/**, /api/v1/admin/prices/**
+        - id: audit-service
+          uri: ${AUDIT_SERVICE_URL:http://localhost:8092}
+          order: 1
+          predicates:
+            - Path=/api/v1/admin/audit/**
+        - id: analytics-service
+          uri: ${ANALYTICS_SERVICE_URL:http://localhost:8093}
+          order: 1
+          predicates:
+            - Path=/api/v1/analytics/**, /api/v1/admin/analytics/**
 
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
+  cors:
+    # Comma-separated exact origins; a wildcard is refused at startup (gateway design 5.4).
+    allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  rate-limit:
+    # Number of reverse proxies (Nginx) in front of the gateway whose X-Forwarded-For entry is trusted.
+    # 0 = rate-limit by socket peer; never trust a client-supplied X-Forwarded-For.
+    trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:0}
 
 server:
   port: ${SERVER_PORT:8888}

@@ -380,6 +380,13 @@ services:
       CONTRACT_SERVICE_URL: http://contract-service:8083
       ESCROW_SERVICE_URL: http://escrow-service:8084
       NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      BANK_SERVICE_URL: http://bank-service:8086
+      INSPECTION_SERVICE_URL: http://inspection-service:8087
+      REPUTATION_SERVICE_URL: http://reputation-service:8088
+      PRICING_SERVICE_URL: http://pricing-service:8091
+      AUDIT_SERVICE_URL: http://audit-service:8092
+      ANALYTICS_SERVICE_URL: http://analytics-service:8093
+      GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
     depends_on:
       keycloak:
