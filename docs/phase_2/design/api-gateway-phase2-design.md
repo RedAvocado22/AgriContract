@@ -146,7 +146,7 @@ Không gọi user-service từ `UserContextInjectionFilter`; tránh biến mọi
 ### 5.3 Rate limit
 
 - Nginx giữ coarse per-IP rate limit.
-- Gateway/Redis áp route bucket cho public pricing/reputation/audit-hash và auth endpoints.
+- Gateway áp route bucket per-IP cho verifier lock/unlock (10/phút), audit-hash (60/phút) và các route public/auth cần chống flood; trả 429 kèm `Retry-After`, không forward request bị chặn. **Chốt 02/11/2026 (#320):** counter giữ trong memory của gateway, không dùng Redis — Phase 2 chạy 1 instance gateway nên limit chính xác, và edge không phụ thuộc Redis (`RedisRateLimiter` fail-open khi Redis lỗi, tức route kill-switch mất limit mà không có tín hiệu). Khi chạy nhiều replica gateway phải chuyển sang store dùng chung (limit thực tế thành N × limit, counter reset khi restart). IP lấy từ socket peer; chỉ đọc `X-Forwarded-For` khi `gateway.rate-limit.trusted-proxies` > 0, để client không tự chọn bucket.
 - OTP resend/attempt business limits nằm ở contract-service theo `signature-phase2-design.md`; Gateway chỉ chống flood thô, không thay counter nghiệp vụ.
 
 ### 5.4 CORS & observability
