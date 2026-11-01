@@ -85,4 +85,16 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     public long countByVerificationStatus(VerificationStatus status) {
         return jpaRepository.countByVerificationStatus(status);
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean applyLock(UserId userId, Instant lockedUntil, long lockRevision) {
+        return jpaRepository.applyLock(userId.value(), lockedUntil, lockRevision) == 1;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean applyUnlock(UserId userId, Instant effectiveLockedUntil, long lockRevision) {
+        return jpaRepository.applyUnlock(userId.value(), effectiveLockedUntil, lockRevision) == 1;
+    }
 }
