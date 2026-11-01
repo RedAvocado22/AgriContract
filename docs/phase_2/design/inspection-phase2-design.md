@@ -451,7 +451,9 @@ CREATE TABLE inspection_report (
                                                                   -- optional, chỉ LEVEL_2, Admin tự điền nếu org có dịch vụ verify công khai
     external_verification_checked_at TIMESTAMP(6) NULL,
     confirmed_at                     TIMESTAMP(6) NULL,       -- = sourceTimestamp trong reportHash (§2.3, #310):
-                                                                  -- hash đúng giá trị đã truncate về micros, không làm tròn
+                                                                  -- app truncate confirmedAt về millisecond TRƯỚC khi lưu/publish;
+                                                                  -- hash dùng đúng 3 số lẻ (yyyy-MM-ddTHH:mm:ss.SSSZ, #227),
+                                                                  -- TIMESTAMP(6) giữ nguyên giá trị đó, không làm tròn
     created_at                       TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     -- BỔ SUNG 28/10/2026 — nhánh LEVEL_1_5 enforce ở DB (§2.5):
