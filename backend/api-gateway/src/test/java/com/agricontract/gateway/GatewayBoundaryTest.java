@@ -2,7 +2,9 @@ package com.agricontract.gateway;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.QueueDispatcher;
 import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.oauth2.jwt.BadJwtException;
@@ -25,6 +29,8 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.BodyInserters;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
@@ -34,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,8 +48,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 /**
- * Boundary test for the gateway edge (verification matrix 13 and 14): a real gateway in front of a
- * fake downstream, asserting what the downstream actually receives.
+ * Boundary test for the gateway edge (verification matrix 13, 14, 16, 17b, 17c and gateway design 3.4/5):
+ * a real gateway in front of a fake downstream, asserting what the downstream actually receives.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class GatewayBoundaryTest {
@@ -67,7 +74,25 @@ class GatewayBoundaryTest {
         registry.add("PRODUCT_SERVICE_URL", () -> url);
         registry.add("CONTRACT_SERVICE_URL", () -> url);
         registry.add("ESCROW_SERVICE_URL", () -> url);
+        registry.add("BANK_SERVICE_URL", () -> url);
+        registry.add("INSPECTION_SERVICE_URL", () -> url);
+        registry.add("REPUTATION_SERVICE_URL", () -> url);
+        registry.add("PRICING_SERVICE_URL", () -> url);
+        registry.add("AUDIT_SERVICE_URL", () -> url);
+        registry.add("ANALYTICS_SERVICE_URL", () -> url);
         registry.add("gateway.internal-secret", () -> SECRET);
+        registry.add("gateway.cors.allowed-origins", () -> ALLOWED_ORIGIN);
+        // One trusted proxy lets each rate-limit test pick its own client IP through X-Forwarded-For.
+        registry.add("gateway.rate-limit.trusted-proxies", () -> "1");
+        registry.add("spring.cloud.gateway.httpclient.response-timeout", () -> "1s");
+    }
+
+    private static final String ALLOWED_ORIGIN = "http://app.agri.test";
+    private static final AtomicInteger CLIENT_IPS = new AtomicInteger(1);
+
+    /** A fresh client IP per test, so per-IP buckets never leak between tests sharing the context. */
+    private static String newClientIp() {
+        return "10.0.0." + CLIENT_IPS.getAndIncrement();
     }
 
     @Autowired
@@ -84,6 +109,11 @@ class GatewayBoundaryTest {
         while (downstream.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
             // drain requests left over from a previous test
         }
+        // Fresh response queue per test: a response a previous test enqueued but never used must not answer
+        // this test's request. Fail-fast still records an unexpected forward and answers it at once.
+        QueueDispatcher dispatcher = new QueueDispatcher();
+        dispatcher.setFailFast(true);
+        downstream.setDispatcher(dispatcher);
         given(jwtDecoder.decode(anyString())).willReturn(Mono.error(new BadJwtException("invalid token")));
         given(jwtDecoder.decode(EXPIRED_TOKEN)).willReturn(Mono.error(new JwtValidationException(
                 "Jwt expired", List.of(new OAuth2Error("invalid_token", "Jwt expired", null)))));
@@ -225,7 +255,8 @@ class GatewayBoundaryTest {
     @ParameterizedTest
     @ValueSource(strings = {"", VALID_TOKEN, ADMIN_TOKEN, "bad-token", EXPIRED_TOKEN})
     void internalRoute_isNotFoundAndNeverForwarded_regardlessOfBearer(String token) throws InterruptedException {
-        for (String path : List.of("/internal", "/internal/v1/users/user-123")) {
+        for (String path : List.of("/internal", "/internal/v1/users/user-123", "/internal/v1/bank/ledger",
+                "/internal/v1/audit/records", "/internal/v1/files/file-1", "/internal/v1/notifications/otp-email")) {
             WebTestClient.RequestHeadersSpec<?> request = client.get().uri(path);
             if (!token.isEmpty()) {
                 request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
@@ -359,7 +390,25 @@ class GatewayBoundaryTest {
             new StaffAction("POST", CONTRACT + "/milestones/" + LISTING_ID + "/force-majeure/resolve", "ARBITRATOR"),
             new StaffAction("POST", CONTRACT + "/activation/retry-deposit-lock", "OPERATOR"),
             new StaffAction("POST", CONTRACT + "/activation/mark-failed", "OPERATOR"),
-            new StaffAction("POST", CONTRACT + "/milestones/" + LISTING_ID + "/funding/retry", "OPERATOR")
+            new StaffAction("POST", CONTRACT + "/milestones/" + LISTING_ID + "/funding/retry", "OPERATOR"),
+            new StaffAction("GET", "/api/v1/admin/categories", "OPERATOR"),
+            new StaffAction("POST", "/api/v1/admin/categories/" + LISTING_ID + "/approve", "OPERATOR"),
+            new StaffAction("POST", "/api/v1/admin/products/" + LISTING_ID + "/moderate", "OPERATOR"),
+            new StaffAction("POST", "/api/v1/admin/reputation/actions/propose", "OPERATOR"),
+            new StaffAction("POST", "/api/v1/admin/reputation/actions/" + LISTING_ID + "/approve", "ARBITRATOR"),
+            new StaffAction("POST", "/api/v1/admin/reputation/actions/" + LISTING_ID + "/reject", "ARBITRATOR"),
+            new StaffAction("GET", "/api/v1/admin/reputation/actions", "OPERATOR", "ARBITRATOR"),
+            new StaffAction("POST", "/api/v1/inspections/" + LISTING_ID + "/milestones/" + LISTING_ID + "/reports",
+                    "INSPECTOR"),
+            new StaffAction("GET", "/api/v1/inspector/assignments", "INSPECTOR"),
+            new StaffAction("POST", "/api/v1/admin/inspections/cases", "OPERATOR"),
+            new StaffAction("POST", "/api/v1/prices/manual", "OPERATOR"),
+            new StaffAction("GET", "/api/v1/admin/prices/sources", "OPERATOR"),
+            new StaffAction("GET", "/api/v1/analytics/terminations?year=2026", "ADMIN"),
+            new StaffAction("GET", "/api/v1/analytics/escrow-effectiveness?month=2026-10", "ADMIN"),
+            new StaffAction("GET", "/api/v1/admin/analytics/overview", "ADMIN"),
+            new StaffAction("GET", "/api/v1/admin/security/system-locks", "ADMIN"),
+            new StaffAction("GET", "/api/v1/admin/audit/contracts/" + LISTING_ID + "/export", "ADMIN")
     );
 
     private record StaffAction(String method, String path, String... allowedRoles) {
@@ -428,6 +477,292 @@ class GatewayBoundaryTest {
                 .expectStatus().isUnauthorized();
 
         assertNotForwarded();
+    }
+
+    // Public Phase 2 routes: reference prices and audit hash need no JWT
+
+    @Test
+    void publicPriceRoutes_withoutToken_areForwardedAnonymously() throws InterruptedException {
+        for (String path : List.of("/api/v1/prices/COFFEE/DAK_LAK", "/api/v1/prices/COFFEE/DAK_LAK/items")) {
+            downstream.enqueue(new MockResponse().setResponseCode(200));
+
+            client.get().uri(path)
+                    .header("X-User-Id", "attacker")
+                    .exchange()
+                    .expectStatus().isOk();
+
+            RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+            assertThat(received).isNotNull();
+            assertThat(received.getPath()).isEqualTo(path);
+            assertThat(received.getHeader("X-User-Id")).isNull();
+        }
+    }
+
+    @Test
+    void manualPrice_withoutToken_isRejected() throws InterruptedException {
+        client.post().uri("/api/v1/prices/manual")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        assertNotForwarded();
+    }
+
+    @Test
+    void auditHash_withoutJwt_isForwardedWithApiKeyUntouched() throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+
+        client.get().uri("/api/v1/security/audit-hash?contractId=" + LISTING_ID)
+                .header("X-Forwarded-For", newClientIp())
+                .header("X-Api-Key", "verifier-key")
+                .header("X-User-Role", "ADMIN")
+                .exchange()
+                .expectStatus().isOk();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getHeaders().values("X-Api-Key")).containsExactly("verifier-key");
+        assertThat(received.getHeader("X-User-Role")).isNull();
+        assertThat(received.getHeaders().values("X-Gateway-Secret")).containsExactly(SECRET);
+    }
+
+    @Test
+    void reputationPublicSummary_requiresToken() throws InterruptedException {
+        client.get().uri("/api/v1/reputation/user-456/public-summary")
+                .exchange()
+                .expectStatus().isUnauthorized();
+        assertNotForwarded();
+
+        downstream.enqueue(new MockResponse().setResponseCode(200));
+        client.get().uri("/api/v1/reputation/user-456/public-summary")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
+                .exchange()
+                .expectStatus().isOk();
+        assertThat(downstream.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
+    }
+
+    @Test
+    void escrowStatement_isParticipantAuthenticated() throws InterruptedException {
+        String path = "/api/v1/escrows/statements?from=2026-10-01T00:00:00Z&to=2026-10-31T23:59:59Z";
+        client.get().uri(path)
+                .exchange()
+                .expectStatus().isUnauthorized();
+        assertNotForwarded();
+
+        downstream.enqueue(new MockResponse().setResponseCode(200).setHeader("Content-Type", "text/csv"));
+        client.get().uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + SELLER_TOKEN)
+                .exchange()
+                .expectStatus().isOk();
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getHeaders().values("X-User-Role")).containsExactly("SELLER");
+    }
+
+    // External Verifier (gateway design 3.4): signed body, no JWT, 64 KB cap, per-IP bucket
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/security/emergency-lock", "/api/v1/security/emergency-unlock"})
+    void verifierRoute_forwardsRawBodyWithoutUserIdentity_evenWithStrayBearer(String path) throws InterruptedException {
+        String signed = "{\"keyId\":\"verifier-1\",\"signedPayload\":\"eyJhY3Rpb24iOiJMT0NLIn0\",\"signature\":\"MEUCIQ\"}";
+        downstream.enqueue(new MockResponse().setResponseCode(204));
+
+        client.post().uri(path)
+                .header("X-Forwarded-For", newClientIp())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer bad-token")
+                .header("X-User-Id", "attacker")
+                .header("X-User-Role", "ADMIN")
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .bodyValue(signed)
+                .exchange()
+                .expectStatus().isNoContent();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getPath()).isEqualTo(path);
+        assertThat(received.getBody().readUtf8()).isEqualTo(signed);
+        assertThat(received.getHeader(HttpHeaders.AUTHORIZATION)).isNull();
+        assertThat(received.getHeader("X-User-Id")).isNull();
+        assertThat(received.getHeader("X-User-Role")).isNull();
+        assertThat(received.getHeaders().values("X-Gateway-Secret")).containsExactly(SECRET);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"GET", "PUT", "DELETE"})
+    void verifierRoute_otherMethod_isNotFound(String method) throws InterruptedException {
+        client.method(HttpMethod.valueOf(method)).uri("/api/v1/security/emergency-lock")
+                .header("X-Forwarded-For", newClientIp())
+                .exchange()
+                .expectStatus().isNotFound();
+
+        assertNotForwarded();
+    }
+
+    @Test
+    void verifierRoute_bodyAtCap_isForwarded() throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(204));
+
+        client.post().uri("/api/v1/security/emergency-lock")
+                .header("X-Forwarded-For", newClientIp())
+                .bodyValue(new byte[VERIFIER_CAP])
+                .exchange()
+                .expectStatus().isNoContent();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getBodySize()).isEqualTo(VERIFIER_CAP);
+    }
+
+    @Test
+    void verifierRoute_declaredBodyOverCap_isRejectedWith413() throws InterruptedException {
+        client.post().uri("/api/v1/security/emergency-lock")
+                .header("X-Forwarded-For", newClientIp())
+                .bodyValue(new byte[VERIFIER_CAP + 1])
+                .exchange()
+                .expectStatus().isEqualTo(413);
+
+        assertNotForwarded();
+    }
+
+    @Test
+    void verifierRoute_chunkedBodyOverCap_isRejectedWith413() throws InterruptedException {
+        client.post().uri("/api/v1/security/emergency-unlock")
+                .header("X-Forwarded-For", newClientIp())
+                .body(BodyInserters.fromDataBuffers(chunks(VERIFIER_CAP / 2, VERIFIER_CAP / 2 + 1)))
+                .exchange()
+                .expectStatus().isEqualTo(413);
+
+        assertNotForwarded();
+    }
+
+    @Test
+    void verifierRoute_chunkedBodyUnderCap_isForwardedByteForByte() throws InterruptedException {
+        downstream.enqueue(new MockResponse().setResponseCode(204));
+
+        client.post().uri("/api/v1/security/emergency-unlock")
+                .header("X-Forwarded-For", newClientIp())
+                .body(BodyInserters.fromDataBuffers(chunks(1000, 2000)))
+                .exchange()
+                .expectStatus().isNoContent();
+
+        RecordedRequest received = downstream.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getHeader(HttpHeaders.CONTENT_LENGTH)).isEqualTo("3000");
+        byte[] body = received.getBody().readByteArray();
+        assertThat(body).hasSize(3000);
+        for (int i = 0; i < body.length; i++) {
+            assertThat(body[i]).isEqualTo((byte) i);
+        }
+    }
+
+    @Test
+    void verifierRoute_overPerIpLimit_isRejectedWith429AndNeverForwarded() throws InterruptedException {
+        String ip = newClientIp();
+        for (int i = 0; i < VERIFIER_LIMIT; i++) {
+            downstream.enqueue(new MockResponse().setResponseCode(204));
+            client.post().uri("/api/v1/security/emergency-lock")
+                    .header("X-Forwarded-For", ip)
+                    .bodyValue("{}")
+                    .exchange()
+                    .expectStatus().isNoContent();
+        }
+        for (int i = 0; i < VERIFIER_LIMIT; i++) {
+            assertThat(downstream.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
+        }
+
+        client.post().uri("/api/v1/security/emergency-unlock")
+                .header("X-Forwarded-For", ip)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isEqualTo(429)
+                .expectHeader().exists("Retry-After");
+        assertNotForwarded();
+
+        // The bucket is per client IP: another verifier is unaffected.
+        downstream.enqueue(new MockResponse().setResponseCode(204));
+        client.post().uri("/api/v1/security/emergency-lock")
+                .header("X-Forwarded-For", newClientIp())
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isNoContent();
+        assertThat(downstream.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
+    }
+
+    // Edge policies (gateway design 5.1, 5.2, 5.4)
+
+    @Test
+    void jsonRoute_bodyOverDefaultCap_isRejectedWith413() throws InterruptedException {
+        client.post().uri("/api/v1/contracts")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
+                .bodyValue(new byte[1024 * 1024 + 1])
+                .exchange()
+                .expectStatus().isEqualTo(413);
+
+        assertNotForwarded();
+    }
+
+    @Test
+    void writeRequest_downstreamDropsConnection_isSentExactlyOnce() throws InterruptedException {
+        downstream.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST));
+
+        client.post().uri("/api/v1/contracts")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
+                .bodyValue("{\"listingId\":\"" + LISTING_ID + "\"}")
+                .exchange()
+                .expectStatus().is5xxServerError();
+
+        assertThat(downstream.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
+        assertNotForwarded();
+    }
+
+    @Test
+    void downstreamTimeout_isGatewayTimeoutAndNotFabricated() {
+        downstream.enqueue(new MockResponse().setResponseCode(200).setHeadersDelay(3, TimeUnit.SECONDS));
+
+        client.get().uri("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + VALID_TOKEN)
+                .exchange()
+                .expectStatus().isEqualTo(504);
+    }
+
+    @Test
+    void corsPreflight_fromAllowedOrigin_isAnsweredWithoutToken() throws InterruptedException {
+        client.options().uri("/api/v1/contracts")
+                .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization, Idempotency-Key")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN)
+                .expectHeader().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS);
+
+        assertNotForwarded();
+    }
+
+    @Test
+    void corsPreflight_fromUnknownOrigin_isForbidden() throws InterruptedException {
+        client.options().uri("/api/v1/contracts")
+                .header(HttpHeaders.ORIGIN, "http://evil.test")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectHeader().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN);
+
+        assertNotForwarded();
+    }
+
+    private static final int VERIFIER_CAP = 64 * 1024;
+    private static final int VERIFIER_LIMIT = 10;
+
+    /** Two body chunks with no Content-Length, so the client sends Transfer-Encoding: chunked. */
+    private static Flux<DataBuffer> chunks(int first, int second) {
+        byte[] bytes = new byte[first + second];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) i;
+        }
+        DefaultDataBufferFactory factory = DefaultDataBufferFactory.sharedInstance;
+        return Flux.just(
+                factory.wrap(java.util.Arrays.copyOfRange(bytes, 0, first)),
+                factory.wrap(java.util.Arrays.copyOfRange(bytes, first, bytes.length)));
     }
 
     private static String tokenFor(String role) {
