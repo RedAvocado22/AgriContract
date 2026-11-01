@@ -350,8 +350,8 @@ CREATE TABLE inspector_signature (
                      -- cùng DB → REFERENCES hợp lệ, chặt hơn cả bản cũ (vốn phải bỏ FK)
     contract_id      CHAR(36) NOT NULL,           -- denormalized, plain UUID lưu bằng CHAR(36), tiện query
     signer_user_id   CHAR(36) NOT NULL,           -- JWT sub của INSPECTOR
-    auth_time        TIMESTAMP NOT NULL,      -- step-up, inspectionAuthMaxAgeSeconds = 1800s (§2.4)
-    signed_at        TIMESTAMP NOT NULL,
+    auth_time        TIMESTAMP(6) NOT NULL,   -- step-up, inspectionAuthMaxAgeSeconds = 1800s (§2.4)
+    signed_at        TIMESTAMP(6) NOT NULL,
     report_hash      VARCHAR(64) NOT NULL,    -- vị trí tương ứng signedContentHash của nhánh buyer/seller
     ip_address       VARCHAR(45)
 );
@@ -361,15 +361,17 @@ ALTER TABLE contract_terms ADD COLUMN level2_inspector_org VARCHAR(255) NULL;
 
 -- inspection-service — bảng track việc commission Level 2 org, tách biệt khỏi report
 CREATE TABLE level2_inspection_commission (
-    commission_id         CHAR(36) PRIMARY KEY,
+    commission_id         CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+                                                  -- cùng charset/collation với inspection_report.commission_id,
+                                                  -- nếu lệch thì ADD FOREIGN KEY fail (01/11/2026)
     contract_id           CHAR(36) NOT NULL,        -- FK thường, KHÔNG unique — 1 hợp đồng có thể
                                                   -- escalate Level 2 nhiều lần theo thời gian,
                                                   -- cùng lý do đã áp cho Signature-INSPECTOR ở §2.1
     org                    VARCHAR(255) NOT NULL,
     intake_case_id         VARCHAR(255) NULL,    -- NULL cho tới khi Admin confirm ack
     status                 VARCHAR(20) NOT NULL, -- REQUESTED | CASE_ID_CONFIRMED
-    requested_at           TIMESTAMP NOT NULL,
-    case_id_confirmed_at   TIMESTAMP NULL
+    requested_at           TIMESTAMP(6) NOT NULL,
+    case_id_confirmed_at   TIMESTAMP(6) NULL
 );
 -- UNIQUE(org, intake_case_id) — case ID do org tự phát hành, scope theo org tránh trùng
 
@@ -435,15 +437,24 @@ CREATE TABLE inspection_report (
                                                                   -- LEVEL_1_5 và LEVEL_2 OPERATOR_MANUAL giữ default CONFIRMED
     ingestion_source                 VARCHAR(20) NULL,        -- 'AUTO_EMAIL' | 'OPERATOR_MANUAL' — chỉ LEVEL_2
     spf_dkim_result                  VARCHAR(20) NULL,        -- chỉ AUTO_EMAIL
-    commission_id                    CHAR(36) NULL REFERENCES level2_inspection_commission(commission_id),
+    commission_id                    CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL
+                                     REFERENCES level2_inspection_commission(commission_id),
+                                                                  -- Thứ tự migration (01/11/2026): cột có từ migration Level 1.5
+                                                                  -- (#293), chưa FK vì bảng Level 2 chưa tồn tại; FK
+                                                                  -- fk_report_l2_commission thêm bằng ALTER cùng lúc tạo
+                                                                  -- level2_inspection_commission (#266). Trước đó cột luôn NULL:
+                                                                  -- chk_report_l15_required ép NULL cho LEVEL_1_5.
                                                                   -- join key thật cho LEVEL_2 (cùng DB inspection-service,
                                                                   -- REFERENCES hợp lệ ở đây — khác trường hợp signature.report_id
                                                                   -- ở trên, vốn xuyên service)
     external_verification_status     VARCHAR(20) NULL,        -- 'NOT_CHECKED' | 'VERIFIED' | 'UNVERIFIED' | 'UNAVAILABLE' —
                                                                   -- optional, chỉ LEVEL_2, Admin tự điền nếu org có dịch vụ verify công khai
-    external_verification_checked_at TIMESTAMP NULL,
-    confirmed_at                     TIMESTAMP NULL,
-    created_at                       TIMESTAMP NOT NULL DEFAULT now(),
+    external_verification_checked_at TIMESTAMP(6) NULL,
+    confirmed_at                     TIMESTAMP(6) NULL,       -- = sourceTimestamp trong reportHash (§2.3, #310):
+                                                                  -- app truncate confirmedAt về millisecond TRƯỚC khi lưu/publish;
+                                                                  -- hash dùng đúng 3 số lẻ (yyyy-MM-ddTHH:mm:ss.SSSZ, #227),
+                                                                  -- TIMESTAMP(6) giữ nguyên giá trị đó, không làm tròn
+    created_at                       TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     -- BỔ SUNG 28/10/2026 — nhánh LEVEL_1_5 enforce ở DB (§2.5):
     UNIQUE KEY uk_report_l15_commission (l15_commission_id),
@@ -492,7 +503,7 @@ CREATE TABLE inspection_report (
 </ul>
 <p><strong>Nguyên tắc xuyên suốt cho phần auto-intake:</strong> tự động hoá phần lặp lại, nhàm chán, không cần phán đoán (nhận mail, tính hash, gợi ý match) — giữ nguyên quyết định cuối (cái biến 1 file thành bằng chứng) ở người, có RBAC, có audit trail, không thể lặng lẽ override. Mục tiêu không phải loại bỏ con người khỏi quyết định — mục tiêu là không để 1 người là điểm duy nhất quyết định cái gì là bằng chứng thật.</p>
 <p>Inspection — <strong>đóng session, sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong> File <code>inspection-phase2-design-addendum.md</code> đã merge vào đây — có thể xoá khỏi project knowledge.</p>
-<p><em>Sync role SRS v1.6: 12/10/2026 · 28/10/2026 (§2.5/§5: report LEVEL_1_5 enforce ở DB — composite FK, UNIQUE(l15_commission_id), CHECK theo tier; assignment deadline NOT NULL) · Bổ sung Level 1.5 assignment §2.5/§5: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · <strong>Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong></em></p>
+<p><em>Sync role SRS v1.6: 12/10/2026 · 01/11/2026 (§5: mọi timestamp TIMESTAMP(6) để confirmed_at hash được không bị MySQL làm tròn; commission_id ascii_bin, FK Level 2 thêm ở #266) · 28/10/2026 (§2.5/§5: report LEVEL_1_5 enforce ở DB — composite FK, UNIQUE(l15_commission_id), CHECK theo tier; assignment deadline NOT NULL) · Bổ sung Level 1.5 assignment §2.5/§5: 12/10/2026 · Cập nhật 19/07/2026 (ghi chú §3: BreachCase mới ở milestone-escrow không đảo quyết định UNIQUE(reportId); inspection không tham chiếu BreachCase) · Design session: 03/07/2026 · Addendum merge + auto-intake flow: 04/07/2026 · Fix cross-service FK: 04/07/2026 · 08/07/2026 (L4: thu hẹp tra cứu accreditation — thêm nguồn cụ thể IAF CertSearch + ILAC Signatory Search + BoA-VIAS, từ "deferred chưa biết tra đâu" → "3 nguồn online xác định", §3.2) · Cập nhật 13/07/2026 (làm rõ 2 giả định ngoài scope — BV document-verification + BoA API — thành Known Limitation §6) · Đồng bộ cross-service 17/07/2026 (IMAP/file.ready handshake §3.3-3.6; inspector_signature tách bảng §2.1/§5; 2 domain event vào chain §4) · Chưa code · <strong>Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.</strong></em></p>
 </section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">12/10/2026</span><p>Sync role SRS v1.6; bổ sung Level 1.5 assignment §2.5/§5.</p>
 </li><li><span class="changelog__date">06/10/2026</span><p>Result chỉ còn <code>CoffeeActualMetrics</code>.</p>
 </li><li><span class="changelog__date">19/07/2026</span><p><code>BreachCase</code> không đảo quyết định UNIQUE(reportId).</p>
