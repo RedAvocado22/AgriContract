@@ -49,7 +49,7 @@ class InspectionHashContractTest {
 
     @Test
     void generatedResultSatisfiesBothFrozenSchemasAndRejectsPolicyFields() throws Exception {
-        JsonNode result = json.readTree(jcs.canonicalize(input.result(InspectionHashTest.RESULT)));
+        JsonNode result = json.readTree(jcs.canonicalize(input.result(InspectionHashTest.resultFixture())));
         for (boolean api : new boolean[] {true, false}) {
             var schema = resultSchema(api);
             assertThat(schema.validate(result)).isEmpty();
@@ -68,8 +68,8 @@ class InspectionHashContractTest {
     @Test
     void reportHashSourceTimestampTakesConfirmedAtValueWithoutRenamingProjectionKey()
             throws Exception {
-        ObjectNode commitment = (ObjectNode) json.readTree(InspectionHashTest.REPORT);
-        var result = input.result(InspectionHashTest.RESULT);
+        ObjectNode commitment = (ObjectNode) json.readTree(InspectionHashTest.reportFixture());
+        var result = input.result(InspectionHashTest.resultFixture());
         commitment.put("resultHash", hashes.calculateResultHash(result));
         String reportHash = hashes.calculateReportHash(input.report(commitment.toString()));
         ObjectNode payload = commitment.deepCopy();
