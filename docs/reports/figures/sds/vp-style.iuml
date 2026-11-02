@@ -1,0 +1,65 @@
+' Shared look for the SDS diagrams: plain UML notation in the style of Visual Paradigm
+!pragma layout elk
+' (white shapes, black lines, visibility as + / - text, numbered sequence messages).
+skinparam dpi 180
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ArrowColor black
+skinparam ArrowFontSize 11
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor black
+  StereotypeFontSize 10
+}
+skinparam package {
+  BackgroundColor #FFFFFF
+  BorderColor black
+  FontStyle bold
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor black
+}
+skinparam entity {
+  BackgroundColor #FFFFFF
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFFF
+  BorderColor black
+}
+skinparam sequence {
+  ParticipantBackgroundColor #FFFFFF
+  ParticipantBorderColor black
+  ActorBackgroundColor #FFFFFF
+  ActorBorderColor black
+  LifeLineBorderColor black
+  LifeLineBackgroundColor #FFFFFF
+  BoxBorderColor black
+  GroupBorderColor black
+  GroupBackgroundColor #FFFFFF
+  MessageAlign left
+}
+skinparam boundary {
+  BackgroundColor #FFFFFF
+  BorderColor black
+}
+skinparam control {
+  BackgroundColor #FFFFFF
+  BorderColor black
+}
+skinparam queue {
+  BackgroundColor #FFFFFF
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor #FFFFFF
+  BorderColor black
+}
+hide circle
+skinparam maxMessageSize 140
+skinparam ParticipantPadding 6
+skinparam BoxPadding 6
+set separator none

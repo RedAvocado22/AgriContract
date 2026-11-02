@@ -1,0 +1,68 @@
+@startuml fig01_architecture
+!include vp-style.iuml
+' Provided interface = lollipop, required interface = socket.
+
+package "Client Tier" {
+  component "React SPA" as spa
+}
+component "External Verifier" as ev <<external>>
+
+package "Edge Tier" {
+  () "HTTPS" as i_https
+  () "OIDC" as i_oidc
+  component "Nginx" as nginx
+  component "Keycloak 24" as kc
+  component "API Gateway" as gw
+}
+
+package "Application Tier" {
+  () "REST /api/v1" as i_rest
+  () "Emergency lock" as i_lock
+  () "Audit hash" as i_hash
+  component "contract-service" as contract
+  component "escrow, inspection,\nreputation, product, file,\npricing, analytics" as others <<subsystem>>
+  component "bank-service" as bank
+  component "audit-service" as audit
+  () "Internal REST" as i_internal
+  () "OTP email" as i_otp
+  component "user-service" as user
+  component "notification-service" as notif
+}
+
+package "Data & Messaging Tier" {
+  () "AMQP" as i_amqp
+  () "JDBC" as i_jdbc
+  component "RabbitMQ 3.13" as mq
+  component "MySQL 8" as mysql
+  component "Redis 7 / MinIO / ClamAV" as stores
+}
+
+component "Mail provider" as smtp <<external>>
+() "SMTP" as i_smtp
+
+spa -down-( i_https
+spa -down-( i_oidc
+nginx -up- i_https
+kc -up- i_oidc
+nginx -down-> gw : forward
+gw -down-( i_rest
+contract -up- i_rest
+others -up- i_rest
+ev -down-( i_lock
+ev -down-( i_hash
+bank -up- i_lock
+audit -up- i_hash
+contract -down-( i_internal
+contract -down-( i_otp
+user -up- i_internal
+notif -up- i_otp
+contract -down-( i_amqp
+others -down-( i_amqp
+bank -down-( i_amqp
+contract -down-( i_jdbc
+others ..> stores
+mq -up- i_amqp
+mysql -up- i_jdbc
+notif -down-( i_smtp
+smtp -up- i_smtp
+@enduml

@@ -1,0 +1,41 @@
+@startuml fig07_seq_initiate_sign
+!include vp-style.iuml
+autonumber "0:"
+hide footbox
+
+actor "Buyer / Seller" as user
+boundary ":SignContract\nPage" as page
+control ":Contract\nController" as ctl
+control ":Initiate\nSignUseCase" as uc
+boundary ":UserPort" as users
+entity ":Contract" as contract
+control ":SignedContent\nHasher" as hasher
+boundary ":OtpDeliveryPort" as mail
+
+user -> page : clickSign()
+page -> ctl ++ : initiateSign(id, req)
+ctl -> uc ++ : execute(cmd)
+uc -> users ++ : requireEligibleSigner(userId)
+users --> uc -- : eligible
+uc -> contract ++ : assertSignable(userId)
+contract --> uc -- : signerRole
+uc -> uc : checkFreshness(authTime)
+uc -> hasher ++ : hash(terms)
+hasher --> uc -- : termsHash
+uc -> uc : checkConsent(presentedHash, termsHash)
+create entity ":ConsentEvidence" as consent
+uc -> consent : <<create>> ConsentEvidence(actor, statementHash, presentedHash)
+create entity ":SignatureOtp" as otp
+uc -> otp : <<create>> SignatureOtp(consentId, signer, termsHash)
+uc -> mail ++ : deliver(otpId, email, code, termsHash)
+mail --> uc -- : accepted
+uc --> ctl -- : InitiateSignResult
+ctl --> page -- : 200 InitiateSignResponse
+page --> user : OTP input and countdown
+
+alt not eligible, or auth_time older than 300 s
+  uc --> ctl : EligibilityException / StaleAuthException
+  ctl --> page : 403 / 401
+  page --> user : MSG08 / MSG05
+end
+@enduml

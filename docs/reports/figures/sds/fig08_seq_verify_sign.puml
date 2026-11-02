@@ -1,0 +1,52 @@
+@startuml fig08_seq_verify_sign
+!include vp-style.iuml
+autonumber "0:"
+hide footbox
+
+actor "Buyer / Seller" as user
+boundary ":SignContract\nPage" as page
+control ":Contract\nController" as ctl
+control ":VerifyOtpAnd\nSignUseCase" as uc
+entity ":SignatureOtp" as otp
+entity ":Contract" as contract
+entity ":EventOutbox" as outbox
+control ":ContractDocument\nWorker" as worker
+boundary ":FileStorage\nPort" as files
+
+user -> page : submitOtp(code)
+page -> ctl ++ : verifyOtpAndSign(id, req)
+ctl -> uc ++ : execute(cmd)
+uc -> otp ++ : verify(code, now)
+otp --> uc -- : true
+uc -> contract ++ : addSignature(signature)
+contract --> uc --
+alt second signature on the same hash
+  uc -> contract ++ : transitionTo(SIGNED)
+  contract --> uc --
+  create entity ":ContractDocument" as doc
+  uc -> doc : <<create>> ContractDocument(FINAL_SIGNED_CONTRACT, signedContentHash)
+  uc -> outbox ++ : write(contract.signed)
+  outbox --> uc --
+end
+uc --> ctl --
+ctl --> page -- : 204 No Content
+page --> user : MSG56 / MSG57
+
+== after commit ==
+worker -> worker ++ : renderPending()
+worker -> worker : render(document)
+worker -> files ++ : store(content, SYSTEM_GENERATED)
+files --> worker -- : fileId
+worker -> doc ++ : markReady(fileId, fileHash)
+doc --> worker --
+worker -> outbox ++ : write(contract.document_generated)
+outbox --> worker --
+deactivate worker
+
+alt wrong or expired code
+  otp --> uc : false
+  uc --> ctl : InvalidOtpException
+  ctl --> page : 422
+  page --> user : MSG59 / MSG58
+end
+@enduml

@@ -1,0 +1,98 @@
+@startuml fig05b_evidence_stores_erd
+!include vp-style.iuml
+skinparam roundCorner 14
+skinparam defaultFontSize 16
+skinparam nodesep 20
+skinparam ranksep 30
+legend bottom left
+  Legend: * = NOT NULL    <<PK>> primary key    <<FK>> foreign key    <<UQ>> unique
+endlegend
+skinparam linetype ortho
+
+package "inspection_db" {
+  entity "level1_5_inspection_assignment" as assign {
+    * commission_id : CHAR(36) <<PK>>
+    --
+    * contract_id : CHAR(36)
+    * milestone_id : CHAR(36)
+    * inspector_id : CHAR(36)
+    * assigned_at : TIMESTAMP(6)
+    ended_at : TIMESTAMP(6)
+    * assigned_by_service : VARCHAR(64)
+    initiated_by_actor_id : CHAR(36)
+    report_due_business_days : INT
+    report_due_at : TIMESTAMP(6)
+    active_slot : TINYINT <<generated>>
+  }
+  entity "inspection_report" as report {
+    * report_id : CHAR(36) <<PK>>
+    --
+    * tier : VARCHAR(10)
+    contract_id : CHAR(36)
+    milestone_id : CHAR(36)
+    l15_commission_id : CHAR(36) <<FK, UQ>>
+    * content : JSON
+    normalized_result : JSON
+    result_hash : CHAR(64)
+    report_file_hash : CHAR(64)
+    report_hash : CHAR(64)
+    inspector_id : CHAR(36)
+    external_org : VARCHAR(255)
+    * status : VARCHAR(20)
+    confirmed_at : TIMESTAMP
+  }
+  entity "inspector_signature" as isig {
+    * signature_id : CHAR(36) <<PK>>
+    --
+    * report_id : CHAR(36) <<FK, UQ>>
+    * contract_id : CHAR(36)
+    * signer_user_id : CHAR(36)
+    * auth_time : TIMESTAMP
+    * signed_at : TIMESTAMP
+    * report_hash : CHAR(64)
+    ip_address : VARCHAR(45)
+  }
+  entity "level2_inspection_commission" as l2 {
+    * commission_id : CHAR(36) <<PK>>
+    --
+    * contract_id : CHAR(36)
+    * org : VARCHAR(255)
+    intake_case_id : VARCHAR(255)
+    * status : VARCHAR(20)
+    * requested_at : TIMESTAMP
+    case_id_confirmed_at : TIMESTAMP
+  }
+}
+
+package "audit_db" {
+  entity "audit_record" as arecord {
+    * record_id : CHAR(36) <<PK>>
+    --
+    * subject_type : VARCHAR(20)
+    * subject_id : VARCHAR(100)
+    * source_type : VARCHAR(50)
+    * source_event_type : VARCHAR(100)
+    * source_event_id : CHAR(36) <<UQ>>
+    causation_id : CHAR(36)
+    correlation_id : CHAR(36)
+    source_hash : CHAR(64)
+    * content : JSON
+    * record_hash : CHAR(64)
+    prev_hash_global : CHAR(64)
+    prev_hash_subject : CHAR(64)
+  }
+  entity "audit_anchor" as anchor {
+    * anchor_id : CHAR(36) <<PK>>
+    --
+    * record_id : CHAR(36) <<FK>>
+    * anchored_hash : CHAR(64)
+    * anchor_type : VARCHAR(20)
+    * proof : TEXT
+  }
+}
+
+assign ||--o| report : "authorizes"
+report ||--o| isig : "signed by"
+arecord ||--o{ anchor : "anchored by"
+isig -[hidden]-> l2
+@enduml

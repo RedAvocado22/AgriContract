@@ -1,0 +1,119 @@
+@startuml fig04b_milestone_dispute_erd
+!include vp-style.iuml
+skinparam roundCorner 14
+skinparam defaultFontSize 16
+skinparam nodesep 20
+skinparam ranksep 30
+legend bottom left
+  Legend: * = NOT NULL    <<PK>> primary key    <<FK>> foreign key    <<UQ>> unique
+endlegend
+skinparam linetype ortho
+
+entity "contract" as contract {
+  * contract_id : CHAR(36) <<PK>>
+  --
+  ...
+}
+
+entity "milestone" as milestone {
+  * milestone_id : CHAR(36) <<PK>>
+  --
+  * contract_id : CHAR(36) <<FK>>
+  * milestone_index : INT
+  * status : VARCHAR(30)
+  * funding_status : VARCHAR(20)
+  * committed_quantity : DECIMAL(15,3)
+  * batch_amount : DECIMAL(18,2)
+  * effective_unit_price : DECIMAL(18,2)
+  * expected_delivery_date : DATE
+  * effective_delivery_deadline : DATE
+  seller_declared_weight : DECIMAL(15,3)
+  buyer_received_weight : DECIMAL(15,3)
+  seller_evidence_file_id : CHAR(36)
+  buyer_evidence_file_id : CHAR(36)
+  force_majeure_claim_id : CHAR(36)
+  * version : BIGINT
+}
+
+entity "price_adjustment" as price {
+  * proposal_id : CHAR(36) <<PK>>
+  --
+  * milestone_id : CHAR(36) <<FK>>
+  * contract_id : CHAR(36)
+  * proposed_unit_price : DECIMAL(18,2)
+  * proposer_id : CHAR(36)
+  accepter_id : CHAR(36)
+  * status : VARCHAR(10)
+  proposed_at : DATETIME(6)
+  accepted_at : DATETIME(6)
+}
+
+entity "milestone_sync_outbox" as msync {
+  * outbox_id : CHAR(36) <<PK>>
+  --
+  * milestone_id : CHAR(36) <<FK>>
+  * contract_id : CHAR(36)
+  processed : BOOLEAN
+  retry_count : INT
+  last_attempt_at : TIMESTAMP
+  created_at : TIMESTAMP
+  processed_at : TIMESTAMP
+}
+
+entity "breach_case" as breach {
+  * breach_case_id : CHAR(36) <<PK>>
+  --
+  * contract_id : CHAR(36) <<FK>>
+  milestone_id : CHAR(36) <<FK>>
+  * requested_by : VARCHAR(10)
+  alleged_breaching_role : VARCHAR(10)
+  * breach_reason_code : VARCHAR(40)
+  * severity : VARCHAR(10)
+  * evidence_file_ids : JSON
+  * status : VARCHAR(15)
+  * contest_status : VARCHAR(15)
+  contest_deadline : DATETIME(6)
+}
+
+entity "attribution_decision" as attribution {
+  * attribution_decision_id : CHAR(36) <<PK>>
+  --
+  * contract_id : CHAR(36) <<FK>>
+  breach_case_id : CHAR(36) <<FK>>
+  * decision_source : VARCHAR(20)
+  final_breaching_role : VARCHAR(10)
+  breach_reason_code : VARCHAR(40)
+  quality_disposition : VARCHAR(25)
+  * evidence_refs : JSON
+  * created_at : DATETIME(6)
+}
+
+entity "remedy_decision" as remedy {
+  * remedy_decision_id : CHAR(36) <<PK>>
+  --
+  * attribution_decision_id : CHAR(36) <<FK, UQ>>
+  * affected_milestone_ids : JSON
+  * penalty_eligible : BOOLEAN
+  * reputation_eligible : BOOLEAN
+}
+
+entity "remedy_leg" as leg {
+  * remedy_leg_id : CHAR(36) <<PK>>
+  --
+  * remedy_decision_id : CHAR(36) <<FK>>
+  * remedy_type : VARCHAR(25)
+  * fund_type : VARCHAR(20)
+  * role : VARCHAR(10)
+  * amount : DECIMAL(18,2)
+}
+
+contract ||--|{ milestone : has
+milestone ||--o{ price : adjusts
+milestone ||--o{ msync : "settles into"
+contract ||--o{ breach : concerns
+milestone |o--o{ breach : "concerns (NULL = contract-level)"
+contract ||--o{ attribution : decides
+breach |o--o| attribution : "resolved by"
+attribution ||--o| remedy : "produces"
+remedy ||--|{ leg : contains
+@enduml

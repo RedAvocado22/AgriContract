@@ -1,0 +1,48 @@
+@startuml fig13_seq_flag_contest_assign
+!include vp-style.iuml
+autonumber "0:"
+hide footbox
+
+actor "Buyer" as buyer
+actor "Seller" as seller
+boundary ":Milestone\nPage" as page
+control ":Milestone\nController" as ctl
+control ":FlagMilestone\nIssueUseCase" as flag
+control ":RespondToMilestone\nFlagUseCase" as respond
+control ":Dispute\nRoutingService" as routing
+entity ":Milestone" as ms
+boundary ":Message\nBroker" as mq
+control ":Assign\nInspectorUseCase" as assign
+boundary ":UserPort" as users
+
+buyer -> page : flagIssue(QUALITY_BELOW_TERMS, evidence)
+page -> ctl ++ : flag(mid, req)
+ctl -> flag ++ : execute(cmd)
+flag -> ms ++ : flag(issue)
+ms --> flag -- : AWAITING_SELLER_RESPONSE
+create entity ":BreachCase" as breach
+flag -> breach : <<create>> BreachCase(milestoneId, QUALITY_BELOW_COMMITTED)
+flag --> ctl --
+ctl --> page -- : 204
+page --> buyer : MSG70 (payment held)
+
+seller -> page : respondToFlag(CONTEST)
+page -> ctl ++ : respond(mid, req)
+ctl -> respond ++ : execute(cmd)
+respond -> routing ++ : route(milestone, inspectionTerms)
+routing --> respond -- : LEVEL_1_5
+respond -> ms ++ : contest()
+ms --> respond -- : CONTESTED
+respond -> mq : publish(inspection.level1_5_requested)
+respond --> ctl --
+ctl --> page -- : 204
+page --> seller : MSG74
+
+mq -> assign ++ : execute(cmd)
+assign -> users ++ : listEligibleInspectors()
+users --> assign -- : candidates
+assign -> assign : pickRandom(candidates)
+create entity ":Inspection\nAssignment" as assignment
+assign -> assignment : <<create>> InspectionAssignment(milestoneId, inspectorId)
+deactivate assign
+@enduml

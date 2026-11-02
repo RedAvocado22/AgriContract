@@ -1,0 +1,93 @@
+@startuml fig04a_contract_signing_erd
+!include vp-style.iuml
+skinparam roundCorner 14
+skinparam defaultFontSize 16
+skinparam nodesep 20
+skinparam ranksep 30
+legend bottom left
+  Legend: * = NOT NULL    <<PK>> primary key    <<FK>> foreign key    <<UQ>> unique
+endlegend
+skinparam linetype ortho
+
+entity "contract" as contract {
+  * contract_id : CHAR(36) <<PK>>
+  --
+  * listing_id : CHAR(36)
+  * buyer_id : CHAR(36)
+  * seller_id : CHAR(36)
+  * status : VARCHAR(30)
+  * terms_snapshot : JSON
+  * reserved_quantity : DECIMAL(15,3)
+  * total_amount : DECIMAL(18,2)
+  signed_content_hash : CHAR(64)
+  replaces_contract_id : CHAR(36)
+  superseded_by_contract_id : CHAR(36)
+  * version : BIGINT
+  * created_at : DATETIME(6)
+  * updated_at : DATETIME(6)
+}
+
+entity "signature" as signature {
+  * signature_id : CHAR(36) <<PK>>
+  --
+  * contract_id : CHAR(36) <<FK>>
+  * signer_role : VARCHAR(10)
+  * signer_user_id : CHAR(36)
+  * auth_time : DATETIME(6)
+  * signed_at : DATETIME(6)
+  * signed_content_hash : CHAR(64)
+  ip_address : VARCHAR(45)
+}
+
+entity "consent_evidence" as consent {
+  * consent_id : CHAR(36) <<PK>>
+  --
+  * action_type : VARCHAR(40)
+  * subject_type : VARCHAR(30)
+  * subject_id : CHAR(36)
+  * actor_user_id : CHAR(36)
+  * actor_role : VARCHAR(20)
+  * statement_code : VARCHAR
+  * statement_version : VARCHAR
+  * statement_hash : CHAR(64)
+  * presented_content_hash : CHAR(64)
+  * consented_at : DATETIME(6)
+  correlation_id : CHAR(36)
+}
+
+entity "signature_otp" as otp {
+  * otp_id : CHAR(36) <<PK>>
+  --
+  * consent_id : CHAR(36) <<FK>>
+  * contract_id : CHAR(36) <<FK>>
+  * signer_role : VARCHAR(10)
+  * user_id : CHAR(36)
+  * auth_time : DATETIME(6)
+  * signed_content_hash : CHAR(64)
+  * otp_hash : CHAR(64)
+  * sent_at : DATETIME(6)
+  * expires_at : DATETIME(6)
+  verified_at : DATETIME(6)
+  * attempt_count : INT
+}
+
+entity "contract_document" as document {
+  * document_id : CHAR(36) <<PK>>
+  --
+  * contract_id : CHAR(36) <<FK>>
+  * document_type : VARCHAR(30)
+  * template_code : VARCHAR(50)
+  * template_version : VARCHAR(20)
+  * source_content_hash : CHAR(64)
+  document_file_hash : CHAR(64)
+  file_id : CHAR(36)
+  * status : VARCHAR(10)
+  generated_at : DATETIME(6)
+  failure_reason : TEXT
+}
+
+contract ||--o{ signature : "signed by (0..2)"
+contract ||--o{ otp : challenges
+consent ||--o{ otp : precedes
+contract ||--o{ document : renders
+@enduml
