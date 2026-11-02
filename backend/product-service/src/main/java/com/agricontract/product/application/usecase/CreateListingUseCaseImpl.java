@@ -2,6 +2,8 @@ package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.CreateListingRequest;
 import com.agricontract.product.application.dto.ListingResponse;
+import com.agricontract.product.application.port.UserEligibilityPort;
+import com.agricontract.product.common.exception.ActorNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotOwnedException;
 import com.agricontract.product.common.exception.ProductNotFoundException;
@@ -27,6 +29,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,9 +49,13 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
     private final ProductRepository productRepository;
     private final PlotRegistryRepository plotRegistryRepository;
     private final CategoryRepository categoryRepository;
+    private final UserEligibilityPort userEligibilityPort;
+    private final Clock clock;
 
     @Override
     public ListingResponse execute(String sellerId, CreateListingRequest request) {
+        assertSellerEligible(sellerId);
+
         ListingId listingId = (request.listingId() != null && !request.listingId().isBlank())
                 ? new ListingId(request.listingId())
                 : new ListingId(UUID.randomUUID().toString());
@@ -96,6 +103,19 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
         }
 
         return toResponse(saved);
+    }
+
+    /**
+     * Fail-closed gate (user-service design §3, matrix 21f), before any read or write: a user-service outage (503)
+     * or an ineligible seller (403) never creates a listing. Replays are gated too, so no write path skips the check.
+     */
+    private void assertSellerEligible(String sellerId) {
+        boolean eligible = userEligibilityPort.load(sellerId)
+                .map(facts -> facts.allowsTradingAt(clock.instant()))
+                .orElse(false);
+        if (!eligible) {
+            throw new ActorNotEligibleException();
+        }
     }
 
     private Optional<ListingResponse> assertSameRequestOrConflict(ListingId listingId, String sellerId, CreateListingRequest request) {
