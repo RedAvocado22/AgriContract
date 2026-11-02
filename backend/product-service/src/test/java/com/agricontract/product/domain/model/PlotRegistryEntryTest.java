@@ -1,5 +1,9 @@
 package com.agricontract.product.domain.model;
 
+import com.agricontract.product.domain.model.vo.ForestBaselineAssessment;
+import com.agricontract.product.domain.model.vo.ForestClass;
+import com.agricontract.product.domain.model.vo.ForestOverlap;
+import com.agricontract.product.domain.model.vo.GeoRiskCheck;
 import com.agricontract.product.domain.model.vo.GeoRiskLevel;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.PlotGeometry;
@@ -81,6 +85,52 @@ class PlotRegistryEntryTest {
         assertThat(entry.getGeoVerificationStatus()).isEqualTo(GeoVerificationStatus.PENDING);
         assertThat(entry.getGeoRiskLevel()).isNull();
         assertThat(entry.canBackListing()).isFalse();
+    }
+
+    private static PlotRegistryEntry pending() {
+        return PlotRegistryEntry.register(new RegistryEntryId("plot-1"), "seller-1", "Ho A", polygon(),
+                PlotSource.KML_IMPORT, null, Province.DAK_LAK, T0);
+    }
+
+    private static ForestBaselineAssessment assessment(ForestOverlap... overlaps) {
+        return new ForestBaselineAssessment("natural-forests-2020-v1", List.of(overlaps));
+    }
+
+    @Test
+    void geoCheck_naturalForestOverlap_isHighRisk_andStillCanBackAListing() {
+        PlotRegistryEntry entry = pending();
+
+        GeoRiskCheck check = entry.recordGeoCheck(assessment(
+                new ForestOverlap("nf-2", ForestClass.NATURAL_FOREST), new ForestOverlap("amb-1", ForestClass.AMBIGUOUS)),
+                T1);
+
+        assertThat(entry.getGeoVerificationStatus()).isEqualTo(GeoVerificationStatus.CHECKED);
+        assertThat(entry.getGeoRiskLevel()).isEqualTo(GeoRiskLevel.HIGH_RISK);
+        // a risk signal, not a rejection
+        assertThat(entry.canBackListing()).isTrue();
+        assertThat(check).isEqualTo(new GeoRiskCheck(new RegistryEntryId("plot-1"), polygon().geometryHash(),
+                "natural-forests-2020-v1", GeoRiskLevel.HIGH_RISK, List.of("amb-1", "nf-2"), T1));
+    }
+
+    @Test
+    void geoCheck_ambiguousOnlyOverlap_isInconclusive_noOverlap_isLowRisk() {
+        PlotRegistryEntry ambiguous = pending();
+        ambiguous.recordGeoCheck(assessment(new ForestOverlap("amb-1", ForestClass.AMBIGUOUS)), T1);
+        assertThat(ambiguous.getGeoRiskLevel()).isEqualTo(GeoRiskLevel.INCONCLUSIVE);
+
+        PlotRegistryEntry clear = pending();
+        GeoRiskCheck check = clear.recordGeoCheck(assessment(), T1);
+        assertThat(clear.getGeoRiskLevel()).isEqualTo(GeoRiskLevel.LOW_RISK);
+        assertThat(check.matchedBaselineAreaIds()).isEmpty();
+    }
+
+    @Test
+    void geoCheck_onlyAppliesToAPendingPlot() {
+        PlotRegistryEntry entry = checked();
+
+        assertThatThrownBy(() -> entry.recordGeoCheck(assessment(), T1))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("PENDING");
+        assertThat(entry.getGeoRiskLevel()).isEqualTo(GeoRiskLevel.LOW_RISK);
     }
 
     @Test

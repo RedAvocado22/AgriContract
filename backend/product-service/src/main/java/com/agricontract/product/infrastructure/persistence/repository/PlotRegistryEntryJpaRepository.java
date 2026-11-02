@@ -1,13 +1,16 @@
 package com.agricontract.product.infrastructure.persistence.repository;
 
+import com.agricontract.product.domain.model.vo.GeoRiskLevel;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.infrastructure.persistence.entity.PlotRegistryEntryJpaEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface PlotRegistryEntryJpaRepository extends JpaRepository<PlotRegistryEntryJpaEntity, String> {
@@ -24,4 +27,21 @@ public interface PlotRegistryEntryJpaRepository extends JpaRepository<PlotRegist
     int transitionImportedBefore(@Param("expected") GeoVerificationStatus expected,
                                  @Param("target") GeoVerificationStatus target,
                                  @Param("cutoff") LocalDateTime cutoff);
+
+    List<PlotRegistryEntryJpaEntity> findByGeoVerificationStatusOrderByImportedAtAsc(GeoVerificationStatus status,
+                                                                                    Pageable pageable);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE PlotRegistryEntryJpaEntity p
+            SET p.geoVerificationStatus = :target, p.geoRiskLevel = :riskLevel
+            WHERE p.registryEntryId = :registryEntryId
+              AND p.geoVerificationStatus = :expected
+              AND p.geometryHash = :geometryHash
+            """)
+    int applyGeoRisk(@Param("registryEntryId") String registryEntryId,
+                     @Param("geometryHash") String geometryHash,
+                     @Param("expected") GeoVerificationStatus expected,
+                     @Param("target") GeoVerificationStatus target,
+                     @Param("riskLevel") GeoRiskLevel riskLevel);
 }
