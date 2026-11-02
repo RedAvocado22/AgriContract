@@ -1,12 +1,15 @@
 package com.agricontract.product.infrastructure.persistence.repository;
 
 import com.agricontract.product.domain.model.PlotRegistryEntry;
+import com.agricontract.product.domain.model.vo.GeoRiskCheck;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapper;
 import com.agricontract.product.common.exception.DuplicatePlotHouseholdException;
+import com.agricontract.product.infrastructure.persistence.entity.PlotGeoRiskCheckJpaEntity;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -26,6 +29,7 @@ public class PlotRegistryRepositoryImpl implements PlotRegistryRepository {
 
     private final PlotRegistryMapper plotRegistryMapper;
     private final PlotRegistryEntryJpaRepository plotRegistryEntryJpaRepository;
+    private final PlotGeoRiskCheckJpaRepository plotGeoRiskCheckJpaRepository;
 
     @Override
     public Optional<PlotRegistryEntry> findBySellerIdAndHouseholdLabel(String sellerId, String householdLabel) {
@@ -80,5 +84,31 @@ public class PlotRegistryRepositoryImpl implements PlotRegistryRepository {
     public int markUnverifiedImportedBefore(Instant cutoff) {
         return plotRegistryEntryJpaRepository.transitionImportedBefore(GeoVerificationStatus.PENDING,
                 GeoVerificationStatus.UNVERIFIED, LocalDateTime.ofInstant(cutoff, ZoneOffset.UTC));
+    }
+
+    @Override
+    public List<PlotRegistryEntry> findPendingGeoCheck(int limit) {
+        return plotRegistryEntryJpaRepository.findByGeoVerificationStatusOrderByImportedAtAsc(
+                        GeoVerificationStatus.PENDING, PageRequest.of(0, limit))
+                .stream().map(plotRegistryMapper::toDomain).toList();
+    }
+
+    @Override
+    @Transactional
+    public boolean recordGeoCheck(GeoRiskCheck check) {
+        int applied = plotRegistryEntryJpaRepository.applyGeoRisk(check.registryEntryId().value(),
+                check.geometryHash(), GeoVerificationStatus.PENDING, GeoVerificationStatus.CHECKED, check.riskLevel());
+        if (applied == 0) {
+            return false;
+        }
+        plotGeoRiskCheckJpaRepository.save(PlotGeoRiskCheckJpaEntity.builder()
+                .registryEntryId(check.registryEntryId().value())
+                .geometryHash(check.geometryHash())
+                .datasetVersion(check.datasetVersion())
+                .geoRiskLevel(check.riskLevel())
+                .matchedBaselineAreaIds(check.matchedBaselineAreaIds())
+                .checkedAt(LocalDateTime.ofInstant(check.checkedAt(), ZoneOffset.UTC))
+                .build());
+        return true;
     }
 }

@@ -31,6 +31,11 @@ plot:
   geo-verification-timeout-hours: ${PLOT_GEO_VERIFICATION_TIMEOUT_HOURS:6}
   # local/Bruno runs: PLOT_GEO_VERIFICATION_TIMEOUT_HOURS=0 and a short check interval so a new plot is usable at once
   geo-verification-timeout-check-ms: ${PLOT_GEO_VERIFICATION_TIMEOUT_CHECK_MS:600000}
+  forest-baseline:
+    # rows of forest_baseline_coverage/forest_baseline_area (V9) used by the check; loaded by an operator
+    dataset-version: ${PLOT_FOREST_BASELINE_DATASET_VERSION:natural-forests-2020-v1}
+    check-ms: ${PLOT_FOREST_BASELINE_CHECK_MS:60000}
+    batch-size: ${PLOT_FOREST_BASELINE_BATCH_SIZE:200}
 
 reservation:
   # a RESERVED reservation with no contract.created after this is an orphan and gets released (design §8b.2)
