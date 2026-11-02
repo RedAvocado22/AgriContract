@@ -75,6 +75,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(ActorNotEligibleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleActorNotEligible(ActorNotEligibleException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(EligibilityUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEligibilityUnavailable(EligibilityUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(PlotNotEligibleException.class)
     public ResponseEntity<ApiResponse<Void>> handlePlotNotEligible(PlotNotEligibleException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

@@ -57,6 +57,12 @@ product:
     interval-ms: ${PRODUCT_DLQ_MONITOR_INTERVAL_MS:300000}
     timeout-ms: ${PRODUCT_DLQ_MONITOR_TIMEOUT_MS:3000}
 
+user-service:
+  url: ${USER_SERVICE_URL:http://localhost:8081}
+  # CreateListing eligibility gate fails closed past these (user-service design §3, matrix 21f)
+  connect-timeout-ms: 2000
+  read-timeout-ms: 3000
+
 server:
   port: ${SERVER_PORT:8082}
 
