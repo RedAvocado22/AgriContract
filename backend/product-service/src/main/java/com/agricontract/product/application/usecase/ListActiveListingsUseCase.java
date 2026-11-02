@@ -1,9 +1,8 @@
 package com.agricontract.product.application.usecase;
 
-import com.agricontract.product.application.dto.ListingResponse;
-import com.agricontract.product.application.dto.PagedResult;
-import org.springframework.data.domain.Pageable;
+import com.agricontract.product.application.dto.ListingSearchQuery;
+import com.agricontract.product.application.dto.ListingSearchResult;
 
 public interface ListActiveListingsUseCase {
-    PagedResult<ListingResponse> execute(Pageable pageable);
+    ListingSearchResult execute(ListingSearchQuery query);
 }

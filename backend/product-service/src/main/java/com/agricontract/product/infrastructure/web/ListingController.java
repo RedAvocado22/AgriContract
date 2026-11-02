@@ -3,7 +3,12 @@ package com.agricontract.product.infrastructure.web;
 import com.agricontract.product.application.dto.CreateListingRequest;
 import com.agricontract.product.application.dto.ListingQueryRequest;
 import com.agricontract.product.application.dto.ListingResponse;
+import com.agricontract.product.application.dto.ListingSearchQuery;
+import com.agricontract.product.application.dto.ListingSearchRequest;
+import com.agricontract.product.application.dto.ListingSearchResponse;
+import com.agricontract.product.application.dto.ListingSearchResult;
 import com.agricontract.product.application.dto.PagedResult;
+import com.agricontract.product.application.dto.ReputationViewer;
 import com.agricontract.product.application.usecase.*;
 import com.agricontract.product.common.ApiResponse;
 import com.agricontract.product.common.PaginatedResponse;
@@ -13,7 +18,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/listings")
@@ -29,12 +38,29 @@ public class ListingController {
     private final CreateListingUseCase createListingUseCase;
     private final GetSellerListingsUseCase getSellerListingsUseCase;
 
+    // Public search. A signed-in viewer also gets seller reputation and may filter by it (reputation design §6.2);
+    // the viewer comes from the gateway-authenticated principal, never from a raw header.
     @GetMapping
-    public ResponseEntity<ApiResponse<PaginatedResponse<ListingResponse>>> getActiveListings(
-            @ModelAttribute @Valid ListingQueryRequest request) {
+    public ResponseEntity<ApiResponse<ListingSearchResponse>> getActiveListings(
+            @ModelAttribute @Valid ListingSearchRequest request, Authentication authentication) {
         Pageable pageable = request.toPageable();
-        PagedResult<ListingResponse> result = listActiveListingsUseCase.execute(pageable);
-        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result, pageable)));
+        ListingSearchResult result = listActiveListingsUseCase.execute(
+                new ListingSearchQuery(pageable, request.getMinSellerScore(), viewer(authentication)));
+        return ResponseEntity.ok(ApiResponse.ok(new ListingSearchResponse(
+                PaginatedResponse.from(result.page(), pageable), result.reputationStatus())));
+    }
+
+    private static ReputationViewer viewer(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof String userId)) {
+            return null;
+        }
+        List<String> roles = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .filter(authority -> authority.startsWith("ROLE_"))
+                .map(authority -> authority.substring("ROLE_".length()))
+                .toList();
+        return roles.isEmpty() ? null : new ReputationViewer(userId, roles);
     }
 
     @GetMapping("/{listingId}")
