@@ -271,6 +271,7 @@ Không có `UPDATE`/migration nào chạy trên data cũ — bảng mới, rỗn
   - **Giới hạn (06/07/2026):** không giải quyết được GPS spoofing bằng app giả lập vị trí — lớp phòng thủ bổ sung, không phải bằng chứng tuyệt đối (§2.2.4).
 - **`UpdateListing`:** cho phép đổi tập `registryEntryId` được chọn trước khi listing chuyển khỏi trạng thái cho phép sửa (theo state machine `Product` hiện có, không đổi) — thêm/bớt plot bằng cách tick/untick, không sửa trực tiếp `geoJson` của `ProductPlot` đã snapshot.
 - **`GetListing`/`SearchListing`:** không đổi logic.
+  - **SearchListing + reputation người bán (#265, 02/11/2026, reputation design §6.2):** user đã đăng nhập thấy `sellerReputation {score, locked}` cạnh field listing và lọc được bằng `minSellerScore` (0–100). product-service đọc `GET /api/v1/reputation/{userId}/public-summary` **thay mặt người xem** (endpoint chỉ nhận user đã xác thực qua gateway), song song, trong một budget thời gian cho cả trang. Chỉ giữ `score` + `locked`, không copy `lockHistory`. Lọc trên trang đã đọc từ DB, nên trang có thể ít hơn `size`; `totalElements` vẫn đếm trước khi lọc. Seller chưa có lịch sử (`score = null`) vẫn qua filter. Seller không đọc được (reputation lỗi/chậm) thì giữ lại với `sellerReputation = null` và `reputationStatus = UNAVAILABLE`: search không bao giờ fail hay trả rỗng vì reputation. Khách chưa đăng nhập: `reputationStatus = SIGN_IN_REQUIRED`, còn nếu gửi `minSellerScore` thì trả 401. Không cần migration.
 
 Không đụng tới `contract-service`, `escrow-service`, hay bất kỳ use case nào của Milestone Escrow.
 

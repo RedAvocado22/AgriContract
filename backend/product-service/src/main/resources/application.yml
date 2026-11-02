@@ -25,6 +25,14 @@ gateway:
 service:
   internal-secret: ${SERVICE_INTERNAL_SECRET:changeme-internal}
 
+reputation-service:
+  # listing search reads the public reputation summary on behalf of the signed-in viewer; an outage only degrades it
+  url: ${REPUTATION_SERVICE_URL:http://localhost:8088}
+  connect-timeout-ms: ${REPUTATION_SERVICE_CONNECT_TIMEOUT_MS:300}
+  read-timeout-ms: ${REPUTATION_SERVICE_READ_TIMEOUT_MS:800}
+  # whole-page budget: reads still running after this are dropped and their sellers shown without reputation
+  lookup-budget-ms: ${REPUTATION_LOOKUP_BUDGET_MS:1000}
+
 plot:
   # a plot still PENDING after this becomes UNVERIFIED and can back a listing (design §2.2.4)
   geo-verification-timeout-hours: ${PLOT_GEO_VERIFICATION_TIMEOUT_HOURS:6}

@@ -39,6 +39,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(ReputationSignInRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleReputationSignInRequired(ReputationSignInRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(ProductNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleProductNotFound(ProductNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
