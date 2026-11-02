@@ -50,7 +50,7 @@ AgriContract adds escrow, milestone-based settlement, tiered dispute resolution,
 
 ## Architecture
 
-![Architecture](docs/diagrams/AgriContract_Diagram_Architecture.svg)
+![Architecture](docs/reports/figures/sds/fig01_architecture.svg)
 
 ### Phase 1 — MVP (built, 6 services)
 

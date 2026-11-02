@@ -1,0 +1,108 @@
+@startuml fig05a_money_stores_erd
+!include vp-style.iuml
+skinparam roundCorner 14
+skinparam defaultFontSize 16
+skinparam nodesep 20
+skinparam ranksep 30
+legend bottom left
+  Legend: * = NOT NULL    <<PK>> primary key    <<FK>> foreign key    <<UQ>> unique
+endlegend
+skinparam linetype ortho
+
+package "escrow_db" {
+  entity "deposit_leg" as deposit {
+    * leg_id : CHAR(36) <<PK>>
+    --
+    * contract_id : CHAR(36)
+    * leg : VARCHAR(10)
+    * user_id : CHAR(36)
+    * amount : DECIMAL(18,2)
+    * status : VARCHAR(30)
+    * request_event_id : CHAR(36) <<UQ>>
+    * created_at : DATETIME(6)
+    * updated_at : DATETIME(6)
+  }
+  entity "escrow_milestone" as emilestone {
+    * milestone_id : CHAR(36) <<PK>>
+    --
+    * contract_id : CHAR(36)
+    * status : VARCHAR(25)
+    request_event_id : CHAR(36) <<UQ>>
+  }
+  entity "remedy_leg_command" as legcmd {
+    * remedy_leg_id : CHAR(36) <<PK>>
+    --
+    * remedy_decision_id : CHAR(36)
+    * source_event_id : CHAR(36)
+    * bank_request_event_id : CHAR(36) <<UQ>>
+    * status : VARCHAR(15)
+  }
+}
+
+package "bank_db" {
+  entity "ledger_entry" as ledger {
+    * entry_id : CHAR(36) <<PK>>
+    --
+    * source_event_id : CHAR(36) <<UQ>>
+    * contract_id : CHAR(36)
+    milestone_id : CHAR(36)
+    * user_id : CHAR(36)
+    * entry_type : VARCHAR(30)
+    * fund_type : VARCHAR(30)
+    remedy_decision_id : CHAR(36)
+    remedy_leg_id : CHAR(36) <<UQ>>
+    * amount : DECIMAL(18,2)
+    * created_at : DATETIME(6)
+  }
+  entity "system_lock" as syslock {
+    * lock_id : CHAR(36) <<PK>>
+    --
+    * status : VARCHAR(20)
+    * verifier_org_id : CHAR(36)
+    reason : TEXT
+    * triggered_at : DATETIME(6)
+    released_at : DATETIME(6)
+  }
+  entity "used_nonce" as nonce {
+    * nonce : VARCHAR(64) <<PK>>
+    --
+    * seen_at : DATETIME(6)
+  }
+}
+
+package "reputation_db" {
+  entity "lock_entry" as lockentry {
+    * entry_id : CHAR(36) <<PK>>
+    --
+    * source_event_id : CHAR(36) <<UQ>>
+    * remedy_decision_id : CHAR(36) <<UQ>>
+    * contract_id : CHAR(36)
+    * user_id : CHAR(36)
+    * penalized_role : VARCHAR(10)
+    * base_days : INT
+    * lock_duration_days : INT
+    * locked_until : TIMESTAMP
+  }
+  entity "lock_override_event" as override {
+    * event_id : CHAR(36) <<PK>>
+    --
+    * lock_entry_id : CHAR(36) <<FK>>
+    * override_type : VARCHAR(20)
+    * proposed_by : CHAR(36)
+    * approved_by : CHAR(36)
+  }
+  entity "governance_action_request" as gov {
+    * request_id : CHAR(36) <<PK>>
+    --
+    * action_type : VARCHAR(30)
+    * target_id : VARCHAR(100)
+    * status : VARCHAR(15)
+    * reason : TEXT
+  }
+}
+
+lockentry ||--o{ override : "overridden by"
+deposit -[hidden]-> ledger
+legcmd -[hidden]-> ledger
+ledger -[hidden]-> lockentry
+@enduml

@@ -1,0 +1,44 @@
+@startuml fig10_seq_weigh_confirm
+!include vp-style.iuml
+autonumber "0:"
+hide footbox
+
+actor "Seller" as seller
+actor "Buyer" as buyer
+boundary ":Milestone\nPage" as page
+control ":Milestone\nController" as ctl
+control ":RecordSeller\nWeighedUseCase" as weigh
+control ":ConfirmMilestone\nCleanUseCase" as confirm
+control ":Settlement\nCalculator" as calc
+entity ":Milestone" as ms
+entity ":EventOutbox" as outbox
+entity ":MilestoneSync\nOutbox" as msync
+
+seller -> page : recordWeighing(weight, evidence)
+page -> ctl ++ : weigh(mid, req)
+ctl -> weigh ++ : execute(cmd)
+weigh -> ms ++ : recordSellerWeighed(weight, evidenceId)
+ms --> weigh --
+weigh -> outbox ++ : write(milestone.seller_weighed)
+outbox --> weigh --
+weigh --> ctl --
+ctl --> page -- : 204
+page --> seller : MSG67
+
+buyer -> page : confirmClean(weight, evidence)
+page -> ctl ++ : confirm(mid, req)
+ctl -> confirm ++ : execute(cmd)
+confirm -> ms ++ : recordBuyerReceived(weight, evidenceId)
+ms --> confirm --
+confirm -> calc ++ : compute(terms, sellerWeight, buyerWeight)
+calc --> confirm -- : settlement (release + refund = batchAmount)
+confirm -> ms ++ : settle(settlement)
+ms --> confirm --
+confirm -> outbox ++ : write(milestone.settled)
+outbox --> confirm --
+confirm -> msync ++ : add(milestoneId)
+msync --> confirm --
+confirm --> ctl --
+ctl --> page -- : 204
+page --> buyer : MSG69 (payment released)
+@enduml

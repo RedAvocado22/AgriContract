@@ -1,0 +1,118 @@
+@startuml fig06_class_signing
+!include vp-style.iuml
+' MVC / robustness stereotypes: boundary = screen or interface to another system,
+' control = controller, use case or domain service, entity = persistent business object.
+
+class SignContractPage <<boundary>> {
+  + clickSign() : void
+  + submitOtp(code : String) : void
+}
+
+interface UserPort <<boundary>> {
+  + requireEligibleSigner(userId : UUID) : void
+}
+
+interface OtpDeliveryPort <<boundary>> {
+  + deliver(otpId : UUID, email : String, code : String, hash : String) : void
+}
+
+interface FileStoragePort <<boundary>> {
+  + store(content : byte[], channel : IngestChannel) : UUID
+}
+
+class ContractController <<control>> {
+  + initiateSign(id : UUID, req : InitiateSignRequest) : InitiateSignResponse
+  + verifyOtpAndSign(id : UUID, req : VerifyOtpRequest) : void
+}
+
+class InitiateSignUseCase <<control>> {
+  + execute(cmd : InitiateSignCommand) : InitiateSignResult
+  - checkFreshness(authTime : Instant) : void
+  - checkConsent(presentedHash : String, termsHash : String) : void
+}
+
+class VerifyOtpAndSignUseCase <<control>> {
+  + execute(cmd : VerifyOtpCommand) : void
+}
+
+class SignedContentHasher <<control>> {
+  + hash(terms : ContractTermsSnapshot) : String
+}
+
+class ContractDocumentWorker <<control>> {
+  + renderPending() : void
+  - render(document : ContractDocument) : byte[]
+}
+
+class Contract <<entity>> {
+  - contractId : UUID
+  - status : ContractStatus
+  - terms : ContractTermsSnapshot
+  - signedContentHash : String
+  + assertSignable(userId : UUID) : SignerRole
+  + addSignature(signature : Signature) : void
+  + transitionTo(next : ContractStatus) : void
+}
+
+class Signature <<entity>> {
+  - signerRole : SignerRole
+  - signerUserId : UUID
+  - authTime : Instant
+  - signedAt : Instant
+  - signedContentHash : String
+}
+
+class ConsentEvidence <<entity>> {
+  - consentId : UUID
+  - actionType : ConsentAction
+  - statementHash : String
+  - presentedContentHash : String
+  + ConsentEvidence(actor : UUID, statementHash : String, presentedHash : String)
+}
+
+class SignatureOtp <<entity>> {
+  - otpId : UUID
+  - otpHash : String
+  - signedContentHash : String
+  - expiresAt : Instant
+  - attemptCount : int
+  + SignatureOtp(consentId : UUID, signer : UUID, hash : String)
+  + verify(code : String, now : Instant) : boolean
+}
+
+class ContractDocument <<entity>> {
+  - documentId : UUID
+  - documentType : DocumentType
+  - sourceContentHash : String
+  - status : DocumentStatus
+  + ContractDocument(type : DocumentType, sourceHash : String)
+  + markReady(fileId : UUID, fileHash : String) : void
+}
+
+class EventOutbox <<entity>> {
+  + write(event : EventEnvelope) : void
+}
+
+SignContractPage --> ContractController
+ContractController --> InitiateSignUseCase
+ContractController --> VerifyOtpAndSignUseCase
+InitiateSignUseCase --> UserPort
+InitiateSignUseCase --> OtpDeliveryPort
+InitiateSignUseCase --> SignedContentHasher
+InitiateSignUseCase --> Contract
+InitiateSignUseCase ..> ConsentEvidence : <<create>>
+InitiateSignUseCase ..> SignatureOtp : <<create>>
+VerifyOtpAndSignUseCase --> SignatureOtp
+VerifyOtpAndSignUseCase --> Contract
+VerifyOtpAndSignUseCase ..> ContractDocument : <<create>>
+VerifyOtpAndSignUseCase --> EventOutbox
+ContractDocumentWorker --> ContractDocument
+ContractDocumentWorker --> FileStoragePort
+ContractDocumentWorker --> EventOutbox
+Contract "1" *-left- "0..2" Signature : signatures
+SignatureOtp "0..*" -left-> "1" ConsentEvidence : consent
+SignatureOtp -[hidden]-> UserPort
+SignatureOtp -[hidden]-> OtpDeliveryPort
+Contract -[hidden]-> SignedContentHasher
+EventOutbox -[hidden]-> FileStoragePort
+@enduml
