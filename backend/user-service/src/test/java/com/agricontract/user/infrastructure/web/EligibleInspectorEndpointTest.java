@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(InternalUserController.class)
 @Import(SecurityConfig.class)
 @TestPropertySource(properties = {"gateway.internal-secret=gateway", "service.internal-secret=service"})
-class InternalInspectorControllerTest {
+class EligibleInspectorEndpointTest {
     private static final String PATH = "/internal/v1/users/inspectors/eligible";
     @Autowired private MockMvc mvc;
     @MockBean private ListEligibleInspectorsUseCase inspectors;
