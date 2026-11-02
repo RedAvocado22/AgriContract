@@ -1,6 +1,6 @@
 # Reputation service — Issue #113
 
-Java 21 / Spring Boot 3.3.5 service, port 8088. This foundation persists two immutable facts and exposes the authenticated public reputation summary. Source of truth: `docs/phase_2/design/reputation-service-phase2-design.md` §§2, 3, 6.1b, data governance §8b, and the frozen OpenAPI/event contracts. The HALF_UP integer precision convention was explicitly approved for this implementation.
+Java 21 / Spring Boot 3.3.5 service, port 8088. This foundation persists two immutable facts and exposes the authenticated public reputation summary. Source of truth: `docs/design/reputation-service-phase2-design.md` §§2, 3, 6.1b, data governance §8b, and the frozen OpenAPI/event contracts. The HALF_UP integer precision convention was explicitly approved for this implementation.
 
 ## Scope and architecture
 

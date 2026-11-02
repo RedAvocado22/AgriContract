@@ -5,7 +5,7 @@ status: "DONE: M0–M5 xong (M4: PR #206, checklist parity đã ký; M5: issue #
 metadata:
   type: plan
   owner: "P3 (Node) — xem team-assignment-plan.md"
-  related: "phase_2/design/notification-service-phase2-design.md; backend/shared/node-eventing/README.md"
+  related: "design/notification-service-phase2-design.md; backend/shared/node-eventing/README.md"
 ---
 
 # Notification-service: Spring Boot → NestJS
@@ -312,7 +312,7 @@ Tiêu chí cũ "tương đương hoặc hơn Java" không kiểm được, vì J
 
 ## 9. Sau cutover: Phase 2 trên Nest
 
-Làm theo `phase_2/design/notification-service-phase2-design.md`. Thứ tự đề xuất:
+Làm theo `design/notification-service-phase2-design.md`. Thứ tự đề xuất:
 
 1. **Migration V2** (design §6), thêm vào `db/migration/V2__...sql`, Flyway chạy như cũ.
    Ghi chú: các row Phase 1 vốn lưu email trong `user_id`, nên `legacy:{user_id}` vẫn giữ được email gốc để đối soát.

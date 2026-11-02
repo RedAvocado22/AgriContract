@@ -1,6 +1,6 @@
 # pricing-service (Node + NestJS)
 
-Advisory coffee reference prices for AgriContract Phase 2 (`docs/phase_2/design/pricing-service-phase2-design.md`).
+Advisory coffee reference prices for AgriContract Phase 2 (`docs/design/pricing-service-phase2-design.md`).
 This increment implements the **Admin/Operator manual fallback** (design §3.2, issue #117).
 
 Pricing is **advisory only** (design §4.1). contract-service and escrow-service never call it; a test in

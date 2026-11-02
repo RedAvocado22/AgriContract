@@ -1,6 +1,6 @@
 # analytics-service (Node + NestJS)
 
-Non-critical CQRS projection for AgriContract Phase 2 (`docs/phase_2/design/analytics-service-phase2-design.md`).
+Non-critical CQRS projection for AgriContract Phase 2 (`docs/design/analytics-service-phase2-design.md`).
 It only listens to canonical RabbitMQ events and never calls core services. This increment (issue #118)
 delivers **persistence and a working, idempotent ingestion path** (#118); #133 adds the first projections
 (signed contracts and milestone outcomes); #148 adds the contract-level settlement and termination facts.

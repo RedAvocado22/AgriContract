@@ -152,12 +152,12 @@ controller endpoint. MockMvc verifies the actual health/closed HTTP surface.
 
 ## Sources
 
-- `docs/phase_2/design/inspection-phase2-design.md` sections 2, 4, 5
-- `docs/phase_2/design/user-service-phase2-design.md` sections 2–4
-- `docs/phase_2/design/api-gateway-phase2-design.md` section 2
+- `docs/design/inspection-phase2-design.md` sections 2, 4, 5
+- `docs/design/user-service-phase2-design.md` sections 2–4
+- `docs/design/api-gateway-phase2-design.md` section 2
 - `contracts/events/supplementary-services-api.yaml`: `submitInspectionReport`
 - `contracts/events/golden-flow-events.yaml`: `inspectionReportConfirmed`
 - `docs/contracts/error-catalog.md`
 - Design and contract references above are read at `d6be0e00b56cf434d68670af045755569c9e2cc6`; no frozen YAML is changed.
-- `docs/phase_2/design/data-governance-phase2-design.md` section 5 (SRS v1.6 roles)
-- `docs/phase_2/design/verification-matrix-phase2.md` (inspection and eligibility checks)
+- `docs/design/data-governance-phase2-design.md` section 5 (SRS v1.6 roles)
+- `docs/design/verification-matrix-phase2.md` (inspection and eligibility checks)
