@@ -4,7 +4,7 @@
 #
 #   soffice --headless --accept="socket,host=127.0.0.1,port=2002;urp;" &
 #   python3 fill_report.py template/Report-5.1_Unit_Test_template.xlsx \
-#       ../../docs/phase_2/Report-5.1_Unit_Test.xlsx ../../backend
+#       ../../docs/reports/Report-5.1_Unit_Test.xlsx ../../backend
 #
 # A sheet whose row count differs from its test class's surefire count stops the run.
 import glob, os, re, sys, time

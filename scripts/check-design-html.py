@@ -16,7 +16,7 @@ from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DESIGN = ROOT / "docs/phase_2/design"
+DESIGN = ROOT / "docs/design"
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 SECTION = re.compile(r"^#{1,6}\s+(?:\*\*)?(?:\u00a7\s*)?(\d+[a-z]?(?:\.\d+[a-z]?)*)(?=[.\s:)])")
 

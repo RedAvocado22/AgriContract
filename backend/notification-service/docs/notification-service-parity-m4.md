@@ -4,7 +4,7 @@ description: "Báo cáo parity M4: notification-service Java (Spring Boot) và N
 status: "D-1 đã sửa và kiểm chứng lại (§3.1, §4). D-2…D-6 đã quyết định (§4). E2E contract/escrow đã chạy trên môi trường riêng (§5.2). Checklist §6 đã ký, M4 đã tick trong plan."
 metadata:
   type: report
-  plan: "planning/notification-service-nestjs-migration.md §4, §6 M4, §7"
+  plan: "notification-service-nestjs-migration.md §4, §6 M4, §7"
   run_date: "24/10/2026 (lượt đầu, 13:16–13:42 UTC); kiểm chứng lại sau sửa D-1: 24/10/2026 16:33–17:22 UTC"
 ---
 
@@ -165,8 +165,8 @@ MailHog total=0, DLQ 3 → 4, dòng vẫn PENDING
 
 **Nguyên nhân** (đọc code, chưa sửa):
 
-1. `beforeApplicationShutdown` chỉ đợi tối đa `DRAIN_TIMEOUT_MS = 8_000` ([notification-event.consumer.ts:31](../../backend/notification-service-nest/src/infrastructure/messaging/notification-event.consumer.ts#L31), [:137](../../backend/notification-service-nest/src/infrastructure/messaging/notification-event.consumer.ts#L137)). Sau đó Nest đóng channel và pool, nhưng vòng retry của `handleDelivery` không bị dừng. Lần gửi đang treo (tối đa 10s connect, 10s greeting, 30s socket) kết thúc sau khi pool đã đóng, nên không ghi được `FAILED`, và dòng vẫn ở `PENDING` với `updated_at` là lúc claim. Timer retry còn sống nên process không tự thoát và bị SIGKILL (137). Java thoát sạch (143) trong 5.8s.
-2. Lease của claim là `CLAIM_LEASE_MS = 120_000` ([notification-sender.ts:18](../../backend/notification-service-nest/src/application/notification-sender.ts#L18)), dài hơn nhiều so với cửa sổ retry (1s + 2s cộng thời gian gửi). Message được redeliver trong vòng 120s sẽ gặp `IN_PROGRESS` ở cả 3 lần thử rồi vào DLQ. Mail không bao giờ được gửi, và không còn ai lấy lại dòng `PENDING` đó.
+1. `beforeApplicationShutdown` chỉ đợi tối đa `DRAIN_TIMEOUT_MS = 8_000` ([notification-event.consumer.ts:31](../src/infrastructure/messaging/notification-event.consumer.ts#L31), [:137](../src/infrastructure/messaging/notification-event.consumer.ts#L137)). Sau đó Nest đóng channel và pool, nhưng vòng retry của `handleDelivery` không bị dừng. Lần gửi đang treo (tối đa 10s connect, 10s greeting, 30s socket) kết thúc sau khi pool đã đóng, nên không ghi được `FAILED`, và dòng vẫn ở `PENDING` với `updated_at` là lúc claim. Timer retry còn sống nên process không tự thoát và bị SIGKILL (137). Java thoát sạch (143) trong 5.8s.
+2. Lease của claim là `CLAIM_LEASE_MS = 120_000` ([notification-sender.ts:18](../src/application/notification-sender.ts#L18)), dài hơn nhiều so với cửa sổ retry (1s + 2s cộng thời gian gửi). Message được redeliver trong vòng 120s sẽ gặp `IN_PROGRESS` ở cả 3 lần thử rồi vào DLQ. Mail không bao giờ được gửi, và không còn ai lấy lại dòng `PENDING` đó.
 
 Điểm 2 không chỉ xảy ra với `docker stop`. Mọi lần process chết trong lúc gửi (OOM, SIGKILL, mất điện) rồi lên lại trong vòng 2 phút đều cho cùng kết quả. Java ở cùng tình huống thì gửi lại (tình huống 4: buyer `PENDING`, redeliver ~30s sau khi claim, gửi thành công). Điều này trái với §6 ("Kết quả cuối cùng phải giống nhau").
 
