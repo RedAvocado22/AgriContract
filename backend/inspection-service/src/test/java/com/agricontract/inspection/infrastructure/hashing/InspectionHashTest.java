@@ -18,17 +18,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 class InspectionHashTest {
-    final InspectionHashInput input = new InspectionHashInput();
-    final JcsCanonicalizer jcs = new JcsCanonicalizer();
-    final InspectionHashes hashes = new InspectionHashes(jcs);
-    static final String RESULT =
+    private final InspectionHashInput input = new InspectionHashInput();
+    private final JcsCanonicalizer jcs = new JcsCanonicalizer();
+    private final InspectionHashes hashes = new InspectionHashes(jcs);
+    private static final String RESULT =
             """
 {"resultSchemaVersion":"1.0","measuredQuantityKg":10,"acceptedQuantityKg":9,
  "measurementStatus":"COMPLETE","actualQualityMetrics":{"commodity":"COFFEE","type":"ROBUSTA",
  "moisturePercent":12,"foreignMatterPercent":1,"blackBrokenBeansPercent":2},
  "determinedAt":"2026-10-26T01:00:00.000Z"}
 """;
-    static final String REPORT =
+    private static final String REPORT =
             """
 {"reportId":"11111111-1111-4111-8111-111111111111","contractId":"22222222-2222-4222-8222-222222222222",
  "milestoneId":"33333333-3333-4333-8333-333333333333","tier":"LEVEL_1_5",
@@ -36,6 +36,14 @@ class InspectionHashTest {
  "resultHash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
  "sourceTimestamp":"2026-10-26T01:00:00.000Z","actorOrSourceIdentity":"44444444-4444-4444-8444-444444444444"}
 """;
+
+    static String resultFixture() {
+        return RESULT;
+    }
+
+    static String reportFixture() {
+        return REPORT;
+    }
 
     ObjectNode tree(String value) throws Exception {
         return (ObjectNode) new ObjectMapper().readTree(value);
@@ -60,9 +68,10 @@ class InspectionHashTest {
         assertThat(canonical)
                 .isEqualTo(
                         "{\"acceptedQuantityKg\":9,\"actualQualityMetrics\":{\"blackBrokenBeansPercent\":2,\"commodity\":\"COFFEE\",\"foreignMatterPercent\":1,\"moisturePercent\":12,\"type\":\"ROBUSTA\"},\"determinedAt\":\"2026-10-26T01:00:00.000Z\",\"measuredQuantityKg\":10,\"measurementStatus\":\"COMPLETE\",\"resultSchemaVersion\":\"1.0\"}");
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 20; i++) {
             assertThat(hashes.calculateResultHash(input.result(canonical)))
                     .isEqualTo(hashes.calculateResultHash(result));
+        }
         assertThat(
                         hashes.calculateResultHash(
                                 input.result(RESULT.replace(":10", ":1e1").replace(":9", ":9.00"))))
@@ -137,9 +146,10 @@ class InspectionHashTest {
                         RESULT.replace("2026-10-26T01:00:00.000Z", "invalid"),
                         RESULT.replace(
                                 "\"measuredQuantityKg\":10",
-                                "\"measuredQuantityKg\":10,\"measuredQuantityKg\":10")))
+                                "\"measuredQuantityKg\":10,\"measuredQuantityKg\":10"))) {
             assertThatThrownBy(() -> input.result(bad))
                     .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Test
