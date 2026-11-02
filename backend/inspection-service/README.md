@@ -131,7 +131,7 @@ Level 2 and the 1800-second step-up freshness check also remain outside #112.
 
 Runtime configuration: `DB_USERNAME`, `DB_PASSWORD`, `GATEWAY_INTERNAL_SECRET`,
 `SERVICE_INTERNAL_SECRET`; optionally `DB_HOST` (localhost), `DB_PORT` (3312),
-`SERVER_PORT` (8086), `USER_SERVICE_URL` (http://localhost:8081).
+`SERVER_PORT` (8087), `USER_SERVICE_URL` (http://localhost:8081).
 Provision a separate empty `inspection_db`; Flyway creates the approved table.
 This change does not alter the shared docker-compose topology.
 
