@@ -3,6 +3,10 @@ package com.agricontract.product.application.usecase;
 import com.agricontract.product.application.dto.CoffeeQualitySpecDto;
 import com.agricontract.product.application.dto.CreateListingRequest;
 import com.agricontract.product.application.dto.ListingResponse;
+import com.agricontract.product.application.dto.UserEligibility;
+import com.agricontract.product.application.port.UserEligibilityPort;
+import com.agricontract.product.common.exception.ActorNotEligibleException;
+import com.agricontract.product.common.exception.EligibilityUnavailableException;
 import com.agricontract.product.common.exception.PlotNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotOwnedException;
 import com.agricontract.product.domain.model.Category;
@@ -36,6 +40,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -54,6 +60,10 @@ class CreateListingUseCaseImplTest {
     @Mock private ProductRepository productRepository;
     @Mock private PlotRegistryRepository plotRegistryRepository;
     @Mock private CategoryRepository categoryRepository;
+    @Mock private UserEligibilityPort userEligibilityPort;
+
+    private static final Instant NOW = Instant.parse("2026-11-02T03:00:00Z");
+    private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private CreateListingUseCase useCase;
 
@@ -63,7 +73,9 @@ class CreateListingUseCaseImplTest {
     @BeforeEach
     void setUp() {
         useCase = new CreateListingUseCaseImpl(listingRepository, productRepository, plotRegistryRepository,
-                categoryRepository);
+                categoryRepository, userEligibilityPort, clock);
+        lenient().when(userEligibilityPort.load(SELLER)).thenReturn(Optional.of(
+                new UserEligibility(SELLER, "VERIFIED", null, null)));
     }
 
     private void productExists() {
@@ -234,5 +246,60 @@ class CreateListingUseCaseImplTest {
         assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of(PlotFixtures.PLOT_ID), arabica)))
                 .isInstanceOf(IllegalStateException.class);
         verify(listingRepository, never()).save(any());
+    }
+
+    // ---- fail-closed eligibility gate (user-service design §3, matrix 21f) ----
+
+    private void sellerFacts(String status, Instant authorizationExpiresAt, Instant lockedUntil) {
+        when(userEligibilityPort.load(SELLER)).thenReturn(Optional.of(
+                new UserEligibility(SELLER, status, authorizationExpiresAt, lockedUntil)));
+    }
+
+    // Nothing is read, so an idempotent replay of an existing listing cannot bypass the gate either.
+    private void assertRejectedBeforeAnyLookup(Class<? extends Throwable> expected) {
+        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-1"))))
+                .isInstanceOf(expected);
+        verifyNoInteractions(listingRepository, productRepository, plotRegistryRepository, categoryRepository);
+    }
+
+    @Test
+    void execute_userServiceUnavailable_failsClosedAndNothingIsRead() {
+        when(userEligibilityPort.load(SELLER)).thenThrow(new EligibilityUnavailableException());
+        assertRejectedBeforeAnyLookup(EligibilityUnavailableException.class);
+    }
+
+    @Test
+    void execute_reputationLockedSeller_isForbidden() {
+        sellerFacts("VERIFIED", null, NOW.plusSeconds(1));
+        assertRejectedBeforeAnyLookup(ActorNotEligibleException.class);
+    }
+
+    @Test
+    void execute_lockEndingExactlyNow_isNoLongerLocked() {
+        sellerFacts("VERIFIED", null, NOW);
+        productExists();
+        when(plotRegistryRepository.findAllById(any())).thenReturn(List.of(
+                plot("plot-1", SELLER, GeoVerificationStatus.UNVERIFIED)));
+        when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(useCase.execute(SELLER, request(List.of("plot-1"))).listingId()).isEqualTo("listing-1");
+    }
+
+    @Test
+    void execute_sellerNotVerified_isForbidden() {
+        sellerFacts("PENDING", null, null);
+        assertRejectedBeforeAnyLookup(ActorNotEligibleException.class);
+    }
+
+    @Test
+    void execute_authorizationExpired_isForbidden() {
+        sellerFacts("VERIFIED", NOW, null);
+        assertRejectedBeforeAnyLookup(ActorNotEligibleException.class);
+    }
+
+    @Test
+    void execute_noUserProfile_isForbidden() {
+        when(userEligibilityPort.load(SELLER)).thenReturn(Optional.empty());
+        assertRejectedBeforeAnyLookup(ActorNotEligibleException.class);
     }
 }
