@@ -30,7 +30,7 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
         WHERE event_id = ? AND user_id = ?
           AND (status = 'FAILED'
                OR (status = 'PENDING'
-                   AND updated_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND))`,
+                   AND updated_at < UTC_TIMESTAMP(6) + INTERVAL ? MICROSECOND))`, // BROKEN ON PURPOSE (#210 proof): lease ignored
       [log.eventId, log.recipientEmail, leaseMs * 1000],
     );
     if (result.affectedRows === 1) return 'CLAIMED';

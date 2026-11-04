@@ -73,7 +73,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
     expect(sql(query, 1)).toBe(
       "UPDATE notification_logs SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6) " +
         "WHERE event_id = ? AND user_id = ? AND (status = 'FAILED' OR (status = 'PENDING' " +
-        'AND updated_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND))',
+        'AND updated_at < UTC_TIMESTAMP(6) + INTERVAL ? MICROSECOND))',
     );
     expect(params(query, 1)).toEqual([
       'evt-1',
