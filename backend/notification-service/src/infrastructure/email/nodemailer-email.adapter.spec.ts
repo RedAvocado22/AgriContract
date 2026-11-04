@@ -3,6 +3,7 @@ import { validate, type AppConfig } from '../../config/env.validation';
 import { EmailDeliveryError } from '../../application/ports/email.port';
 import {
   NodemailerEmailAdapter,
+  OTP_SMTP_TIMEOUTS,
   smtpFailureCode,
   type CreateMailTransport,
 } from './nodemailer-email.adapter';
@@ -31,6 +32,28 @@ describe('NodemailerEmailAdapter', () => {
       greetingTimeout: 10_000,
       socketTimeout: 30_000,
     });
+  });
+
+  it('uses the given timeouts (OTP: well below the caller read timeout of 5s)', () => {
+    const create = jest.fn(() => ({
+      sendMail: jest.fn(),
+    })) as unknown as jest.Mock & CreateMailTransport;
+    const config = new ConfigService<AppConfig, true>(validate({}));
+
+    new NodemailerEmailAdapter(config, create, OTP_SMTP_TIMEOUTS);
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionTimeout: 1_000,
+        greetingTimeout: 1_000,
+        socketTimeout: 2_500,
+      }),
+    );
+    const { connectionTimeout, greetingTimeout, socketTimeout } =
+      OTP_SMTP_TIMEOUTS;
+    expect(connectionTimeout + greetingTimeout + socketTimeout).toBeLessThan(
+      5_000,
+    );
   });
 
   it('sends a plain text mail from MAIL_FROM', async () => {

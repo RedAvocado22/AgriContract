@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createTransport, type Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
@@ -16,12 +16,40 @@ export type CreateMailTransport = (
   options: SMTPTransport.Options,
 ) => Pick<Transporter, 'sendMail'>;
 
+/** Optional injection token of the SmtpTimeouts an adapter uses. */
+export const SMTP_TIMEOUTS = Symbol('SMTP_TIMEOUTS');
+
+export interface SmtpTimeouts {
+  connectionTimeout: number;
+  greetingTimeout: number;
+  socketTimeout: number;
+}
+
+/** Queue consumers: a hung server cannot hold a consumer (and its prefetch slot) forever. */
+export const DEFAULT_SMTP_TIMEOUTS: SmtpTimeouts = {
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 30_000,
+};
+
+/**
+ * OTP endpoint: fail (502) before the caller's read timeout of at least 5 s
+ * (#167), instead of sending after the caller already reported a failure.
+ * socketTimeout is an inactivity timeout, so a server that keeps answering
+ * slowly can still exceed the total; see the README's known limitations.
+ */
+export const OTP_SMTP_TIMEOUTS: SmtpTimeouts = {
+  connectionTimeout: 1_000,
+  greetingTimeout: 1_000,
+  socketTimeout: 2_500,
+};
+
 /**
  * SMTP sender with the Java settings (application.yml): plain SMTP on
  * MAIL_HOST:MAIL_PORT, no auth, no STARTTLS, text body, from MAIL_FROM.
- * Unlike JavaMail's unlimited defaults, timeouts are bounded so a hung server
- * cannot hold a consumer (and its prefetch slot) forever; the failure is
- * then retried like any other send error.
+ * Unlike JavaMail's unlimited defaults, timeouts are bounded
+ * (DEFAULT_SMTP_TIMEOUTS unless given); a failure is then handled like any
+ * other send error.
  */
 @Injectable()
 export class NodemailerEmailAdapter implements EmailPort {
@@ -31,6 +59,9 @@ export class NodemailerEmailAdapter implements EmailPort {
   constructor(
     config: ConfigService<AppConfig, true>,
     @Inject(CREATE_MAIL_TRANSPORT) create: CreateMailTransport,
+    @Optional()
+    @Inject(SMTP_TIMEOUTS)
+    timeouts: SmtpTimeouts = DEFAULT_SMTP_TIMEOUTS,
   ) {
     const mail = config.get('mail', { infer: true });
     this.from = mail.from;
@@ -40,9 +71,7 @@ export class NodemailerEmailAdapter implements EmailPort {
       secure: false,
       ignoreTLS: true,
       auth: undefined,
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 30_000,
+      ...timeouts,
     });
   }
 
