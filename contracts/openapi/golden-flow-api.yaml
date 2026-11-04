@@ -240,7 +240,7 @@ paths:
     x-service-owner: contract-service
     post:
       operationId: reviewBreachCase
-      x-roles: [ARBITRATOR, INSPECTOR]
+      x-roles: [ARBITRATOR]
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
         - {name: breachCaseId, in: path, required: true, schema: {type: string, format: uuid}}
@@ -250,7 +250,7 @@ paths:
     x-service-owner: contract-service
     post:
       operationId: resolveBreachCase
-      x-roles: [ARBITRATOR, INSPECTOR]
+      x-roles: [ARBITRATOR]
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
         - {name: breachCaseId, in: path, required: true, schema: {type: string, format: uuid}}

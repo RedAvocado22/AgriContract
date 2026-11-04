@@ -805,7 +805,7 @@ actualAmount = (buyerReceivedWeight + buyerBears) × effectiveUnitPrice
 <tr>
 <td>Report / review / resolve breach</td>
 <td><code>POST .../breach-cases</code>, <code>POST .../breach-cases/{breachCaseId}/review</code>, <code>POST .../resolve</code></td>
-<td>Participant/SYSTEM report; ARBITRATOR/INSPECTOR review/resolve; request and response schemas are <code>BreachCaseReportRequest</code>, <code>BreachCaseResolutionRequest</code>, <code>BreachCase</code></td>
+<td>Participant/SYSTEM report; ARBITRATOR review/resolve (an Inspector result reaches the case through <code>inspection.report_confirmed</code>, not this endpoint); request and response schemas are <code>BreachCaseReportRequest</code>, <code>BreachCaseResolutionRequest</code>, <code>BreachCase</code></td>
 </tr>
 <tr>
 <td>Contest fault decision (12/10/2026, GB-50)</td>
