@@ -19,7 +19,17 @@ describe('validate (env)', () => {
       mail: { host: 'localhost', port: 1025, from: 'noreply@agricontract.com' },
       adminEmail: 'admin@agricontract.com',
       serverPort: 8085,
+      serviceInternalSecret: 'changeme-internal',
     });
+  });
+
+  it('reads SERVICE_INTERNAL_SECRET and rejects an empty one', () => {
+    expect(
+      validate({ SERVICE_INTERNAL_SECRET: 's3cret' }).serviceInternalSecret,
+    ).toBe('s3cret');
+    expect(() => validate({ SERVICE_INTERNAL_SECRET: ' ' })).toThrow(
+      'SERVICE_INTERNAL_SECRET must not be empty',
+    );
   });
 
   it('reads values and converts ports to numbers', () => {
