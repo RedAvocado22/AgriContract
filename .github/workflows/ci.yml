@@ -48,6 +48,8 @@ jobs:
             notification:
               - 'backend/shared/node-eventing/**'
               - 'backend/notification-service/**'
+              # Read by test/contract/otp-email-request.contract.spec.ts
+              - 'contracts/openapi/golden-flow-api.yaml'
             analytics:
               - 'backend/shared/node-eventing/**'
               - 'backend/analytics-service/**'
