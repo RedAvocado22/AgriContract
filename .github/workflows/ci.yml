@@ -185,6 +185,21 @@ jobs:
     if: needs.changes.outputs.notification == 'true'
     runs-on: ubuntu-latest
 
+    # For test:int. Same image, database and host port as the compose notification-db.
+    services:
+      notification-db:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: notification_db
+        ports:
+          - 3311:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     steps:
       - uses: actions/checkout@v4
 
