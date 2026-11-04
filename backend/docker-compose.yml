@@ -516,6 +516,11 @@ services:
       RABBITMQ_HOST: rabbitmq
       MAIL_HOST: ${MAIL_HOST:-mailhog}
       MAIL_PORT: ${MAIL_PORT:-1025}
+      # X-Internal-Secret of POST /internal/v1/notifications/otp-email (contract-service).
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
+    # Local only, for Bruno and manual tests of the OTP endpoint; the gateway never routes /internal/**.
+    ports:
+      - "8085:8085"
     depends_on:
       notification-db:
         condition: service_healthy
