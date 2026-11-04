@@ -1,12 +1,19 @@
-# OPEN_ISSUES.md — Report-3_SRS_v1_6 (cập nhật 12/10/2026, tối)
+# OPEN_ISSUES.md — Report-3_SRS (cập nhật 04/11/2026)
 
 ## Còn mở — việc phải làm tay, không phải quyết định
 
-- **Mockup màn hình (Part III) chưa đổi theo role mới.** Khoảng 30 ảnh vẫn ghi "Admin Portal / ADMIN | Platform Administrator". Nặng nhất là ảnh 7.2.2 có tiêu đề "Breach Case Detail (Admin)"; 2.2.2 "A different Admin must approve this proposal."; 7.4.1 "awaiting Admin decision"; 7.1.1 "notify counterparty/Admin (MSG80)". Một số màn Buyer/Seller (1.2.1 My Profile, 5.x, 6.x) cũng mang header ADMIN, lỗi này có từ bản gốc. Cần export lại: header đúng role (OPERATOR / ARBITRATOR / BUYER·SELLER), Admin chỉ còn ở 8.x và 9.x.
-  - Thêm cho đợt này: màn Breach Case của Buyer/Seller cần nút **Contest** và hiển thị hạn contest (GB-50). Màn Breach Case Detail của Arbitrator cần hiện trạng thái "waiting for contest window".
-- **SRS chưa ghi ngoại lệ contest cho breach cấp contract** (chốt 12/10/2026, milestone-escrow §6.4). UC41 alt flow "Decision Contested", GB-50 và BF-05 (bước 7 đang mở window cho mọi case) cần thêm: `BreachCase` có `milestoneId = NULL` không contest trên platform, `remedy.finalized` publish ngay; đường kháng còn lại là VIAC/toà.
-- **7.2.1 Breach Case Queue dùng chung ảnh với 7.2.2.** Lỗi có sẵn từ bản gốc; làm cùng đợt mockup.
-- **SDS / Architecture docx chưa sync role.** Docx còn enum `decisionSource` có ADMIN, `PublicUserResponse.role` chưa có ARBITRATOR, `reputation.elevated_risk_cleared` còn `approvedByAdminId`/`clearedByAdminId`, và chưa có contest window. `contracts/*.yaml` đã sync ở commit `d6be0e0`.
+- **Mockup màn hình (Part III) — checklist sửa từng ảnh (soát 04/11/2026, SRS 1.7).** Ảnh không có nguồn trong repo; sửa trong tool gốc rồi thay ảnh vào docx (giữ nguyên rel, chỉ thay file `word/media/imageN.png`). Quy tắc header/menu: Guest = `GUEST`; Buyer/Seller = `Party Portal`, góc phải `BUYER` hoặc `SELLER`, menu party (Dashboard, My Contracts, Milestones, Breach Cases, Evidence, Notifications); Operator = `Operator Console`; Arbitrator = `Arbitrator Console`; Inspector = `Inspector Portal`, menu không có Users & KYC; Admin chỉ còn ở 8.x, 9.x.
+  - **Sai ảnh, phải có ảnh mới:**
+    - 5.2.3 Edit Contract Terms (`image59`) đang nhúng nhầm use-case diagram của Arbitrator.
+    - 2.1.3 Verify KYC Dialog không có ảnh.
+    - 7.2.1 Breach Case Queue dùng chung `image57` với 7.2.2. Cần màn queue riêng: bảng case REPORTED/UNDER_REVIEW, filter status/reason/severity.
+  - **Header `Admin Portal / ADMIN | Platform Administrator` → BUYER/SELLER (Party Portal):** 1.2.1 My Profile (`image51`), 5.1.1 Create Offer (`image16`), 5.2.1 My Contracts (`image7`), 5.2.2 Contract Detail (`image3`, menu đang là menu Admin), 5.4.1 Propose Replacement (`image63`), 5.5.1 Export Escrow Statement (`image66`), 6.1.1 Milestone Detail (`image65`), 6.2.1 Record Weighing (`image72`, SELLER), 6.2.2 Record Receipt (`image75`, BUYER), 6.3.1 Respond to Flag (`image70`, SELLER), 6.3.2 Claim Force Majeure (`image74`, SELLER), 6.4.1 Milestone Price Adjustment (`image55`). 6.3.1/6.3.2/6.4.1 còn chữ "OPERATIONS" đè lên "NAVIGATION".
+  - **Header → BUYER/SELLER, ghi role cụ thể thay `PARTY | Signed in`:** 7.1.1 Report Breach (`image41`; bỏ "notify counterparty/Admin (MSG80)" → "counterparty and Arbitrator"), 7.1.2 Breach Case Detail Party View (`image43`; decision source bỏ `ADMIN` → `ARBITRATOR / INSPECTOR_L1_5 / INSPECTOR_L2 / MUTUAL`; sửa chữ đè ở ô Inspection Status; thêm nút **Contest** + Contest Status/Deadline (GB-50); menu đang lặp "Breach Cases" 2 lần). 7.3.1 Terminate Contract (`image46`): header `BUYER / SELLER / ADMIN` → `BUYER / SELLER`.
+  - **Header → ARBITRATOR (Arbitrator Console):** 2.2.1 Reputation Action Requests (`image58`, "Signed in as Admin (admin.minh)" → Arbitrator; nút Approve/Reject chỉ hiện cho Arbitrator), 7.2.2 Breach Case Detail (`image57`; tiêu đề "(Admin)" → "(Arbitrator)", "Admin cannot edit them" → "Arbitrator", thêm trạng thái "waiting for contest window"), 7.2.3 Request Inspection (`image48`), 7.2.4 Resolve Breach Case (`image47`; dropdown Decision Source đang chọn `ADMIN` → `ARBITRATOR`), 7.4.1 FM Review Queue (`image53`, "awaiting Admin decision" → "Arbitrator"), 7.4.2 FM Claim Detail (`image54`), 7.7.1 Level 2 Commissions (`image20`).
+  - **Header → OPERATOR (Operator Console):** 2.2.2 Propose Reputation Action (`image30`, "A different Admin must approve this proposal." → "An Arbitrator must approve this proposal." — MSG17, GB-06), 7.5.1 Activation Failures (`image40`), 7.5.2 Milestone Funding Failures (`image44`), 7.7.2 Pending External Report Review (`image23`), 7.7.3 Manual External Report Upload (`image27`, "under your Admin identity" → "Operator"), 7.7.4 Email Intake Failures (`image29`). 3.1.x My Plots (`image24/26/38/35`, SELLER) đang ghi breadcrumb "KYC Detail" và menu có "Users" → sửa breadcrumb "My Plots", bỏ "Users".
+  - **Header → INSPECTOR:** 7.6.1 Assigned Cases (`image1`; bỏ dòng RICE/RUBBER/CASHEW, chỉ COFFEE; bỏ Users & KYC/Contracts/Reputation khỏi menu), 7.6.2 Submit Inspection Result (`image21`; header đang ADMIN; bỏ dòng "RICE (5 rates) · RUBBER · CASHEW").
+  - **COFFEE-only:** 4.1.2 Manual Price Entry (`image19`, "RUBBER or CASHEW" → COFFEE), 8.1.2 Contract Evidence Export (`image25`, "coffee or rubber contracts" → "coffee contracts").
+  - Giữ nguyên ADMIN: 8.1.1, 8.1.2, 8.2.1, 9.1.1–9.1.3. Đã đúng: 1.1.x, 1.2.2, 2.1.1, 2.1.2, 3.4.x, 3.5.x, 3.6.1, 4.1.1.
 
 ## Đã chốt (12/10/2026)
 
@@ -21,5 +28,7 @@
 
 ## Đã xử lý trước đó
 
+- Đã làm ở SRS 1.7 / SDS (PR #326, 02/11/2026): ngoại lệ contest cho breach cấp contract (UC41, GB-50, BF-05); SDS sync role, `decisionSource` không còn ADMIN, có contest window.
+- Resolve/review breach chỉ ARBITRATOR (chốt 04/11/2026): OpenAPI `x-roles`, milestone-escrow §6.4, SDS. Kết quả Inspector vào case qua `inspection.report_confirmed`. Ma trận SRS đã đúng từ trước.
 - Change Log v1.6; footer NUMPAGES; BF-03/04/06 đặt trang ngang; câu Admin/GB-48; thứ tự lane 7 business flow.
 - Sync role 9 design doc (data-governance, milestone-escrow, reputation, api-gateway, user-service, inspection, verification-matrix, signature, notification) + product, pricing.
