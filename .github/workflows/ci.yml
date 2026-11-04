@@ -233,6 +233,30 @@ jobs:
           npm test
           npm run build
 
+      # The app does not migrate; compose's notification-migrate does. Same Flyway image and
+      # migrations here, so a new V<n>__*.sql is applied before test:int without touching CI.
+      - name: Migrate notification_db (Flyway)
+        run: >-
+          docker run --rm --network host
+          -v "$GITHUB_WORKSPACE/backend/notification-service/db/migration:/flyway/sql:ro"
+          flyway/flyway:10.10.0
+          "-url=jdbc:mysql://127.0.0.1:3311/notification_db?allowPublicKeyRetrieval=true"
+          -user=root -password=password -connectRetries=20 migrate
+
+      # Claim, lease, heartbeat and takeover on real MySQL, the shutdown park, and the OTP endpoint.
+      - name: Integration tests (test:int)
+        working-directory: backend/notification-service
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3311'
+          DB_NAME: notification_db
+          DB_USERNAME: root
+          DB_PASSWORD: password
+          MAIL_HOST: 127.0.0.1
+          MAIL_PORT: '1025'
+          MAILHOG_API_URL: http://127.0.0.1:8025
+        run: npm run test:int
+
   analytics-service:
     needs: changes
     if: needs.changes.outputs.analytics == 'true'
