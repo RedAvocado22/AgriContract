@@ -2,10 +2,11 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { APP_OPTIONS } from './app.options';
 import type { AppConfig } from './config/env.validation';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, APP_OPTIONS);
   // Exit once the shutdown hooks are done. Nest's default re-raises the signal,
   // which the kernel ignores for PID 1 (node in the container): the process then
   // kept running a message still in flight after the drain timeout, against a
