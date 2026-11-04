@@ -1,0 +1,33 @@
+meta {
+  name: 21. Verify MailHog received exactly one OTP email for buyer1
+  type: http
+  seq: 21
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_otp_contract_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("exactly 1 email", function() {
+    expect(res.getBody().count).to.equal(1);
+  });
+
+  test("sent to buyer1", function() {
+    expect(res.getBody().items[0].Content.Headers.To[0]).to.equal(bru.getEnvVar("buyer1_email"));
+  });
+
+  test("subject does not carry the code", function() {
+    const subject = res.getBody().items[0].Content.Headers.Subject[0];
+    expect(subject).to.equal("[AgriContract] Your contract signing code");
+    expect(subject).to.not.contain(bru.getEnvVar("notif_otp_code"));
+  });
+
+  test("body carries the code on its own line and the content hash", function() {
+    const lines = res.getBody().items[0].Content.Body.split(/\r?\n/);
+    expect(lines).to.include(bru.getEnvVar("notif_otp_code"));
+    expect(lines).to.include("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
+  });
+}

@@ -1,0 +1,33 @@
+meta {
+  name: 22. Repeat the same requestId (contract-service retry after a timeout)
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{notification_service_url}}/internal/v1/notifications/otp-email
+  body: json
+  auth: none
+}
+
+headers {
+  X-Internal-Secret: {{service_internal_secret}}
+}
+
+body:json {
+  {
+    "requestId": "{{notif_otp_request_id}}",
+    "recipientUserId": "{{buyer1_sub}}",
+    "recipientEmail": "{{buyer1_email}}",
+    "contractId": "{{notif_otp_contract_id}}",
+    "otpCode": "{{notif_otp_code}}",
+    "signedContentHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "expiresAt": "{{notif_otp_expires_at}}"
+  }
+}
+
+tests {
+  test("200: the earlier call already sent it", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
