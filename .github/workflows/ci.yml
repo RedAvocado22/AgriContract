@@ -199,6 +199,12 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      # For the OTP endpoint's test:int (#114): SMTP on 1025, API on 8025, the test defaults.
+      mailhog:
+        image: mailhog/mailhog:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
 
     steps:
       - uses: actions/checkout@v4
