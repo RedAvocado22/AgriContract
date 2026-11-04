@@ -1,0 +1,42 @@
+meta {
+  name: 20. Send OTP email (POST /internal/v1/notifications/otp-email, #114)
+  type: http
+  seq: 20
+}
+
+post {
+  url: {{notification_service_url}}/internal/v1/notifications/otp-email
+  body: json
+  auth: none
+}
+
+headers {
+  X-Internal-Secret: {{service_internal_secret}}
+}
+
+body:json {
+  {
+    "requestId": "{{notif_otp_request_id}}",
+    "recipientUserId": "{{buyer1_sub}}",
+    "recipientEmail": "{{buyer1_email}}",
+    "contractId": "{{notif_otp_contract_id}}",
+    "otpCode": "{{notif_otp_code}}",
+    "signedContentHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "expiresAt": "{{notif_otp_expires_at}}"
+  }
+}
+
+script:pre-request {
+  // requestId plays the otpId of contract-service; the contract id makes the MailHog search unique.
+  const stamp = Date.now();
+  bru.setEnvVar("notif_otp_request_id", "otp-" + stamp);
+  bru.setEnvVar("notif_otp_contract_id", "notif-otp-" + stamp);
+  bru.setEnvVar("notif_otp_code", String(100000 + (stamp % 900000)));
+  bru.setEnvVar("notif_otp_expires_at", new Date(stamp + 5 * 60 * 1000).toISOString());
+}
+
+tests {
+  test("200 once the mail server accepted the email", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

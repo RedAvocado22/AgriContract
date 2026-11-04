@@ -1,0 +1,17 @@
+meta {
+  name: 23. Verify the repeated requestId did NOT send a second OTP email
+  type: http
+  seq: 23
+}
+
+get {
+  url: {{mailhog_url}}/api/v2/search?kind=containing&query={{notif_otp_contract_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("still exactly 1 email", function() {
+    expect(res.getBody().count).to.equal(1);
+  });
+}
