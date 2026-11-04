@@ -1,5 +1,8 @@
 export const EMAIL_PORT = Symbol('EMAIL_PORT');
 
+/** The EmailPort of the synchronous OTP endpoint: same server, short timeouts. */
+export const OTP_EMAIL_PORT = Symbol('OTP_EMAIL_PORT');
+
 export interface EmailMessage {
   to: string;
   subject: string;
