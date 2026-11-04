@@ -6,6 +6,7 @@ import { HealthModule } from './infrastructure/health/health.module';
 import { MessagingModule } from './infrastructure/messaging/messaging.module';
 import { PersistenceModule } from './infrastructure/persistence/persistence.module';
 import { NotificationModule } from './notification.module';
+import { OtpEmailModule } from './otp-email.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationModule } from './notification.module';
     MessagingModule,
     HealthModule,
     NotificationModule,
+    OtpEmailModule,
   ],
 })
 export class AppModule {}
