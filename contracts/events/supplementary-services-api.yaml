@@ -78,14 +78,31 @@ paths:
       description: Source product-service design; file-service §note defers listing search to product-service query params. Every returned listing includes the opaque listingVersionToken that a new buyer client must echo to CreateContract.
       x-owner: product-service
       x-auth: JWT
+      x-invariant: >-
+        Seller reputation (decision 05/11/2026, #265): a signed-in viewer gets each seller's
+        score and locked flag, read from reputation-service with one
+        getPublicReputationSummaries call per page (serviceAuth, never the gateway secret).
+        The minSellerScore filter runs on the page read from the database, so a page can
+        hold fewer than size items and totalElements counts before filtering. An unrated
+        seller (score null) and a seller whose reputation could not be read both pass the
+        filter. A reputation outage never fails or empties the search; it only sets
+        reputationStatus to UNAVAILABLE. lockHistory is never exposed here.
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 10000, default: 0 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - name: minSellerScore
+          in: query
+          required: false
+          description: Keep a listing only when its seller's score is at least this. Requires a signed-in viewer.
+          schema: { type: integer, minimum: 0, maximum: 100 }
       responses:
         "200":
           description: Listing page
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/ListingResponse' }
+              schema: { $ref: '#/components/schemas/ListingSearchPage' }
+        "400": { description: "Validation failure: page, size or minSellerScore out of range" }
+        "401": { description: minSellerScore sent without a signed-in viewer }
 
   /api/v1/listings/{listingId}:
     put:
@@ -446,10 +463,47 @@ components:
               oneOf: [{ $ref: '#/components/schemas/CoffeeQualitySpec' }, { type: 'null' }]
             registryEntryIds: { type: array, minItems: 1, items: { type: string, format: uuid } }
             traceabilityEvidencePackageId: { type: [string, 'null'], format: uuid }
-      unevaluatedProperties: false
     ListingResponse:
-      $ref: '#/components/schemas/CoffeeListingResponse'
+      allOf:
+        - { $ref: '#/components/schemas/CoffeeListingResponse' }
+      unevaluatedProperties: false
       x-invariant: declaredQualitySpec may be null only for a legacy row with legacyQualitySpecMissing=true; edit or republish must supply the matching non-null variant.
+    SellerReputation:
+      type: object
+      required: [score, locked]
+      additionalProperties: false
+      description: Copied from ReputationBatchSummaryItem (golden-flow-api.yaml); lockHistory is never copied.
+      properties:
+        score: { type: [integer, 'null'], minimum: 0, maximum: 100, description: null when the seller has no history yet. }
+        locked: { type: boolean }
+    ListingSearchItem:
+      allOf:
+        - { $ref: '#/components/schemas/CoffeeListingResponse' }
+        - type: object
+          required: [sellerReputation]
+          properties:
+            sellerReputation:
+              oneOf:
+                - { $ref: '#/components/schemas/SellerReputation' }
+                - { type: 'null' }
+              description: null for an anonymous viewer or when this seller's reputation could not be read.
+      unevaluatedProperties: false
+    ListingSearchPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages, first, last, empty, reputationStatus]
+      additionalProperties: false
+      properties:
+        content: { type: array, items: { $ref: '#/components/schemas/ListingSearchItem' } }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalElements: { type: integer, minimum: 0, description: Active listings before the minSellerScore filter. }
+        totalPages: { type: integer, minimum: 0 }
+        first: { type: boolean }
+        last: { type: boolean }
+        empty: { type: boolean }
+        reputationStatus:
+          enum: [AVAILABLE, UNAVAILABLE, SIGN_IN_REQUIRED]
+          description: AVAILABLE every seller read; UNAVAILABLE at least one seller could not be read (kept, not filtered); SIGN_IN_REQUIRED anonymous viewer, no reads.
     ReserveListingQuantityRequest:
       type: object
       required: [contractId, listingId, requestedQuantity, listingVersionToken]

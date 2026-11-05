@@ -367,7 +367,11 @@ CREATE INDEX idx_product_plot_product_id ON product_plot(product_id);
 </ul>
 </li>
 <li><strong><code>UpdateListing</code>:</strong> cho phép đổi tập <code>registryEntryId</code> được chọn trước khi listing chuyển khỏi trạng thái cho phép sửa (theo state machine <code>Product</code> hiện có, không đổi) — thêm/bớt plot bằng cách tick/untick, không sửa trực tiếp <code>geoJson</code> của <code>ProductPlot</code> đã snapshot.</li>
-<li><strong><code>GetListing</code>/<code>SearchListing</code>:</strong> không đổi logic.</li>
+<li><strong><code>GetListing</code>/<code>SearchListing</code>:</strong> không đổi logic.
+<ul>
+<li><strong><code>SearchListing</code> + uy tín seller (05/11/2026, #265, reputation design §6.2):</strong> người xem đã đăng nhập thấy <code>sellerReputation {score, locked}</code> ở mỗi listing và lọc được bằng <code>minSellerScore</code> (0–100). Mỗi trang gọi <code>POST /internal/v1/reputation/public-summaries</code> đúng 1 lần, gửi các <code>sellerId</code> khác nhau trên trang, dùng <code>serviceAuth</code>. Không bao giờ gửi <code>X-Gateway-Secret</code>. Lọc chạy trên trang đã đọc từ DB, nên trang có thể ít hơn <code>size</code> và <code>totalElements</code> vẫn đếm trước khi lọc (<strong>Known Limitation</strong>: lọc chuẩn cần product giữ bản sao điểm reputation, ngoài scope Phase 2). Seller chưa có lịch sử (<code>score = null</code>) vẫn qua filter. Reputation lỗi hoặc chậm quá budget: giữ listing với <code>sellerReputation = null</code> và <code>reputationStatus = UNAVAILABLE</code>, search không bao giờ fail hay rỗng vì reputation. Khách chưa đăng nhập: <code>reputationStatus = SIGN_IN_REQUIRED</code>, gửi <code>minSellerScore</code> thì 401. Shape trong <code>supplementary-services-api.yaml</code> (<code>ListingSearchPage</code>).</li>
+</ul>
+</li>
 </ul>
 <p>Không đụng tới <code>contract-service</code>, <code>escrow-service</code>, hay bất kỳ use case nào của Milestone Escrow.</p>
 </section><section aria-labelledby="heading-sec-5" class="section" id="sec-5"><h2 id="heading-sec-5"><span class="sec-num">§5</span> EUDR Compliance Notes <a aria-label="Sao chép liên kết tới §5" class="anchor" href="#sec-5">#</a></h2>
