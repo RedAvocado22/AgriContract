@@ -9,7 +9,6 @@ import com.agricontract.user.domain.model.vo.ContactInfo;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.UserProfileRepository;
-import com.agricontract.user.infrastructure.config.RabbitConfiguration;
 import com.agricontract.user.infrastructure.contract.FrozenSchemas;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -70,6 +69,7 @@ class KycResultOutboxFlowIntegrationTest {
 
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private AmqpAdmin amqpAdmin;
+    @Autowired private TopicExchange userExchange;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private UserProfileRepository userProfileRepository;
@@ -81,7 +81,7 @@ class KycResultOutboxFlowIntegrationTest {
         Queue queue = new Queue(QUEUE, false, false, false);
         amqpAdmin.declareQueue(queue);
         amqpAdmin.declareBinding(BindingBuilder.bind(queue)
-                .to(new TopicExchange(RabbitConfiguration.USER_EXCHANGE)).with(ROUTING_KEY));
+                .to(userExchange).with(ROUTING_KEY));
         amqpAdmin.purgeQueue(QUEUE, false);
     }
 
