@@ -188,8 +188,26 @@ class ReputationLockFlowIntegrationTest {
 
         Message dead = rabbitTemplate.receive(RabbitConfiguration.REPUTATION_LOCK_DLQ, WAIT.toMillis());
         assertThat(dead).isNotNull();
+        assertThat(dead.getMessageProperties().getReceivedRoutingKey())
+                .isEqualTo(RabbitConfiguration.REPUTATION_LOCKED_KEY);
         assertThat(revision(userId)).isZero();
         assertThat(commandCount(userId)).isZero();
+    }
+
+    @Test
+    void schemaViolationOnUnlock_reachesTheDlqWithItsOriginalRoutingKey() {
+        String userId = register();
+        EventEnvelope source = ReputationLockEvents.unlocked(userId, null, 1);
+        Map<String, Object> payload = new java.util.LinkedHashMap<>(source.payload());
+        payload.put("email", "leak@example.com");
+
+        publish(ReputationLockEvents.withPayload(source, payload));
+
+        Message dead = rabbitTemplate.receive(RabbitConfiguration.REPUTATION_LOCK_DLQ, WAIT.toMillis());
+        assertThat(dead).isNotNull();
+        assertThat(dead.getMessageProperties().getReceivedRoutingKey())
+                .isEqualTo(RabbitConfiguration.REPUTATION_UNLOCKED_KEY);
+        assertThat(revision(userId)).isZero();
     }
 
     private String register() {
