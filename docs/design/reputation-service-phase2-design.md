@@ -253,6 +253,13 @@ Dùng đúng bộ máy reputation đã có (view sống — score derive lúc qu
 
 `product-service` sở hữu truy vấn tìm kiếm/lọc listing bằng các query parameter trên dữ liệu sản phẩm. `reputation-service` không sở hữu listing index hoặc ranking; điểm uy tín được cung cấp qua `GET /api/v1/reputation/{userId}/public-summary` ở bước xem đối tác/đàm phán trước khi ký.
 
+**Cập nhật 05/11/2026 (Cường chốt, #265/#337):** search listing hiện uy tín seller ngay ở kết quả tìm kiếm, không đợi tới bước xem đối tác. Buyer lọc được seller trước khi mở listing; chờ tới lúc đàm phán mới biết là buyer phải đánh cược. `reputation-service` vẫn không sở hữu index/ranking: `product-service` đọc thêm `score` + `locked` cho mỗi trang kết quả.
+
+- Đọc qua `POST /internal/v1/reputation/public-summaries` (`serviceAuth`, không route qua Gateway): body `{userIds}` 1–100 id không trùng, trả đúng 1 item `{userId, score, locked}` cho mỗi id. `score`/`locked` tính y hệt `public-summary` (cùng query, không phải công thức thứ 2). Id chưa có fact → `{score: null, locked: false}`, không 404. Không trả `lockHistory`.
+- Lý do không gọi `public-summary` cho từng seller: endpoint đó chỉ nhận user đã xác thực qua Gateway, product-service muốn gọi phải tự gắn `X-Gateway-Secret` và tự dựng identity người xem, tức là đóng vai Gateway. Một trang 100 listing còn thành 100 lời gọi.
+- Khách chưa đăng nhập không thấy reputation (`reputationStatus = SIGN_IN_REQUIRED`), giữ đúng quyết định 17/07/2026 không mở uy tín cho người chưa login. Rule lọc và degrade khi reputation lỗi ở product design §4.
+- Reputation của buyer vẫn theo §6.1b: seller xem `public-summary` của buyer trước khi nhận offer/đàm phán. Listing không có buyer nên search không hiện reputation buyer.
+
 ### 6.3 Credit reference export
 
 **Research (04/07/2026):** CIC (Trung tâm Thông tin Tín dụng Quốc gia) không áp dụng trực tiếp — seller trên platform không có lịch sử vay ngân hàng để CIC đối chiếu. Hướng đúng: **VARI** (Chương trình xếp hạng tín nhiệm doanh nghiệp nông nghiệp Việt Nam, www.vari.org.vn) — tổ chức trung gian đã tồn tại sẵn cho đúng ngành, đóng vai trò "người đọc dữ liệu platform rồi đưa cho ngân hàng", không cần platform tự thuyết phục từng ngân hàng riêng lẻ. Có tín hiệu chính sách ủng hộ: Luật Hỗ trợ DNVVN (sửa đổi) đang xây dựng cơ chế sandbox cho vay dựa trên dữ liệu/dòng tiền.
