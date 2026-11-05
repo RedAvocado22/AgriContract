@@ -48,7 +48,10 @@ export type OtpEmailResult = 'SENT' | 'ALREADY_SENT';
  * Sends the OTP email for contract signing synchronously (design §2.2, §5).
  *
  * A call is claimed in notification_logs by (requestId, recipientEmail)
- * before sending, so a repeated call never sends twice:
+ * before sending, so a repeated call never sends twice. user_id holds the
+ * address, as in every Phase 1 row (and in Java), so V2 (#115) backfills
+ * recipient_email from it like any other row; recipientUserId is not stored
+ * until V2 adds recipient_user_id:
  * - no row, or the earlier call FAILED: send now (the caller asked again, so
  *   this is not a late background send);
  * - SENT: return ALREADY_SENT without sending;
