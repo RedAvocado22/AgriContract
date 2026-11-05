@@ -71,6 +71,7 @@
 </code></pre></figure>
 <ul>
 <li>API trả <code>200 OK</code> chỉ khi mail provider đã nhận request gửi; lỗi provider trả 5xx để contract-service không nói sai “OTP đã gửi”.</li>
+<li>Idempotent theo <code>requestId</code>: <code>SENT</code> → <code>200</code> không gửi lại; <code>FAILED</code> → gửi lại theo retry của caller; claim còn hiệu lực → <code>503</code> (xem §5).</li>
 <li>Không route endpoint này qua API Gateway.</li>
 <li>Notification không lưu/ghi log plaintext OTP; body được render trong memory. Log chỉ giữ <code>requestId</code>, template, recipient, status và hash/reference an toàn.</li>
 <li>Contract-service vẫn sở hữu OTP hash, attempt count, expiry và verify logic.</li>
@@ -275,7 +276,7 @@
 <li>Insert/reserve unique key trước khi gửi để hai consumer không gửi song song cùng mail.</li>
 <li>Duplicate khi row <code>SENT</code> → ack/skip. Row <code>PENDING/FAILED</code> chỉ retry theo policy, không tạo row mới.</li>
 <li>Retry async tối đa 3 lần với exponential backoff; permanent validation error đi DLQ ngay.</li>
-<li>OTP synchronous không retry nền sau khi đã trả lỗi cho caller, tránh caller tạo OTP mới trong khi OTP cũ bất ngờ được gửi muộn. Caller có thể retry cùng <code>requestId</code>; idempotency trả lại kết quả đã biết.</li>
+<li>OTP synchronous không retry nền sau khi đã trả lỗi cho caller, tránh caller tạo OTP mới trong khi OTP cũ bất ngờ được gửi muộn. Caller có thể retry cùng <code>requestId</code>: <code>SENT</code> → <code>200</code> không gửi lại; <code>FAILED</code> → gửi lại theo retry của caller (caller chủ động yêu cầu, không phải gửi muộn nền); claim <code>PENDING</code> còn hiệu lực → <code>503</code> ngay.</li>
 <li>Final document dedup theo semantic key <code>(documentId, recipientEmail, CONTRACT_FINAL_PDF)</code>; redelivery event/command không được gửi hai bản final cho cùng recipient.</li>
 <li>DLQ security/evidence tạo operational alert; không silently discard.</li>
 </ul>
@@ -301,6 +302,7 @@ CREATE UNIQUE INDEX uq_event_recipient_type
   ON notification_logs(event_id, recipient_email, notification_type);
 </code></pre></figure>
 <p>Khi migrate, cột Phase 1 <code>user_id</code> đổi semantics thành <code>recipient_user_id</code> hoặc được giữ tạm rồi backfill; migration implementation phải không làm mất log cũ. <strong>Bổ sung:</strong> cột <code>NOT NULL</code> mới mang <code>DEFAULT</code> sentinel (<code>LEGACY_P1</code>/<code>''</code>/<code>p1-unknown</code>) để <code>ALTER</code> chạy được trên bảng có data mà không phụ thuộc SQL mode; <code>recipient_email</code> backfill <code>legacy:{user_id}</code> <strong>trước</strong> khi tạo unique index mới (tránh va chạm các row cùng <code>event_id</code>). Log cũ là read-only audit — <code>notification_type = 'LEGACY_P1'</code> không trùng với type mới nên không tham gia dedup của Phase 2.</p>
+<p><strong>Lưu ý (05/11/2026):</strong> dù tên là <code>user_id</code>, Phase 1 (Java và NestJS) thực tế lưu <strong>email người nhận</strong> vào cột này, không phải platform userId; row OTP của §2.2 cũng vậy (<code>event_id = requestId</code>, <code>user_id = recipientEmail</code>). Vì thế backfill có dạng <code>legacy:alice@…</code>. Platform userId (<code>recipients[].userId</code>, <code>recipientUserId</code>) chỉ được lưu khi V2 thêm cột riêng; việc giữ hay đổi tên <code>user_id</code> chờ owner chốt.</p>
 </section><section aria-labelledby="heading-sec-7" class="section" id="sec-7"><h2 id="heading-sec-7"><span class="sec-num">§7</span> Configuration <a aria-label="Sao chép liên kết tới §7" class="anchor" href="#sec-7">#</a></h2>
 <div aria-label="Bảng dữ liệu, cuộn ngang để xem đủ cột" class="table-wrap" role="region" tabindex="0"><table class="data">
 <thead>
