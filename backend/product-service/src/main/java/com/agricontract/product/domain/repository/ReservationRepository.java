@@ -2,8 +2,11 @@ package com.agricontract.product.domain.repository;
 
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
+import com.agricontract.product.domain.model.vo.OrphanCandidate;
 import com.agricontract.product.domain.model.vo.ReservationStatus;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface ReservationRepository {
@@ -15,6 +18,19 @@ public interface ReservationRepository {
     Reservation create(Reservation reservation);
 
     Optional<Reservation> findByContractId(ContractId contractId);
+
+    /**
+     * Reads and row-locks the reservation until the caller's transaction ends. The orphan reaper and the
+     * contract.created consumer both lock it first, so they never decide on the same reservation concurrently.
+     */
+    Optional<Reservation> lockByContractId(ContractId contractId);
+
+    /**
+     * Orphan candidates (design §8b.2): still RESERVED, created before {@code createdBefore}, and no
+     * contract.created recorded in the dedup store. Ordered by createdAt then contractId, at most {@code limit},
+     * starting after {@code after} ({@code null} for the first page).
+     */
+    List<OrphanCandidate> findOrphanCandidates(Instant createdBefore, OrphanCandidate after, int limit);
 
     /**
      * Conditional transition: applies only while the row is still in {@code expected}, so replayed

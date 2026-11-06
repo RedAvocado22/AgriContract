@@ -49,7 +49,8 @@ import static org.assertj.core.api.Assertions.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ListingRepositoryImpl.class, ReservationRepositoryImpl.class,
         ListingMapperImpl.class, ReservationMapperImpl.class, PlotRegistryMapperImpl.class,
-        ReserveListingQuantityUseCaseImpl.class, ReleaseListingReservationUseCaseImpl.class})
+        ReserveListingQuantityUseCaseImpl.class, ReleaseListingReservationUseCaseImpl.class,
+        ReservationReleaser.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Testcontainers(disabledWithoutDocker = true)
 class ListingReservationUseCaseIntegrationTest {
