@@ -1,5 +1,6 @@
 package com.agricontract.inspection.infrastructure.config;
 
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import java.util.Map;
 import java.util.List;
 import com.agricontract.inspection.application.exception.InvalidEventPayloadException;
@@ -7,11 +8,17 @@ import com.agricontract.inspection.infrastructure.messaging.DlqMonitor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
-import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit.config.*;
+import org.springframework.amqp.core.Declarables;
+import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
-import org.springframework.context.annotation.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 
 @Configuration
@@ -24,7 +31,7 @@ public class AssignmentRabbitConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "inspection.dlq-monitor.enabled", havingValue = "true", matchIfMissing = true)
-    DlqMonitor dlqMonitor(org.springframework.amqp.rabbit.connection.CachingConnectionFactory connection,
+    DlqMonitor dlqMonitor(CachingConnectionFactory connection,
             @Value("${inspection.dlq-monitor.timeout-ms:3000}") int timeoutMillis) {
         return new DlqMonitor(connection.getRabbitConnectionFactory(), DLQS, timeoutMillis);
     }
