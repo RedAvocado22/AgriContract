@@ -1,19 +1,31 @@
 package com.agricontract.inspection;
 
-import com.agricontract.eventing.*;
-import com.agricontract.inspection.application.port.*;
+import org.springframework.boot.test.mock.mockito.SpyBean;
+import com.agricontract.inspection.infrastructure.config.AssignmentRabbitConfiguration;
+import org.awaitility.Awaitility;
+import com.agricontract.eventing.EventEnvelope;
+import com.agricontract.eventing.EventEnvelopeCodec;
+import com.agricontract.inspection.application.port.InspectorEligibilityPort;
+import com.agricontract.inspection.application.port.AssignmentAlerts;
 import com.agricontract.inspection.application.usecase.ManageLevel15Assignments;
-import com.agricontract.inspection.domain.model.*;
+import com.agricontract.inspection.domain.model.TimedAssignment;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
 import com.agricontract.inspection.infrastructure.messaging.Level15RequestedConsumer;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.time.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.random.RandomGenerator;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -23,13 +35,22 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.*;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.*;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.argThat;
 
 @SpringBootTest(properties = {"SERVICE_INTERNAL_SECRET=test-service", "GATEWAY_INTERNAL_SECRET=test-gateway",
         "inspection.assignment.scheduler-enabled=false",
@@ -53,7 +74,7 @@ class AssignmentLifecycleIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ManageLevel15Assignments lifecycle;
     @Autowired AssignmentLifecycleRepository assignments;
-    @org.springframework.boot.test.mock.mockito.SpyBean Level15RequestedConsumer consumer;
+    @SpyBean Level15RequestedConsumer consumer;
     @Autowired EventEnvelopeCodec codec;
     @Autowired PlatformTransactionManager transactions;
     @Autowired org.springframework.amqp.rabbit.core.RabbitTemplate rabbit;
@@ -354,10 +375,10 @@ class AssignmentLifecycleIntegrationTest {
         byte[] body = jdbc.queryForObject("SELECT envelope FROM event_outbox WHERE event_id=?", String.class,
                 event.eventId().toString()).getBytes(StandardCharsets.UTF_8);
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message(body));
-        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> assertThat(rows()).isEqualTo(1));
+        Awaitility.await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> assertThat(rows()).isEqualTo(1));
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message(body));
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message("{}".getBytes(StandardCharsets.UTF_8)));
-        assertThat(rabbit.receive(com.agricontract.inspection.infrastructure.config.AssignmentRabbitConfiguration.DLQ, 15000)).isNotNull();
+        assertThat(rabbit.receive(AssignmentRabbitConfiguration.DLQ, 15000)).isNotNull();
         verify(consumer, times(1)).accept(argThat(message ->
                 Arrays.equals(message.getBody(), "{}".getBytes(StandardCharsets.UTF_8))));
         assertThat(rows()).isEqualTo(1);
@@ -367,7 +388,7 @@ class AssignmentLifecycleIntegrationTest {
         when(inspectors.loadEligibleInspectors()).thenThrow(new IllegalStateException("unavailable"));
         byte[] body = canonicalBytes(event());
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message(body));
-        var rejected = rabbit.receive(com.agricontract.inspection.infrastructure.config.AssignmentRabbitConfiguration.DLQ, 15000);
+        var rejected = rabbit.receive(AssignmentRabbitConfiguration.DLQ, 15000);
         assertThat(rejected).isNotNull();
         assertThat(rejected.getBody()).isEqualTo(body);
         verify(consumer, times(3)).accept(argThat(message -> Arrays.equals(message.getBody(), body)));

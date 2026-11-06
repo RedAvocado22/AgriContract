@@ -1,5 +1,8 @@
 package com.agricontract.inspection.infrastructure.messaging;
 
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -130,13 +133,13 @@ class DlqMonitorTest {
         monitorContext().run(context -> assertThat(context).hasSingleBean(DlqMonitor.class));
     }
 
-    private org.springframework.boot.test.context.runner.ApplicationContextRunner monitorContext() {
-        var springConnection = mock(org.springframework.amqp.rabbit.connection.CachingConnectionFactory.class);
+    private ApplicationContextRunner monitorContext() {
+        var springConnection = mock(CachingConnectionFactory.class);
         when(springConnection.getRabbitConnectionFactory()).thenReturn(source);
-        return new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+        return new ApplicationContextRunner()
                 .withUserConfiguration(AssignmentRabbitConfiguration.class)
-                .withBean(org.springframework.amqp.rabbit.connection.CachingConnectionFactory.class, () -> springConnection)
-                .withBean(org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer.class,
-                        () -> mock(org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer.class));
+                .withBean(CachingConnectionFactory.class, () -> springConnection)
+                .withBean(SimpleRabbitListenerContainerFactoryConfigurer.class,
+                        () -> mock(SimpleRabbitListenerContainerFactoryConfigurer.class));
     }
 }

@@ -1,19 +1,34 @@
 package com.agricontract.inspection.infrastructure.messaging;
 
+import com.agricontract.eventing.inbox.ProcessedEventStore;
+import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import java.util.stream.Stream;
 import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.inspection.application.usecase.ManageLevel15Assignments;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import com.agricontract.inspection.application.exception.InvalidEventPayloadException;
 import org.springframework.amqp.core.Message;
-import static org.mockito.Mockito.*;
-import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.doThrow;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class Level15RequestedConsumerTest {
     private final ManageLevel15Assignments lifecycle = mock(ManageLevel15Assignments.class);
-    private final com.agricontract.eventing.inbox.ProcessedEventStore processed = mock(com.agricontract.eventing.inbox.ProcessedEventStore.class);
-    private final org.springframework.transaction.support.TransactionTemplate transaction = new org.springframework.transaction.support.TransactionTemplate(mock(org.springframework.transaction.PlatformTransactionManager.class));
-    @org.junit.jupiter.api.BeforeEach void setup() { when(processed.markProcessed(anyString(), any())).thenReturn(true); }
+    private final ProcessedEventStore processed = mock(ProcessedEventStore.class);
+    private final TransactionTemplate transaction = new TransactionTemplate(mock(PlatformTransactionManager.class));
+    @BeforeEach void setup() { when(processed.markProcessed(anyString(), any())).thenReturn(true); }
     private final Level15RequestedConsumer consumer = new Level15RequestedConsumer(new EventEnvelopeCodec(), lifecycle, processed, transaction);
     static final String VALID = """
             {"eventId":"1349fbf6-44b6-450c-b01d-4b5abaf7c326","eventType":"inspection.level1_5_requested",
@@ -25,7 +40,7 @@ class Level15RequestedConsumerTest {
         consumer.accept(message(VALID));
         var order = inOrder(processed, lifecycle);
         order.verify(processed).markProcessed(eq("inspection.level1_5_requested"), any());
-        order.verify(lifecycle).requested(new com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand(
+        order.verify(lifecycle).requested(new Level15AssignmentRequestedCommand(
                 "1349fbf6-44b6-450c-b01d-4b5abaf7c327", "1349fbf6-44b6-450c-b01d-4b5abaf7c328",
                 2, null, "1349fbf6-44b6-450c-b01d-4b5abaf7c326"));
     }
@@ -51,15 +66,15 @@ class Level15RequestedConsumerTest {
         verifyNoInteractions(lifecycle);
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.MethodSource("invalidFields")
+    @ParameterizedTest
+    @MethodSource("invalidFields")
     void rejectsInvalidContractFields(String invalid) {
         assertThatThrownBy(() -> consumer.accept(message(invalid))).isInstanceOf(InvalidEventPayloadException.class);
         verifyNoInteractions(lifecycle, processed);
     }
 
-    static java.util.stream.Stream<String> invalidFields() {
-        return java.util.stream.Stream.of(
+    static Stream<String> invalidFields() {
+        return Stream.of(
                 VALID.replace("inspection.level1_5_requested", "other.event"),
                 VALID.replace("\"eventVersion\":1", "\"eventVersion\":2"),
                 VALID.replace("DISPUTE_ROUTED", "UNKNOWN"),
