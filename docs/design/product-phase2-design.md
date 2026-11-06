@@ -358,6 +358,8 @@ Product Phase 2 (Farm Plot Geolocation) — **ĐÓNG SESSION HOÀN TOÀN, sẵn 
 
 `Listing` thêm `declaredQualitySpec`, bắt buộc là `CoffeeQualitySpec` và `Category.commodity` bắt buộc `COFFEE`. Listing legacy commodity khác hoặc quality `NULL` được phép đọc/hiển thị, nhưng không được edit/republish thành listing Phase 2 mới.
 
+Ba field `%` của `CoffeeQualitySpec` (`moisturePercent`, `foreignMatterPercent`, `blackBrokenBeansPercent`) nằm trong 0–100 và **tối đa 2 số lẻ** (`multipleOf: 0.01`), khớp cột `DECIMAL(5,2)` và `coffeeActualMetrics` (D29). Giá trị hơn 2 số lẻ bị reject 400, không round; `12.5` và `12.50` là cùng một giá trị.
+
 Mọi quantity/weight của product/listing dùng canonical **kilogram (`kg`)**. `offeredQuantity`, `minOrderQuantity` và `quantityAvailable` luôn là kg; `unitOfMeasure = KG` được giữ trong DTO hiện có để tương thích, không thêm `quantityUnit` mới. `minOrderQuantity` là mức tối thiểu seller chấp nhận cho một contract và phải `> 0`, `<= offeredQuantity`.
 
 ### 8b.1 Inventory ownership và listing lifecycle
