@@ -5,6 +5,7 @@ import com.agricontract.reputation.application.usecase.GetPublicReputationSummar
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +24,7 @@ public class InternalPublicSummaryController {
         return ReputationBatchSummaryResponse.from(summaries.execute(new BatchSummaryQuery(request.userIds())));
     }
 
-    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ExceptionHandler({HttpMessageNotReadableException.class, HttpMediaTypeNotSupportedException.class})
     public ResponseEntity<ErrorResponse> invalidRequest(HttpServletRequest request) {
         return ResponseEntity.badRequest().body(ErrorResponse.of(request, 400, "Bad Request", "VALIDATION_ERROR"));
     }
