@@ -99,7 +99,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         response.getWriter().write(FORBIDDEN_BODY);
     }
 
-    private static void writeUnauthorized(HttpServletResponse response) throws IOException {
+    static void writeUnauthorized(HttpServletResponse response) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
         response.getWriter().write(UNAUTHORIZED_BODY);
