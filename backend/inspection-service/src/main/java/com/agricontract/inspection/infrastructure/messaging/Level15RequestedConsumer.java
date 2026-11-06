@@ -1,6 +1,9 @@
 package com.agricontract.inspection.infrastructure.messaging;
 
-import com.agricontract.eventing.*;
+import java.time.OffsetDateTime;
+import com.agricontract.eventing.EventEnvelope;
+import com.agricontract.eventing.EventEnvelopeCodec;
+import com.agricontract.eventing.InvalidEnvelopeException;
 import com.agricontract.inspection.application.usecase.ManageLevel15Assignments;
 import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
 import com.agricontract.inspection.application.exception.InvalidEventPayloadException;
@@ -54,7 +57,7 @@ public class Level15RequestedConsumer {
                 || !(payload.get("reportDueBusinessDays") instanceof Integer days)
                 || days < 1 || days > 30 || !REASONS.contains(text(payload.get("reason"))))
             throw new IllegalArgumentException("Invalid assignment payload");
-        java.time.OffsetDateTime.parse(text(payload.get("requestedAt")));
+        OffsetDateTime.parse(text(payload.get("requestedAt")));
         return new Level15AssignmentRequestedCommand(id(payload.get("contractId")),
                 id(payload.get("milestoneId")), days,
                 payload.get("initiatedByActorId") == null ? null : id(payload.get("initiatedByActorId")),
