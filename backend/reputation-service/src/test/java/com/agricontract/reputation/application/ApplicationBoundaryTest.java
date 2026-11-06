@@ -1,19 +1,40 @@
 package com.agricontract.reputation.application;
 
-import com.agricontract.reputation.application.dto.*;
+import com.agricontract.reputation.application.dto.AppendCompletedContractCommand;
+import com.agricontract.reputation.application.dto.AppendDisputeOutcomeCommand;
+import com.agricontract.reputation.application.dto.AppendFactResult;
+import com.agricontract.reputation.application.dto.PublicSummaryQuery;
+import com.agricontract.reputation.application.dto.PublicSummaryResult;
 import com.agricontract.reputation.application.exception.ImmutableFactConflictException;
-import com.agricontract.reputation.application.usecase.*;
-import com.agricontract.reputation.domain.model.*;
-import com.agricontract.reputation.domain.repository.*;
+import com.agricontract.reputation.application.usecase.AppendReputationFact;
+import com.agricontract.reputation.application.usecase.GetPublicReputationSummaries;
+import com.agricontract.reputation.application.usecase.GetPublicReputationSummary;
+import com.agricontract.reputation.domain.model.CompletedContractFact;
+import com.agricontract.reputation.domain.model.DisputeOutcomeFact;
+import com.agricontract.reputation.domain.model.LockHistoryEntry;
+import com.agricontract.reputation.domain.model.ReputationReadProjection;
+import com.agricontract.reputation.domain.model.ResolutionFavors;
+import com.agricontract.reputation.domain.repository.FactRepository;
+import com.agricontract.reputation.domain.repository.ReputationReadRepository;
 import com.agricontract.reputation.infrastructure.contract.FrozenSchemas;
 import com.agricontract.reputation.infrastructure.web.PublicSummaryResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.*;
-import java.util.*;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class ApplicationBoundaryTest {
     final FactRepository facts = mock(FactRepository.class);
@@ -22,7 +43,8 @@ class ApplicationBoundaryTest {
     final UUID event = UUID.randomUUID(), milestone = UUID.randomUUID();
     final Instant time = Instant.parse("2026-10-13T00:00:00.123456789Z");
     @Test void useCaseEntryPointsExposeOnlyImmutableApplicationDtos() {
-        for (Class<?> useCase : List.of(AppendReputationFact.class, GetPublicReputationSummary.class)) {
+        for (Class<?> useCase : List.of(AppendReputationFact.class, GetPublicReputationSummary.class,
+                GetPublicReputationSummaries.class)) {
             for (var method : useCase.getDeclaredMethods()) {
                 if (!method.getName().equals("execute")) continue;
                 assertThat(method.getReturnType().isRecord()).isTrue();
@@ -65,7 +87,8 @@ class ApplicationBoundaryTest {
         var history = new ArrayList<>(List.of(new LockHistoryEntry(time, time.plusSeconds(86400), 1,
                 ResolutionFavors.BUYER, LockHistoryEntry.Status.ACTIVE)));
         when(reads.lockHistory(buyer, time)).thenReturn(history);
-        when(reads.countCompleted(buyer)).thenReturn(4L);
+        when(reads.publicSummaries(List.of(buyer), time)).thenReturn(List.of(new ReputationReadProjection(
+                buyer, ReputationReadProjection.score(4, 1), true)));
         var result = new GetPublicReputationSummary(reads, Clock.fixed(time, ZoneOffset.UTC))
                 .execute(new PublicSummaryQuery(buyer));
         assertThat(result.userId()).isEqualTo(buyer);

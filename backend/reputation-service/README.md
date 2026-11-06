@@ -63,6 +63,23 @@ A valid UUID without completion/lock facts returns 200 with the empty summary, e
 
 Unexpected application/database failures return a generic HTTP 500 ErrorEnvelope from controller-scoped infrastructure advice. The exception and its cause are never serialized. A separate infrastructure renderer handles container error dispatches with the same envelope; only `DispatcherType.ERROR` to `/error` is exempt from re-authentication. Direct requests and forwards to `/error` remain denied, as do unauthenticated business requests. The local UUID validation handler retains HTTP 400.
 
+## Internal batch public summary
+
+`POST /internal/v1/reputation/public-summaries` accepts `{"userIds":["<uuid>"]}`
+with 1–100 distinct UUIDs and no other properties. It returns `{"items":[{"userId":"<uuid>","score":null,"locked":false}]}`,
+one item per requested UUID. Invalid requests return 400 before reading facts. Unknown UUIDs return 200
+with `score: null` and `locked: false`; the batch never includes lock history.
+
+Set `SERVICE_INTERNAL_SECRET` (`service.internal-secret`) and send exactly one `X-Internal-Secret` header.
+Missing, wrong, or repeated headers return 401. A missing/blank configured secret disables internal access.
+The internal security chain does not trust gateway secrets or user identity headers. This route must remain
+on the internal service network and is never routed through API Gateway.
+
+Both summary endpoints use `ReputationReadRepository.publicSummaries`: one parameter-bound aggregate SQL
+statement for 1 or 100 UUIDs. The public endpoint additionally reads its existing lock history. Score rounding
+is shared in `ReputationReadProjection`; aggregate and history reads share one effective-lock expression.
+Each use case captures the clock once inside a read-only repeatable-read transaction. No migration is required.
+
 ## Configuration and verification
 
 Required environment values: `REPUTATION_DB_USERNAME`, `REPUTATION_DB_PASSWORD`, `REPUTATION_MIGRATION_USERNAME`, `REPUTATION_MIGRATION_PASSWORD`, `GATEWAY_INTERNAL_SECRET`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`. Optional: `REPUTATION_DB_URL`, `RABBITMQ_HOST`, `RABBITMQ_PORT`, `SERVER_PORT`. Hikari sets every runtime session to UTC, including when the database URL is overridden. Use MySQL 8.0.16+ for enforced CHECK constraints; tests use 8.0.42.
