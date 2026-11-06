@@ -1,5 +1,6 @@
 package com.agricontract.inspection.infrastructure.messaging;
 
+import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.EventEnvelopeCodec;
@@ -41,7 +42,7 @@ public class Level15RequestedConsumer {
                     || !"contract-service".equals(event.producer()) || event.eventVersion() != 1)
                 throw new IllegalArgumentException("Unexpected assignment event");
             command = toCommand(event);
-        } catch (InvalidEnvelopeException | IllegalArgumentException | java.time.DateTimeException ex) {
+        } catch (InvalidEnvelopeException | IllegalArgumentException | DateTimeException ex) {
             throw new InvalidEventPayloadException("Invalid Level 1.5 request; inspect the restricted DLQ");
         }
         // Dependency/database failures remain retryable and roll back the processed-event claim.
