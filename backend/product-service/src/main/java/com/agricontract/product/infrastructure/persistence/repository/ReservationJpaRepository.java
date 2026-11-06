@@ -22,16 +22,27 @@ public interface ReservationJpaRepository extends JpaRepository<ReservationJpaEn
     Optional<ReservationJpaEntity> lockByContractId(@Param("contractId") String contractId);
 
     @Query("""
-            SELECT r.contractId FROM ReservationJpaEntity r
+            SELECT r.contractId AS contractId, r.createdAt AS createdAt FROM ReservationJpaEntity r
             WHERE r.status = com.agricontract.product.domain.model.vo.ReservationStatus.RESERVED
               AND r.createdAt < :createdBefore
+              AND (r.createdAt > :afterCreatedAt
+                   OR (r.createdAt = :afterCreatedAt AND r.contractId > :afterContractId))
               AND NOT EXISTS (
                   SELECT 1 FROM ProcessedContractEventJpaEntity e
                   WHERE e.contractId = r.contractId
                     AND e.eventType = com.agricontract.product.domain.model.vo.ContractLifecycleEventType.CONTRACT_CREATED)
-            ORDER BY r.createdAt
+            ORDER BY r.createdAt, r.contractId
             """)
-    List<String> findOrphanCandidates(@Param("createdBefore") LocalDateTime createdBefore, Limit limit);
+    List<OrphanCandidateRow> findOrphanCandidates(@Param("createdBefore") LocalDateTime createdBefore,
+                                                  @Param("afterCreatedAt") LocalDateTime afterCreatedAt,
+                                                  @Param("afterContractId") String afterContractId,
+                                                  Limit limit);
+
+    interface OrphanCandidateRow {
+        String getContractId();
+
+        LocalDateTime getCreatedAt();
+    }
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

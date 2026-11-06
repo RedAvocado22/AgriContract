@@ -36,6 +36,7 @@ reservation:
   # a RESERVED reservation with no contract.created after this is an orphan and gets released (design §8b.2)
   orphan-grace-minutes: ${RESERVATION_ORPHAN_GRACE_MINUTES:30}
   orphan-reaper-check-ms: ${RESERVATION_ORPHAN_REAPER_CHECK_MS:60000}
+  orphan-reaper-batch-size: ${RESERVATION_ORPHAN_REAPER_BATCH_SIZE:100}
 
 product:
   dlq-monitor:
