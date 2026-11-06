@@ -3,6 +3,8 @@ package com.agricontract.product.infrastructure.messaging;
 import com.agricontract.product.application.dto.ContractCreatedCommand;
 import com.agricontract.product.application.usecase.ConfirmContractCreatedUseCase;
 import com.agricontract.eventing.EventEnvelopeCodec;
+import com.agricontract.product.infrastructure.contract.FrozenSchemas;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -10,6 +12,7 @@ import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -58,6 +61,18 @@ class ContractCreatedConsumerTest {
     @Test
     void unknownEnvelopeField_isRejectedToDlq() {
         assertRejected(event("contract.created", "40").replace("\"eventVersion\":1", "\"eventVersion\":1,\"extra\":1"));
+    }
+
+    @Test
+    void unknownPayloadField_isRejectedToDlq() {
+        assertRejected(event("contract.created", "40")
+                .replace("\"createdAt\":\"2026-10-27T03:00:00Z\"", "\"createdAt\":\"2026-10-27T03:00:00Z\",\"extra\":1"));
+    }
+
+    // the fixture every accepted-path test uses must stay valid against the frozen contract
+    @Test
+    void validFixture_matchesFrozenSchema() throws IOException {
+        FrozenSchemas.assertEvent("contractCreated", new ObjectMapper().readTree(event("contract.created", "40.125")));
     }
 
     @ParameterizedTest
