@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -26,6 +27,9 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class ContractCreatedConsumer {
+
+    // the frozen payload is closed (additionalProperties: false)
+    private static final Set<String> PAYLOAD_FIELDS = Set.of("contractId", "listingId", "reservedQuantity", "createdAt");
 
     private final EventEnvelopeCodec codec;
     private final ConfirmContractCreatedUseCase confirmContractCreatedUseCase;
@@ -51,6 +55,9 @@ public class ContractCreatedConsumer {
             Map<String, Object> payload = event.payload();
             if (payload == null) {
                 throw new IllegalArgumentException("Missing payload");
+            }
+            if (!PAYLOAD_FIELDS.containsAll(payload.keySet())) {
+                throw new IllegalArgumentException("Unknown payload field");
             }
             BigDecimal reservedQuantity = quantity(payload.get("reservedQuantity"));
             OffsetDateTime.parse(text(payload, "createdAt"));

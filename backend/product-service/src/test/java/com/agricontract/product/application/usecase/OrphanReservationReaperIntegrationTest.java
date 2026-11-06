@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * COMMITTED are untouched; a seller-closed listing gets the counter back but stays closed; contract.created after
  * the release is logged and alerted once, with no re-decrement or reverse transition.
  */
-@DataJpaTest
+@DataJpaTest(properties = "reservation.orphan-reaper-batch-size=2")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ListingRepositoryImpl.class, ReservationRepositoryImpl.class, ProcessedContractEventRepositoryImpl.class,
         ListingMapperImpl.class, ReservationMapperImpl.class, PlotRegistryMapperImpl.class, ClockConfig.class,
@@ -176,6 +176,41 @@ class OrphanReservationReaperIntegrationTest {
         } finally {
             pool.shutdownNow();
         }
+        assertThat(available()).isEqualByComparingTo("100");
+    }
+
+    // a full batch of rows that fail on every run must not hide the orphan behind them (batch size is 2 here)
+    @Test
+    void reap_alwaysFailingCandidates_doNotStarveNewerOrphans() {
+        reserve("contract-bad-1", "10");
+        reserve("contract-bad-2", "10");
+        reserve("contract-good", "10");
+        age("contract-bad-1", GRACE.plusMinutes(3));
+        age("contract-bad-2", GRACE.plusMinutes(2));
+        age("contract-good", GRACE.plusMinutes(1));
+        // restoring more than the listing offers throws InventoryInvariantViolationException
+        jdbcTemplate.update("UPDATE listing_reservations SET reserved_quantity = 1000 "
+                + "WHERE contract_id LIKE 'contract-bad-%'");
+
+        assertThat(reap()).isEqualTo(1);
+
+        assertThat(status("contract-good")).isEqualTo(ReservationStatus.RELEASED);
+        assertThat(status("contract-bad-1")).isEqualTo(ReservationStatus.RESERVED);
+        assertThat(status("contract-bad-2")).isEqualTo(ReservationStatus.RESERVED);
+    }
+
+    // created_at has one-second precision, so the page boundary can fall between rows with the same timestamp
+    @Test
+    void reap_candidatesWithSameCreatedAt_areAllReleasedAcrossPages() {
+        reserve("contract-1", "10");
+        reserve("contract-2", "10");
+        reserve("contract-3", "10");
+        reserve("contract-4", "10");
+        reserve("contract-5", "10");
+        jdbcTemplate.update("UPDATE listing_reservations SET created_at = '2026-01-01 00:00:00'");
+
+        assertThat(reap()).isEqualTo(5);
+
         assertThat(available()).isEqualByComparingTo("100");
     }
 
