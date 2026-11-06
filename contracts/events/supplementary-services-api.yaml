@@ -386,9 +386,9 @@ components:
       properties:
         commodity: { const: COFFEE }
         type: { enum: [ARABICA, ROBUSTA] }
-        moisturePercent: { type: number, minimum: 0, maximum: 100 }
-        foreignMatterPercent: { type: number, minimum: 0, maximum: 100 }
-        blackBrokenBeansPercent: { type: number, minimum: 0, maximum: 100 }
+        moisturePercent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
+        foreignMatterPercent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
+        blackBrokenBeansPercent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.01 }
       example: { commodity: COFFEE, type: ROBUSTA, moisturePercent: 12.5, foreignMatterPercent: 0.5, blackBrokenBeansPercent: 5.0 }
     ListingCreateCommon:
       type: object
