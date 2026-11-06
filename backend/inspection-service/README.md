@@ -205,3 +205,14 @@ Asia/Ho_Chi_Minh Monday-Friday dates excluding configured holidays. Assignment d
 is day zero; the deadline is 23:59:59.999 ICT on the Nth subsequent business day,
 returned and persisted as a UTC Instant. The scan interval defaults to 60000 ms
 (`INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS`). The service port remains 8087.
+
+The Rabbit consumer validates the frozen envelope/payload and maps it to
+`Level15AssignmentRequestedCommand`. It owns the transaction joining the existing
+processed-event claim and assignment mutation. Invalid payloads raise
+`InvalidEventPayloadException` and are not retried; transient failures retain retries.
+
+The passive DLQ monitor checks `inspection-svc.inspection.level1_5_requested.dlq`
+without consuming messages, using an isolated connection with bounded timeouts.
+It warns on nonempty queues or probe failures without logging payloads or broker details.
+Configure `inspection.dlq-monitor.enabled` (default true), `.interval-ms` (300000),
+and `.timeout-ms` (3000) through Spring configuration.

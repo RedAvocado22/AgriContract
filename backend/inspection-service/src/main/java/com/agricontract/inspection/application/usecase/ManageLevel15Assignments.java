@@ -1,7 +1,6 @@
 package com.agricontract.inspection.application.usecase;
 
-import com.agricontract.eventing.EventEnvelope;
-import com.agricontract.eventing.inbox.ProcessedEventStore;
+import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
 import com.agricontract.inspection.application.port.*;
 import com.agricontract.inspection.domain.model.*;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
@@ -19,19 +18,17 @@ import org.springframework.transaction.annotation.*;
 public class ManageLevel15Assignments {
     private final AssignmentLifecycleRepository assignments;
     private final InspectorEligibilityPort inspectors;
-    private final ProcessedEventStore processed;
     private final VietnamBusinessDays calendar;
     private final RandomGenerator random;
     private final AssignmentAlerts alerts;
     private final Clock clock;
 
     @Transactional
-    public void requested(EventEnvelope envelope, AssignmentRequest request) {
-        if (!processed.markProcessed("inspection.level1_5_requested", envelope)) return;
+    public void requested(Level15AssignmentRequestedCommand request) {
         assignments.lock(request.contractId(), request.milestoneId());
         if (assignments.active(request.contractId(), request.milestoneId()).isPresent()) return;
         pick(request.contractId(), request.milestoneId(), request.reportDueBusinessDays(),
-                request.initiatedByActorId(), envelope.eventId().toString(), false, Set.of());
+                request.initiatedByActorId(), request.sourceEventId(), false, Set.of());
     }
 
     @Transactional

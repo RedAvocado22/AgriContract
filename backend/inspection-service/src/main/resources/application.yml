@@ -27,6 +27,10 @@ management:
         include: health
 
 inspection:
+  dlq-monitor:
+    enabled: true
+    interval-ms: 300000
+    timeout-ms: 3000
   assignment:
     scan-interval-ms: ${INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS:60000}
     scheduler-enabled: true
