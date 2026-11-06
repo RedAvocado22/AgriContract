@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
@@ -78,6 +79,22 @@ class BatchSummaryHttpTest {
     void invalidInputFailsBeforeApplicationRead(String body) throws Exception {
         var result = mvc.perform(internal(body)).andExpect(status().isBadRequest()).andReturn();
         FrozenSchemas.assertResponse("ErrorEnvelope", json.readTree(result.getResponse().getContentAsString()));
+        verifyNoInteractions(summaries);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = "text/plain")
+    void invalidContentTypeFailsBeforeApplicationRead(String contentType) throws Exception {
+        var request = post(PATH).header("X-Internal-Secret", "service-test-secret")
+                .content(json.writeValueAsString(Map.of("userIds", List.of(ID))));
+        if (contentType != null) {
+            request.contentType(contentType);
+        }
+        var result = mvc.perform(request).andExpect(status().isBadRequest()).andReturn();
+        var body = json.readTree(result.getResponse().getContentAsString());
+        FrozenSchemas.assertResponse("ErrorEnvelope", body);
+        assertThat(body.path("code").asText()).isEqualTo("VALIDATION_ERROR");
         verifyNoInteractions(summaries);
     }
 
