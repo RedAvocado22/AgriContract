@@ -1,5 +1,16 @@
 package com.agricontract.inspection;
 
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import com.agricontract.inspection.infrastructure.scheduling.AssignmentTimeoutJob;
+import com.agricontract.inspection.infrastructure.messaging.OperationalAssignmentAlerts;
+import org.springframework.transaction.IllegalTransactionStateException;
+import com.agricontract.eventing.outbox.OutboxWriter;
+import java.time.Duration;
+import org.testcontainers.containers.RabbitMQContainer;
+import ch.qos.logback.classic.Logger;
+import org.slf4j.LoggerFactory;
+import ch.qos.logback.core.read.ListAppender;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import com.agricontract.inspection.infrastructure.config.AssignmentRabbitConfiguration;
 import org.awaitility.Awaitility;
@@ -59,8 +70,8 @@ import static org.mockito.Mockito.argThat;
 @Testcontainers
 class AssignmentLifecycleIntegrationTest {
     @Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.42").withDatabaseName("inspection_db");
-    @Container static final org.testcontainers.containers.RabbitMQContainer RABBIT =
-            new org.testcontainers.containers.RabbitMQContainer("rabbitmq:3.13-alpine");
+    @Container static final RabbitMQContainer RABBIT =
+            new RabbitMQContainer("rabbitmq:3.13-alpine");
     @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
         p.add("spring.datasource.url", () -> MYSQL.getJdbcUrl()
                 + (MYSQL.getJdbcUrl().contains("?") ? "&" : "?") + "connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true");
@@ -77,7 +88,7 @@ class AssignmentLifecycleIntegrationTest {
     @SpyBean Level15RequestedConsumer consumer;
     @Autowired EventEnvelopeCodec codec;
     @Autowired PlatformTransactionManager transactions;
-    @Autowired org.springframework.amqp.rabbit.core.RabbitTemplate rabbit;
+    @Autowired RabbitTemplate rabbit;
     @MockBean InspectorEligibilityPort inspectors;
     @MockBean RandomGenerator random;
     @MockBean Clock clock;
@@ -171,7 +182,7 @@ class AssignmentLifecycleIntegrationTest {
     @Test void scheduledScanFindsOverdueRowsAndCreatesReplacement() {
         deliver(event()); var first = active();
         when(clock.instant()).thenReturn(first.reportDueAt().plusSeconds(1));
-        new com.agricontract.inspection.infrastructure.scheduling.AssignmentTimeoutJob(assignments,lifecycle,clock).scan();
+        new AssignmentTimeoutJob(assignments,lifecycle,clock).scan();
         assertThat(rows()).isEqualTo(2);
         assertThat(active().inspectorId()).isEqualTo(b);
     }
@@ -199,11 +210,11 @@ class AssignmentLifecycleIntegrationTest {
     }
 
     @Test void structuredOperationalAlertIsEmittedOnlyAfterCommit() {
-        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
-                com.agricontract.inspection.infrastructure.messaging.OperationalAssignmentAlerts.class);
-        var logs = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        var logger = (Logger) LoggerFactory.getLogger(
+                OperationalAssignmentAlerts.class);
+        var logs = new ListAppender<ILoggingEvent>();
         logs.start(); logger.addAppender(logs);
-        var realAlerts = new com.agricontract.inspection.infrastructure.messaging.OperationalAssignmentAlerts();
+        var realAlerts = new OperationalAssignmentAlerts();
         var tx = new TransactionTemplate(transactions);
         try {
             tx.executeWithoutResult(status -> {
@@ -220,7 +231,7 @@ class AssignmentLifecycleIntegrationTest {
     @Test void confirmationBoundaryRequiresCallerTransactionAndRollsBackTogether() {
         deliver(event()); var assignment = active();
         assertThatThrownBy(() -> lifecycle.closeConfirmed(contract,milestone,assignment.commissionId(),a,NOW))
-                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+                .isInstanceOf(IllegalTransactionStateException.class);
         var tx = new TransactionTemplate(transactions);
         assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
             lifecycle.closeConfirmed(contract,milestone,assignment.commissionId(),a,NOW);
@@ -345,7 +356,7 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(assignments.overdue(current.reportDueAt(),100)).extracting(TimedAssignment::commissionId)
                 .containsExactly(current.commissionId());
         var timeoutPlan = jdbc.queryForMap("EXPLAIN SELECT * FROM level1_5_inspection_assignment WHERE active_slot=1 AND report_due_at<=? ORDER BY report_due_at,commission_id LIMIT 100",
-                java.sql.Timestamp.from(current.reportDueAt()));
+                Timestamp.from(current.reportDueAt()));
         assertThat(timeoutPlan.get("key")).isEqualTo("idx_l15_timeout");
         var historyPlan = jdbc.queryForMap("EXPLAIN SELECT inspector_id FROM level1_5_inspection_assignment WHERE contract_id=? AND milestone_id=? FOR UPDATE",contract,milestone);
         // Both indexes have the exact contract/milestone prefix; the optimizer may prefer
@@ -371,11 +382,11 @@ class AssignmentLifecycleIntegrationTest {
     @Test void brokerDeliveryDedupAndMalformedEventDeadLetter() {
         var event = event();
         new TransactionTemplate(transactions).executeWithoutResult(status ->
-                new com.agricontract.eventing.outbox.OutboxWriter(jdbc,codec).append(event));
+                new OutboxWriter(jdbc,codec).append(event));
         byte[] body = jdbc.queryForObject("SELECT envelope FROM event_outbox WHERE event_id=?", String.class,
                 event.eventId().toString()).getBytes(StandardCharsets.UTF_8);
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message(body));
-        Awaitility.await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> assertThat(rows()).isEqualTo(1));
+        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(rows()).isEqualTo(1));
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message(body));
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message("{}".getBytes(StandardCharsets.UTF_8)));
         assertThat(rabbit.receive(AssignmentRabbitConfiguration.DLQ, 15000)).isNotNull();
