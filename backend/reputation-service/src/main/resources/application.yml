@@ -22,6 +22,8 @@ spring:
     password: ${RABBITMQ_PASSWORD}
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET}
+service:
+  internal-secret: ${SERVICE_INTERNAL_SECRET:}
 server:
   port: ${SERVER_PORT:8088}
 reputation:

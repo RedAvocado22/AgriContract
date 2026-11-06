@@ -1,6 +1,5 @@
 package com.agricontract.reputation.domain.model;
 
-import com.agricontract.reputation.application.usecase.GetPublicReputationSummary;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -9,7 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FactAndScoreTest {
     static final UUID ID = UUID.randomUUID();
@@ -17,16 +17,16 @@ class FactAndScoreTest {
     @ParameterizedTest
     @CsvSource({"0,0,NULL", "5,0,100", "4,1,80", "1,7,13", "0,7,0", "2,1,67", "1,2,33"})
     void approvedBaseline(long completed, long locks, String score) {
-        var actual = GetPublicReputationSummary.score(completed, locks);
+        var actual = ReputationReadProjection.score(completed, locks);
         if (score.equals("NULL")) assertThat(actual).isNull();
         else assertThat(actual).isEqualByComparingTo(new BigDecimal(score)).hasScaleOf(0);
     }
     @Test void countsDoNotOverflowLongAddition() {
-        assertThat(GetPublicReputationSummary.score(Long.MAX_VALUE, Long.MAX_VALUE)).isEqualByComparingTo("50");
+        assertThat(ReputationReadProjection.score(Long.MAX_VALUE, Long.MAX_VALUE)).isEqualByComparingTo("50");
     }
     @Test void invalidCountsFail() {
-        assertThatThrownBy(() -> GetPublicReputationSummary.score(-1, 0)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> GetPublicReputationSummary.score(0, -1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ReputationReadProjection.score(-1, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ReputationReadProjection.score(0, -1)).isInstanceOf(IllegalArgumentException.class);
     }
     @Test void factsAreImmutableRecordsAndNormalizeToDatabasePrecision() {
         var completed = new CompletedContractFact(ID, ID, ID, TIME, ID);

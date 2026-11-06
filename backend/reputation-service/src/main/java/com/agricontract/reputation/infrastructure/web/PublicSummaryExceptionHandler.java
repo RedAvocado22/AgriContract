@@ -6,12 +6,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Keeps unexpected summary failures inside MVC, before a secondary error dispatch. */
-@RestControllerAdvice(assignableTypes = PublicSummaryController.class)
+@RestControllerAdvice(assignableTypes = {PublicSummaryController.class, InternalPublicSummaryController.class})
 public class PublicSummaryExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> unexpectedFailure(HttpServletRequest request) {
         // Do not serialize an exception, its message, or its cause. The controller's
-        // local validation handler still owns malformed UUID responses (400).
+        // local validation handlers still own malformed path/body responses (400).
         return ResponseEntity.internalServerError()
                 .body(ErrorResponse.of(request, 500, "Internal Server Error", "INTERNAL_SERVER_ERROR"));
     }

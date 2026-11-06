@@ -1,11 +1,13 @@
 package com.agricontract.reputation.infrastructure.config;
 import com.agricontract.reputation.infrastructure.security.GatewayIdentityFilter;
+import com.agricontract.reputation.infrastructure.security.InternalServiceAuthenticationFilter;
 import com.agricontract.reputation.infrastructure.web.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -17,6 +19,29 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.DispatcherTypeRequestMatcher;
 @Configuration
 public class SecurityConfiguration {
+    @Bean
+    @Order(1)
+    SecurityFilterChain internalSecurity(HttpSecurity http, ObjectMapper json,
+            @Value("${service.internal-secret:}") String secret) throws Exception {
+        return http.securityMatcher("/internal/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .requestCache(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(a -> a
+                        .requestMatchers(HttpMethod.POST, "/internal/v1/reputation/public-summaries")
+                        .hasAuthority("SERVICE_INTERNAL")
+                        .anyRequest().denyAll())
+                .exceptionHandling(e -> e.authenticationEntryPoint((request, response, exception) -> {
+                    response.setStatus(401); response.setContentType("application/json");
+                    json.writeValue(response.getOutputStream(), ErrorResponse.of(request, 401, "Unauthorized", "UNAUTHORIZED"));
+                }).accessDeniedHandler((request, response, exception) -> {
+                    response.setStatus(403); response.setContentType("application/json");
+                    json.writeValue(response.getOutputStream(), ErrorResponse.of(request, 403, "Forbidden", "FORBIDDEN"));
+                }))
+                .addFilterBefore(new InternalServiceAuthenticationFilter(secret), UsernamePasswordAuthenticationFilter.class)
+                .build();
+    }
+
     @Bean
     SecurityFilterChain security(HttpSecurity http, ObjectMapper json,
                                   @Value("${gateway.internal-secret}") String secret) throws Exception {
