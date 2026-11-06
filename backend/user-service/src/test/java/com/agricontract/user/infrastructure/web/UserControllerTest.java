@@ -86,17 +86,17 @@ class UserControllerTest {
     }
 
     @Test
-    void getPublicUser_gatewaySecretWithoutIdentity_forbidden() throws Exception {
+    void getPublicUser_gatewaySecretWithoutIdentity_unauthorized() throws Exception {
         mockMvc.perform(get(PUBLIC_URL).header("X-Gateway-Secret", GATEWAY_SECRET))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(getUserInfoUseCase);
     }
 
     @Test
-    void getPublicUser_internalSecret_forbidden() throws Exception {
+    void getPublicUser_internalSecret_unauthorized() throws Exception {
         // Service callers read GET /internal/v1/users/{userId}; the public path is for logged-in users only.
         mockMvc.perform(get(PUBLIC_URL).header("X-Internal-Secret", INTERNAL_SECRET))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(getUserInfoUseCase);
     }
 
@@ -118,20 +118,20 @@ class UserControllerTest {
     }
 
     @Test
-    void getMyProfile_internalSecretWithForgedUserId_forbidden() throws Exception {
+    void getMyProfile_internalSecretWithForgedUserId_unauthorized() throws Exception {
         // Before: the internal secret skipped identity, and /me trusted the raw X-User-Id header,
         // so any service could read anyone's email, phone and address.
         mockMvc.perform(get("/api/v1/users/me")
                         .header("X-Internal-Secret", INTERNAL_SECRET)
                         .header("X-User-Id", TARGET_ID))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(getUserProfileUseCase);
     }
 
     @Test
-    void getMyProfile_gatewaySecretWithoutIdentity_forbidden() throws Exception {
+    void getMyProfile_gatewaySecretWithoutIdentity_unauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/users/me").header("X-Gateway-Secret", GATEWAY_SECRET))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(getUserProfileUseCase);
     }
 }

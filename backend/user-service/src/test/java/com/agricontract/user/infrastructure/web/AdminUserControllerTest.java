@@ -126,22 +126,22 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void verify_gatewaySecretWithoutIdentity_forbidden() throws Exception {
+    void verify_gatewaySecretWithoutIdentity_unauthorized() throws Exception {
         mockMvc.perform(post(VERIFY_URL)
                         .header("X-Gateway-Secret", GATEWAY_SECRET)
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(verifyUserUseCase);
     }
 
     @Test
-    void verify_internalSecretWithForgedOperatorRole_forbidden() throws Exception {
+    void verify_internalSecretWithForgedOperatorRole_unauthorized() throws Exception {
         mockMvc.perform(post(VERIFY_URL)
                         .header("X-Internal-Secret", INTERNAL_SECRET)
                         .header("X-User-Id", ACTOR_ID)
                         .header("X-User-Role", "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(verifyUserUseCase);
     }
 
@@ -249,12 +249,12 @@ class AdminUserControllerTest {
     }
 
     @Test
-    void detail_internalSecretWithForgedOperatorRole_forbidden() throws Exception {
+    void detail_internalSecretWithForgedOperatorRole_unauthorized() throws Exception {
         mockMvc.perform(get(DETAIL_URL)
                         .header("X-Internal-Secret", INTERNAL_SECRET)
                         .header("X-User-Id", ACTOR_ID)
                         .header("X-User-Role", "OPERATOR"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
         verifyNoInteractions(getKycProfileUseCase);
     }
 
