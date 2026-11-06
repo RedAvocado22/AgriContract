@@ -33,6 +33,7 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest(properties = {"SERVICE_INTERNAL_SECRET=test-service", "GATEWAY_INTERNAL_SECRET=test-gateway",
         "inspection.assignment.scheduler-enabled=false",
+        "inspection.dlq-monitor.enabled=false",
         "VIETNAM_HOLIDAYS=2026-01-01", "management.health.rabbit.enabled=false"})
 @Testcontainers
 class AssignmentLifecycleIntegrationTest {
@@ -52,7 +53,7 @@ class AssignmentLifecycleIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ManageLevel15Assignments lifecycle;
     @Autowired AssignmentLifecycleRepository assignments;
-    @Autowired Level15RequestedConsumer consumer;
+    @org.springframework.boot.test.mock.mockito.SpyBean Level15RequestedConsumer consumer;
     @Autowired EventEnvelopeCodec codec;
     @Autowired PlatformTransactionManager transactions;
     @Autowired org.springframework.amqp.rabbit.core.RabbitTemplate rabbit;
@@ -113,6 +114,7 @@ class AssignmentLifecycleIntegrationTest {
         when(inspectors.loadEligibleInspectors()).thenThrow(new IllegalStateException("unavailable"));
         assertThatThrownBy(() -> deliver(event)).isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_event", Integer.class)).isZero();
+        assertThat(rows()).isZero();
         doReturn(List.of(a)).when(inspectors).loadEligibleInspectors();
         deliver(event);
         assertThat(rows()).isEqualTo(1);
@@ -355,9 +357,23 @@ class AssignmentLifecycleIntegrationTest {
         org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> assertThat(rows()).isEqualTo(1));
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message(body));
         rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message("{}".getBytes(StandardCharsets.UTF_8)));
-        assertThat(rabbit.receive("inspection-svc.inspection.level1_5_requested.dlq", 15000)).isNotNull();
+        assertThat(rabbit.receive(com.agricontract.inspection.infrastructure.config.AssignmentRabbitConfiguration.DLQ, 15000)).isNotNull();
+        verify(consumer, times(1)).accept(argThat(message ->
+                Arrays.equals(message.getBody(), "{}".getBytes(StandardCharsets.UTF_8))));
         assertThat(rows()).isEqualTo(1);
         verify(inspectors, times(1)).loadEligibleInspectors();
+    }
+    @Test void brokerRetriesTransientFailureAndRollsBackEveryClaim() {
+        when(inspectors.loadEligibleInspectors()).thenThrow(new IllegalStateException("unavailable"));
+        byte[] body = canonicalBytes(event());
+        rabbit.send("agricontract.contracts", "inspection.level1_5_requested", new Message(body));
+        var rejected = rabbit.receive(com.agricontract.inspection.infrastructure.config.AssignmentRabbitConfiguration.DLQ, 15000);
+        assertThat(rejected).isNotNull();
+        assertThat(rejected.getBody()).isEqualTo(body);
+        verify(consumer, times(3)).accept(argThat(message -> Arrays.equals(message.getBody(), body)));
+        verify(inspectors, times(3)).loadEligibleInspectors();
+        assertThat(rows()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_event", Integer.class)).isZero();
     }
     private void concurrent(Runnable one, Runnable two) throws Exception {
         var start = new CountDownLatch(1);
