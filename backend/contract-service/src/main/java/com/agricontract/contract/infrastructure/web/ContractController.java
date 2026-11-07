@@ -4,15 +4,20 @@ import com.agricontract.contract.application.dto.*;
 import com.agricontract.contract.application.usecase.*;
 import com.agricontract.contract.common.ApiResponse;
 import com.agricontract.contract.common.PaginatedResponse;
+import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
+import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
 import com.agricontract.contract.infrastructure.web.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/contracts")
@@ -24,6 +29,27 @@ public class ContractController {
     private final SignContractUseCase signContractUseCase;
     private final GetContractUseCase getContractUseCase;
     private final ListContractsUseCase listContractsUseCase;
+    private final UpdateContractTermsUseCase updateContractTermsUseCase;
+    private final JcsTermsCanonicalizer termsReader;
+
+    /** Revise coffee terms before the first signature (#93). Body is ContractTermsInput, read strictly. */
+    @PatchMapping(path = "/{contractId}/terms", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Revise coffee contract terms before the first signature")
+    public ResponseEntity<CoffeeContractResponse> updateTerms(
+            @PathVariable UUID contractId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestBody String body,
+            Authentication auth) {
+        boolean buyerOrSeller = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_BUYER") || role.equals("ROLE_SELLER"));
+        if (!buyerOrSeller) {
+            throw new UnauthorizedContractActionException("Only BUYER or SELLER can revise contract terms.");
+        }
+        CoffeeContractView view = updateContractTermsUseCase.execute(new UpdateContractTermsCommand(
+                contractId.toString(), auth.getName(), idempotencyKey, termsReader.readInput(body)));
+        return ResponseEntity.ok(CoffeeContractResponse.from(view));
+    }
 
     @PostMapping
     public ResponseEntity<ApiResponse<ContractResponse>> offerContract(
