@@ -1,7 +1,20 @@
+import type { NotificationKind } from '../../domain/notification-log';
 import type { OtpEmailRequest } from './otp-email-request';
 
-/** Template identity, for notification_logs.template_version once the V2 migration (#115) adds it. */
+/** Template identity, for notification_logs.template_version (column added by V2, not written yet). */
 export const OTP_EMAIL_TEMPLATE_VERSION = 'otp-email/v1';
+
+/*
+ * The kind of the OTP email (#115). This endpoint is a synchronous command,
+ * not a queue event, so eventType names the command the way the Phase 2
+ * notification commands are named, and event_id holds the caller's requestId
+ * (design §2.2). notificationType is stored in notification_logs and is part
+ * of the dedup key: do not rename it.
+ */
+export const OTP_EMAIL_KIND = {
+  eventType: 'notification.otp_email_requested',
+  notificationType: 'CONTRACT_SIGNING_OTP',
+} as const satisfies NotificationKind;
 
 export const OTP_EMAIL_SUBJECT = '[AgriContract] Your contract signing code';
 

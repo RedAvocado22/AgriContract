@@ -20,8 +20,9 @@ removed; tag `notification-java-final` is the rollback point (plan §7).
 
 - A payload that is not JSON, or misses a required field, goes to the DLQ at once (see
   `src/infrastructure/messaging/legacy-payload.parsers.ts` for the required fields).
-- Each email (event + recipient) is claimed atomically in `notification_logs` before sending, so two deliveries
-  of the same event never both send it. A delivery that finds a live claim (younger than 120s) is retried
+- Each email (event + recipient + notification type) is claimed atomically in `notification_logs` before sending,
+  so two deliveries of the same event never both send it. Each Phase 1 event sends one template, so this is one
+  email per event and recipient, as before (#115). A delivery that finds a live claim (younger than 120s) is retried
   instead of acked; a `PENDING` claim older than that (sender died mid-send) can be taken over.
 - A failed send is retried 3 times (1s, 2s), then dead-lettered; the log row is `FAILED` with `retry_count`.
 - Logs carry the event id and a failure code (e.g. `EENVELOPE/550`), never a recipient address or payload text.
@@ -56,7 +57,9 @@ Errors use the shared envelope (`timestamp, status, error, code, message, path, 
 - Stricter than the contract, which only says `string`: `requestId` is at most 36 characters of `[A-Za-z0-9._:-]`
   (it is stored in `event_id`, `VARCHAR(36)`, and logged); `recipientUserId` and `contractId` are 1–255 characters.
   `test/contract/otp-email-request.contract.spec.ts` checks the fields and verdicts against the contract file.
-- Until the V2 migration (#115) these rows have no `notification_type`; V2 backfills them like any Phase 1 row.
+- Since the V2 migration (#115) these rows carry `notification_type = CONTRACT_SIGNING_OTP` and
+  `event_type = notification.otp_email_requested`; OTP rows written before V2 were backfilled like any Phase 1
+  row. `recipient_user_id` exists but is not written yet (the Phase 2 `recipients[]` work fills it).
 
 **Known limitations.** The SMTP inactivity timeout restarts whenever the server answers, so a server that answers
 slowly can take longer than 5s; and a mail the server accepted just as the caller gave up is still delivered. Both
@@ -66,8 +69,15 @@ user request a new code, which supersedes the old one.
 Bruno `notification-service/20`–`25` and `npm run test:int` (`otp-email.int-spec.ts`) check it against MailHog.
 
 The table `notification_logs` comes from `db/migration/V1__create_notification_logs.sql`, a byte-for-byte copy of
-the Java service's Flyway V1 (same checksum). The app does not run migrations; the compose service
-`notification-migrate` (`flyway/flyway:10.10.0`) does, before the app starts.
+the Java service's Flyway V1 (same checksum), then
+`db/migration/V2__notification_logs_recipient_type_dedup.sql` (#115), which is additive: it adds the delivery
+identity and metadata columns, backfills every Phase 1 row to `recipient_email = legacy:{user_id}`, and replaces
+`uq_event_user` with `uq_event_recipient_type (event_id, recipient_email, notification_type)`. The app does not
+run migrations; the compose service `notification-migrate` (`flyway/flyway:10.10.0`) does, before the app starts.
+
+> **V2 is one-way for the Java service.** Once V2 has run, the Java `notification-service` can no longer write to
+> this database: it inserts without `recipient_email`/`notification_type`, so a second recipient of the same event
+> collides on the new unique key. Cut over before migrating.
 
 > **Never run this service and the Java `notification-service` at the same time.** They use the same queues and the
 > same database; two consumers on one queue split the messages between them. Stop the Java container first.
