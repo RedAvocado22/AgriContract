@@ -11,7 +11,8 @@ public class OtpConfiguration {
 
     @Bean
     OtpPolicy otpPolicy(OtpProperties properties) {
-        return new OtpPolicy(properties.expirySeconds(), properties.maxAttempts());
+        return new OtpPolicy(properties.expirySeconds(), properties.maxAttempts(),
+                properties.resendCooldownSeconds(), properties.maxSendsPerHour());
     }
 
     @Bean

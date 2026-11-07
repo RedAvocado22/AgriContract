@@ -64,6 +64,8 @@ contract:
   otp:
     expiry-seconds: 300
     max-attempts: 5
+    resend-cooldown-seconds: 60
+    max-sends-per-hour: 5
     pepper: ${OTP_PEPPER:dev-only-otp-pepper-change-me}
 
 outbox:

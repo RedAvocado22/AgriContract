@@ -20,6 +20,12 @@ public interface OtpChallengeRepository {
 
     void insert(OtpChallenge challenge);
 
+    /** Newest sentAt of this signer's challenges on this contract (any content), or empty. Read under the lock. */
+    Optional<Instant> lastSentAt(String contractId, String userId, SignerRole signerRole);
+
+    /** How many challenges this signer was sent on this contract since the given instant. Read under the lock. */
+    int countSentSince(String contractId, String userId, SignerRole signerRole, Instant since);
+
     /** Kills one challenge, e.g. when the OTP email could not be handed to the provider. */
     void expire(UUID otpId, Instant now);
 
