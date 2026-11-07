@@ -1,6 +1,6 @@
 /**
  * Integration test of POST /internal/v1/notifications/otp-email against a real
- * MySQL (V1 notification_logs) and a real MailHog, run with
+ * MySQL (V2 notification_logs) and a real MailHog, run with
  *   npm run test:int
  * DB_*, MAIL_HOST and MAIL_PORT apply with the usual defaults (localhost:3311,
  * localhost:1025); MAILHOG_API_URL defaults to http://localhost:8025.

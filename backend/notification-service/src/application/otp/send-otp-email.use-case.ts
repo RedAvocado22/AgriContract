@@ -7,7 +7,11 @@ import { NotificationError, failureCode } from '../notification-errors';
 import { EmailDeliveryError, type EmailPort } from '../ports/email.port';
 import type { NotificationLogRepository } from '../ports/notification-log.repository';
 import type { OtpEmailRequest } from './otp-email-request';
-import { OTP_EMAIL_LOG_BODY, renderOtpEmail } from './otp-email-template';
+import {
+  OTP_EMAIL_KIND,
+  OTP_EMAIL_LOG_BODY,
+  renderOtpEmail,
+} from './otp-email-template';
 
 /*
  * Errors carry the requestId (the caller's otpId) and a failure code only:
@@ -47,11 +51,12 @@ export type OtpEmailResult = 'SENT' | 'ALREADY_SENT';
 /**
  * Sends the OTP email for contract signing synchronously (design §2.2, §5).
  *
- * A call is claimed in notification_logs by (requestId, recipientEmail)
- * before sending, so a repeated call never sends twice. user_id holds the
- * address, as in every Phase 1 row (and in Java), so V2 (#115) backfills
- * recipient_email from it like any other row; recipientUserId is not stored
- * until V2 adds recipient_user_id:
+ * A call is claimed in notification_logs by (requestId, recipientEmail,
+ * CONTRACT_SIGNING_OTP) before sending, so a repeated call never sends twice.
+ * Since V2 (#115) the address is in recipient_email (and still in user_id, as
+ * in every Phase 1 row and in Java). recipientUserId is not stored yet: V2
+ * adds recipient_user_id as a nullable column, and the Phase 2 recipients[]
+ * work fills it.
  * - no row, or the earlier call FAILED: send now (the caller asked again, so
  *   this is not a late background send);
  * - SENT: return ALREADY_SENT without sending;
@@ -74,6 +79,7 @@ export class SendOtpEmailUseCase {
     const { subject, body } = renderOtpEmail(request);
     const log = NotificationLog.create(
       requestId,
+      OTP_EMAIL_KIND,
       recipientEmail,
       NotificationChannel.EMAIL,
       subject,
@@ -92,24 +98,23 @@ export class SendOtpEmailUseCase {
     try {
       await this.email.send({ to: recipientEmail, subject, body });
     } catch (err) {
+      const code =
+        err instanceof EmailDeliveryError ? err.code : failureCode(err);
       await this.logs
-        .markFailed(requestId, recipientEmail)
+        .markFailed(log.key, code)
         .catch((logErr: unknown) =>
           this.logger.error(
             `OTP request ${requestId}: could not record FAILED (${failureCode(logErr)})`,
           ),
         );
-      throw new OtpEmailDeliveryError(
-        requestId,
-        err instanceof EmailDeliveryError ? err.code : failureCode(err),
-      );
+      throw new OtpEmailDeliveryError(requestId, code);
     }
 
     // The provider accepted the email, so the call succeeds even if this
     // write fails. The row then stays PENDING: a repeated call gets 503 until
     // the lease ends, then sends again (a duplicate, never a lost email).
     await this.logs
-      .markSent(requestId, recipientEmail)
+      .markSent(log.key)
       .catch((err: unknown) =>
         this.logger.error(
           `OTP request ${requestId}: email sent but could not record SENT (${failureCode(err)})`,

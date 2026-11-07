@@ -2,10 +2,14 @@ import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
 } from '../../../test/support/fakes';
-import { otpRequest } from '../../../test/support/otp';
+import { otpKey, otpRequest } from '../../../test/support/otp';
 import { NotificationStatus } from '../../domain/notification-log';
 import { CLAIM_LEASE_MS } from '../notification-sender';
-import { OTP_EMAIL_LOG_BODY, OTP_EMAIL_SUBJECT } from './otp-email-template';
+import {
+  OTP_EMAIL_KIND,
+  OTP_EMAIL_LOG_BODY,
+  OTP_EMAIL_SUBJECT,
+} from './otp-email-template';
 import {
   OtpEmailDeliveryError,
   OtpEmailInProgressError,
@@ -19,7 +23,7 @@ describe('SendOtpEmailUseCase', () => {
   let logger: { error: jest.Mock };
   let useCase: SendOtpEmailUseCase;
   const request = otpRequest();
-  const row = () => logs.get(request.requestId, request.recipientEmail);
+  const row = () => logs.get(otpKey(request));
 
   beforeEach(() => {
     logs = new InMemoryNotificationLogRepository();
@@ -37,6 +41,9 @@ describe('SendOtpEmailUseCase', () => {
     expect(email.sent[0].body).toContain(request.otpCode);
     expect(row()).toMatchObject({
       eventId: request.requestId,
+      eventType: OTP_EMAIL_KIND.eventType,
+      notificationType: OTP_EMAIL_KIND.notificationType,
+      recipientEmail: request.recipientEmail,
       status: NotificationStatus.SENT,
       subject: OTP_EMAIL_SUBJECT,
       body: OTP_EMAIL_LOG_BODY,
@@ -77,11 +84,7 @@ describe('SendOtpEmailUseCase', () => {
   });
 
   it('returns at once with OtpEmailInProgressError while another call holds a live claim', async () => {
-    logs.seed(
-      request.requestId,
-      request.recipientEmail,
-      NotificationStatus.PENDING,
-    );
+    logs.seed(otpKey(request), NotificationStatus.PENDING);
 
     await expect(useCase.execute(request)).rejects.toBeInstanceOf(
       OtpEmailInProgressError,
@@ -90,12 +93,7 @@ describe('SendOtpEmailUseCase', () => {
   });
 
   it('takes over a claim older than the lease (the caller died mid-send)', async () => {
-    logs.seed(
-      request.requestId,
-      request.recipientEmail,
-      NotificationStatus.PENDING,
-      0,
-    );
+    logs.seed(otpKey(request), NotificationStatus.PENDING, 0);
     logs.now = CLAIM_LEASE_MS + 1;
 
     await expect(useCase.execute(request)).resolves.toBe('SENT');

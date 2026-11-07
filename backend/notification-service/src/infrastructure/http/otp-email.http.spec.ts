@@ -7,7 +7,7 @@ import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
 } from '../../../test/support/fakes';
-import { otpRequest } from '../../../test/support/otp';
+import { otpKey, otpRequest } from '../../../test/support/otp';
 import { APP_OPTIONS } from '../../app.options';
 import { SendOtpEmailUseCase } from '../../application/otp/send-otp-email.use-case';
 import { validate } from '../../config/env.validation';
@@ -106,9 +106,7 @@ describe('POST /internal/v1/notifications/otp-email', () => {
     expect(res.text).toBe('');
     expect(email.sent).toHaveLength(1);
     expect(email.sent[0].body).toContain(body.otpCode);
-    expect(logs.get(body.requestId, body.recipientEmail)?.status).toBe(
-      NotificationStatus.SENT,
-    );
+    expect(logs.get(otpKey(body))?.status).toBe(NotificationStatus.SENT);
     expectNoLeak(res);
   });
 
@@ -192,7 +190,7 @@ describe('POST /internal/v1/notifications/otp-email', () => {
   });
 
   it('returns 503 at once while another call sends the same requestId', async () => {
-    logs.seed(body.requestId, body.recipientEmail, NotificationStatus.PENDING);
+    logs.seed(otpKey(body), NotificationStatus.PENDING);
 
     const res = await post().send(body);
 
