@@ -1,6 +1,7 @@
 package com.agricontract.contract.domain.model;
 
 import com.agricontract.contract.domain.event.*;
+import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
@@ -9,6 +10,7 @@ import com.agricontract.contract.domain.model.vo.Money;
 import com.agricontract.contract.domain.model.vo.Quantity;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
+import com.agricontract.contract.domain.model.terms.InvalidContractTermsException;
 import com.agricontract.contract.domain.model.terms.MilestoneTerm;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -115,6 +117,43 @@ public class Contract {
                 legacyProjection(snapshot));
         contract.coffeeTerms = coffeeTerms;
         return contract;
+    }
+
+    /**
+     * PATCH terms (#93). Either party may revise while OFFERED/NEGOTIATING, until the first valid signature.
+     * The total kg must stay equal to what product-service reserved for this contract (F18): changing the total
+     * means withdrawing and making a new offer. goodsTerms come from the stored snapshot, never from the caller.
+     */
+    public void reviseCoffeeTerms(String userId, CanonicalTerms revised) {
+        //Guard
+        if (!userId.equals(sellerId) && !userId.equals(buyerId)) {
+            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
+        }
+        if (this.coffeeTerms == null) {
+            throw new ContractConflictException(ContractConflictException.LEGACY_TERMS,
+                    "This contract has no coffee terms; create a new offer instead.");
+        }
+        if (this.status != ContractStatus.OFFERED && this.status != ContractStatus.NEGOTIATING) {
+            throw new ContractConflictException(ContractConflictException.NOT_NEGOTIABLE,
+                    "Terms can only change while the contract is OFFERED or NEGOTIATING, not " + this.status + ".");
+        }
+        if (!this.signatories.isEmpty()) {
+            throw new ContractConflictException(ContractConflictException.TERMS_FROZEN,
+                    "Terms are frozen after the first signature.");
+        }
+        ContractTermsSnapshot current = this.coffeeTerms.snapshot();
+        if (!revised.snapshot().goodsTerms().equals(current.goodsTerms())) {
+            throw new InvalidContractTermsException("goodsTerms are fixed at offer time and cannot be revised");
+        }
+        if (revised.snapshot().totalQuantity().compareTo(current.totalQuantity()) != 0) {
+            throw new InvalidContractTermsException("Total committed quantity must stay "
+                    + current.totalQuantity().stripTrailingZeros().toPlainString()
+                    + " kg, the quantity reserved for this offer; withdraw and make a new offer to change it");
+        }
+        //Mutate
+        this.coffeeTerms = revised;
+        this.terms = legacyProjection(revised.snapshot());
+        this.status = ContractStatus.NEGOTIATING;
     }
 
     private static ContractTerms legacyProjection(ContractTermsSnapshot snapshot) {
