@@ -76,6 +76,13 @@ public class ContractJpaEntity {
     @Column(name = "quality_spec", columnDefinition = "TEXT")
     private String qualitySpec;
 
+    /** RFC 8785 canonical JSON exactly as hashed. LONGTEXT, not MySQL JSON: the JSON type rewrites the text. */
+    @Column(name = "terms_snapshot", columnDefinition = "LONGTEXT")
+    private String termsSnapshot;
+
+    @Column(name = "signed_content_hash", columnDefinition = "CHAR(64)")
+    private String signedContentHash;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ContractStatus status;
