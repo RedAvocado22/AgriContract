@@ -1,5 +1,8 @@
 package com.agricontract.contract.infrastructure.web;
 
+import com.agricontract.contract.application.exception.OtpEmailNotSentException;
+import com.agricontract.contract.application.exception.SignerNotEligibleException;
+import com.agricontract.contract.application.exception.UserServiceUnavailableException;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
 import com.agricontract.contract.application.exception.InvalidEventPayloadException;
 import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
@@ -38,6 +41,29 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUnauthorizedAccess(UnauthorizedContractAccessException ex) {
         log.warn("403 {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    /** Caller may not start signing (step-up, profile, authorization, lock); the code tells the client what to do. */
+    @ExceptionHandler(SignerNotEligibleException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSignerNotEligible(SignerNotEligibleException ex) {
+        log.warn("403 {}", ex.getCode());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(ex.getCode() + ": " + ex.getMessage()));
+    }
+
+    /** Fail closed: without user-service the signer cannot be checked, so nothing is let through. */
+    @ExceptionHandler(UserServiceUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserServiceUnavailable(UserServiceUnavailableException ex) {
+        log.warn("503 USER_SERVICE_UNAVAILABLE {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error(
+                "USER_SERVICE_UNAVAILABLE: your profile could not be checked right now; try again shortly."));
+    }
+
+    /** The code was not confirmed as sent and has already been made unusable; the user asks for a new one. */
+    @ExceptionHandler(OtpEmailNotSentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOtpEmailNotSent(OtpEmailNotSentException ex) {
+        log.warn("502 OTP_EMAIL_NOT_SENT {}", ex.getCode());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiResponse.error(
+                "OTP_EMAIL_NOT_SENT: the signing code could not be sent (" + ex.getCode() + "); request a new code."));
     }
 
     @ExceptionHandler(InvalidContractTermsException.class)
