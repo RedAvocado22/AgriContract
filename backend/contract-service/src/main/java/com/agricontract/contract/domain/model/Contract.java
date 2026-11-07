@@ -38,6 +38,8 @@ public class Contract {
     /** Phase 2 coffee terms + signedContentHash; null only for Phase 1 rows created before #92. */
     private CanonicalTerms coffeeTerms;
     private ContractStatus status;
+    /** Optimistic-lock version as loaded; null for a contract not stored yet. */
+    private Long version;
     @Getter(AccessLevel.NONE)
     private Set<String> signatories;
     @Getter(AccessLevel.NONE)
@@ -54,9 +56,10 @@ public class Contract {
             String productName, String buyerOrgName, String sellerOrgName,
             String buyerEmail, String sellerEmail,
             ContractTerms terms, CanonicalTerms coffeeTerms, ContractStatus status,
-            Set<String> signatories) {
+            Set<String> signatories, Long version) {
         Contract contract = new Contract();
         contract.coffeeTerms = coffeeTerms;
+        contract.version = version;
 
         contract.contractId = contractId;
         contract.listingId = listingId;

@@ -72,7 +72,8 @@ public class ContractMapper {
                 e.getTermsSnapshot() == null ? null
                         : CanonicalTerms.restore(e.getTermsSnapshot(), e.getSignedContentHash(), termsCanonicalizer),
                 e.getStatus(),
-                deserializeSignatories(e.getSignatories())
+                deserializeSignatories(e.getSignatories()),
+                e.getVersion()
         );
     }
 
