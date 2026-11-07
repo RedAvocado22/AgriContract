@@ -58,6 +58,9 @@ contract:
     level2-safety-buffer-rate: 0.15
   consent:
     sign-contract-version: "1.0"
+  signature:
+    # signatureAuthMaxAgeSeconds (signature design §4): the password must have been entered this recently.
+    auth-max-age-seconds: 300
   otp:
     expiry-seconds: 300
     max-attempts: 5
