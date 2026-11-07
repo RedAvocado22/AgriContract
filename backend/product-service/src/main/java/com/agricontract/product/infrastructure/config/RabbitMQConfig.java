@@ -1,5 +1,6 @@
 package com.agricontract.product.infrastructure.config;
 
+import com.agricontract.product.application.exception.InvalidEventPayloadException;
 import com.agricontract.product.infrastructure.messaging.DlqMonitor;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -70,12 +71,14 @@ public class RabbitMQConfig {
     }
 
     /**
-     * traverseCauses: the container wraps the listener's AmqpRejectAndDontRequeueException in a
+     * traverseCauses: the container wraps the listener's InvalidEventPayloadException in a
      * ListenerExecutionFailedException, so without it a malformed event would still be retried.
      */
     public static MethodInterceptor listenerRetry(long initialIntervalMillis) {
         return RetryInterceptorBuilder.stateless()
-                .retryPolicy(new SimpleRetryPolicy(3, Map.of(AmqpRejectAndDontRequeueException.class, false), true, true))
+                .retryPolicy(new SimpleRetryPolicy(3, Map.of(
+                        InvalidEventPayloadException.class, false,
+                        AmqpRejectAndDontRequeueException.class, false), true, true))
                 .backOffOptions(initialIntervalMillis, 2, initialIntervalMillis * 4)
                 .recoverer((message, cause) -> {
                     // The default recoverer logs Message.toString(), which includes the payload.
