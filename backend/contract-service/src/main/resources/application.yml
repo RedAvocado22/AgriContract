@@ -55,6 +55,10 @@ contract:
     level2-safety-buffer-rate: 0.15
   consent:
     sign-contract-version: "1.0"
+  otp:
+    expiry-seconds: 300
+    max-attempts: 5
+    pepper: ${OTP_PEPPER:dev-only-otp-pepper-change-me}
 
 outbox:
   poller:
