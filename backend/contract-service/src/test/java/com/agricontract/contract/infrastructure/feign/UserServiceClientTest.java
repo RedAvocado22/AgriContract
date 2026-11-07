@@ -70,7 +70,7 @@ class UserServiceClientTest {
 
         assertThat(lastPath.get()).isEqualTo("/internal/v1/users/buyer-1");
         assertThat(lastSecret.get()).isEqualTo("test-internal-secret");
-        assertThat(user).isEqualTo(new UserInfo("buyer-1", "Buyer Corp", "buyer@agricontract.test", "BUYER"));
+        assertThat(user).isEqualTo(new UserInfo("buyer-1", "Buyer Corp", "buyer@agricontract.test", "BUYER", "VERIFIED", null, null));
     }
 
     private static HttpServer startServer() {

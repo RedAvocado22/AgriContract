@@ -45,8 +45,8 @@ class CreateContractUseCaseTest {
             LocalDate.now().plusDays(30), "ACTIVE"
     );
 
-    private static final UserInfo BUYER_INFO = new UserInfo("buyer-1", "Buyer Corp", "buyer@agricontract.test", "BUYER");
-    private static final UserInfo SELLER_INFO = new UserInfo("seller-1", "Seller Corp", "seller@agricontract.test", "SELLER");
+    private static final UserInfo BUYER_INFO = new UserInfo("buyer-1", "Buyer Corp", "buyer@agricontract.test", "BUYER", "VERIFIED", null, null);
+    private static final UserInfo SELLER_INFO = new UserInfo("seller-1", "Seller Corp", "seller@agricontract.test", "SELLER", "VERIFIED", null, null);
 
     @Test
     void execute_listingNotActive_throwsIllegalArgument() {
