@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The signed-in user a reputation lookup is made for. The public summary is authenticated-only
- * (reputation design §6.1b), so product-service asks on behalf of the viewer, never as itself.
+ * The signed-in user searching listings. Only a signed-in viewer sees seller reputation (reputation design §6.2).
+ * The viewer is never forwarded: product-service reads reputation-service as itself (internal batch endpoint).
  */
 public record ReputationViewer(String userId, List<String> roles) {
     public ReputationViewer {

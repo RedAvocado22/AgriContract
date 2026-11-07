@@ -83,7 +83,7 @@ class ListActiveListingsUseCaseImplTest {
     @Test
     void signedIn_readsEachSellerOnce_andShowsReputation() {
         page(listing("l-1", "seller-a"), listing("l-2", "seller-b"), listing("l-3", "seller-a"));
-        when(sellerReputationPort.lookup(Set.of("seller-a", "seller-b"), BUYER)).thenReturn(new ReputationLookup(
+        when(sellerReputationPort.lookup(Set.of("seller-a", "seller-b"))).thenReturn(new ReputationLookup(
                 Map.of("seller-a", new SellerReputation(90, false), "seller-b", new SellerReputation(null, false)),
                 true));
 
@@ -94,14 +94,14 @@ class ListActiveListingsUseCaseImplTest {
                 new SellerReputation(90, false), new SellerReputation(null, false), new SellerReputation(90, false));
         assertThat(result.reputationStatus()).isEqualTo(ReputationStatus.AVAILABLE);
         assertThat(result.page().totalElements()).isEqualTo(45);
-        verify(sellerReputationPort, times(1)).lookup(any(), any());
+        verify(sellerReputationPort, times(1)).lookup(any());
     }
 
     @Test
     void minSellerScore_dropsOnlyKnownScoresBelowIt_unratedPasses() {
         page(listing("low", "seller-low"), listing("edge", "seller-edge"), listing("new", "seller-new"),
                 listing("high", "seller-high"));
-        when(sellerReputationPort.lookup(any(), any())).thenReturn(new ReputationLookup(Map.of(
+        when(sellerReputationPort.lookup(any())).thenReturn(new ReputationLookup(Map.of(
                 "seller-low", new SellerReputation(69, false),
                 "seller-edge", new SellerReputation(70, false),
                 "seller-new", new SellerReputation(null, false),
@@ -118,7 +118,7 @@ class ListActiveListingsUseCaseImplTest {
     @Test
     void reputationOutage_keepsEveryListing_andFlagsUnavailable() {
         page(listing("l-1", "seller-a"), listing("l-2", "seller-b"));
-        when(sellerReputationPort.lookup(any(), any())).thenReturn(new ReputationLookup(Map.of(), false));
+        when(sellerReputationPort.lookup(any())).thenReturn(new ReputationLookup(Map.of(), false));
 
         ListingSearchResult result = useCase.execute(new ListingSearchQuery(PAGE, 90, BUYER));
 
@@ -130,7 +130,7 @@ class ListActiveListingsUseCaseImplTest {
     @Test
     void partialOutage_filtersKnownSellers_keepsUnknownOnes() {
         page(listing("known-low", "seller-a"), listing("unknown", "seller-b"));
-        when(sellerReputationPort.lookup(any(), any())).thenReturn(
+        when(sellerReputationPort.lookup(any())).thenReturn(
                 new ReputationLookup(Map.of("seller-a", new SellerReputation(10, false)), false));
 
         ListingSearchResult result = useCase.execute(new ListingSearchQuery(PAGE, 50, BUYER));
