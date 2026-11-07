@@ -6,7 +6,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,7 +42,8 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role.trim().toUpperCase()))
                     .collect(Collectors.toList());
 
-            Authentication auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
+            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
+            auth.setDetails(GatewayAuthDetails.fromHeader(request.getHeader(GatewayAuthDetails.AUTH_TIME_HEADER)));
             SecurityContextHolder.getContext().setAuthentication(auth);
         } else if (secretHeader != null) {
             log.warn("Rejected request {} {}: invalid gateway secret or missing X-User-Id/X-User-Role header",
