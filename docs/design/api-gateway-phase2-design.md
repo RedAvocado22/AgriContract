@@ -34,6 +34,7 @@ Với authenticated request, Gateway xoá các header client có thể giả m�
 |---|---|
 | `X-User-Id` | JWT `sub` |
 | `X-User-Role` | Keycloak `realm_access.roles`, chỉ giữ role ứng dụng |
+| `X-User-Auth-Time` | JWT `auth_time` (epoch giây) — lần nhập mật khẩu gần nhất, cho step-up ký hợp đồng (signature §6 bước 2). Token không có claim (vd password grant) thì không gửi header; service cần step-up phải từ chối (**thêm 08/11/2026, #356**) |
 | `X-Correlation-Id` | Giữ UUID hợp lệ từ client hoặc sinh mới |
 | `X-Gateway-Secret` | Secret deployment, không nhận giá trị client |
 

@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
@@ -26,6 +27,8 @@ import java.util.Locale;
  */
 @Component
 public class UserContextInjectionFilter implements GlobalFilter {
+    static final String AUTH_TIME_CLAIM = "auth_time";
+    static final String AUTH_TIME_HEADER = "X-User-Auth-Time";
 
     @Value("${gateway.internal-secret}")
     private String internalSecret;
@@ -62,10 +65,27 @@ public class UserContextInjectionFilter implements GlobalFilter {
 
                     String roles = String.join(",", roleList);
 
-                    return (ServerHttpRequest) new UserContextRequestDecorator(request, id, email, roles, internalSecret);
+                    return (ServerHttpRequest) new UserContextRequestDecorator(request, id, email, roles,
+                            authTimeEpochSeconds(jwt), internalSecret);
                 })
-                .defaultIfEmpty(new UserContextRequestDecorator(request, null, null, null, internalSecret))
+                .defaultIfEmpty(new UserContextRequestDecorator(request, null, null, null, null, internalSecret))
                 .flatMap(decorated -> chain.filter(exchange.mutate().request(decorated).build()));
+    }
+
+    /**
+     * JWT auth_time (when the user last entered the password) in epoch seconds, or null. Keycloak puts it in tokens
+     * from the browser login (authorization code flow) but not in password-grant tokens; without it the header is
+     * left out and a service that needs a fresh login (contract signing step-up) refuses.
+     */
+    private static String authTimeEpochSeconds(Jwt jwt) {
+        Object authTime = jwt.getClaims().get(AUTH_TIME_CLAIM);
+        if (authTime instanceof Instant instant) {
+            return Long.toString(instant.getEpochSecond());
+        }
+        if (authTime instanceof Number number) {
+            return Long.toString(number.longValue());
+        }
+        return null;
     }
 
     /**
@@ -78,7 +98,7 @@ public class UserContextInjectionFilter implements GlobalFilter {
         private final HttpHeaders headers;
 
         UserContextRequestDecorator(ServerHttpRequest delegate, String userId, String email,
-                                     String roles, String gatewaySecret) {
+                                     String roles, String authTime, String gatewaySecret) {
             super(delegate);
             HttpHeaders copy = new HttpHeaders();
             copy.addAll(delegate.getHeaders());
@@ -92,6 +112,9 @@ public class UserContextInjectionFilter implements GlobalFilter {
                 copy.set("X-User-Id", userId);
                 copy.set("X-User-Email", email);
                 copy.set("X-User-Role", roles);
+                if (authTime != null) {
+                    copy.set(AUTH_TIME_HEADER, authTime);
+                }
             }
             copy.set("X-Gateway-Secret", gatewaySecret);
             this.headers = HttpHeaders.readOnlyHttpHeaders(copy);
