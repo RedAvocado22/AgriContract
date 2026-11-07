@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -28,14 +29,19 @@ public class CheckPlotForestBaselineUseCaseImpl implements CheckPlotForestBaseli
 
     @Override
     public int checkPending(int batchSize) {
+        List<PlotRegistryEntry> batch = plotRegistryRepository.findPendingGeoCheck(batchSize);
+        // stamp the whole batch up front: a plot that gets no result (outside coverage, failure, crash mid-batch)
+        // goes behind the others on the next run instead of being picked again ahead of newer plots
+        plotRegistryRepository.markGeoCheckAttempted(
+                batch.stream().map(PlotRegistryEntry::getRegistryEntryId).toList(), clock.instant());
         int recorded = 0;
-        for (PlotRegistryEntry entry : plotRegistryRepository.findPendingGeoCheck(batchSize)) {
+        for (PlotRegistryEntry entry : batch) {
             try {
                 if (check(entry)) {
                     recorded++;
                 }
             } catch (RuntimeException e) {
-                // one plot must not stop the batch; it stays PENDING and is retried on the next run
+                // one plot must not stop the batch; it stays PENDING and is retried once the queue comes back round
                 log.warn("Forest baseline check failed for plot {}", entry.getRegistryEntryId().value(), e);
             }
         }

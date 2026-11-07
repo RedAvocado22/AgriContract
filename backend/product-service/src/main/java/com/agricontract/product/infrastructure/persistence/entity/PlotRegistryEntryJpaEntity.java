@@ -74,4 +74,9 @@ public class PlotRegistryEntryJpaEntity {
     // UTC
     @Column(name = "imported_at", nullable = false)
     private LocalDateTime importedAt;
+
+    // UTC; last time the forest baseline check picked this plot up. Scheduling state only, not part of the domain:
+    // set by PlotRegistryRepository.markGeoCheckAttempted, never written by the mapper.
+    @Column(name = "geo_check_attempted_at")
+    private LocalDateTime geoCheckAttemptedAt;
 }

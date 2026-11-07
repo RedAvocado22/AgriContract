@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,8 +29,24 @@ public interface PlotRegistryEntryJpaRepository extends JpaRepository<PlotRegist
                                  @Param("target") GeoVerificationStatus target,
                                  @Param("cutoff") LocalDateTime cutoff);
 
-    List<PlotRegistryEntryJpaEntity> findByGeoVerificationStatusOrderByImportedAtAsc(GeoVerificationStatus status,
-                                                                                    Pageable pageable);
+    // never attempted first, then least recently attempted, then oldest import
+    @Query("""
+            SELECT p FROM PlotRegistryEntryJpaEntity p
+            WHERE p.geoVerificationStatus = :status
+            ORDER BY p.geoCheckAttemptedAt ASC NULLS FIRST, p.importedAt ASC
+            """)
+    List<PlotRegistryEntryJpaEntity> findGeoCheckQueue(@Param("status") GeoVerificationStatus status, Pageable pageable);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE PlotRegistryEntryJpaEntity p
+            SET p.geoCheckAttemptedAt = :attemptedAt
+            WHERE p.registryEntryId IN :registryEntryIds
+              AND p.geoVerificationStatus = :expected
+            """)
+    int markGeoCheckAttempted(@Param("registryEntryIds") Collection<String> registryEntryIds,
+                              @Param("expected") GeoVerificationStatus expected,
+                              @Param("attemptedAt") LocalDateTime attemptedAt);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

@@ -10,8 +10,9 @@ import java.util.List;
 public record ForestBaselineAssessment(String datasetVersion, List<ForestOverlap> overlaps) {
 
     public ForestBaselineAssessment {
-        if (datasetVersion == null || datasetVersion.isBlank())
+        if (datasetVersion == null || datasetVersion.isBlank()) {
             throw new IllegalArgumentException("datasetVersion must not be blank");
+        }
         overlaps = List.copyOf(overlaps);
     }
 

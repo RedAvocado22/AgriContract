@@ -31,8 +31,14 @@ public interface PlotRegistryRepository {
      */
     int markUnverifiedImportedBefore(Instant cutoff);
 
-    /** Oldest PENDING entries first, at most {@code limit}. */
+    /**
+     * PENDING entries to check, at most {@code limit}: never-attempted first, then least recently attempted, then
+     * oldest import. Entries the check cannot answer yet rotate behind the others instead of filling every batch.
+     */
     List<PlotRegistryEntry> findPendingGeoCheck(int limit);
+
+    /** Stamps the entries still PENDING as picked up by the geo check at {@code attemptedAt}. */
+    void markGeoCheckAttempted(Collection<RegistryEntryId> registryEntryIds, Instant attemptedAt);
 
     /**
      * Stores a geo check result and its audit record together. Conditional on the entry still being PENDING with the
