@@ -1,5 +1,6 @@
 package com.agricontract.inspection;
 
+import java.sql.SQLException;
 import com.agricontract.inspection.application.exception.InspectionAssignmentAccessDeniedException;
 import com.agricontract.inspection.application.exception.InspectorNotEligibleException;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
@@ -170,7 +171,7 @@ class ScaffoldBoundaryTest {
     void invalidEndTimeAndMissingInspectorAreRejectedByMySql() {
         assertThatThrownBy(() -> insert(UUID.randomUUID().toString(), CONTRACT, MILESTONE,
                 INSPECTOR_A, ASSIGNED.minusSeconds(1)))
-                .hasRootCauseInstanceOf(java.sql.SQLException.class)
+                .hasRootCauseInstanceOf(SQLException.class)
                 .hasMessageContaining("3819").hasMessageContaining("chk_l15_assignment_time");
         assertThatThrownBy(() -> insert(UUID.randomUUID().toString(), CONTRACT, MILESTONE,
                 null, null)).isInstanceOf(DataIntegrityViolationException.class);
