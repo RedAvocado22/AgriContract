@@ -6,6 +6,8 @@ import com.agricontract.contract.application.port.OtpEmailPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
+import feign.Request;
+import feign.RetryableException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,10 +24,13 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -147,11 +152,11 @@ class OtpEmailPortAdapterTest {
 
     @Test
     void nobodyListening_isNotSent() {
-        feign.Request request = feign.Request.create(feign.Request.HttpMethod.POST, "http://notification",
-                java.util.Map.of(), null, StandardCharsets.UTF_8, null);
+        Request request = Request.create(Request.HttpMethod.POST, "http://notification", Map.of(), null,
+                StandardCharsets.UTF_8, null);
         NotificationServiceClient dead = body -> {
-            throw new feign.RetryableException(-1, "Connection refused", feign.Request.HttpMethod.POST,
-                    new java.net.ConnectException("Connection refused"), (Long) null, request);
+            throw new RetryableException(-1, "Connection refused", Request.HttpMethod.POST,
+                    new ConnectException("Connection refused"), (Long) null, request);
         };
         OtpEmailPortAdapter adapter = new OtpEmailPortAdapter(dead, objectMapper);
 
@@ -163,7 +168,7 @@ class OtpEmailPortAdapterTest {
     private static HttpServer startServer() {
         try {
             HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-            httpServer.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
+            httpServer.setExecutor(Executors.newCachedThreadPool());
             httpServer.createContext("/", exchange -> {
                 calls.incrementAndGet();
                 lastPath.set(exchange.getRequestURI().getPath());
