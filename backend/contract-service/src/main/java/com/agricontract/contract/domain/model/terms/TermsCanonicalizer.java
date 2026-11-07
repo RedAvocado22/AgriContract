@@ -5,4 +5,7 @@ public interface TermsCanonicalizer {
     String canonicalJson(ContractTermsSnapshot snapshot);
 
     ContractTermsSnapshot parse(String canonicalJson);
+
+    /** Canonical JSON of the negotiated part only; used to fingerprint a request for idempotency. */
+    String canonicalInputJson(ContractTermsInput input);
 }
