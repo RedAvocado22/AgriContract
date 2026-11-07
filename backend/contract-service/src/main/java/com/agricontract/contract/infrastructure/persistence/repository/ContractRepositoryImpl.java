@@ -32,10 +32,12 @@ public class ContractRepositoryImpl implements ContractRepository {
     @Transactional
     public Contract save(Contract contract) {
         var entity = mapper.toJpaEntity(contract);
+        // Keep the version the aggregate was loaded with: a concurrent writer that saved first makes this update
+        // fail with an optimistic-lock conflict instead of silently overwriting it.
         jpaRepo.findByContractId(contract.getContractId().value())
                .ifPresent(existing -> {
                    entity.setId(existing.getId());
-                   entity.setVersion(existing.getVersion());
+                   entity.setVersion(contract.getVersion() != null ? contract.getVersion() : existing.getVersion());
                });
         jpaRepo.save(entity);
 
