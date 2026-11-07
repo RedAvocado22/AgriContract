@@ -128,6 +128,24 @@ public class Listing {
         return updatedAt == null ? null : updatedAt.toString();
     }
 
+    public boolean isAtVersion(String versionToken) {
+        String current = getVersionToken();
+        return current != null && current.equals(versionToken);
+    }
+
+    /**
+     * Whether a contract goods snapshot can be built from this listing (golden-flow CoffeeGoodsTerms): coffee, with a
+     * category, a region and at least one plot. Every listing created since Phase 2 is; legacy rows are not.
+     */
+    public boolean canBackCoffeeContract() {
+        return goods != null
+                && goods.commodity() == Commodity.COFFEE
+                && goods.categoryId() != null
+                && goods.regionText() != null && !goods.regionText().isBlank()
+                && productName != null && !productName.isBlank()
+                && !plots.isEmpty();
+    }
+
     /**
      * Explains why an atomic reserve matched no row, re-checked against the latest committed state.
      * Quantity problems win over state/version so a buyer losing the last stock sees "insufficient".
