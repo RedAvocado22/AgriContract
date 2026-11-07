@@ -70,6 +70,7 @@ Mọi notification không cần caller biết kết quả gửi ngay lập tức
 ```
 
 - API trả `200 OK` chỉ khi mail provider đã nhận request gửi; lỗi provider trả 5xx để contract-service không nói sai “OTP đã gửi”.
+- Idempotent theo `requestId`: `SENT` → `200` không gửi lại; `FAILED` → gửi lại theo retry của caller; claim còn hiệu lực → `503` (xem §5).
 - Không route endpoint này qua API Gateway.
 - Notification không lưu/ghi log plaintext OTP; body được render trong memory. Log chỉ giữ `requestId`, template, recipient, status và hash/reference an toàn.
 - Contract-service vẫn sở hữu OTP hash, attempt count, expiry và verify logic.
@@ -149,7 +150,7 @@ receive → validate → reserve unique key/PENDING → render → provider send
 - Insert/reserve unique key trước khi gửi để hai consumer không gửi song song cùng mail.
 - Duplicate khi row `SENT` → ack/skip. Row `PENDING/FAILED` chỉ retry theo policy, không tạo row mới.
 - Retry async tối đa 3 lần với exponential backoff; permanent validation error đi DLQ ngay.
-- OTP synchronous không retry nền sau khi đã trả lỗi cho caller, tránh caller tạo OTP mới trong khi OTP cũ bất ngờ được gửi muộn. Caller có thể retry cùng `requestId`; idempotency trả lại kết quả đã biết.
+- OTP synchronous không retry nền sau khi đã trả lỗi cho caller, tránh caller tạo OTP mới trong khi OTP cũ bất ngờ được gửi muộn. Caller có thể retry cùng `requestId`: `SENT` → `200` không gửi lại; `FAILED` → gửi lại theo retry của caller (caller chủ động yêu cầu, không phải gửi muộn nền); claim `PENDING` còn hiệu lực → `503` ngay.
 - Final document dedup theo semantic key `(documentId, recipientEmail, CONTRACT_FINAL_PDF)`; redelivery event/command không được gửi hai bản final cho cùng recipient.
 - DLQ security/evidence tạo operational alert; không silently discard.
 
@@ -179,6 +180,8 @@ CREATE UNIQUE INDEX uq_event_recipient_type
 ```
 
 Khi migrate, cột Phase 1 `user_id` đổi semantics thành `recipient_user_id` hoặc được giữ tạm rồi backfill; migration implementation phải không làm mất log cũ. **Bổ sung (17/07/2026):** cột `NOT NULL` mới mang `DEFAULT` sentinel (`LEGACY_P1`/`''`/`p1-unknown`) để `ALTER` chạy được trên bảng có data mà không phụ thuộc SQL mode; `recipient_email` backfill `legacy:{user_id}` **trước** khi tạo unique index mới (tránh va chạm các row cùng `event_id`). Log cũ là read-only audit — `notification_type = 'LEGACY_P1'` không trùng với type mới nên không tham gia dedup của Phase 2.
+
+**Lưu ý (05/11/2026):** dù tên là `user_id`, Phase 1 (Java và NestJS) thực tế lưu **email người nhận** vào cột này, không phải platform userId; row OTP của §2.2 cũng vậy (`event_id = requestId`, `user_id = recipientEmail`). Vì thế backfill có dạng `legacy:alice@…`. Platform userId (`recipients[].userId`, `recipientUserId`) chỉ được lưu khi V2 thêm cột riêng; việc giữ hay đổi tên `user_id` chờ owner chốt.
 
 ## 7. Configuration
 

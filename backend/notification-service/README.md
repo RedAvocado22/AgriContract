@@ -29,6 +29,42 @@ removed; tag `notification-java-final` is the rollback point (plan §7).
 - On shutdown the consumers are cancelled and in-flight messages finish (up to 8s) before the channel and the
   database pool close.
 
+### OTP email endpoint (Phase 2, #114)
+
+`POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
+sends the contract-signing OTP synchronously. Service-to-service only: the caller sends `SERVICE_INTERNAL_SECRET` in
+`X-Internal-Secret`, and the gateway never routes `/internal/**`.
+
+| Response | When |
+| --- | --- |
+| `200`, empty body | The mail server accepted the email, now or for an earlier call with the same `requestId` |
+| `400 VALIDATION_ERROR` | Body is not JSON or does not match `OtpEmailRequest`; the message names fields, never values |
+| `401 UNAUTHORIZED` | Missing or wrong `X-Internal-Secret` |
+| `502 OTP_EMAIL_PROVIDER_FAILED` | The mail server did not accept it; nothing is retried later |
+| `503 OTP_EMAIL_IN_PROGRESS` | Another call with the same `requestId` is sending it right now |
+| `503 NOTIFICATION_LOG_UNAVAILABLE` | `notification_logs` could not be written; nothing was sent |
+
+Errors use the shared envelope (`timestamp, status, error, code, message, path, traceId`).
+
+- **Idempotent by `requestId`** (the caller's `otpId`): each call is claimed in `notification_logs` with
+  `event_id = requestId` before sending. A repeated call after `SENT` returns 200 without a second email; after
+  `FAILED` it sends again (the caller asked); while another call holds the claim it returns 503 at once.
+- **The OTP is never stored or logged.** `body` holds a placeholder; logs carry the `requestId` and a failure code.
+  The code is the only line of its own in the email, and the subject does not contain it.
+- **Short SMTP timeouts** (1s connect, 1s greeting, 2.5s inactivity) so a failure comes back before the caller's
+  read timeout of at least 5s (#167).
+- Stricter than the contract, which only says `string`: `requestId` is at most 36 characters of `[A-Za-z0-9._:-]`
+  (it is stored in `event_id`, `VARCHAR(36)`, and logged); `recipientUserId` and `contractId` are 1–255 characters.
+  `test/contract/otp-email-request.contract.spec.ts` checks the fields and verdicts against the contract file.
+- Until the V2 migration (#115) these rows have no `notification_type`; V2 backfills them like any Phase 1 row.
+
+**Known limitations.** The SMTP inactivity timeout restarts whenever the server answers, so a server that answers
+slowly can take longer than 5s; and a mail the server accepted just as the caller gave up is still delivered. Both
+can make a user see "not sent" for a code that arrives. The caller treats any non-200 as "not sent" and lets the
+user request a new code, which supersedes the old one.
+
+Bruno `notification-service/20`–`25` and `npm run test:int` (`otp-email.int-spec.ts`) check it against MailHog.
+
 The table `notification_logs` comes from `db/migration/V1__create_notification_logs.sql`, a byte-for-byte copy of
 the Java service's Flyway V1 (same checksum). The app does not run migrations; the compose service
 `notification-migrate` (`flyway/flyway:10.10.0`) does, before the app starts.
@@ -52,6 +88,7 @@ startup with a list of every invalid variable. `.env` files are not read.
 | `MAIL_FROM` | `noreply@agricontract.com` |
 | `ADMIN_EMAIL` | `admin@agricontract.com` |
 | `SERVER_PORT` | `8085` |
+| `SERVICE_INTERNAL_SECRET` | `changeme-internal` (same default as contract-service; compose requires it in `.env`) |
 
 ## Run with compose
 
@@ -118,7 +155,7 @@ Unlike Spring Boot's actuator, health does not check SMTP.
 | `npm test` | Unit tests (Jest) |
 | `npm run lint` | ESLint + Prettier, fixing what it can |
 | `npm run lint:check` | Same without `--fix`, for CI |
-| `npm run test:int` | Integration tests against the compose MySQL (`DB_*` env, table `notification_logs` must exist) |
+| `npm run test:int` | Integration tests against the compose MySQL (`DB_*` env, table `notification_logs` must exist) and, for the OTP endpoint, MailHog (`MAIL_HOST`/`MAIL_PORT`, API at `MAILHOG_API_URL`, default `http://localhost:8025`) |
 
 ## Golden email fixtures
 
@@ -133,6 +170,14 @@ is gone, so the fixture is not regenerated: change it only together with an inte
 `execute(command)`, the shared `NotificationSender`, the ports and their errors. `NotificationModule` builds these
 classes with factories from the `EMAIL_PORT`, `NOTIFICATION_LOG_REPOSITORY` and `NOTIFICATION_SETTINGS` tokens;
 `src/infrastructure` holds the Nest/amqplib/mysql2/nodemailer adapters.
+
+The OTP endpoint follows the same split: `src/application/otp` (request validation, template,
+`SendOtpEmailUseCase`), `src/infrastructure/http` (controller, `X-Internal-Secret` guard, error envelope filter,
+body reader), wired by `OtpEmailModule` with its own short-timeout `OTP_EMAIL_PORT`. The app runs without Nest's
+body parser (`src/app.options.ts`), so a malformed body never ends up in an error message or a log line.
+
+Bruno uses `service_internal_secret: local-dev` from `bruno/environments/local.bru`, matching the compose examples
+above; override it with `--env-var service_internal_secret=...` if your `.env` differs.
 
 ## Why Jest has its own tsconfig
 

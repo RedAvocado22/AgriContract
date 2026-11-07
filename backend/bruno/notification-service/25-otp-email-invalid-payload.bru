@@ -1,0 +1,41 @@
+meta {
+  name: 25. OTP email with an invalid otpCode is rejected (400) without echoing it
+  type: http
+  seq: 25
+}
+
+post {
+  url: {{notification_service_url}}/internal/v1/notifications/otp-email
+  body: json
+  auth: none
+}
+
+headers {
+  X-Internal-Secret: {{service_internal_secret}}
+}
+
+body:json {
+  {
+    "requestId": "otp-invalid",
+    "recipientUserId": "{{buyer1_sub}}",
+    "recipientEmail": "{{buyer1_email}}",
+    "contractId": "notif-otp-invalid",
+    "otpCode": "12x4",
+    "signedContentHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "expiresAt": "2026-11-04T10:15:00Z"
+  }
+}
+
+tests {
+  test("400 VALIDATION_ERROR naming the field", function() {
+    expect(res.getStatus()).to.equal(400);
+    expect(res.getBody().code).to.equal("VALIDATION_ERROR");
+    expect(res.getBody().message).to.equal("otpCode is invalid");
+  });
+
+  test("the response does not echo the code or the address", function() {
+    const text = JSON.stringify(res.getBody());
+    expect(text).to.not.contain("12x4");
+    expect(text).to.not.contain(bru.getEnvVar("buyer1_email"));
+  });
+}

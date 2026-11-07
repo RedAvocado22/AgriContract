@@ -21,6 +21,11 @@ export interface AppConfig {
   mail: { host: string; port: number; from: string };
   adminEmail: string;
   serverPort: number;
+  /**
+   * X-Internal-Secret of service-to-service calls (golden-flow-api.yaml
+   * serviceAuth), the same SERVICE_INTERNAL_SECRET as the Java services.
+   */
+  serviceInternalSecret: string;
 }
 
 /**
@@ -75,6 +80,9 @@ export function validate(env: Record<string, unknown>): AppConfig {
     },
     adminEmail: text('ADMIN_EMAIL', 'admin@agricontract.com'),
     serverPort: port('SERVER_PORT', 8085),
+    // Same default as contract-service and user-service, so a local run
+    // without .env still authenticates; compose requires it in .env.
+    serviceInternalSecret: text('SERVICE_INTERNAL_SECRET', 'changeme-internal'),
   };
 
   if (errors.length > 0) {
