@@ -54,7 +54,7 @@ public class ListActiveListingsUseCaseImpl implements ListActiveListingsUseCase 
         listings.forEach(listing -> sellerIds.add(listing.getSellerId()));
         ReputationLookup lookup = sellerIds.isEmpty()
                 ? new ReputationLookup(Map.of(), true)
-                : sellerReputationPort.lookup(sellerIds, query.viewer());
+                : sellerReputationPort.lookup(sellerIds);
 
         List<ListingSearchItem> items = listings.stream()
                 .map(listing -> new ListingSearchItem(ListingResponse.from(listing),

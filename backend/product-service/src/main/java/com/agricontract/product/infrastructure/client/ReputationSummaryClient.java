@@ -1,7 +1,6 @@
 package com.agricontract.product.infrastructure.client;
 
 import com.agricontract.product.application.dto.ReputationLookup;
-import com.agricontract.product.application.dto.ReputationViewer;
 import com.agricontract.product.application.dto.SellerReputation;
 import com.agricontract.product.application.port.SellerReputationPort;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -20,41 +19,35 @@ import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
- * Reads {@code GET /api/v1/reputation/{userId}/public-summary} for every seller on a search page, in parallel and
- * within one time budget. The endpoint only accepts a gateway-authenticated user, so each read carries the gateway
- * secret and the identity of the viewer who searched (the same identity the gateway gave this request).
- * Only {@code score} and {@code locked} are kept. Any failure leaves that seller unknown; nothing is thrown.
+ * Reads seller reputation for one search page with a single
+ * {@code POST /internal/v1/reputation/public-summaries} call (golden-flow-api.yaml getPublicReputationSummaries).
+ * The call is service-to-service ({@code X-Internal-Secret}); it never carries the gateway secret or the viewer.
+ * Only {@code score} and {@code locked} are kept. Any failure leaves the affected sellers unknown; nothing is thrown.
  */
 @Component
 public class ReputationSummaryClient implements SellerReputationPort {
     private static final Logger LOG = LoggerFactory.getLogger(ReputationSummaryClient.class);
+    private static final String PATH = "/internal/v1/reputation/public-summaries";
     private static final MediaType JSON_SUFFIX = new MediaType("application", "*+json");
     private static final BigDecimal MAX_SCORE = BigDecimal.valueOf(100);
+    /** ReputationBatchSummaryRequest.userIds maxItems; a search page is capped at 100 listings anyway. */
+    static final int MAX_BATCH = 100;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final RestClient client;
-    private final long budgetNanos;
 
     public ReputationSummaryClient(RestClient.Builder builder,
                                    @Value("${reputation-service.url}") String baseUrl,
-                                   @Value("${gateway.internal-secret}") String gatewaySecret,
+                                   @Value("${service.internal-secret}") String internalSecret,
                                    @Value("${reputation-service.connect-timeout-ms}") int connectTimeoutMs,
-                                   @Value("${reputation-service.read-timeout-ms}") int readTimeoutMs,
-                                   @Value("${reputation-service.lookup-budget-ms}") int budgetMs) {
-        if (gatewaySecret == null || gatewaySecret.isBlank()) {
-            throw new IllegalArgumentException("GATEWAY_INTERNAL_SECRET must be configured");
+                                   @Value("${reputation-service.read-timeout-ms}") int readTimeoutMs) {
+        if (internalSecret == null || internalSecret.isBlank()) {
+            throw new IllegalArgumentException("SERVICE_INTERNAL_SECRET must be configured");
         }
         HttpClient transport = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeoutMs))
@@ -63,56 +56,36 @@ public class ReputationSummaryClient implements SellerReputationPort {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(transport);
         factory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
         client = builder.requestFactory(factory).baseUrl(baseUrl)
-                .defaultHeader("X-Gateway-Secret", gatewaySecret)
+                .defaultHeader("X-Internal-Secret", internalSecret)
                 .build();
-        budgetNanos = TimeUnit.MILLISECONDS.toNanos(budgetMs);
     }
 
     @Override
-    public ReputationLookup lookup(Set<String> sellerIds, ReputationViewer viewer) {
+    public ReputationLookup lookup(Set<String> sellerIds) {
         if (sellerIds.isEmpty()) {
             return new ReputationLookup(Map.of(), true);
         }
-        long deadline = System.nanoTime() + budgetNanos;
-        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-        Map<String, Future<SellerReputation>> reads = new LinkedHashMap<>();
-        Map<String, SellerReputation> found = new HashMap<>();
-        Map<String, Integer> failures = new TreeMap<>();
+        if (sellerIds.size() > MAX_BATCH) {
+            return incomplete(Map.of(), sellerIds.size(), "batch_too_large");
+        }
+        Map<String, SellerReputation> found;
         try {
-            sellerIds.forEach(sellerId -> reads.put(sellerId, executor.submit(() -> read(sellerId, viewer))));
-            for (var read : reads.entrySet()) {
-                try {
-                    long remaining = Math.max(0, deadline - System.nanoTime());
-                    found.put(read.getKey(), read.getValue().get(remaining, TimeUnit.NANOSECONDS));
-                } catch (TimeoutException late) {
-                    failures.merge("budget_exceeded", 1, Integer::sum);
-                } catch (ExecutionException failed) {
-                    String category = failed.getCause() instanceof InvalidAnswer invalid
-                            ? invalid.category : "transport";
-                    failures.merge(category, 1, Integer::sum);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    failures.merge("interrupted", 1, Integer::sum);
-                    break;
-                }
-            }
-        } finally {
-            // Never wait for reads past the budget: interrupt them and answer with what arrived in time.
-            executor.shutdownNow();
+            found = parse(sellerIds, read(sellerIds));
+        } catch (InvalidAnswer invalid) {
+            return incomplete(Map.of(), sellerIds.size(), invalid.category);
+        } catch (RuntimeException transport) {
+            return incomplete(Map.of(), sellerIds.size(), "transport");
         }
-        boolean complete = found.size() == sellerIds.size();
-        if (!complete) {
-            // Bounded categories and counts only: never the seller or viewer ids, nor the remote body.
-            LOG.warn("reputation_dependency_failure unread={} of={} categories={}",
-                    sellerIds.size() - found.size(), sellerIds.size(), failures);
+        if (found.size() < sellerIds.size()) {
+            return incomplete(found, sellerIds.size(), "missing_items");
         }
-        return new ReputationLookup(found, complete);
+        return new ReputationLookup(found, true);
     }
 
-    private SellerReputation read(String sellerId, ReputationViewer viewer) {
-        JsonNode body = client.get().uri("/api/v1/reputation/{userId}/public-summary", sellerId)
-                .header("X-User-Id", viewer.userId())
-                .header("X-User-Role", String.join(",", viewer.roles()))
+    private JsonNode read(Set<String> sellerIds) {
+        return client.post().uri(PATH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("userIds", List.copyOf(sellerIds)))
                 .exchange((request, response) -> {
                     if (!response.getStatusCode().is2xxSuccessful()) {
                         throw new InvalidAnswer("dependency_http");
@@ -128,20 +101,36 @@ public class ReputationSummaryClient implements SellerReputationPort {
                         throw new InvalidAnswer("malformed_response");
                     }
                 });
-        return parse(sellerId, body);
     }
 
-    // ReputationPublicSummary (golden-flow-api.yaml): userId echoes the path, score is null or 0..100, locked boolean.
-    private static SellerReputation parse(String sellerId, JsonNode body) {
-        if (body == null || !body.isObject()) {
+    /*
+     * ReputationBatchSummaryResponse: {items: [{userId, score: null | 0..100 integer, locked: boolean}]}, exactly one
+     * item per requested id, order not frozen. An item for an id we did not ask for, a repeated id or a bad field
+     * makes the whole answer untrusted; an id with no item is just left unknown.
+     */
+    private static Map<String, SellerReputation> parse(Set<String> sellerIds, JsonNode body) {
+        if (body == null || !body.isObject() || body.get("items") == null || !body.get("items").isArray()) {
             throw new InvalidAnswer("malformed_response");
         }
-        JsonNode userId = body.get("userId");
-        if (userId == null || !userId.isTextual() || !sellerId.equalsIgnoreCase(userId.textValue())) {
-            throw new InvalidAnswer("identity_mismatch");
+        Map<String, String> requested = new HashMap<>();
+        sellerIds.forEach(id -> requested.put(id.toLowerCase(), id));
+        Map<String, SellerReputation> found = new HashMap<>();
+        for (JsonNode item : body.get("items")) {
+            if (!item.isObject() || item.get("userId") == null || !item.get("userId").isTextual()) {
+                throw new InvalidAnswer("malformed_response");
+            }
+            String sellerId = requested.get(item.get("userId").textValue().toLowerCase());
+            if (sellerId == null || found.containsKey(sellerId)) {
+                throw new InvalidAnswer("identity_mismatch");
+            }
+            found.put(sellerId, reputation(item));
         }
-        JsonNode score = body.get("score");
-        JsonNode locked = body.get("locked");
+        return found;
+    }
+
+    private static SellerReputation reputation(JsonNode item) {
+        JsonNode score = item.get("score");
+        JsonNode locked = item.get("locked");
         if (score == null || locked == null || !locked.isBoolean()) {
             throw new InvalidAnswer("malformed_response");
         }
@@ -153,6 +142,13 @@ public class ReputationSummaryClient implements SellerReputationPort {
             throw new InvalidAnswer("malformed_response");
         }
         return new SellerReputation(score.intValue(), locked.booleanValue());
+    }
+
+    private static ReputationLookup incomplete(Map<String, SellerReputation> found, int requested, String category) {
+        // Bounded category and counts only: never the seller ids nor the remote body.
+        LOG.warn("reputation_dependency_failure unread={} of={} category={}",
+                requested - found.size(), requested, category);
+        return new ReputationLookup(found, false);
     }
 
     private static final class InvalidAnswer extends RuntimeException {
