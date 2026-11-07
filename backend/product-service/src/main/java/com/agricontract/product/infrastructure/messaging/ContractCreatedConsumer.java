@@ -3,11 +3,11 @@ package com.agricontract.product.infrastructure.messaging;
 import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.eventing.InvalidEnvelopeException;
+import com.agricontract.product.application.exception.InvalidEventPayloadException;
 import com.agricontract.product.application.dto.ContractCreatedCommand;
 import com.agricontract.product.application.usecase.ConfirmContractCreatedUseCase;
 import com.agricontract.product.infrastructure.config.RabbitMQConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -68,7 +68,7 @@ public class ContractCreatedConsumer {
                     reservedQuantity);
         } catch (InvalidEnvelopeException | IllegalArgumentException | DateTimeException e) {
             log.error("event=contract_created_rejected alert=OPERATOR reason={}", e.getMessage());
-            throw new AmqpRejectAndDontRequeueException("Invalid contract.created event", e);
+            throw new InvalidEventPayloadException("Invalid contract.created event", e);
         }
     }
 

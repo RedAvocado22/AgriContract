@@ -1,6 +1,7 @@
 package com.agricontract.product.infrastructure.messaging;
 
 import com.agricontract.product.application.dto.ContractCreatedCommand;
+import com.agricontract.product.application.exception.InvalidEventPayloadException;
 import com.agricontract.product.application.usecase.ConfirmContractCreatedUseCase;
 import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.product.infrastructure.contract.FrozenSchemas;
@@ -8,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 
@@ -93,7 +93,7 @@ class ContractCreatedConsumerTest {
 
     private void assertRejected(String body) {
         assertThatThrownBy(() -> consumer.onContractCreated(message(body)))
-                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+                .isInstanceOf(InvalidEventPayloadException.class);
         verify(useCase, never()).execute(any());
     }
 
