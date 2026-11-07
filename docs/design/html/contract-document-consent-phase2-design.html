@@ -47,7 +47,8 @@
 <li>Điều khoản thực thi nằm trong field có cấu trúc: giá, khối lượng, milestone, giao nhận, chất lượng, inspection, đặt cọc, penalty và remedy.</li>
 <li>Điều khoản hybrid có cả câu chữ render cho người đọc và rule cấu trúc cho hệ thống. Text và rule phải cùng lấy từ một snapshot/version; không được để PDF nói một ý còn engine tính một ý khác.</li>
 </ul>
-<p>Chưa chốt hai lựa chọn phải để hiển thị rõ là cấu hình/pháp lý cần duyệt, không tự bịa mặc định: bộ tiêu chuẩn/phương pháp thử chất lượng cà phê bên ngoài; toà án Việt Nam hay trọng tài thương mại trong nước là cơ quan giải quyết tranh chấp.</p>
+<p>Chưa chốt một lựa chọn phải để hiển thị rõ là cấu hình/pháp lý cần duyệt, không tự bịa mặc định: bộ tiêu chuẩn/phương pháp thử chất lượng cà phê bên ngoài.</p>
+<p><strong>Giải quyết tranh chấp ngoài nền tảng (chốt 07/11/2026):</strong> template không chọn toà án hay trọng tài thay các bên. Điều khoản cố định ghi: tranh chấp không giải quyết được trong quy trình của nền tảng (giám định, <code>ARBITRATOR</code> nội bộ, contest window) do các bên tự giải quyết theo pháp luật Việt Nam; nền tảng cung cấp hồ sơ chứng cứ (terms snapshot, <code>signedContentHash</code>, consent, signature, audit chain, PDF) khi được yêu cầu. Nền tảng không phải một bên của tranh chấp đó. Không có thoả thuận trọng tài thì thẩm quyền mặc định thuộc toà án; các bên vẫn có thể tự lập thoả thuận trọng tài sau khi tranh chấp phát sinh. <code>ARBITRATOR</code> của nền tảng là người phân xử nội bộ, không phải trọng tài thương mại theo luật. Vì template đã có điều khoản rõ ràng, không còn bước chặn ký do thiếu cấu hình cơ quan giải quyết tranh chấp.</p>
 </section><section aria-labelledby="heading-sec-4" class="section" id="sec-4"><h2 id="heading-sec-4"><span class="sec-num">§4</span> Bằng chứng đồng ý theo từng hành vi <a aria-label="Sao chép liên kết tới §4" class="anchor" href="#sec-4">#</a></h2>
 <figure class="code" data-lang="text"><pre><code>ConsentEvidence:
   consentId
@@ -145,7 +146,7 @@ GET /api/v1/contracts/{contractId}/documents/{documentId}
 <ul>
 <li>Chưa tích hợp chữ ký số CA hoặc ký sinh trắc học; không được marketing checkbox là điểm chỉ/vân tay thật.</li>
 <li>Chưa chốt citation tiêu chuẩn chất lượng cà phê cụ thể; <code>coffeeQualityProfileVersion</code> là profile nội bộ có version cho tới khi pháp lý/nghiệp vụ duyệt nguồn ngoài.</li>
-<li>Chưa chốt toà án hay trọng tài trong nước; template phải fail validation trước ký nếu deployment chưa cấu hình lựa chọn đã được duyệt.</li>
+<li>Template không chọn sẵn toà án hay trọng tài thương mại: tranh chấp ngoài nền tảng do các bên tự giải quyết theo pháp luật Việt Nam (§3). Câu chữ điều khoản cần luật sư duyệt trước production.</li>
 <li>PDF chuyên nghiệp là representation của snapshot đã ký, không phải nguồn sự thật thay cho structured terms/hash.</li>
 </ul>
 </section><details class="changelog" id="changelog"><summary>Changelog · lịch sử quyết định</summary><ol class="changelog__timeline"><li><span class="changelog__date">06/10/2026</span><p>Chốt template Việt Nam + cà phê, consent bind từng hành vi và final PDF async để text/rule cùng snapshot, không rollback chữ ký khi render lỗi.</p>

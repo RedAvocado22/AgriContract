@@ -12,4 +12,5 @@
 Điều 6. Bất khả kháng: báo cáo trong thời hạn đã thoả thuận, kèm bằng chứng.
 Điều 7. Vi phạm và chế tài: chỉ áp dụng sau quyết định xác định lỗi; phạt vi phạm không vượt trần luật định.
 Điều 8. Chấm dứt hợp đồng: theo các trường hợp đã quy định trong điều khoản có cấu trúc.
-Điều 9. Giải quyết tranh chấp: cơ quan giải quyết tranh chấp chưa chốt, chờ duyệt pháp lý.
+Điều 9. Giải quyết tranh chấp: tranh chấp không giải quyết được trong quy trình của AgriContract do các bên tự giải quyết theo
+pháp luật Việt Nam. AgriContract không phải một bên của tranh chấp đó và cung cấp hồ sơ chứng cứ khi được yêu cầu.

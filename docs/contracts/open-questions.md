@@ -1,6 +1,6 @@
 # Contract Questions
 
-No unresolved technical flow blocker remains. Two legal/content selections must be completed before production signing: the approved coffee test-standard/method profile and the domestic dispute forum.
+No unresolved technical flow blocker remains. One legal/content selection must be completed before production signing: the approved coffee test-standard/method profile. The dispute clause no longer blocks signing: disputes beyond the platform process are resolved by the parties under Vietnamese law, and the platform supplies evidence.
 
 ## Closed decisions
 
@@ -60,6 +60,6 @@ These items are accepted Phase 2 boundaries, not unresolved blockers and not aut
 | Rejected inspection report | `REJECTED` is terminal and has no reason granularity; resubmission requires a new commission/report. | Rejection taxonomy and dedicated resubmission lifecycle. |
 | Listing certification declaration | Certifications declared at listing time are seller-provided free text only, not platform-verified proof. | Verification of certificate validity and expiry at delivery through `documentTerms` is deferred beyond V1. |
 | Coffee quality standard | Phase 2 signs a versioned internal `coffeeQualityProfileVersion`; no ISO/TCVN compliance claim is made yet. | Select and legally review the exact external standard, sampling and test methods before production use. |
-| Domestic dispute forum | Governing law is Vietnam, but court versus domestic commercial arbitration is not silently defaulted. | Legal/product owner selects the forum and approved clause before a template version becomes signable. |
+| Domestic dispute forum | The template does not pick court or commercial arbitration for the parties: disputes the platform process cannot resolve are settled by the parties under Vietnamese law (court by default; the parties may still agree on arbitration after a dispute arises). The platform is not a party and supplies its evidence on request. | Lawyer review of the clause wording before production. |
 
 Any future API/event/error addition requires a change to an authoritative Phase 2 design before this contract set can adopt it.
