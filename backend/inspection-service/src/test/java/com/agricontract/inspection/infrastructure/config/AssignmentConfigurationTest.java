@@ -1,5 +1,6 @@
 package com.agricontract.inspection.infrastructure.config;
 
+import com.agricontract.calendar.VietnamBusinessDays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -30,7 +31,7 @@ class AssignmentConfigurationTest {
                 .withPropertyValues("VIETNAM_HOLIDAYS=2026-10-26, 2027-01-01")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    var calendar = context.getBean(com.agricontract.calendar.VietnamBusinessDays.class);
+                    var calendar = context.getBean(VietnamBusinessDays.class);
                     assertThat(calendar.deadline(Instant.parse("2026-10-23T03:00:00Z"), 1))
                             .isEqualTo(Instant.parse("2026-10-27T16:59:59.999Z"));
                 });

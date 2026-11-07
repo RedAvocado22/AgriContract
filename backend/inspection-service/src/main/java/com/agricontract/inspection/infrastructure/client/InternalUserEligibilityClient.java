@@ -1,5 +1,8 @@
 package com.agricontract.inspection.infrastructure.client;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.UUID;
 import com.agricontract.inspection.application.exception.EligibilityUnavailableException;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
 import com.agricontract.inspection.domain.model.InspectorEligibility;
@@ -90,7 +93,7 @@ public class InternalUserEligibilityClient implements InspectorEligibilityPort {
     }
 
     @Override
-    public java.util.List<String> loadEligibleInspectors() {
+    public List<String> loadEligibleInspectors() {
         try {
             JsonNode body = client.get().uri("/internal/v1/users/inspectors/eligible")
                     .exchange((request, response) -> {
@@ -102,15 +105,15 @@ public class InternalUserEligibilityClient implements InspectorEligibilityPort {
                         return mapper.readTree(response.getBody());
                     });
             if (body == null || !body.isArray()) throw new InvalidEligibility("malformed_response");
-            var ids = new java.util.LinkedHashSet<String>();
+            var ids = new LinkedHashSet<String>();
             for (JsonNode item : body) {
                 if (!item.isObject() || item.size() != 1) throw new InvalidEligibility("malformed_response");
                 String id = requiredText(item, "userId");
-                String canonical = java.util.UUID.fromString(id).toString();
+                String canonical = UUID.fromString(id).toString();
                 if (!canonical.equalsIgnoreCase(id) || !ids.add(canonical))
                     throw new InvalidEligibility("malformed_response");
             }
-            return java.util.List.copyOf(ids);
+            return List.copyOf(ids);
         } catch (InvalidEligibility failure) {
             throw unavailable(failure.category);
         } catch (ResourceAccessException failure) {

@@ -1,5 +1,6 @@
 package com.agricontract.inspection.infrastructure.config;
 
+import java.security.SecureRandom;
 import com.agricontract.calendar.VietnamBusinessDays;
 import java.util.random.RandomGenerator;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,5 +16,5 @@ public class AssignmentConfiguration {
     }
 
     @Bean
-    RandomGenerator inspectorRandom() { return new java.security.SecureRandom(); }
+    RandomGenerator inspectorRandom() { return new SecureRandom(); }
 }

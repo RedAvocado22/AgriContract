@@ -1,5 +1,13 @@
 package com.agricontract.inspection.infrastructure.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import ch.qos.logback.core.read.ListAppender;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.Logger;
+import org.slf4j.LoggerFactory;
 import com.agricontract.inspection.application.exception.EligibilityUnavailableException;
 import com.sun.net.httpserver.HttpServer;
 
@@ -24,12 +32,12 @@ class InternalUserEligibilityClientTest {
              "role":"INSPECTOR","verificationStatus":"VERIFIED","authorizationExpiresAt":null,
              "lockedUntil":"2099-01-01T00:00:00Z"}
             """.formatted(ID);
-    private final ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs =
-            new ch.qos.logback.core.read.ListAppender<>();
-    private final ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
-            org.slf4j.LoggerFactory.getLogger(InternalUserEligibilityClient.class);
+    private final ListAppender<ILoggingEvent> logs =
+            new ListAppender<>();
+    private final Logger logger = (Logger)
+            LoggerFactory.getLogger(InternalUserEligibilityClient.class);
     private String expectedCategory;
-    private volatile java.util.concurrent.CountDownLatch responseGate;
+    private volatile CountDownLatch responseGate;
     private volatile boolean interruptBody;
     private HttpServer server;
     private InternalUserEligibilityClient client;
@@ -123,7 +131,7 @@ class InternalUserEligibilityClientTest {
         var gate = responseGate;
         if (gate != null) {
             try {
-                gate.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                gate.await(5, TimeUnit.SECONDS);
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
             }
@@ -159,8 +167,8 @@ class InternalUserEligibilityClientTest {
     @ValueSource(strings = {"userId", "role", "verificationStatus", "authorizationExpiresAt"})
     void missingRequiredEligibilityInformationFailsClosed(String field) throws Exception {
         expectedCategory = "malformed_response";
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        var body = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(VALID);
+        var mapper = new ObjectMapper();
+        var body = (ObjectNode) mapper.readTree(VALID);
         body.remove(field);
         response = mapper.writeValueAsString(body);
         assertThatThrownBy(() -> client.load(ID)).isInstanceOf(EligibilityUnavailableException.class);
@@ -194,7 +202,7 @@ class InternalUserEligibilityClientTest {
     @Test
     void responseHeaderTimeoutIsTransportFailure() {
         expectedCategory = "transport";
-        responseGate = new java.util.concurrent.CountDownLatch(1);
+        responseGate = new CountDownLatch(1);
         try {
             assertThatThrownBy(() -> client.load(ID)).isInstanceOf(EligibilityUnavailableException.class)
                     .hasMessage("Authoritative inspector eligibility could not be validated")
