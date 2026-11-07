@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -32,5 +34,24 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                     String.class, actorId, operation, idempotencyKey.toString());
             return requestHash.equals(stored) ? Outcome.REPLAY : Outcome.CONFLICT;
         }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void recordResult(String actorId, String operation, UUID idempotencyKey, String resultRef) {
+        int updated = jdbc.update("UPDATE idempotency_record SET result_ref = ?"
+                + " WHERE actor_id = ? AND operation = ? AND idempotency_key = ?",
+                resultRef, actorId, operation, idempotencyKey.toString());
+        if (updated != 1) {
+            throw new IllegalStateException("No claimed idempotency record for " + operation + " " + idempotencyKey);
+        }
+    }
+
+    @Override
+    public Optional<String> resultOf(String actorId, String operation, UUID idempotencyKey) {
+        return jdbc.queryForList("SELECT result_ref FROM idempotency_record"
+                        + " WHERE actor_id = ? AND operation = ? AND idempotency_key = ?",
+                String.class, actorId, operation, idempotencyKey.toString()).stream()
+                .filter(Objects::nonNull).findFirst();
     }
 }
