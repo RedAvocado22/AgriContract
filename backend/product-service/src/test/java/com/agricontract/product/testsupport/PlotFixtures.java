@@ -47,6 +47,7 @@ public final class PlotFixtures {
     /** Child tables first, so the foreign keys allow the deletes. */
     public static void deletePlotsAndListings(JdbcTemplate jdbc) {
         jdbc.update("DELETE FROM listing_plot");
+        jdbc.update("DELETE FROM plot_geo_risk_check");
         jdbc.update("DELETE FROM listing_reservations");
         jdbc.update("DELETE FROM listings");
         jdbc.update("DELETE FROM plot_registry_entry");

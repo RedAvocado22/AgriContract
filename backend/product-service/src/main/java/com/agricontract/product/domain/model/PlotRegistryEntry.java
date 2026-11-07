@@ -1,5 +1,7 @@
 package com.agricontract.product.domain.model;
 
+import com.agricontract.product.domain.model.vo.ForestBaselineAssessment;
+import com.agricontract.product.domain.model.vo.GeoRiskCheck;
 import com.agricontract.product.domain.model.vo.GeoRiskLevel;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.GeometryType;
@@ -94,7 +96,27 @@ public class PlotRegistryEntry {
         }
     }
 
+    /**
+     * Applies the forest-baseline answer for the current geometry: PENDING → CHECKED with its risk level. The level
+     * is a label for buyers only; a HIGH_RISK plot can still back a listing (design §2.2.4).
+     *
+     * @return the audit record of this check
+     */
+    public GeoRiskCheck recordGeoCheck(ForestBaselineAssessment assessment, Instant checkedAt) {
+        if (assessment == null) throw new IllegalArgumentException("assessment must not be null");
+        if (checkedAt == null) throw new IllegalArgumentException("checkedAt must not be null");
+        if (geoVerificationStatus != GeoVerificationStatus.PENDING) {
+            throw new IllegalStateException("Plot " + registryEntryId.value() + " is " + geoVerificationStatus
+                    + ", only a PENDING plot takes a geo check result");
+        }
+        this.geoVerificationStatus = GeoVerificationStatus.CHECKED;
+        this.geoRiskLevel = assessment.riskLevel();
+        return new GeoRiskCheck(registryEntryId, geometry.geometryHash(), assessment.datasetVersion(), geoRiskLevel,
+                assessment.matchedBaselineAreaIds(), checkedAt);
+    }
+
     // A PENDING plot cannot back a listing yet: the listing would go live before its forest risk is known (§2.2.4).
+    // Any outcome may, HIGH_RISK included: the risk level never rejects on its own.
     public boolean canBackListing() {
         return geoVerificationStatus != GeoVerificationStatus.PENDING;
     }

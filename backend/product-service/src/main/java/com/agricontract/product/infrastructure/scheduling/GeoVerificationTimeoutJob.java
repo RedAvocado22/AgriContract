@@ -12,8 +12,8 @@ import java.time.Duration;
 
 /**
  * Geo check timeout (design §2.2.4): a plot still PENDING after geoVerificationTimeoutHours becomes UNVERIFIED
- * ("not known", not "risky") and can then back a listing. Until the forest-baseline check exists, this is the only
- * way a plot leaves PENDING.
+ * ("not known", not "risky") and can then back a listing. A plot the forest-baseline check could not answer (outside
+ * the loaded coverage) leaves PENDING this way.
  */
 @Slf4j
 @Component

@@ -1,6 +1,7 @@
 package com.agricontract.product.domain.repository;
 
 import com.agricontract.product.domain.model.PlotRegistryEntry;
+import com.agricontract.product.domain.model.vo.GeoRiskCheck;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
 
 import java.time.Instant;
@@ -29,4 +30,16 @@ public interface PlotRegistryRepository {
      * @return number of entries moved
      */
     int markUnverifiedImportedBefore(Instant cutoff);
+
+    /** Oldest PENDING entries first, at most {@code limit}. */
+    List<PlotRegistryEntry> findPendingGeoCheck(int limit);
+
+    /**
+     * Stores a geo check result and its audit record together. Conditional on the entry still being PENDING with the
+     * geometry that was checked, so a result that lost the race with the timeout, a re-import or another instance is
+     * dropped and leaves no audit record.
+     *
+     * @return whether the result was applied
+     */
+    boolean recordGeoCheck(GeoRiskCheck check);
 }
