@@ -46,6 +46,9 @@ product-service:
 user-service:
   url: ${USER_SERVICE_URL:http://localhost:8081}
 
+notification-service:
+  url: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+
 contract:
   terms:
     template-code: VN_COFFEE_B2B
