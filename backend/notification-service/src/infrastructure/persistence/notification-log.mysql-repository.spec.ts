@@ -28,9 +28,21 @@ const duplicate = () =>
     errno: 1062,
   });
 
+/** No legacy row: the answer of the pre-V2 lookup that starts every claim. */
+const noLegacyRow = (): unknown => [[], []];
+
+const KEY = {
+  eventId: 'evt-1',
+  recipientEmail: 'buyer@example.test',
+  notificationType: 'CONTRACT_SIGNED',
+};
+const KEY_PARAMS = ['evt-1', 'buyer@example.test', 'CONTRACT_SIGNED'];
+const BY_KEY = 'event_id = ? AND recipient_email = ? AND notification_type = ?';
+
 const newLog = () =>
   NotificationLog.create(
     'evt-1',
+    { eventType: 'contract.signed', notificationType: 'CONTRACT_SIGNED' },
     'buyer@example.test',
     NotificationChannel.EMAIL,
     'Subject',
@@ -38,21 +50,60 @@ const newLog = () =>
   );
 
 describe('MysqlNotificationLogRepository.claim', () => {
-  it('claims a first delivery by inserting a PENDING row with DB-clock UTC timestamps', async () => {
-    const { pool, query } = scriptedPool([{ affectedRows: 1 }, []]);
+  it('first looks for the email SENT before V2, on its legacy key', async () => {
+    const { pool, query } = scriptedPool(noLegacyRow(), [
+      { affectedRows: 1 },
+      [],
+    ]);
+
+    await new MysqlNotificationLogRepository(pool).claim(
+      newLog(),
+      CLAIM_LEASE_MS,
+    );
+
+    expect(sql(query, 0)).toBe(
+      `SELECT 1 FROM notification_logs WHERE ${BY_KEY} AND status = 'SENT'`,
+    );
+    expect(params(query, 0)).toEqual([
+      'evt-1',
+      'legacy:buyer@example.test',
+      'LEGACY_P1',
+    ]);
+  });
+
+  it('reports ALREADY_SENT, and writes nothing, when the legacy row is SENT', async () => {
+    const { pool, query } = scriptedPool([[{ 1: 1 }], []]);
+
+    await expect(
+      new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
+    ).resolves.toBe('ALREADY_SENT');
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('claims a first delivery by inserting a PENDING row with its kind and DB-clock UTC timestamps', async () => {
+    const { pool, query } = scriptedPool(noLegacyRow(), [
+      { affectedRows: 1 },
+      [],
+    ]);
     const log = newLog();
 
     await expect(
       new MysqlNotificationLogRepository(pool).claim(log, CLAIM_LEASE_MS),
     ).resolves.toBe('CLAIMED');
 
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(sql(query, 0)).toContain(
-      "VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(sql(query, 1)).toBe(
+      'INSERT INTO notification_logs (notification_id, event_id, event_type, notification_type, user_id, recipient_email, ' +
+        'channel, subject, body, status, retry_count, created_at, updated_at) ' +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
     );
-    expect(params(query, 0)).toEqual([
+    // user_id still receives the recipient email, as before V2.
+    expect(params(query, 1)).toEqual([
       log.notificationId,
       'evt-1',
+      'contract.signed',
+      'CONTRACT_SIGNED',
+      'buyer@example.test',
       'buyer@example.test',
       'EMAIL',
       'Subject',
@@ -60,8 +111,8 @@ describe('MysqlNotificationLogRepository.claim', () => {
     ]);
   });
 
-  it('on an existing row, retakes it only if FAILED or PENDING older than the lease', async () => {
-    const { pool, query } = scriptedPool(duplicate(), [
+  it('on an existing row, retakes it by its key only if FAILED or PENDING older than the lease', async () => {
+    const { pool, query } = scriptedPool(noLegacyRow(), duplicate(), [
       { affectedRows: 1 },
       [],
     ]);
@@ -70,20 +121,17 @@ describe('MysqlNotificationLogRepository.claim', () => {
       new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
     ).resolves.toBe('CLAIMED');
 
-    expect(sql(query, 1)).toBe(
+    expect(sql(query, 2)).toBe(
       "UPDATE notification_logs SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6) " +
-        "WHERE event_id = ? AND user_id = ? AND (status = 'FAILED' OR (status = 'PENDING' " +
+        `WHERE ${BY_KEY} AND (status = 'FAILED' OR (status = 'PENDING' ` +
         'AND updated_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND))',
     );
-    expect(params(query, 1)).toEqual([
-      'evt-1',
-      'buyer@example.test',
-      45_000_000,
-    ]);
+    expect(params(query, 2)).toEqual([...KEY_PARAMS, 45_000_000]);
   });
 
   it('reports ALREADY_SENT when the row could not be retaken and is SENT', async () => {
-    const { pool } = scriptedPool(
+    const { pool, query } = scriptedPool(
+      noLegacyRow(),
       duplicate(),
       [{ affectedRows: 0 }, []],
       [[{ status: 'SENT' }], []],
@@ -92,10 +140,15 @@ describe('MysqlNotificationLogRepository.claim', () => {
     await expect(
       new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
     ).resolves.toBe('ALREADY_SENT');
+    expect(sql(query, 3)).toBe(
+      `SELECT status FROM notification_logs WHERE ${BY_KEY}`,
+    );
+    expect(params(query, 3)).toEqual(KEY_PARAMS);
   });
 
   it('reports IN_PROGRESS when another delivery holds a fresh PENDING claim', async () => {
     const { pool } = scriptedPool(
+      noLegacyRow(),
       duplicate(),
       [{ affectedRows: 0 }, []],
       [[{ status: 'PENDING' }], []],
@@ -107,7 +160,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
   });
 
   it('rethrows insert errors other than a duplicate key', async () => {
-    const { pool } = scriptedPool(new Error('connection lost'));
+    const { pool } = scriptedPool(noLegacyRow(), new Error('connection lost'));
 
     await expect(
       new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
@@ -119,43 +172,40 @@ describe('MysqlNotificationLogRepository.heartbeat', () => {
   it('moves updated_at of the PENDING row to the DB clock, and touches nothing else', async () => {
     const { pool, query } = scriptedPool();
 
-    await new MysqlNotificationLogRepository(pool).heartbeat(
-      'evt-1',
-      'buyer@example.test',
-    );
+    await new MysqlNotificationLogRepository(pool).heartbeat(KEY);
 
     expect(sql(query, 0)).toBe(
-      "UPDATE notification_logs SET updated_at = UTC_TIMESTAMP(6) WHERE event_id = ? AND user_id = ? AND status = 'PENDING'",
+      `UPDATE notification_logs SET updated_at = UTC_TIMESTAMP(6) WHERE ${BY_KEY} AND status = 'PENDING'`,
     );
-    expect(params(query, 0)).toEqual(['evt-1', 'buyer@example.test']);
+    expect(params(query, 0)).toEqual(KEY_PARAMS);
   });
 });
 
 describe('MysqlNotificationLogRepository.markSent / markFailed', () => {
-  it('markSent sets SENT by (event_id, user_id)', async () => {
+  it('markSent sets SENT and sent_at by the key', async () => {
     const { pool, query } = scriptedPool();
 
-    await new MysqlNotificationLogRepository(pool).markSent(
-      'evt-1',
-      'buyer@example.test',
-    );
+    await new MysqlNotificationLogRepository(pool).markSent(KEY);
 
     expect(sql(query, 0)).toBe(
-      "UPDATE notification_logs SET status = 'SENT', updated_at = UTC_TIMESTAMP(6) WHERE event_id = ? AND user_id = ?",
+      "UPDATE notification_logs SET status = 'SENT', sent_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6) " +
+        `WHERE ${BY_KEY}`,
     );
-    expect(params(query, 0)).toEqual(['evt-1', 'buyer@example.test']);
+    expect(params(query, 0)).toEqual(KEY_PARAMS);
   });
 
-  it('markFailed sets FAILED and increments retry_count in SQL', async () => {
+  it('markFailed sets FAILED, increments retry_count in SQL and stores the failure code', async () => {
     const { pool, query } = scriptedPool();
 
     await new MysqlNotificationLogRepository(pool).markFailed(
-      'evt-1',
-      'buyer@example.test',
+      KEY,
+      'EENVELOPE/550',
     );
 
     expect(sql(query, 0)).toBe(
-      "UPDATE notification_logs SET status = 'FAILED', retry_count = retry_count + 1, updated_at = UTC_TIMESTAMP(6) WHERE event_id = ? AND user_id = ?",
+      "UPDATE notification_logs SET status = 'FAILED', retry_count = retry_count + 1, failure_reason = ?, " +
+        `updated_at = UTC_TIMESTAMP(6) WHERE ${BY_KEY}`,
     );
+    expect(params(query, 0)).toEqual(['EENVELOPE/550', ...KEY_PARAMS]);
   });
 });

@@ -21,6 +21,14 @@ import {
   type NotificationSenderOptions,
 } from './notification-sender';
 
+const KIND = { eventType: 'test.event', notificationType: 'TEST_MAIL' };
+/** Key of the email sent by sender.send('evt-1', KIND, 'a@example.test', ...). */
+const KEY = {
+  eventId: 'evt-1',
+  recipientEmail: 'a@example.test',
+  notificationType: KIND.notificationType,
+};
+
 describe('NotificationSender.send (plan §4.3)', () => {
   let logs: InMemoryNotificationLogRepository;
   let email: FakeEmailPort;
@@ -51,12 +59,12 @@ describe('NotificationSender.send (plan §4.3)', () => {
   });
 
   it('sends and records SENT with the recipient email as user', async () => {
-    await sender.send('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
     expect(email.sent).toEqual([
       { to: 'a@example.test', subject: 'S', body: 'B' },
     ]);
-    expect(logs.get('evt-1', 'a@example.test')).toMatchObject({
+    expect(logs.get(KEY)).toMatchObject({
       recipientEmail: 'a@example.test',
       status: NotificationStatus.SENT,
       retryCount: 0,
@@ -66,10 +74,10 @@ describe('NotificationSender.send (plan §4.3)', () => {
   });
 
   it('skips a recipient already SENT for this event', async () => {
-    await sender.send('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
     email.sent.length = 0;
 
-    await sender.send('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
     expect(email.sent).toEqual([]);
   });
@@ -78,47 +86,148 @@ describe('NotificationSender.send (plan §4.3)', () => {
     email.failFor.add('a@example.test');
 
     await expect(
-      sender.send('evt-1', 'a@example.test', 'S', 'B'),
+      sender.send('evt-1', KIND, 'a@example.test', 'S', 'B'),
     ).rejects.toThrow();
-    expect(logs.get('evt-1', 'a@example.test')).toMatchObject({
+    expect(logs.get(KEY)).toMatchObject({
       status: NotificationStatus.FAILED,
       retryCount: 1,
     });
 
     // Each redelivery retakes the FAILED row, sends again and counts the failure.
     await expect(
-      sender.send('evt-1', 'a@example.test', 'S', 'B'),
+      sender.send('evt-1', KIND, 'a@example.test', 'S', 'B'),
     ).rejects.toThrow();
-    expect(logs.get('evt-1', 'a@example.test')?.retryCount).toBe(2);
+    expect(logs.get(KEY)?.retryCount).toBe(2);
   });
 
   it('sends again on redelivery after a failure, then records SENT', async () => {
     email.failFor.add('a@example.test');
     await expect(
-      sender.send('evt-1', 'a@example.test', 'S', 'B'),
+      sender.send('evt-1', KIND, 'a@example.test', 'S', 'B'),
     ).rejects.toThrow();
 
     email.failFor.clear();
-    await sender.send('evt-1', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
     expect(email.sent).toHaveLength(1);
-    expect(logs.get('evt-1', 'a@example.test')).toMatchObject({
+    expect(logs.get(KEY)).toMatchObject({
       status: NotificationStatus.SENT,
       retryCount: 1,
     });
   });
 
   it('a different event to the same recipient is a separate email', async () => {
-    await sender.send('evt-1', 'a@example.test', 'S', 'B');
-    await sender.send('evt-2', 'a@example.test', 'S', 'B');
+    await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+    await sender.send('evt-2', KIND, 'a@example.test', 'S', 'B');
 
     expect(email.sent).toHaveLength(2);
+  });
+
+  describe('dedup by (event, recipient, notification type) (#115)', () => {
+    const OTHER_KIND = {
+      eventType: 'test.event',
+      notificationType: 'OTHER_MAIL',
+    };
+
+    it('records the kind of the email and, once SENT, its sent time', async () => {
+      logs.now = 1_234;
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+      expect(logs.get(KEY)).toMatchObject({
+        eventType: 'test.event',
+        notificationType: 'TEST_MAIL',
+        sentAt: 1_234,
+        failureReason: null,
+      });
+    });
+
+    it('two recipients of one event: two emails, two records', async () => {
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'b@example.test', 'S', 'B');
+
+      expect(email.sent.map((m) => m.to)).toEqual([
+        'a@example.test',
+        'b@example.test',
+      ]);
+      expect(logs.size).toBe(2);
+      expect(
+        logs.get({ ...KEY, recipientEmail: 'b@example.test' })?.status,
+      ).toBe(NotificationStatus.SENT);
+    });
+
+    it('one event, one recipient, two notification types: two emails, two records', async () => {
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', OTHER_KIND, 'a@example.test', 'S2', 'B2');
+
+      expect(email.sent).toHaveLength(2);
+      expect(logs.size).toBe(2);
+      expect(logs.get({ ...KEY, notificationType: 'OTHER_MAIL' })?.status).toBe(
+        NotificationStatus.SENT,
+      );
+    });
+
+    it('retries after failures reuse the one record: failure code kept, then SENT', async () => {
+      email.failFor.add('a@example.test');
+      for (let i = 0; i < 2; i++) {
+        await expect(
+          sender.send('evt-1', KIND, 'a@example.test', 'S', 'B'),
+        ).rejects.toThrow();
+      }
+      expect(logs.size).toBe(1);
+      expect(logs.get(KEY)).toMatchObject({
+        status: NotificationStatus.FAILED,
+        retryCount: 2,
+        failureReason: 'EENVELOPE/550',
+        sentAt: null,
+      });
+
+      email.failFor.clear();
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+      expect(email.sent).toHaveLength(1);
+      expect(logs.size).toBe(1);
+      expect(logs.get(KEY)).toMatchObject({
+        status: NotificationStatus.SENT,
+        retryCount: 2,
+      });
+    });
+
+    it('an email SENT before migration V2 is not sent again when its event is redelivered', async () => {
+      logs.seedLegacy('evt-1', 'a@example.test', NotificationStatus.SENT);
+
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+      expect(email.sent).toEqual([]);
+      expect(logs.get(KEY)).toBeUndefined(); // no new record either
+    });
+
+    it.each([NotificationStatus.FAILED, NotificationStatus.PENDING])(
+      'an email left %s before migration V2 is sent on redelivery, in a new record',
+      async (status) => {
+        logs.seedLegacy('evt-1', 'a@example.test', status);
+
+        await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+        expect(email.sent).toHaveLength(1);
+        expect(logs.get(KEY)?.status).toBe(NotificationStatus.SENT);
+        expect(logs.size).toBe(2);
+      },
+    );
+
+    it('a legacy row of another recipient does not stop this one', async () => {
+      logs.seedLegacy('evt-1', 'b@example.test', NotificationStatus.SENT);
+
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+      expect(email.sent).toHaveLength(1);
+    });
   });
 
   describe('concurrent deliveries of the same event (review #172)', () => {
     it('first delivery: only the claim holder sends; the other waits, finds SENT and sends nothing', async () => {
       const release = email.hold(); // delivery A stalls on SMTP after claiming
-      const a = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const a = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
       await Promise.resolve();
       clock.onSleep = async (n) => {
         expect(email.sent).toEqual([]); // B never sends while A holds the claim
@@ -129,40 +238,36 @@ describe('NotificationSender.send (plan §4.3)', () => {
       };
 
       // Delivery B of the same event while A is still sending.
-      await sender.send('evt-1', 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       expect(clock.sleeps).toEqual([1000, 1000, 1000]);
       expect(email.sent).toHaveLength(1);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.SENT,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.SENT);
     });
 
     it('a PENDING row older than the lease (sender died mid-send) is retaken and sent at once', async () => {
       logs.now = 1_000_000;
-      logs.seed('evt-1', 'a@example.test', NotificationStatus.PENDING);
+      logs.seed(KEY, NotificationStatus.PENDING);
       logs.now += CLAIM_LEASE_MS + 1;
 
-      await sender.send('evt-1', 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       expect(clock.sleeps).toEqual([]);
       expect(email.sent).toHaveLength(1);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.SENT,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.SENT);
     });
 
     it('a FAILED row is retaken by exactly one of two deliveries; the other then finds SENT', async () => {
-      logs.seed('evt-1', 'a@example.test', NotificationStatus.FAILED);
+      logs.seed(KEY, NotificationStatus.FAILED);
       const release = email.hold();
 
-      const a = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const a = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
       await Promise.resolve();
       clock.onSleep = async () => {
         release();
         await a;
       };
-      await sender.send('evt-1', 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       expect(clock.sleeps).toEqual([1000]);
       expect(email.sent).toHaveLength(1);
@@ -171,7 +276,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
 
   describe('waiting for a live claim of another delivery (injected clock and sleep)', () => {
     beforeEach(() => {
-      logs.seed('evt-1', 'a@example.test', NotificationStatus.PENDING);
+      logs.seed(KEY, NotificationStatus.PENDING);
     });
 
     it('waits for 50s at most, polling every 1s', () => {
@@ -181,49 +286,45 @@ describe('NotificationSender.send (plan §4.3)', () => {
 
     it('SENT meanwhile: skips the recipient without sending', async () => {
       clock.onSleep = (n) => {
-        if (n === 5) void logs.markSent('evt-1', 'a@example.test');
+        if (n === 5) void logs.markSent(KEY);
       };
 
-      await sender.send('evt-1', 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       expect(clock.sleeps).toHaveLength(5);
       expect(email.sent).toEqual([]);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.SENT,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.SENT);
     });
 
     it('FAILED meanwhile: takes the claim over and sends', async () => {
       clock.onSleep = (n) => {
-        if (n === 2) void logs.markFailed('evt-1', 'a@example.test');
+        if (n === 2) void logs.markFailed(KEY, 'EENVELOPE/550');
       };
 
-      await sender.send('evt-1', 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       expect(clock.sleeps).toHaveLength(2);
       expect(email.sent).toHaveLength(1);
-      expect(logs.get('evt-1', 'a@example.test')).toMatchObject({
+      expect(logs.get(KEY)).toMatchObject({
         status: NotificationStatus.SENT,
         retryCount: 1,
       });
     });
 
     it('holder died (no heartbeat): takes the claim over once it is older than the 45s lease, and sends', async () => {
-      await sender.send('evt-1', 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       // Claimed at t=0; stale (updated_at < now - lease) from 45.001s on, seen at the 46th look.
       expect(clock.sleeps).toHaveLength(46);
       expect(clock.t).toBe(46_000);
       expect(email.sent).toHaveLength(1);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.SENT,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.SENT);
     });
 
     it('holder still alive after 50s (heartbeat): throws a retryable SendInProgressError without sending', async () => {
-      clock.onSleep = () => void logs.heartbeat('evt-1', 'a@example.test'); // the holder's heartbeat keeps the claim fresh
+      clock.onSleep = () => void logs.heartbeat(KEY); // the holder's heartbeat keeps the claim fresh
 
-      const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const failure = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       await expect(failure).rejects.toBeInstanceOf(SendInProgressError);
       await expect(failure).rejects.toThrow(
@@ -232,9 +333,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
       expect(clock.sleeps).toEqual(Array<number>(50).fill(1000));
       expect(clock.t).toBe(CLAIM_WAIT_MS);
       expect(email.sent).toEqual([]);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.PENDING,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.PENDING);
     });
 
     describe('shutdown during the wait (review of #206)', () => {
@@ -250,11 +349,11 @@ describe('NotificationSender.send (plan §4.3)', () => {
 
       it('holder still alive: one more look, then a ClaimWaitAbortedError without sending', async () => {
         clock.onSleep = (n) => {
-          void logs.heartbeat('evt-1', 'a@example.test');
+          void logs.heartbeat(KEY);
           if (n === 3) shutdown.abort();
         };
 
-        const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+        const failure = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
         await expect(failure).rejects.toBeInstanceOf(ClaimWaitAbortedError);
         await expect(failure).rejects.toThrow(
@@ -262,19 +361,17 @@ describe('NotificationSender.send (plan §4.3)', () => {
         );
         expect(clock.sleeps).toHaveLength(3);
         expect(email.sent).toEqual([]);
-        expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-          NotificationStatus.PENDING,
-        );
+        expect(logs.get(KEY)?.status).toBe(NotificationStatus.PENDING);
       });
 
       it('SENT on the last look: skips the recipient, no error', async () => {
         clock.onSleep = (n) => {
           if (n !== 3) return;
-          void logs.markSent('evt-1', 'a@example.test');
+          void logs.markSent(KEY);
           shutdown.abort();
         };
 
-        await sender.send('evt-1', 'a@example.test', 'S', 'B');
+        await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
         expect(clock.sleeps).toHaveLength(3);
         expect(email.sent).toEqual([]);
@@ -286,7 +383,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
         });
         const started = performance.now();
 
-        const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+        const failure = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
         setTimeout(() => shutdown.abort(), 20);
 
         await expect(failure).rejects.toBeInstanceOf(ClaimWaitAbortedError);
@@ -319,13 +416,13 @@ describe('NotificationSender.send (plan §4.3)', () => {
     it('refreshes the claim every 15s while the send is in progress', async () => {
       const heartbeat = jest.spyOn(logs, 'heartbeat');
       const release = email.hold();
-      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const sending = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       await tick(CLAIM_HEARTBEAT_MS - 1);
       expect(heartbeat).not.toHaveBeenCalled();
       await tick(1);
       expect(heartbeat).toHaveBeenCalledTimes(1);
-      expect(heartbeat).toHaveBeenCalledWith('evt-1', 'a@example.test');
+      expect(heartbeat).toHaveBeenCalledWith(KEY);
       await tick(CLAIM_HEARTBEAT_MS);
       expect(heartbeat).toHaveBeenCalledTimes(2);
 
@@ -335,7 +432,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
 
     it('keeps a long send claimed past the lease: another delivery cannot take it over', async () => {
       const release = email.hold();
-      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const sending = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       await tick(CLAIM_LEASE_MS + CLAIM_HEARTBEAT_MS); // 60s after the claim, last beat at 60s
 
@@ -343,6 +440,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
         logs.claim(
           NotificationLog.create(
             'evt-1',
+            KIND,
             'a@example.test',
             NotificationChannel.EMAIL,
             'S',
@@ -360,7 +458,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
     it('stops beating once the send succeeded', async () => {
       const heartbeat = jest.spyOn(logs, 'heartbeat');
       const release = email.hold();
-      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const sending = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
       await tick(CLAIM_HEARTBEAT_MS);
       release();
       await sending;
@@ -370,16 +468,14 @@ describe('NotificationSender.send (plan §4.3)', () => {
 
       expect(heartbeat).toHaveBeenCalledTimes(1);
       expect(jest.getTimerCount()).toBe(0);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.SENT,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.SENT);
     });
 
     it('stops beating once the send failed', async () => {
       const heartbeat = jest.spyOn(logs, 'heartbeat');
       email.failFor.add('a@example.test');
       const release = email.hold();
-      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const sending = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
       const failed = expect(sending).rejects.toBeInstanceOf(
         NotificationDeliveryError,
       );
@@ -392,9 +488,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
 
       expect(heartbeat).toHaveBeenCalledTimes(1);
       expect(jest.getTimerCount()).toBe(0);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.FAILED,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.FAILED);
     });
 
     it('a failed beat is logged as an error with the event id and code only; the send goes on', async () => {
@@ -404,7 +498,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
         }),
       );
       const release = email.hold();
-      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const sending = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       await tick(CLAIM_HEARTBEAT_MS);
       release();
@@ -415,9 +509,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
         'Event evt-1: claim heartbeat failed (ER_LOCK_WAIT_TIMEOUT)',
       );
       expect(email.sent).toHaveLength(1);
-      expect(logs.get('evt-1', 'a@example.test')?.status).toBe(
-        NotificationStatus.SENT,
-      );
+      expect(logs.get(KEY)?.status).toBe(NotificationStatus.SENT);
     });
 
     it('does not start a beat while the previous one still waits for the database', async () => {
@@ -428,7 +520,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
           () => new Promise<void>((resolve) => (unblock = resolve)),
         );
       const release = email.hold();
-      const sending = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const sending = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       await tick(3 * CLAIM_HEARTBEAT_MS);
       expect(heartbeat).toHaveBeenCalledTimes(1);
@@ -446,7 +538,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
       email.failFor.add('a@example.test');
 
       await expect(
-        sender.send('evt-1', 'a@example.test', 'S', 'B'),
+        sender.send('evt-1', KIND, 'a@example.test', 'S', 'B'),
       ).rejects.toThrow(
         new NotificationDeliveryError('evt-1', 'email', 'EENVELOPE/550'),
       );
@@ -462,7 +554,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
           ),
         );
 
-      const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const failure = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       await expect(failure).rejects.toBeInstanceOf(NotificationDeliveryError);
       await expect(failure).rejects.toThrow(
@@ -472,10 +564,10 @@ describe('NotificationSender.send (plan §4.3)', () => {
     });
 
     it('a claim still live after the wait is a SendInProgressError naming only the event', async () => {
-      logs.seed('evt-1', 'a@example.test', NotificationStatus.PENDING);
-      clock.onSleep = () => void logs.heartbeat('evt-1', 'a@example.test');
+      logs.seed(KEY, NotificationStatus.PENDING);
+      clock.onSleep = () => void logs.heartbeat(KEY);
 
-      const failure = sender.send('evt-1', 'a@example.test', 'S', 'B');
+      const failure = sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
 
       await expect(failure).rejects.toBeInstanceOf(SendInProgressError);
       await expect(failure).rejects.not.toThrow(/a@example\.test/);

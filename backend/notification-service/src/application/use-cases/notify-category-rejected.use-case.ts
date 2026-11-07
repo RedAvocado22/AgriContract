@@ -1,5 +1,6 @@
 import type { CategoryRejectedCommand } from '../commands';
 import type { NotificationSender } from '../notification-sender';
+import { PHASE1_KINDS } from '../phase1-notification-kinds';
 
 /*
  * Subjects, bodies and recipient order are copied verbatim from the Java
@@ -7,6 +8,8 @@ import type { NotificationSender } from '../notification-sender';
  * from the Java service at tag notification-java-final, guards them. A null
  * value renders as "null", as Java string concatenation does.
  */
+
+const KIND = PHASE1_KINDS.categoryRejected;
 
 export class NotifyCategoryRejectedUseCase {
   constructor(private readonly sender: NotificationSender) {}
@@ -17,6 +20,7 @@ export class NotifyCategoryRejectedUseCase {
 
     await this.sender.send(
       command.eventId,
+      KIND,
       command.proposedByEmail,
       subject,
       body,

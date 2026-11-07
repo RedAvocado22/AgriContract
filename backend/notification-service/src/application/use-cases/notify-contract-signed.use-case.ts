@@ -1,5 +1,6 @@
 import type { ContractSignedCommand } from '../commands';
 import type { NotificationSender } from '../notification-sender';
+import { PHASE1_KINDS } from '../phase1-notification-kinds';
 
 /*
  * Subjects, bodies and recipient order are copied verbatim from the Java
@@ -8,6 +9,8 @@ import type { NotificationSender } from '../notification-sender';
  * value renders as "null", as Java string concatenation does.
  */
 
+const KIND = PHASE1_KINDS.contractSigned;
+
 export class NotifyContractSignedUseCase {
   constructor(private readonly sender: NotificationSender) {}
 
@@ -15,7 +18,19 @@ export class NotifyContractSignedUseCase {
     const subject = '[AgriContract] Contract has been signed';
     const body = `Contract ${command.contractId} has been successfully signed.`;
 
-    await this.sender.send(command.eventId, command.buyerEmail, subject, body);
-    await this.sender.send(command.eventId, command.sellerEmail, subject, body);
+    await this.sender.send(
+      command.eventId,
+      KIND,
+      command.buyerEmail,
+      subject,
+      body,
+    );
+    await this.sender.send(
+      command.eventId,
+      KIND,
+      command.sellerEmail,
+      subject,
+      body,
+    );
   }
 }

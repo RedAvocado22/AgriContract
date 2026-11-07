@@ -8,6 +8,7 @@ import {
 } from '../../test/support/java-templates';
 import { NotificationStatus } from '../domain/notification-log';
 import { NotificationSender } from './notification-sender';
+import { PHASE1_KINDS } from './phase1-notification-kinds';
 import {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
@@ -43,6 +44,19 @@ function useCasesBy(sender: NotificationSender): Record<string, UseCase> {
     handleCategoryRejected: new NotifyCategoryRejectedUseCase(sender),
   };
 }
+
+/** The email kind each handler sends. */
+const KINDS: Record<string, { eventType: string; notificationType: string }> = {
+  handleContractSigned: PHASE1_KINDS.contractSigned,
+  handleContractCancelled: PHASE1_KINDS.contractCancelled,
+  handleContractDelivered: PHASE1_KINDS.contractDelivered,
+  handleContractDisputed: PHASE1_KINDS.contractDisputed,
+  handleEscrowLocked: PHASE1_KINDS.escrowLocked,
+  handleEscrowReleased: PHASE1_KINDS.escrowReleased,
+  handleEscrowPenalized: PHASE1_KINDS.escrowPenalized,
+  handleCategoryApproved: PHASE1_KINDS.categoryApproved,
+  handleCategoryRejected: PHASE1_KINDS.categoryRejected,
+};
 
 /** One sample command per handler; every field has a distinct value. */
 const SAMPLES: Record<string, Record<string, string | null>> = {
@@ -137,6 +151,7 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
   it('covers the 9 Java handlers with one use case each', () => {
     expect(Object.keys(fixture).sort()).toEqual(Object.keys(SAMPLES).sort());
     expect(Object.keys(useCases).sort()).toEqual(Object.keys(fixture).sort());
+    expect(Object.keys(KINDS).sort()).toEqual(Object.keys(fixture).sort());
   });
 
   it.each(Object.keys(fixture))(
@@ -155,9 +170,16 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
         })),
       );
       for (const to of recipientsOf(template, command)) {
-        expect(logs.get(command.eventId as string, to)?.status).toBe(
-          NotificationStatus.SENT,
-        );
+        expect(
+          logs.get({
+            eventId: command.eventId as string,
+            recipientEmail: to,
+            notificationType: KINDS[name].notificationType,
+          }),
+        ).toMatchObject({
+          status: NotificationStatus.SENT,
+          eventType: KINDS[name].eventType,
+        });
       }
     },
   );
@@ -203,7 +225,13 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
       'Event evt-retry: email delivery failed (EENVELOPE/550)',
     );
     expect(email.sent.map((m) => m.to)).toEqual(['buyer@example.test']);
-    expect(logs.get('evt-retry', 'seller@example.test')).toMatchObject({
+    expect(
+      logs.get({
+        eventId: 'evt-retry',
+        recipientEmail: 'seller@example.test',
+        notificationType: 'CONTRACT_SIGNED',
+      }),
+    ).toMatchObject({
       status: NotificationStatus.FAILED,
       retryCount: 1,
     });
@@ -223,5 +251,16 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
     await run('handleEscrowReleased', command);
 
     expect(email.sent).toHaveLength(2);
+  });
+
+  it('an event redelivered across the V2 deploy mails only the recipients not SENT before V2', async () => {
+    const command = SAMPLES.handleContractSigned;
+    const eventId = command.eventId as string;
+    logs.seedLegacy(eventId, 'buyer@example.test', NotificationStatus.SENT);
+    logs.seedLegacy(eventId, 'seller@example.test', NotificationStatus.FAILED);
+
+    await run('handleContractSigned', command);
+
+    expect(email.sent.map((m) => m.to)).toEqual(['seller@example.test']);
   });
 });

@@ -8,6 +8,7 @@ describe('NotificationLog', () => {
   const create = () =>
     NotificationLog.create(
       'evt-1',
+      { eventType: 'contract.signed', notificationType: 'CONTRACT_SIGNED' },
       'buyer@example.test',
       NotificationChannel.EMAIL,
       'subject',
@@ -34,6 +35,17 @@ describe('NotificationLog', () => {
     expect(create().notificationId).not.toBe(log.notificationId);
   });
 
+  it('is keyed by event, recipient and notification type', () => {
+    const log = create();
+
+    expect(log.eventType).toBe('contract.signed');
+    expect(log.key).toEqual({
+      eventId: 'evt-1',
+      recipientEmail: 'buyer@example.test',
+      notificationType: 'CONTRACT_SIGNED',
+    });
+  });
+
   it('markSent sets SENT without touching the retry count', () => {
     const log = create();
     log.markSent();
@@ -55,6 +67,8 @@ describe('NotificationLog', () => {
     const log = NotificationLog.reconstitute({
       notificationId: 'n-1',
       eventId: 'evt-1',
+      eventType: 'contract.signed',
+      notificationType: 'CONTRACT_SIGNED',
       recipientEmail: 'seller@example.test',
       channel: NotificationChannel.EMAIL,
       subject: 's',
