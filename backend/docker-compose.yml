@@ -456,6 +456,7 @@ services:
       SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
       PRODUCT_SERVICE_URL: http://product-service:8082
       USER_SERVICE_URL: http://user-service:8081
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
     depends_on:
       contract-db:
         condition: service_healthy
