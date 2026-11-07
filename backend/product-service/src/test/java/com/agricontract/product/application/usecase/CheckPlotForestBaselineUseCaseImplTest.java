@@ -63,6 +63,19 @@ class CheckPlotForestBaselineUseCaseImplTest {
     }
 
     @Test
+    void everyPickedPlot_isStampedAsAttempted_beforeItIsChecked() {
+        when(plotRegistryRepository.findPendingGeoCheck(50)).thenReturn(List.of(pending("plot-1"), pending("plot-2")));
+        when(forestBaselineRepository.assess(any())).thenReturn(Optional.empty());
+
+        useCase.checkPending(50);
+
+        var order = inOrder(plotRegistryRepository, forestBaselineRepository);
+        order.verify(plotRegistryRepository)
+                .markGeoCheckAttempted(List.of(new RegistryEntryId("plot-1"), new RegistryEntryId("plot-2")), NOW);
+        order.verify(forestBaselineRepository, times(2)).assess(any());
+    }
+
+    @Test
     void resultDroppedBecauseThePlotChanged_isNotCounted() {
         when(plotRegistryRepository.findPendingGeoCheck(50)).thenReturn(List.of(pending("plot-1")));
         when(forestBaselineRepository.assess(any()))

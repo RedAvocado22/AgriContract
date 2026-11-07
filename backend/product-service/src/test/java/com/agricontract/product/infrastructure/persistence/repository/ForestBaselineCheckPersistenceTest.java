@@ -81,8 +81,12 @@ class ForestBaselineCheckPersistenceTest {
     }
 
     private void register(String id, PlotGeometry geometry) {
+        register(id, geometry, NOW.minusSeconds(60));
+    }
+
+    private void register(String id, PlotGeometry geometry, Instant importedAt) {
         plotRegistryRepository.create(PlotRegistryEntry.register(new RegistryEntryId(id), "seller-1", "Ho " + id,
-                geometry, PlotSource.KML_IMPORT, null, Province.DAK_LAK, NOW.minusSeconds(60)));
+                geometry, PlotSource.KML_IMPORT, null, Province.DAK_LAK, importedAt));
     }
 
     private PlotRegistryEntry load(String id) {
@@ -176,6 +180,25 @@ class ForestBaselineCheckPersistenceTest {
         assertThat(plotRow("binh-phuoc")).containsEntry("geo_verification_status", "PENDING");
         assertThat(plotRow("crossing-the-edge")).containsEntry("geo_verification_status", "PENDING");
         assertThat(audit("binh-phuoc")).isEmpty();
+    }
+
+    @Test
+    void uncoveredPlots_thatFillTheBatch_doNotStarveNewerPlots() {
+        // an HTX imports more plots than one batch in a province the baseline does not cover yet
+        register("uncovered-1", plot(106.90, 11.60), NOW.minusSeconds(300));
+        register("uncovered-2", plot(106.91, 11.60), NOW.minusSeconds(240));
+        register("uncovered-3", plot(106.92, 11.60), NOW.minusSeconds(180));
+        // another seller's plot, imported after them, inside coverage
+        register("newer-covered", plot(108.05, 12.66), NOW.minusSeconds(60));
+
+        assertThat(useCase.checkPending(2)).isZero();       // the two oldest uncovered plots
+        assertThat(useCase.checkPending(2)).isEqualTo(1);   // the attempted ones went to the back
+
+        assertThat(plotRow("newer-covered")).containsEntry("geo_verification_status", "CHECKED")
+                .containsEntry("geo_risk_level", "LOW_RISK");
+        assertThat(jdbcTemplate.queryForList("SELECT registry_entry_id FROM plot_registry_entry "
+                        + "WHERE geo_verification_status = 'PENDING' AND geo_check_attempted_at IS NOT NULL",
+                String.class)).containsExactlyInAnyOrder("uncovered-1", "uncovered-2", "uncovered-3");
     }
 
     @Test

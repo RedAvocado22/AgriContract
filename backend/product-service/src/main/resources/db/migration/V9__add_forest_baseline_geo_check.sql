@@ -1,4 +1,4 @@
--- Forest-baseline geo-risk check (design §2.2.4, issue #264). Additive only: plot_registry_entry is unchanged.
+-- Forest-baseline geo-risk check (design §2.2.4, issue #264). Additive only: one nullable column on plot_registry_entry.
 --
 -- The 2020 forest baseline (Natural Forests 2020 / ForTy 2020 extract) is held locally, per dataset version, and
 -- loaded by an operator; nothing here seeds it. Each area is already classified by the dataset, so the check needs no
@@ -46,3 +46,10 @@ CREATE TABLE plot_geo_risk_check
         FOREIGN KEY (registry_entry_id) REFERENCES plot_registry_entry (registry_entry_id),
     CONSTRAINT chk_plot_geo_risk_check_level CHECK (geo_risk_level IN ('LOW_RISK', 'HIGH_RISK', 'INCONCLUSIVE'))
 );
+
+-- When the check last picked the plot up, whatever the outcome. The job takes the least recently attempted PENDING
+-- plots first (never attempted = NULL = first), so plots it cannot answer yet (outside coverage, or a check that
+-- throws) move to the back instead of filling every batch until their timeout and starving plots imported after them.
+ALTER TABLE plot_registry_entry
+    ADD COLUMN geo_check_attempted_at DATETIME(6) NULL,
+    ADD INDEX idx_plot_registry_geo_check_queue (geo_verification_status, geo_check_attempted_at, imported_at);

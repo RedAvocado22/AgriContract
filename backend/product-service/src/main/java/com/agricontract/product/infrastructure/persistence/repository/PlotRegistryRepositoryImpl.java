@@ -1,17 +1,17 @@
 package com.agricontract.product.infrastructure.persistence.repository;
 
+import com.agricontract.product.common.exception.DuplicatePlotHouseholdException;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.vo.GeoRiskCheck;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
-import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapper;
-import com.agricontract.product.common.exception.DuplicatePlotHouseholdException;
 import com.agricontract.product.infrastructure.persistence.entity.PlotGeoRiskCheckJpaEntity;
+import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,9 +88,19 @@ public class PlotRegistryRepositoryImpl implements PlotRegistryRepository {
 
     @Override
     public List<PlotRegistryEntry> findPendingGeoCheck(int limit) {
-        return plotRegistryEntryJpaRepository.findByGeoVerificationStatusOrderByImportedAtAsc(
-                        GeoVerificationStatus.PENDING, PageRequest.of(0, limit))
+        return plotRegistryEntryJpaRepository.findGeoCheckQueue(GeoVerificationStatus.PENDING, PageRequest.of(0, limit))
                 .stream().map(plotRegistryMapper::toDomain).toList();
+    }
+
+    @Override
+    @Transactional
+    public void markGeoCheckAttempted(Collection<RegistryEntryId> registryEntryIds, Instant attemptedAt) {
+        if (registryEntryIds.isEmpty()) {
+            return;
+        }
+        plotRegistryEntryJpaRepository.markGeoCheckAttempted(
+                registryEntryIds.stream().map(RegistryEntryId::value).toList(), GeoVerificationStatus.PENDING,
+                LocalDateTime.ofInstant(attemptedAt, ZoneOffset.UTC));
     }
 
     @Override
