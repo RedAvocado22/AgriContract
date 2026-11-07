@@ -46,6 +46,14 @@ product-service:
 user-service:
   url: ${USER_SERVICE_URL:http://localhost:8081}
 
+contract:
+  terms:
+    template-code: VN_COFFEE_B2B
+    template-version: "1.0"
+    template-resource: classpath:contract-template/VN_COFFEE_B2B-1.0.md
+    coffee-quality-profile-version: "1.0"
+    level2-safety-buffer-rate: 0.15
+
 outbox:
   poller:
     fixed-delay-ms: 1000
