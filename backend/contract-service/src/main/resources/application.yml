@@ -53,6 +53,8 @@ contract:
     template-resource: classpath:contract-template/VN_COFFEE_B2B-1.0.md
     coffee-quality-profile-version: "1.0"
     level2-safety-buffer-rate: 0.15
+  consent:
+    sign-contract-version: "1.0"
 
 outbox:
   poller:
