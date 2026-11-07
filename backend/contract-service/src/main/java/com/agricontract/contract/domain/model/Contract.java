@@ -5,10 +5,16 @@ import com.agricontract.contract.domain.exception.UnauthorizedContractAccessExce
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
+import com.agricontract.contract.domain.model.vo.Money;
+import com.agricontract.contract.domain.model.vo.Quantity;
+import com.agricontract.contract.domain.model.terms.CanonicalTerms;
+import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
+import com.agricontract.contract.domain.model.terms.MilestoneTerm;
 import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +35,8 @@ public class Contract {
     private String buyerEmail;        // snapshot at offer time
     private String sellerEmail;       // snapshot at offer time
     private ContractTerms terms;
+    /** Phase 2 coffee terms + signedContentHash; null only for Phase 1 rows created before #92. */
+    private CanonicalTerms coffeeTerms;
     private ContractStatus status;
     @Getter(AccessLevel.NONE)
     private Set<String> signatories;
@@ -45,9 +53,10 @@ public class Contract {
             String buyerId, String sellerId,
             String productName, String buyerOrgName, String sellerOrgName,
             String buyerEmail, String sellerEmail,
-            ContractTerms terms, ContractStatus status,
+            ContractTerms terms, CanonicalTerms coffeeTerms, ContractStatus status,
             Set<String> signatories) {
         Contract contract = new Contract();
+        contract.coffeeTerms = coffeeTerms;
 
         contract.contractId = contractId;
         contract.listingId = listingId;
@@ -86,6 +95,38 @@ public class Contract {
         contract.domainEvents.add(new ContractOfferedEvent(contractId.value(), buyerEmail, sellerEmail, buyerId, sellerId, listingId, terms));
 
         return contract;
+    }
+
+    /**
+     * Phase 2 offer with full coffee terms. The Phase 1 columns are kept filled as a read projection of the
+     * signed terms until the Phase 1 flow is removed.
+     */
+    public static Contract offerCoffee(ContractId contractId, String listingId,
+                                       String buyerId, String sellerId,
+                                       String buyerOrgName, String sellerOrgName,
+                                       String buyerEmail, String sellerEmail,
+                                       CanonicalTerms coffeeTerms) {
+        ContractTermsSnapshot snapshot = coffeeTerms.snapshot();
+        Contract contract = offer(contractId, listingId, buyerId, sellerId,
+                snapshot.goodsTerms().productName(), buyerOrgName, sellerOrgName, buyerEmail, sellerEmail,
+                legacyProjection(snapshot));
+        contract.coffeeTerms = coffeeTerms;
+        return contract;
+    }
+
+    private static ContractTerms legacyProjection(ContractTermsSnapshot snapshot) {
+        var negotiated = snapshot.negotiated();
+        var lastDelivery = negotiated.milestoneSchedule().stream()
+                .map(MilestoneTerm::expectedDeliveryDate)
+                .max(Comparator.naturalOrder())
+                .orElseThrow();
+        return new ContractTerms(
+                new Quantity(snapshot.totalQuantity(), "KG"),
+                new Money(negotiated.agreedPrice().value(), negotiated.currency()),
+                lastDelivery,
+                negotiated.buyerPenaltyRate(),
+                negotiated.sellerDepositRate(),
+                null);
     }
 
     public void counterOffer(String userId, ContractTerms newTerms) {

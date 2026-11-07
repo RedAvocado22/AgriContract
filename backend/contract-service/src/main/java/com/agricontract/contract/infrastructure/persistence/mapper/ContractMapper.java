@@ -1,6 +1,8 @@
 package com.agricontract.contract.infrastructure.persistence.mapper;
 
 import com.agricontract.contract.domain.model.Contract;
+import com.agricontract.contract.domain.model.terms.CanonicalTerms;
+import com.agricontract.contract.domain.model.terms.TermsCanonicalizer;
 import com.agricontract.contract.domain.model.vo.*;
 import com.agricontract.contract.infrastructure.persistence.entity.ContractJpaEntity;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,9 +19,11 @@ import java.util.Set;
 public class ContractMapper {
 
     private final ObjectMapper objectMapper;
+    private final TermsCanonicalizer termsCanonicalizer;
 
     public ContractJpaEntity toJpaEntity(Contract contract) {
         ContractTerms terms = contract.getTerms();
+        CanonicalTerms coffeeTerms = contract.getCoffeeTerms();
         return ContractJpaEntity.builder()
                 .contractId(contract.getContractId().value())
                 .listingId(contract.getListingId())
@@ -38,6 +42,8 @@ public class ContractMapper {
                 .buyerPenaltyRate(terms.buyerPenaltyRate())
                 .sellerDepositRate(terms.sellerDepositRate())
                 .qualitySpec(terms.qualitySpec())
+                .termsSnapshot(coffeeTerms == null ? null : coffeeTerms.canonicalJson())
+                .signedContentHash(coffeeTerms == null ? null : coffeeTerms.signedContentHash())
                 .status(contract.getStatus())
                 .signatories(serializeSignatories(contract.getSignatories()))
                 .build();
@@ -63,6 +69,8 @@ public class ContractMapper {
                 e.getBuyerEmail(),
                 e.getSellerEmail(),
                 terms,
+                e.getTermsSnapshot() == null ? null
+                        : CanonicalTerms.restore(e.getTermsSnapshot(), e.getSignedContentHash(), termsCanonicalizer),
                 e.getStatus(),
                 deserializeSignatories(e.getSignatories())
         );
