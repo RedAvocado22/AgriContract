@@ -6,7 +6,7 @@ meta {
 
 put {
   url: {{product_service_url}}/api/v1/categories/{{category_id}}/approve
-  body: none
+  body: json
   auth: none
 }
 
@@ -14,6 +14,12 @@ headers {
   X-Gateway-Secret: {{gateway_secret}}
   X-User-Id: admin-1
   X-User-Role: ADMIN
+}
+
+body:json {
+  {
+    "commodity": "COFFEE"
+  }
 }
 
 tests {

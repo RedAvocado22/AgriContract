@@ -1,19 +1,19 @@
 meta {
-  name: PUT /api/v1/categories/:categoryId/commodity (already mapped)
+  name: PUT /api/v1/admin/categories/:categoryId/commodity (already mapped)
   type: http
   seq: 2
 }
 
 put {
-  url: {{product_service_url}}/api/v1/categories/{{category_id}}/commodity
+  url: {{product_service_url}}/api/v1/admin/categories/{{category_id}}/commodity
   body: json
   auth: none
 }
 
 headers {
   X-Gateway-Secret: {{gateway_secret}}
-  X-User-Id: admin-1
-  X-User-Role: ADMIN
+  X-User-Id: operator-1
+  X-User-Role: OPERATOR
 }
 
 body:json {
