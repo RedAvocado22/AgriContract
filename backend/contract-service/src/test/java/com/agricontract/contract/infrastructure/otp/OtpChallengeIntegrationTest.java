@@ -55,7 +55,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /** Real MySQL, real commits: one usable challenge per signer and content, also under concurrent resends. */
-@DataJpaTest
+// Resends here come milliseconds apart: the send limits have their own tests (InitiateSignIntegrationTest).
+@DataJpaTest(properties = {"contract.otp.resend-cooldown-seconds=0", "contract.otp.max-sends-per-hour=1000"})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)

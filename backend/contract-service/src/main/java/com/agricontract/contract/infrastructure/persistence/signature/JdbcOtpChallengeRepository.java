@@ -62,6 +62,24 @@ public class JdbcOtpChallengeRepository implements OtpChallengeRepository {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Instant> lastSentAt(String contractId, String userId, SignerRole signerRole) {
+        Timestamp last = jdbc.queryForObject("SELECT MAX(sent_at) FROM signature_otp"
+                + " WHERE contract_id = ? AND user_id = ? AND signer_role = ?", Timestamp.class,
+                contractId, userId, signerRole.name());
+        return Optional.ofNullable(last).map(Timestamp::toInstant);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int countSentSince(String contractId, String userId, SignerRole signerRole, Instant since) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM signature_otp"
+                + " WHERE contract_id = ? AND user_id = ? AND signer_role = ? AND sent_at > ?", Integer.class,
+                contractId, userId, signerRole.name(), Timestamp.from(since));
+        return count == null ? 0 : count;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public void expire(UUID otpId, Instant now) {
         Timestamp at = Timestamp.from(now);
         jdbc.update("UPDATE signature_otp SET expires_at = ? WHERE otp_id = ? AND expires_at > ?",

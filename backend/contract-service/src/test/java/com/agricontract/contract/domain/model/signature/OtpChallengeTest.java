@@ -56,8 +56,8 @@ class OtpChallengeTest {
 
     @Test
     void policyRejectsNonPositiveValues() {
-        assertThatThrownBy(() -> new OtpPolicy(0, 5)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new OtpPolicy(300, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new OtpPolicy(0, 5, 60, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new OtpPolicy(300, 0, 60, 5)).isInstanceOf(IllegalArgumentException.class);
     }
 
     private static void assertConflict(OtpChallenge c, Instant at, String code) {
