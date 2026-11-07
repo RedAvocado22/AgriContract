@@ -114,6 +114,11 @@ class JcsTermsCanonicalizerTest {
             public ContractTermsSnapshot parse(String json) {
                 return canonicalizer.parse(json);
             }
+
+            @Override
+            public String canonicalInputJson(ContractTermsInput input) {
+                return canonicalizer.canonicalInputJson(input);
+            }
         };
 
         assertThat(CanonicalTerms.of(snapshot(), laterVersion).signedContentHash())

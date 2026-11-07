@@ -4,6 +4,7 @@ import com.agricontract.contract.domain.model.terms.CoffeeGoodsTerms;
 import com.agricontract.contract.domain.model.terms.ContractTemplateProfile;
 import com.agricontract.contract.domain.model.terms.ContractTermsInput;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
+import com.agricontract.contract.domain.model.terms.InvalidContractTermsException;
 import com.agricontract.contract.domain.model.terms.TermsCanonicalizer;
 import com.agricontract.contract.domain.model.terms.VndAmount;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -58,11 +59,32 @@ public class JcsTermsCanonicalizer implements TermsCanonicalizer {
         wire.setAll((ObjectNode) mapper.valueToTree(snapshot.template()));
         wire.set("goodsTerms", mapper.valueToTree(snapshot.goodsTerms()));
         wire.put("totalContractValue", snapshot.totalContractValue().wire());
+        return canonicalize(wire);
+    }
+
+    private String canonicalize(JsonNode wire) {
         try {
             return new String(new JsonCanonicalizer(mapper.writeValueAsString(wire)).getEncodedUTF8(),
                     StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException("Contract terms could not be canonicalized", e);
+        }
+    }
+
+    @Override
+    public String canonicalInputJson(ContractTermsInput input) {
+        return canonicalize(mapper.valueToTree(input));
+    }
+
+    /**
+     * Strictly reads a ContractTermsInput request body. Unknown fields fail, which also rejects the server-derived
+     * goodsTerms and totalContractValue if a client tries to send them.
+     */
+    public ContractTermsInput readInput(String json) {
+        try {
+            return mapper.readValue(json, ContractTermsInput.class);
+        } catch (JsonProcessingException e) {
+            throw new InvalidContractTermsException("Invalid contract terms: " + e.getOriginalMessage());
         }
     }
 
