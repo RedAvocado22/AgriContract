@@ -3,6 +3,12 @@ package com.agricontract.contract.domain.model;
 import com.agricontract.contract.domain.event.*;
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
+import com.agricontract.contract.domain.model.consent.ConsentActionType;
+import com.agricontract.contract.domain.model.consent.ConsentEvidence;
+import com.agricontract.contract.domain.model.consent.ConsentStatement;
+import com.agricontract.contract.domain.model.consent.ConsentStatements;
+import com.agricontract.contract.domain.model.consent.ConsentSubjectType;
+import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
@@ -15,11 +21,13 @@ import com.agricontract.contract.domain.model.terms.MilestoneTerm;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 // Aggregate Root
 // State machine (Phase 2, milestone-escrow design §3.1): OFFERED → NEGOTIATING → SIGNED → ACTIVE → SETTLED.
@@ -154,6 +162,44 @@ public class Contract {
         this.coffeeTerms = revised;
         this.terms = legacyProjection(revised.snapshot());
         this.status = ContractStatus.NEGOTIATING;
+    }
+
+    /**
+     * Checkbox consent before an OTP challenge (#94). Refuses, without any side effect, when the caller is not
+     * the party it claims to be, the contract can no longer be signed or already carries this party's signature,
+     * the statement version is not the one in force, or the caller is looking at other terms than the current
+     * ones. Returns the evidence to append in the same transaction as the OTP challenge.
+     */
+    public ConsentEvidence consentToSign(String userId, SignerRole claimedRole, String presentedStatementVersion,
+                                         String presentedContentHash, ConsentStatements statements,
+                                         UUID consentId, Instant consentedAt, String correlationId) {
+        //Guard
+        String partyId = claimedRole == SignerRole.BUYER ? buyerId : sellerId;
+        if (!userId.equals(partyId)) {
+            throw new UnauthorizedContractAccessException("This user is not the " + claimedRole + " of this contract.");
+        }
+        if (this.coffeeTerms == null) {
+            throw new ContractConflictException(ContractConflictException.LEGACY_TERMS,
+                    "This contract has no coffee terms; create a new offer instead.");
+        }
+        if (this.status != ContractStatus.OFFERED && this.status != ContractStatus.NEGOTIATING) {
+            throw new ContractConflictException(ContractConflictException.NOT_SIGNABLE,
+                    "Only an OFFERED or NEGOTIATING contract can be signed, not " + this.status + ".");
+        }
+        if (this.signatories.contains(userId)) {
+            throw new ContractConflictException(ContractConflictException.ALREADY_SIGNED,
+                    "This party has already signed.");
+        }
+        ConsentStatement statement = statements.requireActiveSignContract(claimedRole, presentedStatementVersion);
+        if (!this.coffeeTerms.signedContentHash().equals(presentedContentHash)) {
+            throw new ContractConflictException(ContractConflictException.PRESENTED_CONTENT_STALE,
+                    "The terms changed since this page was loaded; reload and review them before signing.");
+        }
+        //Record
+        return new ConsentEvidence(consentId, ConsentActionType.SIGN_CONTRACT, ConsentSubjectType.CONTRACT,
+                this.contractId.value(), userId, claimedRole, statement.statementCode(),
+                statement.statementVersion(), statement.statementHash(), presentedContentHash, consentedAt,
+                correlationId);
     }
 
     private static ContractTerms legacyProjection(ContractTermsSnapshot snapshot) {
