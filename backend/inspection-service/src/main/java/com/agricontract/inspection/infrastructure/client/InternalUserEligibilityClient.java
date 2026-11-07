@@ -1,5 +1,8 @@
 package com.agricontract.inspection.infrastructure.client;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.UUID;
 import com.agricontract.inspection.application.exception.EligibilityUnavailableException;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
 import com.agricontract.inspection.domain.model.InspectorEligibility;
@@ -86,6 +89,37 @@ public class InternalUserEligibilityClient implements InspectorEligibilityPort {
         } catch (RuntimeException failure) {
             // Unexpected client failures also fail closed, without mislabeling them as bad profiles.
             throw unavailable("unexpected");
+        }
+    }
+
+    @Override
+    public List<String> loadEligibleInspectors() {
+        try {
+            JsonNode body = client.get().uri("/internal/v1/users/inspectors/eligible")
+                    .exchange((request, response) -> {
+                        if (!response.getStatusCode().is2xxSuccessful())
+                            throw new InvalidEligibility("dependency_http");
+                        var type = response.getHeaders().getContentType();
+                        if (type == null || !MediaType.APPLICATION_JSON.isCompatibleWith(type))
+                            throw new InvalidEligibility("malformed_response");
+                        return mapper.readTree(response.getBody());
+                    });
+            if (body == null || !body.isArray()) throw new InvalidEligibility("malformed_response");
+            var ids = new LinkedHashSet<String>();
+            for (JsonNode item : body) {
+                if (!item.isObject() || item.size() != 1) throw new InvalidEligibility("malformed_response");
+                String id = requiredText(item, "userId");
+                String canonical = UUID.fromString(id).toString();
+                if (!canonical.equalsIgnoreCase(id) || !ids.add(canonical))
+                    throw new InvalidEligibility("malformed_response");
+            }
+            return List.copyOf(ids);
+        } catch (InvalidEligibility failure) {
+            throw unavailable(failure.category);
+        } catch (ResourceAccessException failure) {
+            throw unavailable("transport");
+        } catch (RuntimeException failure) {
+            throw unavailable("malformed_response");
         }
     }
 

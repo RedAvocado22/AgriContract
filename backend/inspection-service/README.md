@@ -1,5 +1,8 @@
 # Inspection service foundation — issue 112
 
+The foundation sections below describe the original #112 baseline. The Level 1.5
+assignment lifecycle added by #160 is described at the end of this document.
+
 Implements the user-approved scope: scaffold, local Level 1.5 assignment persistence,
 inspector eligibility and owner-service authorization. No business API, assignment
 creation transport, report submission workflow or event publisher is introduced.
@@ -161,3 +164,55 @@ controller endpoint. MockMvc verifies the actual health/closed HTTP surface.
 - Design and contract references above are read at `d6be0e00b56cf434d68670af045755569c9e2cc6`; no frozen YAML is changed.
 - `docs/design/data-governance-phase2-design.md` section 5 (SRS v1.6 roles)
 - `docs/design/verification-matrix-phase2.md` (inspection and eligibility checks)
+
+## Level 1.5 assignment lifecycle
+
+Consume `inspection.level1_5_requested` with shared `EventEnvelopeCodec` and
+`ProcessedEventStore`. The processed-event claim and assignment changes share a
+transaction. An existing active assignment is a no-op; database milestone locks
+and the active-slot unique key protect concurrent requests.
+
+The client reads the authoritative pool from user-service's private
+`GET /internal/v1/users/inspectors/eligible` using `X-Internal-Secret`. The endpoint
+and its security implementation are owned by merged PR #307, not this service.
+The frozen serviceAuth header now agrees with the runtime header. Candidates are
+INSPECTOR + VERIFIED with authorization expiry null or strictly after the UTC clock;
+Buyer/Seller reputation locks do not apply. Selection is uniformly random with no
+ADMIN/OPERATOR/ARBITRATOR override. Empty pools create no assignment and emit a
+structured OPERATOR operational alert; human-facing delivery remains a gap.
+
+Timeout ends the previous assignment and inserts a new row, excluding every
+inspector previously assigned to the milestone. Empty replacement pools leave the
+old assignment ended. `ended_at` moves only from NULL to a value. `closeConfirmed()`
+requires the caller's transaction; the downstream report workflow owns the actual
+call and atomic report confirmation. No report persistence or submission is added.
+
+V2 requires `report_due_business_days INT NOT NULL` and `report_due_at TIMESTAMP(6)
+NOT NULL`, with duration 1..30 and deadline at or after assignment time enforced
+by `chk_l15_deadline`. There is no nullable legacy-deadline path. Inspection has
+no production legacy rows requiring guessed deadlines; development databases
+using the old V2 must be reset explicitly before verification. V1/V3 are unchanged.
+Timeout occurs at the deadline; confirmation must be strictly before it.
+
+Set `VIETNAM_HOLIDAYS` to a nonempty comma-separated list of ISO holiday dates
+(`YYYY-MM-DD`) for the operating years. Operations must maintain this list annually;
+no holiday dates are hardcoded. Missing, blank, comma-only, malformed or impossible
+dates fail startup. Tokens are trimmed, duplicates collapse, and empty comma tokens
+are ignored only when at least one valid date remains.
+
+The pure-Java shared `com.agricontract:java-business-calendar` implementation uses
+Asia/Ho_Chi_Minh Monday-Friday dates excluding configured holidays. Assignment date
+is day zero; the deadline is 23:59:59.999 ICT on the Nth subsequent business day,
+returned and persisted as a UTC Instant. The scan interval defaults to 60000 ms
+(`INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS`). The service port remains 8087.
+
+The Rabbit consumer validates the frozen envelope/payload and maps it to
+`Level15AssignmentRequestedCommand`. It owns the transaction joining the existing
+processed-event claim and assignment mutation. Invalid payloads raise
+`InvalidEventPayloadException` and are not retried; transient failures retain retries.
+
+The passive DLQ monitor checks `inspection-svc.inspection.level1_5_requested.dlq`
+without consuming messages, using an isolated connection with bounded timeouts.
+It warns on nonempty queues or probe failures without logging payloads or broker details.
+Configure `inspection.dlq-monitor.enabled` (default true), `.interval-ms` (300000),
+and `.timeout-ms` (3000) through Spring configuration.

@@ -11,9 +11,28 @@
     <name>AgriContract Inspection Service</name>
     <dependencies>
         <dependency>
+            <groupId>com.agricontract</groupId>
+            <artifactId>java-business-calendar</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>io.github.erdtman</groupId>
             <artifactId>java-json-canonicalization</artifactId>
             <version>1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>rabbitmq</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.agricontract</groupId>
+            <artifactId>java-eventing</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
