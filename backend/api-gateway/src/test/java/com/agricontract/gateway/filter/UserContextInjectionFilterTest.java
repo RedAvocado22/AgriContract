@@ -57,7 +57,7 @@ class UserContextInjectionFilterTest {
         HttpHeaders headers = forwardedHeaders();
         assertThat(headers.get("X-User-Id")).containsExactly("user-123");
         assertThat(headers.get("X-User-Role")).containsExactly("BUYER");
-        assertThat(headers.get("X-User-Email")).containsExactly("user@agri.test");
+        assertThat(headers.containsKey("X-User-Email")).isFalse();
         assertThat(headers.get("X-Gateway-Secret")).containsExactly(SECRET);
         assertThat(headers.containsKey(HttpHeaders.AUTHORIZATION)).isFalse();
     }
@@ -107,16 +107,14 @@ class UserContextInjectionFilterTest {
     }
 
     @Test
-    void jwtWithoutEmail_isRejectedWithUnauthorized() {
+    void jwtWithoutEmail_isForwardedWithoutEmailHeader() {
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/users/me").build();
 
-        StepVerifier.create(filter.filter(withPrincipal(request, jwt("user-123", null, List.of("BUYER"))), chain))
-                .expectErrorSatisfies(error -> {
-                    assertThat(error).isInstanceOf(ResponseStatusException.class);
-                    assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-                })
-                .verify();
-        assertThat(forwarded.get()).isNull();
+        filter.filter(withPrincipal(request, jwt("user-123", null, List.of("BUYER"))), chain).block();
+
+        HttpHeaders headers = forwardedHeaders();
+        assertThat(headers.get("X-User-Id")).containsExactly("user-123");
+        assertThat(headers.containsKey("X-User-Email")).isFalse();
     }
 
     @Test

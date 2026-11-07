@@ -87,6 +87,19 @@ public class GlobalExceptionHandler {
         return envelope(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(UserProfileNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserProfileNotFound(UserProfileNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(UserServiceUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserServiceUnavailable(UserServiceUnavailableException ex) {
+        log.warn("user-service lookup failed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("User service unavailable, please retry"));
+    }
+
     private static ResponseEntity<ErrorEnvelope> envelope(HttpStatus status, String code, String message,
                                                           HttpServletRequest request) {
         return ResponseEntity.status(status).body(new ErrorEnvelope(Instant.now(), status.value(),
