@@ -12,10 +12,37 @@ export enum NotificationChannel {
   EMAIL = 'EMAIL',
 }
 
+/**
+ * What an email is: the event it answers and its template semantic (design
+ * §3.1). One event may send several notification types, and two events may
+ * send the same type.
+ */
+export interface NotificationKind {
+  /** Routing key of the event or command, for routing and audit (`event_type`). */
+  eventType: string;
+  /** Template semantic, part of the dedup key (`notification_type`). */
+  notificationType: string;
+}
+
+/**
+ * Identifies one email: unique in `notification_logs` as
+ * `uq_event_recipient_type (event_id, recipient_email, notification_type)`.
+ */
+export interface NotificationKey {
+  eventId: string;
+  recipientEmail: string;
+  notificationType: string;
+}
+
 export interface NotificationLogProps {
   notificationId: string;
   eventId: string;
-  /** Persisted in the `user_id` column, which holds the recipient email (as in Java). */
+  eventType: string;
+  notificationType: string;
+  /**
+   * `recipient_email`. Phase 1 code also writes it to `user_id`, which held
+   * the recipient email before V2 (as in Java).
+   */
   recipientEmail: string;
   channel: NotificationChannel;
   subject: string;
@@ -24,12 +51,13 @@ export interface NotificationLogProps {
   retryCount: number;
 }
 
-/** One email to one recipient for one event; `(eventId, recipientEmail)` is unique. */
+/** One email of one type to one recipient for one event; its NotificationKey is unique. */
 export class NotificationLog {
   private constructor(private props: NotificationLogProps) {}
 
   static create(
     eventId: string,
+    kind: NotificationKind,
     recipientEmail: string,
     channel: NotificationChannel,
     subject: string,
@@ -38,6 +66,8 @@ export class NotificationLog {
     return new NotificationLog({
       notificationId: randomUUID(),
       eventId,
+      eventType: kind.eventType,
+      notificationType: kind.notificationType,
       recipientEmail,
       channel,
       subject,
@@ -57,8 +87,21 @@ export class NotificationLog {
   get eventId(): string {
     return this.props.eventId;
   }
+  get eventType(): string {
+    return this.props.eventType;
+  }
+  get notificationType(): string {
+    return this.props.notificationType;
+  }
   get recipientEmail(): string {
     return this.props.recipientEmail;
+  }
+  get key(): NotificationKey {
+    return {
+      eventId: this.props.eventId,
+      recipientEmail: this.props.recipientEmail,
+      notificationType: this.props.notificationType,
+    };
   }
   get channel(): NotificationChannel {
     return this.props.channel;

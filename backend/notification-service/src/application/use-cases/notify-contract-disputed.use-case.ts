@@ -1,5 +1,6 @@
 import type { ContractDisputedCommand } from '../commands';
 import type { NotificationSender } from '../notification-sender';
+import { PHASE1_KINDS } from '../phase1-notification-kinds';
 import type { NotificationSettings } from '../notification-settings';
 
 /*
@@ -8,6 +9,8 @@ import type { NotificationSettings } from '../notification-settings';
  * from the Java service at tag notification-java-final, guards them. A null
  * value renders as "null", as Java string concatenation does.
  */
+
+const KIND = PHASE1_KINDS.contractDisputed;
 
 export class NotifyContractDisputedUseCase {
   constructor(
@@ -21,11 +24,24 @@ export class NotifyContractDisputedUseCase {
 
     await this.sender.send(
       command.eventId,
+      KIND,
       this.settings.adminEmail,
       subject,
       body,
     );
-    await this.sender.send(command.eventId, command.sellerEmail, subject, body);
-    await this.sender.send(command.eventId, command.buyerEmail, subject, body);
+    await this.sender.send(
+      command.eventId,
+      KIND,
+      command.sellerEmail,
+      subject,
+      body,
+    );
+    await this.sender.send(
+      command.eventId,
+      KIND,
+      command.buyerEmail,
+      subject,
+      body,
+    );
   }
 }

@@ -2,6 +2,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import {
   NotificationChannel,
   NotificationLog,
+  type NotificationKey,
+  type NotificationKind,
 } from '../domain/notification-log';
 import {
   ClaimWaitAbortedError,
@@ -61,7 +63,8 @@ export interface NotificationSenderOptions {
 }
 
 /**
- * Sends one email for one event to one recipient, at most once (plan §4.3).
+ * Sends one email of one kind for one event to one recipient, at most once
+ * (plan §4.3; key (event, recipient, notification type) since #115).
  * Shared by the Notify*UseCase classes; plain TypeScript, no framework.
  */
 export class NotificationSender {
@@ -96,8 +99,8 @@ export class NotificationSender {
    *    parks the message for redelivery.
    * 3. Send outside any transaction, refreshing the claim every
    *    CLAIM_HEARTBEAT_MS until the send ends, then record SENT, or FAILED
-   *    with retry_count + 1 and rethrow so the whole message is retried
-   *    (recipients already SENT are skipped then).
+   *    with retry_count + 1 and the failure code, and rethrow so the whole
+   *    message is retried (recipients already SENT are skipped then).
    *
    * Every error thrown is a NotificationError whose message holds only the
    * event id and a failure code: it is logged on each retry, so it must not
@@ -105,38 +108,35 @@ export class NotificationSender {
    */
   async send(
     eventId: string,
+    kind: NotificationKind,
     recipientEmail: string,
     subject: string,
     body: string,
   ): Promise<void> {
-    const claim = await this.claimOrWait(
-      NotificationLog.create(
-        eventId,
-        recipientEmail,
-        NotificationChannel.EMAIL,
-        subject,
-        body,
-      ),
+    const log = NotificationLog.create(
+      eventId,
+      kind,
+      recipientEmail,
+      NotificationChannel.EMAIL,
+      subject,
+      body,
     );
+    const claim = await this.claimOrWait(log);
     if (claim === 'ALREADY_SENT') return;
 
     try {
-      await this.sendWithHeartbeat(eventId, {
+      await this.sendWithHeartbeat(log.key, {
         to: recipientEmail,
         subject,
         body,
       });
     } catch (err) {
-      await this.logStep(eventId, () =>
-        this.logs.markFailed(eventId, recipientEmail),
-      );
       const code =
         err instanceof EmailDeliveryError ? err.code : failureCode(err);
+      await this.logStep(eventId, () => this.logs.markFailed(log.key, code));
       throw new NotificationDeliveryError(eventId, 'email', code);
     }
-    await this.logStep(eventId, () =>
-      this.logs.markSent(eventId, recipientEmail),
-    );
+    await this.logStep(eventId, () => this.logs.markSent(log.key));
   }
 
   /**
@@ -166,7 +166,7 @@ export class NotificationSender {
    * none does the claim can be taken over after the lease, as for a crash.
    */
   private async sendWithHeartbeat(
-    eventId: string,
+    key: NotificationKey,
     message: EmailMessage,
   ): Promise<void> {
     let beating = false;
@@ -174,10 +174,10 @@ export class NotificationSender {
       if (beating) return; // the previous beat is still waiting for the database
       beating = true;
       this.logs
-        .heartbeat(eventId, message.to)
+        .heartbeat(key)
         .catch((err: unknown) =>
           this.logger.error(
-            `Event ${eventId}: claim heartbeat failed (${failureCode(err)})`,
+            `Event ${key.eventId}: claim heartbeat failed (${failureCode(err)})`,
           ),
         )
         .finally(() => (beating = false));

@@ -1,5 +1,6 @@
 import type { EscrowLockedCommand } from '../commands';
 import type { NotificationSender } from '../notification-sender';
+import { PHASE1_KINDS } from '../phase1-notification-kinds';
 
 /*
  * Subjects, bodies and recipient order are copied verbatim from the Java
@@ -8,6 +9,8 @@ import type { NotificationSender } from '../notification-sender';
  * value renders as "null", as Java string concatenation does.
  */
 
+const KIND = PHASE1_KINDS.escrowLocked;
+
 export class NotifyEscrowLockedUseCase {
   constructor(private readonly sender: NotificationSender) {}
 
@@ -15,6 +18,12 @@ export class NotifyEscrowLockedUseCase {
     const subject = '[AgriContract] Escrow locked — proceed with delivery';
     const body = `Escrow ${command.escrowId} has been successfully locked.`;
 
-    await this.sender.send(command.eventId, command.sellerEmail, subject, body);
+    await this.sender.send(
+      command.eventId,
+      KIND,
+      command.sellerEmail,
+      subject,
+      body,
+    );
   }
 }

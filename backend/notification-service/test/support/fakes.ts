@@ -9,6 +9,7 @@ import type {
 } from '../../src/application/ports/notification-log.repository';
 import {
   NotificationStatus,
+  type NotificationKey,
   type NotificationLog,
   type NotificationLogProps,
 } from '../../src/domain/notification-log';
@@ -16,11 +17,19 @@ import {
 interface Row extends NotificationLogProps {
   /** Claim timestamp (updated_at), on the fake clock. */
   updatedAt: number;
+  failureReason: string | null;
+  /** sent_at, on the fake clock. */
+  sentAt: number | null;
 }
 
+/** A row as stored, without the claim timestamp. */
+export type StoredLog = Omit<Row, 'updatedAt'>;
+
 /**
- * In-memory notification_logs with the MySQL repository's claim semantics:
- * unique (event_id, user_id), FAILED or stale PENDING rows can be retaken.
+ * In-memory notification_logs with the MySQL repository's claim semantics
+ * (schema V2): unique (event_id, recipient_email, notification_type), FAILED
+ * or stale PENDING rows can be retaken, and a row from before V2 (recipient
+ * `legacy:<email>`, type LEGACY_P1) that is SENT makes the claim ALREADY_SENT.
  * JavaScript runs each call to completion, so claims are atomic here too.
  */
 export class InMemoryNotificationLogRepository implements NotificationLogRepository {
@@ -28,20 +37,27 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
   /** Fake clock in ms, used for the claim lease. */
   now = 0;
 
-  private static key(eventId: string, recipient: string) {
-    return `${eventId}|${recipient}`;
+  private static id(key: NotificationKey) {
+    return `${key.eventId}|${key.recipientEmail}|${key.notificationType}`;
   }
 
   claim(log: NotificationLog, leaseMs: number): Promise<ClaimResult> {
-    const key = InMemoryNotificationLogRepository.key(
-      log.eventId,
-      log.recipientEmail,
+    const legacy = this.rows.get(
+      InMemoryNotificationLogRepository.id(
+        legacyKey(log.eventId, log.recipientEmail),
+      ),
     );
-    const row = this.rows.get(key);
+    if (legacy?.status === NotificationStatus.SENT) {
+      return Promise.resolve('ALREADY_SENT');
+    }
+    const id = InMemoryNotificationLogRepository.id(log.key);
+    const row = this.rows.get(id);
     if (!row) {
-      this.rows.set(key, {
+      this.rows.set(id, {
         notificationId: log.notificationId,
         eventId: log.eventId,
+        eventType: log.eventType,
+        notificationType: log.notificationType,
         recipientEmail: log.recipientEmail,
         channel: log.channel,
         subject: log.subject,
@@ -49,6 +65,8 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
         status: NotificationStatus.PENDING,
         retryCount: 0,
         updatedAt: this.now,
+        failureReason: null,
+        sentAt: null,
       });
       return Promise.resolve('CLAIMED');
     }
@@ -64,72 +82,86 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
     return Promise.resolve('IN_PROGRESS');
   }
 
-  heartbeat(eventId: string, recipientEmail: string): Promise<void> {
-    const row = this.rows.get(
-      InMemoryNotificationLogRepository.key(eventId, recipientEmail),
-    );
+  heartbeat(key: NotificationKey): Promise<void> {
+    const row = this.rows.get(InMemoryNotificationLogRepository.id(key));
     if (row?.status === NotificationStatus.PENDING) row.updatedAt = this.now;
     return Promise.resolve();
   }
 
-  markSent(eventId: string, recipientEmail: string): Promise<void> {
-    this.update(eventId, recipientEmail, (row) => {
+  markSent(key: NotificationKey): Promise<void> {
+    this.update(key, (row) => {
       row.status = NotificationStatus.SENT;
+      row.sentAt = this.now;
     });
     return Promise.resolve();
   }
 
-  markFailed(eventId: string, recipientEmail: string): Promise<void> {
-    this.update(eventId, recipientEmail, (row) => {
+  markFailed(key: NotificationKey, failureReason: string): Promise<void> {
+    this.update(key, (row) => {
       row.status = NotificationStatus.FAILED;
       row.retryCount += 1;
+      row.failureReason = failureReason;
     });
     return Promise.resolve();
   }
 
   /** Seeds a row as another (possibly dead) delivery left it. */
   seed(
-    eventId: string,
-    recipient: string,
+    key: NotificationKey,
     status: NotificationStatus,
     updatedAt = this.now,
   ): void {
-    this.rows.set(InMemoryNotificationLogRepository.key(eventId, recipient), {
-      notificationId: `seed-${eventId}-${recipient}`,
-      eventId,
-      recipientEmail: recipient,
+    this.rows.set(InMemoryNotificationLogRepository.id(key), {
+      notificationId: `seed-${InMemoryNotificationLogRepository.id(key)}`,
+      eventId: key.eventId,
+      eventType: 'seeded.event',
+      notificationType: key.notificationType,
+      recipientEmail: key.recipientEmail,
       channel: 'EMAIL' as NotificationLogProps['channel'],
       subject: 'seeded',
       body: 'seeded',
       status,
       retryCount: 0,
       updatedAt,
+      failureReason: null,
+      sentAt: status === NotificationStatus.SENT ? updatedAt : null,
     });
   }
 
-  get(eventId: string, recipient: string): NotificationLogProps | undefined {
-    const row = this.rows.get(
-      InMemoryNotificationLogRepository.key(eventId, recipient),
-    );
+  /** Seeds a row as migration V2 left a Phase 1 row of `eventId` to `email`. */
+  seedLegacy(eventId: string, email: string, status: NotificationStatus): void {
+    this.seed(legacyKey(eventId, email), status);
+  }
+
+  get(key: NotificationKey): StoredLog | undefined {
+    const row = this.rows.get(InMemoryNotificationLogRepository.id(key));
     if (!row) return undefined;
     const { updatedAt: _ignored, ...props } = row;
     void _ignored;
     return props;
   }
 
-  private update(
-    eventId: string,
-    recipient: string,
-    change: (row: Row) => void,
-  ) {
-    const row = this.rows.get(
-      InMemoryNotificationLogRepository.key(eventId, recipient),
-    );
+  /** Number of rows, all keys together. */
+  get size(): number {
+    return this.rows.size;
+  }
+
+  private update(key: NotificationKey, change: (row: Row) => void) {
+    const row = this.rows.get(InMemoryNotificationLogRepository.id(key));
     if (row) {
       change(row);
       row.updatedAt = this.now;
     }
   }
+}
+
+/** Key migration V2 gave a Phase 1 row of `eventId` to `email`. */
+function legacyKey(eventId: string, email: string): NotificationKey {
+  return {
+    eventId,
+    recipientEmail: `legacy:${email}`,
+    notificationType: 'LEGACY_P1',
+  };
 }
 
 /**
