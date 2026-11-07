@@ -16,6 +16,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -161,6 +162,52 @@ class UserContextInjectionFilterTest {
                         assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN))
                 .verify();
         assertThat(forwarded.get()).isNull();
+    }
+
+    @Test
+    void authTimeClaim_isForwardedAsEpochSeconds() {
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/v1/contracts/c-1/sign/initiate").build();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").subject("user-123")
+                .claim("email", "user@agri.test").claim("realm_access", Map.of("roles", List.of("SELLER")))
+                .claim("auth_time", 1794082591L).build();
+
+        filter.filter(withPrincipal(request, jwt), chain).block();
+
+        assertThat(forwardedHeaders().get("X-User-Auth-Time")).containsExactly("1794082591");
+    }
+
+    @Test
+    void authTimeClaimAsInstant_isForwardedAsEpochSeconds() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/contracts").build();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").subject("user-123")
+                .claim("email", "user@agri.test").claim("realm_access", Map.of("roles", List.of("BUYER")))
+                .claim("auth_time", Instant.ofEpochSecond(1794082591L)).build();
+
+        filter.filter(withPrincipal(request, jwt), chain).block();
+
+        assertThat(forwardedHeaders().get("X-User-Auth-Time")).containsExactly("1794082591");
+    }
+
+    @Test
+    void tokenWithoutAuthTime_forwardsNoAuthTime_evenIfTheClientSentOne() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/contracts")
+                .header("X-User-Auth-Time", "9999999999")
+                .build();
+
+        filter.filter(withPrincipal(request, jwt("user-123", "user@agri.test", List.of("BUYER"))), chain).block();
+
+        assertThat(forwardedHeaders().containsKey("X-User-Auth-Time")).isFalse();
+    }
+
+    @Test
+    void anonymousRequest_forgedAuthTime_isStripped() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/listings")
+                .header("X-User-Auth-Time", "9999999999")
+                .build();
+
+        filter.filter(MockServerWebExchange.from(request), chain).block();
+
+        assertThat(forwardedHeaders().containsKey("X-User-Auth-Time")).isFalse();
     }
 
     private HttpHeaders forwardedHeaders() {
