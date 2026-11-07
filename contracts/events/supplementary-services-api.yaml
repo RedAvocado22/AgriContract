@@ -163,6 +163,40 @@ paths:
               schema: { $ref: '#/components/schemas/ListingReservationResponse' }
         "409": { description: "INSUFFICIENT_LISTING_QUANTITY, LISTING_VERSION_MISMATCH, or reservation/listing state conflict" }
 
+  /internal/v1/listings/{listingId}/contract-snapshot:
+    get:
+      operationId: getListingContractSnapshot
+      summary: Read the goods snapshot source for a contract at the buyer's listing version
+      description: >-
+        Contract-service calls this synchronously at create, before reserveListingQuantity, and
+        stores the body unchanged as goodsTerms of the new contract (golden-flow-api.yaml
+        GoodsTermsSnapshot). Product-service compares listingVersionToken with the exact current
+        token first; a mismatch returns 409 LISTING_VERSION_MISMATCH. The body is built from the
+        listing's own copies (productName, cropYear, harvestSeason, regionText and plot refs,
+        copied at listing create) plus the current category name, so a later edit of the Product
+        or PlotRegistryEntry does not change it; once the contract stores it, no source change
+        reaches the contract. Listing status and quantity are NOT checked here:
+        reserveListingQuantity, called next with the same token, owns
+        INSUFFICIENT_LISTING_QUANTITY and listing state conflicts. A listing that cannot back a
+        coffee contract (legacy row without COFFEE commodity, category, regionText or at least
+        one plot) returns 409 LISTING_STATE_CONFLICT. product-service never returns
+        traceabilitySnapshot. Read-only and safe to repeat.
+      x-owner: product-service
+      x-auth: service-to-service
+      parameters:
+        - { name: listingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: listingVersionToken, in: query, required: true, schema: { type: string, minLength: 1 }, description: Exact opaque token from ListingResponse that the buyer saw. }
+      responses:
+        "200":
+          description: Goods snapshot source at the requested listing version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingContractSnapshot' }
+        "400": { description: listingVersionToken missing or blank }
+        "401": { description: Missing or invalid X-Internal-Secret }
+        "404": { description: Listing not found }
+        "409": { description: "LISTING_VERSION_MISMATCH, or LISTING_STATE_CONFLICT for a listing that cannot back a coffee contract" }
+
   /internal/v1/listing-reservations/{contractId}/release:
     post:
       operationId: compensateListingReservation
@@ -532,6 +566,42 @@ components:
         listingId: { type: string, format: uuid }
         reservedQuantity: { type: number, exclusiveMinimum: 0, description: Expected reservation quantity used to reject compensate-with-different-payload. }
         reason: { const: CREATE_PERSISTENCE_COMPENSATION }
+    ListingContractSnapshotPlotRef:
+      description: Same fields as PlotRefSnapshot (golden-flow-api.yaml), taken from the listing's plot copy, not the live registry entry.
+      type: object
+      required: [registryEntryId, householdLabel, geometryType, geometryHash, verificationLevel]
+      additionalProperties: false
+      properties:
+        registryEntryId: { type: string, format: uuid }
+        householdLabel: { type: string, minLength: 1 }
+        geometryType: { enum: [POINT, POLYGON] }
+        geometryHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        verificationLevel: { enum: [SELF_DECLARED, CADASTRAL_BACKED] }
+    ListingContractSnapshot:
+      description: >-
+        Field for field the golden-flow-api.yaml GoodsTermsSnapshot without traceabilitySnapshot,
+        so contract-service can store it as goodsTerms unchanged. plotRefs are ordered by
+        householdLabel so repeated reads of the same version are identical.
+      type: object
+      required: [commodity, listingId, productId, categoryId, categoryName, productName, unitOfMeasure, cropYear, harvestSeason, originSnapshot]
+      additionalProperties: false
+      properties:
+        commodity: { const: COFFEE }
+        listingId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        categoryId: { type: string, format: uuid }
+        categoryName: { type: string, minLength: 1, description: Current name of the listing's category. }
+        productName: { type: string, minLength: 1, description: Product name copied at listing create. }
+        unitOfMeasure: { const: KG }
+        cropYear: { type: [integer, 'null'], description: Copied from the Product at listing create. }
+        harvestSeason: { type: [string, 'null'], description: Copied from the Product at listing create. }
+        originSnapshot:
+          type: object
+          required: [regionText, plotRefs]
+          additionalProperties: false
+          properties:
+            regionText: { type: string, minLength: 1 }
+            plotRefs: { type: array, minItems: 1, items: { $ref: '#/components/schemas/ListingContractSnapshotPlotRef' } }
     CoffeeActualMetrics:
       type: object
       required: [commodity, type, moisturePercent, foreignMatterPercent, blackBrokenBeansPercent]

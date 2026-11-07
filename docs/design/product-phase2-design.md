@@ -435,6 +435,8 @@ originSnapshot {
 
 `plotRefs` bắt buộc non-empty cho `COFFEE`. `traceabilitySnapshot` là nullable evidence-package reference. Đây là contract snapshot: sửa/xoá Listing, Product, Category hay PlotRegistryEntry sau create contract không cascade và không làm đổi `goodsTerms`/`signedContentHash`; lookup nguồn chỉ phục vụ provenance/audit, không tái hydrate terms.
 
+**Nguồn đọc (#111):** contract-service đọc `GET /internal/v1/listings/{listingId}/contract-snapshot?listingVersionToken=` (`getListingContractSnapshot`, supplementary-services-api.yaml) trước khi reserve, rồi lưu nguyên body làm `goodsTerms`. Product-service so token trước (lệch → `409 LISTING_VERSION_MISMATCH`), dựng body từ các bản copy trên listing (productName, cropYear, harvestSeason, regionText, `listing_plot`) cộng tên category hiện tại. Endpoint không kiểm status/quantity — reserve gọi ngay sau với cùng token đã lo `INSUFFICIENT_LISTING_QUANTITY` và state conflict, nên buyer không nhận sai mã khi listing vừa hết hàng. Listing legacy thiếu commodity/category/regionText/plot → `409 LISTING_STATE_CONFLICT`. Product-service không trả `traceabilitySnapshot`.
+
 Contract create ordering và invariant chữ ký được owner contract-service chốt ở `milestone-escrow-phase2-design.md` §2.1d: reserve sync trước khi persist `OFFERED`, persistence failure phải gọi compensation release idempotent, và **F18** bắt buộc `Σ committedQuantity == reservedQuantity` trước transition `SIGNED`.
 
 ---
