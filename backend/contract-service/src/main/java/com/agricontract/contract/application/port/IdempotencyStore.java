@@ -1,5 +1,6 @@
 package com.agricontract.contract.application.port;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -18,4 +19,10 @@ public interface IdempotencyStore {
     }
 
     Outcome claim(String actorId, String operation, UUID idempotencyKey, String requestHash);
+
+    /** After FIRST, in the same transaction: the id of what this command created, for replays to return. */
+    void recordResult(String actorId, String operation, UUID idempotencyKey, String resultRef);
+
+    /** After REPLAY: what the first run created, empty if it recorded nothing. */
+    Optional<String> resultOf(String actorId, String operation, UUID idempotencyKey);
 }
