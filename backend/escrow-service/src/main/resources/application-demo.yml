@@ -1,0 +1,6 @@
+# SPRING_PROFILES_ACTIVE=demo (D39): the retry of a failed deposit lock can be shown live. Same three retries as
+# the design, seconds instead of 5m / 30m / 2h. Never enable outside a demo.
+escrow:
+  deposit-lock:
+    retry-backoff: [PT10S, PT20S, PT30S]
+    retry-poll-interval: PT2S

@@ -33,6 +33,13 @@ agricontract:
       enabled: true
       exchange: agricontract.escrow
 
+# Deposit lock retries (milestone-escrow design §3.1/§8, D39): a failed leg is resent after 5m, 30m, then 2h; a
+# failure after the third retry is final (#247). Profile "demo" shortens it (application-demo.yml).
+escrow:
+  deposit-lock:
+    retry-backoff: [PT5M, PT30M, PT2H]
+    retry-poll-interval: PT30S
+
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
 
