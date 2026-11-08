@@ -28,6 +28,11 @@ public record ActivationDeposits(List<DepositLeg> legs) {
                 && legs.stream().allMatch(l -> l.isLocked() || l.isLockFailed());
     }
 
+    /** The parties cancelled and every leg is settled: never locked (CANCELLED) or given back (RETURNED). */
+    public boolean refundSettled() {
+        return !legs.isEmpty() && legs.stream().allMatch(DepositLeg::isRefundSettled);
+    }
+
     public FailedLeg failedLeg() {
         boolean buyer = failed(DepositLegParty.BUYER);
         boolean seller = failed(DepositLegParty.SELLER);

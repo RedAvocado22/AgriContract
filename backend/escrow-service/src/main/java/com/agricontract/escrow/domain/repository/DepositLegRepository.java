@@ -15,9 +15,9 @@ public interface DepositLegRepository {
     /** Same, row-locked until the caller's transaction ends: serialises every result of one contract. */
     List<DepositLeg> findByContractIdForUpdate(String contractId);
 
-    /** Writes the result fields (status, ledger entry, failures, next attempt, reason, updatedAt). */
+    /** Writes the result fields (status, ledger entries, failures, next attempt, reason, return request, updatedAt). */
     void update(DepositLeg leg);
 
-    /** Contracts with at least one FAILED leg whose retry is due. */
+    /** Contracts with a lock (FAILED) or a return (RETURN_FAILED) whose resend is due. */
     List<String> findContractsWithRetryDue(Instant now, int limit);
 }
