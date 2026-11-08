@@ -36,6 +36,8 @@ import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.repository.OtpChallengeRepository;
 import com.agricontract.contract.domain.repository.SignatureRepository;
 import com.agricontract.contract.infrastructure.consent.ConsentConfiguration;
+import com.agricontract.contract.infrastructure.contract.FrozenSchemas;
+import com.agricontract.contract.infrastructure.messaging.OutboxContractEventPublisher;
 import com.agricontract.contract.infrastructure.otp.OtpConfiguration;
 import com.agricontract.contract.infrastructure.persistence.consent.JdbcConsentEvidenceRepository;
 import com.agricontract.contract.infrastructure.persistence.idempotency.JdbcIdempotencyStore;
@@ -45,6 +47,9 @@ import com.agricontract.contract.infrastructure.persistence.signature.JdbcOtpCha
 import com.agricontract.contract.infrastructure.persistence.signature.JdbcSignatureRepository;
 import com.agricontract.contract.infrastructure.terms.ContractTermsConfiguration;
 import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
+import com.agricontract.eventing.EventingAutoConfiguration;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -80,21 +85,25 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * VerifyOtpAndSign end to end on real MySQL, with codes issued by the real InitiateSign and a stubbed user-service:
- * what a right code, a wrong code, a replaced code, an ineligible party and two parties signing at once leave behind.
+ * what a right code, a wrong code, a replaced code, an ineligible party and two parties signing at once leave behind,
+ * and that contract.signed is in the outbox exactly once, exactly when the contract is SIGNED (#98).
  */
-@DataJpaTest(properties = {"contract.otp.resend-cooldown-seconds=0", "contract.otp.max-sends-per-hour=1000"})
+// The outbox poller (needs RabbitMQ) stays off: the test reads event_outbox, it does not publish.
+@DataJpaTest(properties = {"contract.otp.resend-cooldown-seconds=0", "contract.otp.max-sends-per-hour=1000",
+        "agricontract.eventing.outbox.enabled=false"})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ImportAutoConfiguration(JacksonAutoConfiguration.class)
+@ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
 @Import({VerifyOtpAndSignUseCase.class, InitiateSignUseCase.class, SignerEligibility.class, OtpChallengeIssuer.class,
         JdbcOtpChallengeRepository.class, JdbcSignatureRepository.class, OtpConfiguration.class,
         SigningConsentRecorder.class, JdbcConsentEvidenceRepository.class, ConsentConfiguration.class,
         JdbcIdempotencyStore.class, ContractRepositoryImpl.class, ContractMapper.class, JcsTermsCanonicalizer.class,
-        ContractTermsConfiguration.class, VerifySignIntegrationTest.Stubs.class})
+        ContractTermsConfiguration.class, OutboxContractEventPublisher.class, VerifySignIntegrationTest.Stubs.class})
 @Testcontainers
 class VerifySignIntegrationTest {
-    private static final String BUYER = "buyer-1";
-    private static final String SELLER = "seller-1";
+    // Keycloak subjects are UUIDs; contract.signed refuses anything else.
+    private static final String BUYER = "0b7e3b7a-1c1e-4c5e-9f0a-3d2b1a0c9e8f";
+    private static final String SELLER = "5a4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a";
 
     @Container
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.42");
@@ -161,7 +170,7 @@ class VerifySignIntegrationTest {
     }
 
     @Test
-    void rightCode_recordsTheSignature_andTheSecondPartyMakesTheContractSigned() {
+    void rightCode_recordsTheSignature_andTheSecondPartyMakesTheContractSigned() throws Exception {
         Code seller = codeFor(SELLER, SignerRole.SELLER);
         Instant authTime = Instant.now().minusSeconds(10);
 
@@ -177,11 +186,19 @@ class VerifySignIntegrationTest {
         assertThat(signature.signedAt()).isEqualTo(challenge.verifiedAt());
         assertThat(signature.ipAddress()).isNull();
         assertThat(status()).isEqualTo(ContractStatus.OFFERED);
+        assertThat(signedEvents()).isEmpty();
 
         Code buyer = codeFor(BUYER, SignerRole.BUYER);
         verify.execute(command(BUYER, UUID.randomUUID(), buyer, buyer.code(), Instant.now()));
 
         assertThat(status()).isEqualTo(ContractStatus.SIGNED);
+        List<JsonNode> events = signedEvents();
+        assertThat(events).hasSize(1);
+        FrozenSchemas.assertEvent("contractSigned", events.get(0));
+        Signature second = signatures.findByContractId(id()).stream()
+                .filter(s -> s.signerRole() == SignerRole.BUYER).findFirst().orElseThrow();
+        assertThat(Instant.parse(events.get(0).at("/payload/signedAt").asText())).isEqualTo(second.signedAt());
+        assertThat(events.get(0).at("/aggregateId").asText()).isEqualTo(id());
         assertThat(signatures.findByContractId(id())).extracting(Signature::signerRole)
                 .containsExactlyInAnyOrder(SignerRole.SELLER, SignerRole.BUYER);
     }
@@ -226,6 +243,34 @@ class VerifySignIntegrationTest {
         verify.execute(command(SELLER, key, seller, seller.code(), Instant.now()));
 
         assertThat(signatures.findByContractId(id())).hasSize(1);
+    }
+
+    @Test
+    void replayOfTheSecondSignature_doesNotWriteASecondEvent() {
+        Code seller = codeFor(SELLER, SignerRole.SELLER);
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+        Code buyer = codeFor(BUYER, SignerRole.BUYER);
+        UUID key = UUID.randomUUID();
+        verify.execute(command(BUYER, key, buyer, buyer.code(), Instant.now()));
+
+        verify.execute(command(BUYER, key, buyer, buyer.code(), Instant.now()));
+        assertThatThrownBy(() -> verify.execute(command(BUYER, UUID.randomUUID(), buyer, buyer.code(),
+                Instant.now()))).extracting("code").isEqualTo(OtpChallenge.OTP_USED);
+
+        assertThat(signedEvents()).hasSize(1);
+    }
+
+    @Test
+    void refusedSecondSignature_leavesNoEvent() {
+        Code seller = codeFor(SELLER, SignerRole.SELLER);
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+        Code buyer = codeFor(BUYER, SignerRole.BUYER);
+
+        assertThatThrownBy(() -> verify.execute(command(BUYER, UUID.randomUUID(), buyer, wrong(buyer),
+                Instant.now()))).extracting("code").isEqualTo(VerifyOtpAndSignUseCase.OTP_INVALID);
+
+        assertThat(status()).isEqualTo(ContractStatus.OFFERED);
+        assertThat(signedEvents()).isEmpty();
     }
 
     @Test
@@ -358,6 +403,7 @@ class VerifySignIntegrationTest {
 
         assertThat(signatures.findByContractId(id())).hasSize(2);
         assertThat(status()).isEqualTo(ContractStatus.SIGNED);
+        assertThat(signedEvents()).hasSize(1);
     }
 
     @Test
@@ -392,8 +438,21 @@ class VerifySignIntegrationTest {
     }
 
     private static UserInfo profile(String user, Instant lockedUntil) {
-        return new UserInfo(user, "HTX " + user, user + "@x.test", user.startsWith("buyer") ? "BUYER" : "SELLER",
+        return new UserInfo(user, "HTX " + user, user + "@x.test", user.equals(BUYER) ? "BUYER" : "SELLER",
                 "VERIFIED", null, lockedUntil);
+    }
+
+    /** contract.signed envelopes in event_outbox for this contract, as JSON. */
+    private List<JsonNode> signedEvents() {
+        return jdbc.queryForList("SELECT envelope FROM event_outbox WHERE event_type = 'contract.signed'"
+                        + " AND aggregate_id = ?", String.class, id()).stream()
+                .map(json -> {
+                    try {
+                        return new ObjectMapper().readTree(json);
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                }).toList();
     }
 
     private String id() {
