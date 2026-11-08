@@ -27,6 +27,7 @@ public class RabbitMQConfig {
     public static final String CONTRACT_SIGNED_QUEUE = "escrow-svc.contract.signed";
     public static final String LOCK_COMPLETED_QUEUE = "escrow-svc.bank.lock_completed";
     public static final String LOCK_FAILED_QUEUE = "escrow-svc.bank.lock_failed";
+    public static final String DEPOSIT_LOCK_RETRY_QUEUE = "escrow-svc.contract.deposit_lock_retry_requested";
 
     // One Declarables bean on purpose: DlqMonitor reads the .dlq queues from it.
     // The bank.lock_* queues are read by BankLockResultConsumer (#102). They must always exist: bank's outbox poller
@@ -40,6 +41,8 @@ public class RabbitMQConfig {
         List<Declarable> declarables = new ArrayList<>(List.of(
                 new TopicExchange("agricontract.escrow", true, false), contracts, bank, dlx));
         bindWithDlq(declarables, CONTRACT_SIGNED_QUEUE, contracts, "contract.signed", dlx);
+        // OPERATOR RetryDepositLock (D42), read by DepositLockRetryConsumer.
+        bindWithDlq(declarables, DEPOSIT_LOCK_RETRY_QUEUE, contracts, "contract.deposit_lock_retry_requested", dlx);
         bindWithDlq(declarables, LOCK_COMPLETED_QUEUE, bank, "bank.lock_completed", dlx);
         bindWithDlq(declarables, LOCK_FAILED_QUEUE, bank, "bank.lock_failed", dlx);
         return new Declarables(declarables);

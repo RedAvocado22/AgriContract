@@ -148,6 +148,23 @@ public final class DepositLeg {
         return status == DepositLegStatus.LOCKED;
     }
 
+    /**
+     * OPERATOR RetryDepositLock (contract.deposit_lock_retry_requested, D42): a leg whose lock failed starts a new
+     * automatic retry cycle. Back to REQUESTED with the failure count reset, so the RetrySchedule applies again from
+     * its first step; the same requestEventId is sent again (bank re-evaluates a refused request, D39). False, and
+     * nothing changes, when the leg's lock has not failed (LOCKED, or still in its cycle).
+     */
+    public boolean restartLockCycle(Instant now) {
+        if (!isLockFailed()) {
+            return false;
+        }
+        this.status = DepositLegStatus.REQUESTED;
+        this.failedAttempts = 0;
+        this.nextAttemptAt = null;
+        this.updatedAt = now;
+        return true;
+    }
+
     /** FAILED with no retry left: the lock of this leg failed for this retry cycle (#247). */
     public boolean isLockFailed() {
         return status == DepositLegStatus.FAILED && nextAttemptAt == null;
