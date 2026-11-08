@@ -71,6 +71,8 @@ Mọi timestamp/session/OTP expiry theo convention chung `milestone-escrow-phase
 
 **Check ở `sign()`:** `signedAt - authTime <= signatureAuthMaxAgeSeconds`. Vi phạm → reject, bắt step-up lại.
 
+**Cập nhật 08/11/2026:** `authTime` lấy từ JWT `auth_time` mà gateway chuyển xuống header `X-User-Auth-Time`, check ở cả initiate lẫn verify, và `Signature.authTime` lưu đúng giá trị của request verify (§6 bước 4). Token password-grant không có `auth_time` nên luôn bị `STEP_UP_REQUIRED`; ký thật cần đăng nhập authorization-code flow.
+
 ### 4.1 OTP Email — Lớp thứ 2 song song (bổ sung 03/07/2026)
 
 **Chốt:** thêm OTP gửi qua email làm lớp thứ 2, **song song** với step-up re-auth ở trên — không thay thế. Lý do cần cả 2, không phải 1 đủ: 2 lớp chặn 2 hướng lộ khác nhau, không phải cùng 1 hướng kiểm 2 lần.
@@ -109,6 +111,8 @@ Chỉ khi **cả 2 cùng lúc** bị lộ (password lẫn quyền truy cập mai
 **Khác tầng với §4 — không gộp chung 1 check:** freshness (§4) đo bằng phút, xác nhận "vừa mới xác thực xong". Authorization expiry (§5) đo bằng tháng/năm, xác nhận "thẩm quyền đại diện còn hiệu lực". Hai câu hỏi độc lập, có thể pass cái này fail cái kia.
 
 **Fail-closed by default:** tài khoản chưa qua duyệt hồ sơ → không tạo được listing, không ký được hợp đồng. Không có trạng thái "account tồn tại nhưng chưa verify vẫn ký được" — verify là điều kiện cần để account có quyền ký, không phải cờ riêng kiểm tra lại mỗi lần `sign()`.
+
+**Cập nhật 08/11/2026 (D37):** hồ sơ, uỷ quyền và reputation lock vẫn được hỏi lại user-service ở **cả** initiate **và** verify, cho **cả hai bên** (§6 bước -1), vì giữa lúc phát mã và lúc nhập mã (tối đa 300s), hoặc giữa chữ ký thứ nhất và thứ hai, trạng thái có thể đổi. Câu trên nói về việc không có cờ "đã verify" riêng trên account, không phải miễn kiểm tra lúc ký.
 
 ---
 
@@ -162,6 +166,18 @@ InitiateSign(contractId, signerRole, jwt):
 
 VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify theo otpId,
                                                 // KHÔNG lấy "OTP mới nhất theo (contractId, signerRole)"
+  -1. (08/11/2026, D37) NGOÀI transaction, trước khi lock:
+     - auth_time của request verify còn trong signatureAuthMaxAgeSeconds (§4) → sai → 403
+     - gọi user-service check CẢ HAI bên (verified, uỷ quyền còn hạn, không reputation lock),
+       fail-closed (user-service down → 503):
+         người đang ký fail → 403 SIGNER_*
+         bên kia fail       → 409 COUNTERPARTY_NOT_ELIGIBLE, không nêu lý do
+       Áp cả khi bên kia đã ký trước: hợp đồng không bao giờ lên SIGNED với một bên đang bị
+       cấm. Không kẹt, vì withdraw vẫn được trước chữ ký thứ hai. Check luôn cả hai (không
+       phụ thuộc bên kia ký chưa) để không có race "hai bên cùng thấy chưa ai ký nên bỏ qua".
+     Sau đó MỘT transaction, lock Contract row FOR UPDATE trước mọi bước dưới (như initiate):
+     hai bên verify cùng lúc chạy lần lượt, bên sau luôn thấy chữ ký bên trước.
+
   0. Lock/load challenge = signature_otp[otpId]; không tồn tại/đã verified → REJECT.
      Bind challenge — đóng gap 2 HTTP request độc lập:
        challenge.user_id  == jwt.sub                          → sai → 403
@@ -174,6 +190,13 @@ VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify t
      resend supersede: verify theo đúng otpId cũ vẫn phải reject dù OTP code đúng.
      attempt_count >= otpMaxAttempts → REJECT, khoá, yêu cầu resend OTP mới
      HMAC(otpCode, serverPepper) != otp_hash → attempt_count += 1, REJECT
+       (08/11/2026) attempt_count += 1 phải COMMIT dù request bị từ chối — transaction trả
+       kết quả từ chối rồi mới throw sau commit, không throw bên trong (rollback mất lượt đếm
+       = thử mã vô hạn). Trả 409 OTP_INVALID kèm số lần còn lại trong message; lần sai cuối
+       → OTP_ATTEMPTS_EXHAUSTED. Frozen API chỉ cho verify trả 403/409, nên không dùng 422.
+       Idempotency-Key chỉ được claim khi ký thành công: retry sau mã sai là lần thử mới,
+       retry sau thành công là replay 204.
+       Tương tự, challenge bị invalidate do terms đổi (bước 0) cũng commit rồi mới trả 409.
 
   2. Khớp → verified_at = now()
 
@@ -181,10 +204,20 @@ VerifyOtpAndSign(otpId, contractId, otpCode):   // sửa 18/07/2026 — verify t
      REQUIRE bằng persisted reservedQuantity (F18). Mismatch → rollback toàn bộ verify
      transaction (kể cả verified_at), trả 409 và yêu cầu tạo lại contract/terms flow;
      không để lại một Signature dở dang và không publish contract.signed.
+     ⟢ CHƯA thực hiện ở #97 (08/11/2026): contract-service chưa lưu reservedQuantity riêng
+     (nó đang chính là Σ committedQuantity của cùng snapshot) nên check sẽ là so một số với
+     chính nó. F18 hiện chỉ chặn ở PATCH terms (#93). Bước này làm khi luồng tạo offer
+     (#232) lưu số lượng product-service xác nhận đã giữ chỗ. Frozen API giữ nguyên.
 
-  4. INSERT Signature (contractId, signerRole, signerUserId=jwt.sub,
-     authTime = challenge.auth_time, signedAt=verified_at,
-     signedContentHash = challenge.signed_content_hash, ipAddress)
+  4. INSERT Signature (signatureId, contractId, signerRole, signerUserId=jwt.sub,
+     otpId, consentId = challenge.consent_id,
+     authTime = auth_time của request verify (sửa 08/11/2026, trước là challenge.auth_time:
+       bước -1 đã check nó ≤ signatureAuthMaxAgeSeconds, nên mọi dòng Signature luôn thoả
+       signedAt - authTime ≤ 300 của §4; challenge.auth_time có thể cũ tới ~600s
+       vì OTP còn sống 300s sau initiate),
+     signedAt=verified_at, signedContentHash = challenge.signed_content_hash,
+     ipAddress = NULL tới khi gateway chuyển xuống IP đã kiểm (sau gateway, socket là IP
+       gateway, X-Forwarded-For client tự đặt được — ghi giá trị giả còn tệ hơn để trống))
      — UNIQUE(contractId, signerRole) tự chặn ký 2 lần cho cùng 1 bên
 
   5. INVARIANT 2 chữ ký cùng bản terms (sửa 18/07/2026 — trước đây chỉ đếm "đủ 2 dòng"):
@@ -229,12 +262,18 @@ CREATE TABLE signature (
     contract_id          CHAR(36) NOT NULL REFERENCES contract(contract_id),
     signer_role           VARCHAR(10) NOT NULL,   -- 'BUYER' | 'SELLER' (inspection-service thêm 'INSPECTOR' + cột report_id, xem inspection §5 — schema đầy đủ ở đó)
     signer_user_id         CHAR(36) NOT NULL,
+    otp_id                 CHAR(36) NOT NULL UNIQUE REFERENCES signature_otp(otp_id),        -- 08/11/2026
+    consent_id             CHAR(36) NOT NULL REFERENCES consent_evidence(consent_id),        -- 08/11/2026
     auth_time              TIMESTAMP NOT NULL,
     signed_at              TIMESTAMP NOT NULL,
     signed_content_hash    VARCHAR(64) NOT NULL,
     ip_address              VARCHAR(45),
     UNIQUE (contract_id, signer_role)
 );
+-- 08/11/2026 (#97, V11): otp_id + consent_id để một chữ ký truy ngược được đúng mã đã nhập và
+-- đúng lần tick consent. Append-only bằng trigger chặn UPDATE/DELETE như consent_evidence.
+-- Bảng này là nguồn DUY NHẤT cho "ai đã ký": aggregate Contract nạp role đã ký từ đây; cột
+-- signatories Phase 1 trên contracts giữ lại cho dòng cũ, không đọc/ghi nữa.
 
 -- ConsentEvidence đầy đủ/DDL canonical thuộc contract-document-consent-phase2-design.md.
 -- signature_otp reference consent_id của đúng initiate để chứng minh challenge nào
@@ -299,4 +338,4 @@ Signature — **đóng session, sẵn sàng đưa vào Architecture/SDS/Technica
 
 ---
 
-_Design session: 02-03/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Bổ sung OTP Email: 03/07/2026 · Đồng bộ cross-service: 17/07/2026 · Review pass 18/07/2026 (signature_otp persist đủ challenge, verify theo otpId + bind user/contract/terms, HMAC pepper, freeze terms + 2 chữ ký cùng hash) · Cập nhật 23/07/2026 (atomically supersede challenge cũ theo signer+contract+hash, không đổi API/DDL; F18 reserved quantity guard) · Chưa code · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức._
+_Design session: 02-03/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Bổ sung OTP Email: 03/07/2026 · Đồng bộ cross-service: 17/07/2026 · Review pass 18/07/2026 (signature_otp persist đủ challenge, verify theo otpId + bind user/contract/terms, HMAC pepper, freeze terms + 2 chữ ký cùng hash) · Cập nhật 23/07/2026 (atomically supersede challenge cũ theo signer+contract+hash, không đổi API/DDL; F18 reserved quantity guard) · Cập nhật 08/11/2026 theo #97 (D37: check cả hai bên ở verify, lock Contract row, attempt commit trước khi từ chối, Signature.authTime = auth_time request verify, thêm otp_id/consent_id, F18 recheck dời tới #232) · Chưa đưa vào Architecture/SDS/TechnicalSpec chính thức._
