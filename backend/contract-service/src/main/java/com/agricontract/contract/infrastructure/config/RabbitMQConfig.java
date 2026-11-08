@@ -26,6 +26,7 @@ import java.util.Map;
 public class RabbitMQConfig {
 
     public static final String DEPOSIT_LOCKED_QUEUE = "contract-svc.escrow.deposit_locked";
+    public static final String DEPOSIT_LOCK_FAILED_QUEUE = "contract-svc.escrow.deposit_lock_failed";
 
     // DlqMonitor reads the .dlq queues from this bean. agricontract.escrow.dlx is contract-service's own DLX
     // (kept from Phase 1, used by no other service).
@@ -35,11 +36,17 @@ public class RabbitMQConfig {
         DirectExchange dlx = new DirectExchange("agricontract.escrow.dlx", true, false);
         Queue depositLocked = QueueBuilder.durable(DEPOSIT_LOCKED_QUEUE).deadLetterExchange(dlx.getName()).build();
         Queue depositLockedDlq = QueueBuilder.durable(DEPOSIT_LOCKED_QUEUE + ".dlq").build();
+        // Same name and DLX escrow-service declared ahead for it (#376), so both declarations agree.
+        Queue lockFailed = QueueBuilder.durable(DEPOSIT_LOCK_FAILED_QUEUE).deadLetterExchange(dlx.getName()).build();
+        Queue lockFailedDlq = QueueBuilder.durable(DEPOSIT_LOCK_FAILED_QUEUE + ".dlq").build();
         return new Declarables(List.of(
                 new TopicExchange("agricontract.contracts", true, false), escrow, dlx,
                 depositLocked, depositLockedDlq,
                 BindingBuilder.bind(depositLocked).to(escrow).with("escrow.deposit_locked"),
-                BindingBuilder.bind(depositLockedDlq).to(dlx).with("escrow.deposit_locked")));
+                BindingBuilder.bind(depositLockedDlq).to(dlx).with("escrow.deposit_locked"),
+                lockFailed, lockFailedDlq,
+                BindingBuilder.bind(lockFailed).to(escrow).with("escrow.deposit_lock_failed"),
+                BindingBuilder.bind(lockFailedDlq).to(dlx).with("escrow.deposit_lock_failed")));
     }
 
     @Bean

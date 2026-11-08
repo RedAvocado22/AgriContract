@@ -18,8 +18,8 @@ import org.springframework.context.annotation.Configuration;
  * lock its deposits. Each queue is declared exactly as its owner will declare it (same name, DLX and DLQ), so the
  * owner's own declaration later is a no-op and the messages kept here are consumed then:
  * <ul>
- *   <li>notification-service (#278): {@code notification-svc.<routingKey>}, DLX {@code notification-svc.contracts.dlx}
- *       (topology.ts);</li>
+ *   <li>notification-service (#278, and #234 for {@code notification.contract_activation_failed_requested}):
+ *       {@code notification-svc.<routingKey>}, DLX {@code notification-svc.contracts.dlx} (topology.ts);</li>
  *   <li>product-service: {@code product-svc.<routingKey>}, DLX {@code agricontract.product.dlx} (RabbitMQConfig).</li>
  * </ul>
  * Remove a pair once its consumer declares it. Plain Queue/Binding beans, not a Declarables: DlqMonitor watches
@@ -35,6 +35,9 @@ public class ConsumerQueuesDeclaredAhead {
     static final String ACTIVATED_KEY = "contract.activated";
     static final String ACTIVATED_QUEUE = "product-svc." + ACTIVATED_KEY;
     static final String PRODUCT_DLX = "agricontract.product.dlx";
+
+    static final String ACTIVATION_FAILED_KEY = "notification.contract_activation_failed_requested";
+    static final String ACTIVATION_FAILED_QUEUE = "notification-svc." + ACTIVATION_FAILED_KEY;
 
     private static final TopicExchange CONTRACTS = new TopicExchange("agricontract.contracts", true, false);
 
@@ -86,5 +89,26 @@ public class ConsumerQueuesDeclaredAhead {
     @Bean
     Binding activatedDlqBinding() {
         return BindingBuilder.bind(activatedDlq()).to(productDlx()).with(ACTIVATED_KEY);
+    }
+
+    @Bean
+    Queue activationFailedRequestedQueue() {
+        return QueueBuilder.durable(ACTIVATION_FAILED_QUEUE).deadLetterExchange(NOTIFICATION_DLX).build();
+    }
+
+    @Bean
+    Queue activationFailedRequestedDlq() {
+        return QueueBuilder.durable(ACTIVATION_FAILED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding activationFailedRequestedBinding() {
+        return BindingBuilder.bind(activationFailedRequestedQueue()).to(CONTRACTS).with(ACTIVATION_FAILED_KEY);
+    }
+
+    @Bean
+    Binding activationFailedRequestedDlqBinding() {
+        return BindingBuilder.bind(activationFailedRequestedDlq()).to(notificationContractsDlx())
+                .with(ACTIVATION_FAILED_KEY);
     }
 }
