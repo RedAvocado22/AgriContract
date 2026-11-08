@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.agricontract.contract.domain.exception.ContractConflictException;
+import com.agricontract.contract.domain.model.consent.ConsentActionType;
 import com.agricontract.contract.domain.model.consent.SignerRole;
 import java.time.Instant;
 import java.util.UUID;
@@ -14,7 +15,7 @@ class OtpChallengeTest {
 
     private static OtpChallenge fresh() {
         return OtpChallenge.issue(UUID.randomUUID(), UUID.randomUUID(), "c-1", SignerRole.SELLER, "seller-1",
-                NOW.minusSeconds(30), "a".repeat(64), "b".repeat(64), NOW, 300);
+                NOW.minusSeconds(30), "a".repeat(64), "b".repeat(64), NOW, 300, ConsentActionType.SIGN_CONTRACT);
     }
 
     @Test
@@ -40,7 +41,8 @@ class OtpChallengeTest {
     void exhaustedAfterMaxWrongAttempts() {
         OtpChallenge c = fresh();
         OtpChallenge tried = new OtpChallenge(c.otpId(), c.consentId(), c.contractId(), c.signerRole(), c.userId(),
-                c.authTime(), c.signedContentHash(), c.otpHash(), c.sentAt(), c.expiresAt(), null, 5);
+                c.authTime(), c.signedContentHash(), c.otpHash(), c.sentAt(), c.expiresAt(), null, 5,
+                c.actionType());
 
         assertConflict(tried, c.sentAt(), OtpChallenge.OTP_LOCKED);
     }
@@ -49,7 +51,8 @@ class OtpChallengeTest {
     void usedChallengeIsRefused() {
         OtpChallenge c = fresh();
         OtpChallenge used = new OtpChallenge(c.otpId(), c.consentId(), c.contractId(), c.signerRole(), c.userId(),
-                c.authTime(), c.signedContentHash(), c.otpHash(), c.sentAt(), c.expiresAt(), c.sentAt(), 0);
+                c.authTime(), c.signedContentHash(), c.otpHash(), c.sentAt(), c.expiresAt(), c.sentAt(), 0,
+                c.actionType());
 
         assertConflict(used, c.sentAt(), OtpChallenge.OTP_USED);
     }

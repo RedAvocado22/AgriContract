@@ -32,7 +32,9 @@ class ContractConsentToSignTest {
     private static final Instant NOW = Instant.parse("2026-11-07T10:00:00Z");
     private static final ConsentStatements STATEMENTS = new ConsentStatements(Map.of(
             SignerRole.BUYER, new ConsentStatement("SIGN_CONTRACT_AS_BUYER", "1.0", "buyer text", "c".repeat(64)),
-            SignerRole.SELLER, new ConsentStatement("SIGN_CONTRACT_AS_SELLER", "1.0", "seller text", "d".repeat(64))));
+            SignerRole.SELLER, new ConsentStatement("SIGN_CONTRACT_AS_SELLER", "1.0", "seller text", "d".repeat(64))),
+            Map.of(SignerRole.BUYER, new ConsentStatement("CANCEL_ACTIVATION_AS_BUYER", "1.0", "b", "e".repeat(64)),
+                    SignerRole.SELLER, new ConsentStatement("CANCEL_ACTIVATION_AS_SELLER", "1.0", "s", "f".repeat(64))));
 
     private static final TermsCanonicalizer FAKE = new TermsCanonicalizer() {
         @Override

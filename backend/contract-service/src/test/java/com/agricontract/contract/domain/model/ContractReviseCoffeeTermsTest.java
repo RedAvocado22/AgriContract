@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
+import com.agricontract.contract.domain.model.consent.ConsentActionType;
 import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.signature.OtpChallenge;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
@@ -170,7 +171,7 @@ class ContractReviseCoffeeTermsTest {
         Instant now = Instant.now();
         OtpChallenge challenge = OtpChallenge.issue(UUID.randomUUID(), UUID.randomUUID(),
                 contract.getContractId().value(), role, user, now, contract.getCoffeeTerms().signedContentHash(),
-                "e".repeat(64), now, 300);
+                "e".repeat(64), now, 300, ConsentActionType.SIGN_CONTRACT);
         contract.sign(user, challenge, now, now, null, UUID.randomUUID());
     }
 }
