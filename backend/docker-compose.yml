@@ -490,6 +490,30 @@ services:
     networks:
       - agricontract-net
 
+  bank-service:
+    build:
+      context: .
+      dockerfile: bank-service/Dockerfile
+    container_name: bank-service
+    environment:
+      BANK_DB_URL: jdbc:mysql://bank-db:3306/bank_db?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      # Dev only: one root account for Flyway and runtime. Production uses a migration account
+      # and bank_runtime with the append-only grants of bank-service/ops/grants.sql.
+      BANK_DB_USERNAME: ${DB_USERNAME:-root}
+      BANK_DB_PASSWORD: ${DB_PASSWORD:-password}
+      BANK_MIGRATION_USERNAME: ${DB_USERNAME:-root}
+      BANK_MIGRATION_PASSWORD: ${DB_PASSWORD:-password}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-guest}
+    depends_on:
+      bank-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - agricontract-net
+
   notification-migrate:
     image: flyway/flyway:10.10.0
     container_name: notification-migrate
