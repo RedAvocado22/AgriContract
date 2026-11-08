@@ -4,7 +4,11 @@ import {
   NotificationChannel,
   NotificationLog,
 } from '../../domain/notification-log';
-import { MysqlNotificationLogRepository } from './notification-log.mysql-repository';
+import {
+  MysqlNotificationLogRepository,
+  PROVIDER_MESSAGE_ID_MAX,
+  storableProviderMessageId,
+} from './notification-log.mysql-repository';
 
 /** Pool whose query() answers in order with the given results (or errors). */
 function scriptedPool(...answers: unknown[]) {
@@ -37,6 +41,7 @@ const KEY = {
   notificationType: 'CONTRACT_SIGNED',
 };
 const KEY_PARAMS = ['evt-1', 'buyer@example.test', 'CONTRACT_SIGNED'];
+const PROVIDER_ID = '<cafe1234@agricontract.test>';
 const BY_KEY = 'event_id = ? AND recipient_email = ? AND notification_type = ?';
 
 const KIND = {
@@ -150,6 +155,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
 
     expect(sql(query, 2)).toBe(
       "UPDATE notification_logs SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6), " +
+        'provider_message_id = NULL, ' +
         'recipient_user_id = ?, subject = ?, body = ?, template_version = ? ' +
         `WHERE ${BY_KEY} AND (status = 'FAILED' OR (status = 'PENDING' ` +
         'AND updated_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND))',
@@ -245,16 +251,42 @@ describe('MysqlNotificationLogRepository.heartbeat', () => {
 });
 
 describe('MysqlNotificationLogRepository.markSent / markFailed', () => {
-  it('markSent sets SENT and sent_at by the key', async () => {
+  it('markSent sets SENT, the provider message id and sent_at by the key', async () => {
     const { pool, query } = scriptedPool();
 
-    await new MysqlNotificationLogRepository(pool).markSent(KEY);
+    await new MysqlNotificationLogRepository(pool).markSent(KEY, PROVIDER_ID);
 
     expect(sql(query, 0)).toBe(
-      "UPDATE notification_logs SET status = 'SENT', sent_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6) " +
-        `WHERE ${BY_KEY}`,
+      "UPDATE notification_logs SET status = 'SENT', provider_message_id = ?, " +
+        `sent_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6) WHERE ${BY_KEY}`,
     );
-    expect(params(query, 0)).toEqual(KEY_PARAMS);
+    expect(params(query, 0)).toEqual([PROVIDER_ID, ...KEY_PARAMS]);
+  });
+
+  it('markSent stores no provider id when the provider named none', async () => {
+    const { pool, query } = scriptedPool();
+
+    await new MysqlNotificationLogRepository(pool).markSent(KEY, null);
+
+    expect(params(query, 0)).toEqual([null, ...KEY_PARAMS]);
+  });
+
+  /*
+   * The email is already sent when markSent runs: an UPDATE the server refuses
+   * would leave the row PENDING and send that email again after the lease. An
+   * id wider than the column is therefore dropped, not truncated and not
+   * passed on to fail.
+   */
+  it('markSent drops a provider id wider than the column instead of failing', async () => {
+    const { pool, query } = scriptedPool();
+    const tooLong = `<${'a'.repeat(PROVIDER_MESSAGE_ID_MAX)}@provider.test>`;
+
+    await new MysqlNotificationLogRepository(pool).markSent(KEY, tooLong);
+
+    expect(params(query, 0)).toEqual([null, ...KEY_PARAMS]);
+    expect(storableProviderMessageId('a'.repeat(PROVIDER_MESSAGE_ID_MAX))).toBe(
+      'a'.repeat(PROVIDER_MESSAGE_ID_MAX),
+    );
   });
 
   it('markFailed sets FAILED, increments retry_count in SQL and stores the failure code', async () => {

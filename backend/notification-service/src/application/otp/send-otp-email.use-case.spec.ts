@@ -102,6 +102,30 @@ describe('SendOtpEmailUseCase', () => {
     );
   });
 
+  /*
+   * The OTP row is evidence like any other (design §8), and its provider id
+   * is what links a complaint about an OTP mail to the request that sent it.
+   * The code never reaches the row, so the id is all there is to go on.
+   */
+  it('records the provider id of the OTP email', async () => {
+    await useCase.execute(request);
+
+    expect(row()).toMatchObject({
+      status: NotificationStatus.SENT,
+      providerMessageId: '<fake-1@provider.test>',
+    });
+  });
+
+  it('records the OTP email SENT with no id when the provider named none', async () => {
+    email.providerMessageId = () => null;
+
+    await expect(useCase.execute(request)).resolves.toBe('SENT');
+    expect(row()).toMatchObject({
+      status: NotificationStatus.SENT,
+      providerMessageId: null,
+    });
+  });
+
   it('does not send again for a requestId already SENT', async () => {
     await useCase.execute(request);
 

@@ -15,6 +15,20 @@ import { MYSQL_POOL } from './mysql.provider';
 export const LEGACY_RECIPIENT_PREFIX = 'legacy:';
 export const LEGACY_NOTIFICATION_TYPE = 'LEGACY_P1';
 
+/** Width of `provider_message_id` (V2). */
+export const PROVIDER_MESSAGE_ID_MAX = 255;
+
+/**
+ * The provider's id as the column can hold it: a longer one is recorded as
+ * NULL. markSent runs after the provider already accepted the email, so an
+ * UPDATE the server refuses (ER_DATA_TOO_LONG under strict SQL mode) would
+ * leave the row PENDING and send that email a second time once the claim
+ * lease ends. Null is also better than a truncated id, which would match no
+ * bounce while looking like it should.
+ */
+export const storableProviderMessageId = (id: string | null): string | null =>
+  id !== null && id.length <= PROVIDER_MESSAGE_ID_MAX ? id : null;
+
 /** The row of one email: the columns of uq_event_recipient_type. */
 const BY_KEY = 'event_id = ? AND recipient_email = ? AND notification_type = ?';
 const keyParams = (key: NotificationKey) => [
@@ -28,8 +42,9 @@ const keyParams = (key: NotificationKey) => [
  * `(event_id, recipient_email, notification_type)`. `user_id` still receives
  * the recipient email, as before V2; `recipient_user_id` holds the platform id
  * of the recipient when the sender knows it (null otherwise), and
- * `template_version` the template that rendered the mail. `provider_message_id`
- * is left to its default for now.
+ * `template_version` the template that rendered the mail.
+ * `provider_message_id` holds the id the mail provider gave the accepted
+ * message, written with `sent_at` (design §8).
  * `updated_at` doubles as the claim timestamp; all timestamps come from the
  * database clock in UTC (UTC_TIMESTAMP), so the lease does not depend on the
  * app host clock.
@@ -47,10 +62,13 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
     // The retake also overwrites what the first attempt rendered: this delivery
     // sends the email it rendered now, so template_version (the evidence of what
     // was sent, design §3.1), subject, body and recipient_user_id must describe
-    // this attempt and not the one that failed before a template change.
+    // this attempt and not the one that failed before a template change. Only a
+    // SENT row can carry a provider_message_id, and a SENT row is never retaken,
+    // so clearing it here only keeps that true of every PENDING row.
     const [result] = await this.pool.query<ResultSetHeader>(
       `UPDATE notification_logs
           SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6),
+              provider_message_id = NULL,
               recipient_user_id = ?, subject = ?, body = ?, template_version = ?
         WHERE ${BY_KEY}
           AND (status = 'FAILED'
@@ -83,12 +101,16 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
     );
   }
 
-  async markSent(key: NotificationKey): Promise<void> {
+  async markSent(
+    key: NotificationKey,
+    providerMessageId: string | null,
+  ): Promise<void> {
     await this.pool.query(
       `UPDATE notification_logs
-          SET status = 'SENT', sent_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6)
+          SET status = 'SENT', provider_message_id = ?,
+              sent_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6)
         WHERE ${BY_KEY}`,
-      keyParams(key),
+      [storableProviderMessageId(providerMessageId), ...keyParams(key)],
     );
   }
 

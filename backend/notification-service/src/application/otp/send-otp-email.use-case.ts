@@ -4,7 +4,11 @@ import {
 } from '../../domain/notification-log';
 import { CLAIM_LEASE_MS, type SenderLogger } from '../notification-sender';
 import { NotificationError, failureCode } from '../notification-errors';
-import { EmailDeliveryError, type EmailPort } from '../ports/email.port';
+import {
+  EmailDeliveryError,
+  type EmailPort,
+  type EmailReceipt,
+} from '../ports/email.port';
 import type { NotificationLogRepository } from '../ports/notification-log.repository';
 import type { OtpEmailRequest } from './otp-email-request';
 import { OTP_EMAIL_TEMPLATES, renderOtpEmail } from './otp-email-template';
@@ -96,8 +100,9 @@ export class SendOtpEmailUseCase {
     if (claim === 'ALREADY_SENT') return 'ALREADY_SENT';
     if (claim === 'IN_PROGRESS') throw new OtpEmailInProgressError(requestId);
 
+    let receipt: EmailReceipt;
     try {
-      await this.email.send({ to: recipientEmail, subject, body });
+      receipt = await this.email.send({ to: recipientEmail, subject, body });
     } catch (err) {
       const code =
         err instanceof EmailDeliveryError ? err.code : failureCode(err);
@@ -115,7 +120,7 @@ export class SendOtpEmailUseCase {
     // write fails. The row then stays PENDING: a repeated call gets 503 until
     // the lease ends, then sends again (a duplicate, never a lost email).
     await this.logs
-      .markSent(log.key)
+      .markSent(log.key, receipt.providerMessageId)
       .catch((err: unknown) =>
         this.logger.error(
           `OTP request ${requestId}: email sent but could not record SENT (${failureCode(err)})`,

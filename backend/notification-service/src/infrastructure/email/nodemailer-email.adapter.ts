@@ -7,6 +7,7 @@ import {
   EmailDeliveryError,
   type EmailMessage,
   type EmailPort,
+  type EmailReceipt,
 } from '../../application/ports/email.port';
 import type { AppConfig } from '../../config/env.validation';
 
@@ -75,14 +76,15 @@ export class NodemailerEmailAdapter implements EmailPort {
     });
   }
 
-  async send({ to, subject, body }: EmailMessage): Promise<void> {
+  async send({ to, subject, body }: EmailMessage): Promise<EmailReceipt> {
     try {
-      await this.transport.sendMail({
+      const info = await this.transport.sendMail({
         from: this.from,
         to,
         subject,
         text: body,
       });
+      return { providerMessageId: sentMessageId(info) };
     } catch (err) {
       // Only a code leaves this adapter: nodemailer texts quote recipient
       // addresses ("550 5.1.1 <x@y>: Recipient address rejected"). No cause is
@@ -90,6 +92,23 @@ export class NodemailerEmailAdapter implements EmailPort {
       throw new EmailDeliveryError(smtpFailureCode(err));
     }
   }
+}
+
+/**
+ * The Message-ID the server accepted (`provider_message_id`, design §8): the
+ * id a bounce quotes when it answers this mail. A transport that names none,
+ * or names a blank one, gives null rather than an empty string, so the column
+ * reads "unknown" instead of "".
+ *
+ * Reads nothing else of the info object and never throws, on purpose: this
+ * runs after the provider already accepted the email, and an error here would
+ * be caught as a delivery failure and send the mail a second time.
+ */
+export function sentMessageId(
+  info: { messageId?: string } | null | undefined,
+): string | null {
+  const id = info?.messageId?.trim() ?? '';
+  return id.length > 0 ? id : null;
 }
 
 /**

@@ -22,7 +22,24 @@ export class EmailDeliveryError extends Error {
   }
 }
 
+/**
+ * What the mail server answered when it accepted a message. The log keeps the
+ * provider's id with the sent time (design §8), so a delivery can later be
+ * traced at the provider — and a bounce, which quotes the Message-ID of the
+ * mail it answers, matched back to the row that sent it (design §9).
+ *
+ * `providerMessageId` is null when the provider named no id. Nothing depends
+ * on it: it is evidence, never a key, and an email the provider accepted
+ * counts as SENT with or without one.
+ */
+export interface EmailReceipt {
+  providerMessageId: string | null;
+}
+
 export interface EmailPort {
-  /** Resolves once the mail server accepted the message; rejects with EmailDeliveryError otherwise. */
-  send(message: EmailMessage): Promise<void>;
+  /**
+   * Resolves with the provider's receipt once the mail server accepted the
+   * message; rejects with EmailDeliveryError otherwise.
+   */
+  send(message: EmailMessage): Promise<EmailReceipt>;
 }

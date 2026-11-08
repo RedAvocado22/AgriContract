@@ -20,7 +20,10 @@ import {
   NotificationChannel,
   NotificationLog,
 } from '../../domain/notification-log';
-import { MysqlNotificationLogRepository } from './notification-log.mysql-repository';
+import {
+  MysqlNotificationLogRepository,
+  PROVIDER_MESSAGE_ID_MAX,
+} from './notification-log.mysql-repository';
 
 const db = validate(process.env).db;
 const LEASE_MS = CLAIM_LEASE_MS;
@@ -29,6 +32,8 @@ const KIND = {
   notificationType: 'CONTRACT_SIGNED',
   templateVersion: 'contract-signed/p1',
 };
+/** A Message-ID shaped like the one a mail server reports. */
+const PROVIDER_ID = '<cafe1234@agricontract.it.test>';
 
 describe('MysqlNotificationLogRepository on real MySQL', () => {
   let pool: Pool;
@@ -60,6 +65,14 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
       [eventId, to, KIND.notificationType],
     );
     return rows;
+  };
+  const providerId = async (eventId: string, to = 'buyer@it.test') => {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT provider_message_id FROM notification_logs
+        WHERE event_id = ? AND recipient_email = ? AND notification_type = ?`,
+      [eventId, to, KIND.notificationType],
+    );
+    return rows[0].provider_message_id as string | null;
   };
   /** Moves the claim timestamp `seconds` into the past on the DB clock, as if no heartbeat ran since. */
   const ageClaim = async (eventId: string, seconds: number) => {
@@ -183,7 +196,7 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
   it('a heartbeat touches only a PENDING row: SENT and FAILED rows keep their updated_at', async () => {
     const sentEvent = newEvent();
     await repo.claim(log(sentEvent), LEASE_MS);
-    await repo.markSent(key(sentEvent));
+    await repo.markSent(key(sentEvent), PROVIDER_ID);
     const failedEvent = newEvent();
     await repo.claim(log(failedEvent), LEASE_MS);
     await repo.markFailed(key(failedEvent), 'EENVELOPE/550');
@@ -210,7 +223,7 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
     expect(await row(eventId)).toEqual([{ status: 'FAILED', retry_count: 2 }]);
 
     await repo.claim(log(eventId), LEASE_MS);
-    await repo.markSent(key(eventId));
+    await repo.markSent(key(eventId), PROVIDER_ID);
 
     await expect(repo.claim(log(eventId), LEASE_MS)).resolves.toBe(
       'ALREADY_SENT',
@@ -225,6 +238,7 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
       send: async (message) => {
         await new Promise((r) => setTimeout(r, 300));
         sent.push(message);
+        return { providerMessageId: PROVIDER_ID };
       },
     };
     const deliveryA = new NotificationSender(repo, slowSmtp);
@@ -249,7 +263,7 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
     const smtp: EmailPort = {
       send: (message) => {
         sent.push(message);
-        return Promise.resolve();
+        return Promise.resolve({ providerMessageId: PROVIDER_ID });
       },
     };
     const started = Date.now();
@@ -279,6 +293,72 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
     expect(Date.now() - started).toBeLessThan(10_000);
   }, 20_000);
 
+  /*
+   * The log keeps the provider's id with the sent time (design §8). These run
+   * against the real column, so they also pin PROVIDER_MESSAGE_ID_MAX to the
+   * width the schema actually has.
+   */
+  describe('provider_message_id', () => {
+    it('stores the id of the accepted message, and NULL when there was none', async () => {
+      const withId = newEvent();
+      await repo.claim(log(withId), LEASE_MS);
+      await repo.markSent(key(withId), PROVIDER_ID);
+      const withoutId = newEvent();
+      await repo.claim(log(withoutId), LEASE_MS);
+      await repo.markSent(key(withoutId), null);
+
+      expect(await providerId(withId)).toBe(PROVIDER_ID);
+      expect(await providerId(withoutId)).toBeNull();
+    });
+
+    it('stores an id of exactly the column width', async () => {
+      const eventId = newEvent();
+      await repo.claim(log(eventId), LEASE_MS);
+
+      await repo.markSent(key(eventId), 'y'.repeat(PROVIDER_MESSAGE_ID_MAX));
+
+      expect(await providerId(eventId)).toHaveLength(PROVIDER_MESSAGE_ID_MAX);
+    });
+
+    /*
+     * The email is already out when markSent runs. An UPDATE the server
+     * refuses (ER_DATA_TOO_LONG under strict SQL mode) would leave the row
+     * PENDING and send that email a second time once the lease ended, so a
+     * wider id is dropped instead.
+     */
+    it('records SENT without the id when the provider gives a wider one', async () => {
+      const eventId = newEvent();
+      await repo.claim(log(eventId), LEASE_MS);
+
+      await repo.markSent(
+        key(eventId),
+        'x'.repeat(PROVIDER_MESSAGE_ID_MAX + 1),
+      );
+
+      expect(await row(eventId)).toEqual([{ status: 'SENT', retry_count: 0 }]);
+      expect(await providerId(eventId)).toBeNull();
+    });
+
+    /*
+     * Only a SENT row carries an id and a SENT row is never retaken, so this
+     * state has to be forced; the retake clears the column anyway, which is
+     * what keeps "a PENDING row describes the attempt sending it" true.
+     */
+    it('a retake leaves no id from an earlier attempt', async () => {
+      const eventId = newEvent();
+      await repo.claim(log(eventId), LEASE_MS);
+      await repo.markSent(key(eventId), PROVIDER_ID);
+      await pool.query(
+        "UPDATE notification_logs SET status = 'FAILED' WHERE event_id = ?",
+        [eventId],
+      );
+
+      await expect(repo.claim(log(eventId), LEASE_MS)).resolves.toBe('CLAIMED');
+
+      expect(await providerId(eventId)).toBeNull();
+    });
+  });
+
   describe('dedup by (event_id, recipient_email, notification_type) (#115, schema V2)', () => {
     const OTHER_KIND = {
       eventType: 'contract.signed',
@@ -295,7 +375,7 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
             return Promise.reject(new EmailDeliveryError('EENVELOPE/550'));
           }
           sent.push(message);
-          return Promise.resolve();
+          return Promise.resolve({ providerMessageId: PROVIDER_ID });
         },
       };
       return { smtp, sent, failFor };
