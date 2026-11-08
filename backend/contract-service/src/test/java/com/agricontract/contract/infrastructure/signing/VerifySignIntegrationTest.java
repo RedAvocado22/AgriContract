@@ -86,7 +86,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * VerifyOtpAndSign end to end on real MySQL, with codes issued by the real InitiateSign and a stubbed user-service:
  * what a right code, a wrong code, a replaced code, an ineligible party and two parties signing at once leave behind,
- * and that contract.signed is in the outbox exactly once, exactly when the contract is SIGNED (#98).
+ * and that contract.signed (#98) and the signed-contract email command (#360) are in the outbox exactly once, exactly
+ * when the contract is SIGNED.
  */
 // The outbox poller (needs RabbitMQ) stays off: the test reads event_outbox, it does not publish.
 @DataJpaTest(properties = {"contract.otp.resend-cooldown-seconds=0", "contract.otp.max-sends-per-hour=1000",
@@ -199,6 +200,11 @@ class VerifySignIntegrationTest {
                 .filter(s -> s.signerRole() == SignerRole.BUYER).findFirst().orElseThrow();
         assertThat(Instant.parse(events.get(0).at("/payload/signedAt").asText())).isEqualTo(second.signedAt());
         assertThat(events.get(0).at("/aggregateId").asText()).isEqualTo(id());
+        List<JsonNode> emails = outboxRows("notification.contract_anchor_requested");
+        assertThat(emails).hasSize(1);
+        FrozenSchemas.assertCommand("contractAnchorRequested", emails.get(0));
+        assertThat(emails.get(0).at("/payload/recipients").findValuesAsText("email"))
+                .containsExactly("buyer@example.com", "seller@example.com");
         assertThat(signatures.findByContractId(id())).extracting(Signature::signerRole)
                 .containsExactlyInAnyOrder(SignerRole.SELLER, SignerRole.BUYER);
     }
@@ -258,6 +264,7 @@ class VerifySignIntegrationTest {
                 Instant.now()))).extracting("code").isEqualTo(OtpChallenge.OTP_USED);
 
         assertThat(signedEvents()).hasSize(1);
+        assertThat(outboxRows("notification.contract_anchor_requested")).hasSize(1);
     }
 
     @Test
@@ -271,6 +278,7 @@ class VerifySignIntegrationTest {
 
         assertThat(status()).isEqualTo(ContractStatus.OFFERED);
         assertThat(signedEvents()).isEmpty();
+        assertThat(outboxRows("notification.contract_anchor_requested")).isEmpty();
     }
 
     @Test
@@ -404,6 +412,7 @@ class VerifySignIntegrationTest {
         assertThat(signatures.findByContractId(id())).hasSize(2);
         assertThat(status()).isEqualTo(ContractStatus.SIGNED);
         assertThat(signedEvents()).hasSize(1);
+        assertThat(outboxRows("notification.contract_anchor_requested")).hasSize(1);
     }
 
     @Test
@@ -444,8 +453,12 @@ class VerifySignIntegrationTest {
 
     /** contract.signed envelopes in event_outbox for this contract, as JSON. */
     private List<JsonNode> signedEvents() {
-        return jdbc.queryForList("SELECT envelope FROM event_outbox WHERE event_type = 'contract.signed'"
-                        + " AND aggregate_id = ?", String.class, id()).stream()
+        return outboxRows("contract.signed");
+    }
+
+    private List<JsonNode> outboxRows(String eventType) {
+        return jdbc.queryForList("SELECT envelope FROM event_outbox WHERE event_type = ? AND aggregate_id = ?",
+                        String.class, eventType, id()).stream()
                 .map(json -> {
                     try {
                         return new ObjectMapper().readTree(json);
@@ -467,7 +480,8 @@ class VerifySignIntegrationTest {
         CanonicalTerms terms = CanonicalTerms.of(ContractTermsSnapshot.assemble(input(), goods(), template, rules),
                 canonicalizer);
         Contract offered = Contract.offerCoffee(new ContractId(UUID.randomUUID().toString()),
-                goods().listingId().toString(), BUYER, SELLER, "HTX Mua", "HTX Bán", "b@x.test", "s@x.test", terms);
+                goods().listingId().toString(), BUYER, SELLER, "HTX Mua", "HTX Bán", "buyer@example.com",
+                "seller@example.com", terms);
         contracts.save(offered);
         return offered;
     }
