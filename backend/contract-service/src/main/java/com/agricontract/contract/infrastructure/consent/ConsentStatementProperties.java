@@ -7,5 +7,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * classpath:consent-statement/{code}-{version}.txt; the hash is computed from that file at startup.
  */
 @ConfigurationProperties(prefix = "contract.consent")
-public record ConsentStatementProperties(String signContractVersion) {
+public record ConsentStatementProperties(String signContractVersion, String cancelActivationVersion) {
 }

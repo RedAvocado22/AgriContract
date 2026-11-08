@@ -1,0 +1,1 @@
+Tôi xác nhận yêu cầu huỷ hợp đồng có mã vân tay hiển thị bên dưới vì tiền cọc chưa khoá được, hiểu rằng khi đủ điều kiện hợp đồng sẽ chấm dứt, tiền cọc đã khoá được hoàn về đúng chủ và không bên nào bị phạt, với tư cách bên mua, và đồng ý xác nhận bằng mã OTP gửi tới email của tôi.

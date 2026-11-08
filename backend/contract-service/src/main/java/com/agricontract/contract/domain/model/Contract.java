@@ -319,6 +319,27 @@ public class Contract {
         this.status = ContractStatus.ACTIVE;
     }
 
+    /**
+     * SIGNED → ACTIVATION_REFUND_PENDING (D42): the parties' cancel conditions hold. contract.activation_refund_requested
+     * is written by the caller in the same transaction; escrow returns the locked deposits.
+     */
+    public void startActivationRefund() {
+        if (this.status != ContractStatus.SIGNED) {
+            throw new ContractConflictException(ContractConflictException.NOT_CANCELLABLE,
+                    "Only a SIGNED contract waiting for its deposits can be cancelled, not " + this.status + ".");
+        }
+        this.status = ContractStatus.ACTIVATION_REFUND_PENDING;
+    }
+
+    /** ACTIVATION_REFUND_PENDING → ACTIVATION_FAILED once escrow confirmed every return (lock = 0). Terminal. */
+    public void failActivation() {
+        if (this.status != ContractStatus.ACTIVATION_REFUND_PENDING) {
+            throw new ContractConflictException(ContractConflictException.NOT_CANCELLABLE,
+                    "Activation can only fail after the refund started, not in " + this.status + ".");
+        }
+        this.status = ContractStatus.ACTIVATION_FAILED;
+    }
+
     public List<DomainEvent> pullDomainEvents() {
         List<DomainEvent> events = new ArrayList<>(this.domainEvents);
         this.domainEvents.clear();

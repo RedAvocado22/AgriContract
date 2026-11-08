@@ -14,6 +14,12 @@ public class ContractConflictException extends RuntimeException {
     public static final String NOT_ACTIVATABLE = "CONTRACT_NOT_ACTIVATABLE";
     /** RetryDepositLock on a contract whose deposit lock has not failed (no escrow.deposit_lock_failed, D42). */
     public static final String ACTIVATION_NOT_FAILED = "ACTIVATION_NOT_FAILED";
+    /** D42: cancel request outside SIGNED-with-a-failed-lock, or after the refund started. */
+    public static final String NOT_CANCELLABLE = "CONTRACT_NOT_CANCELLABLE";
+    /** D42: this party already has a standing cancel request. */
+    public static final String CANCEL_ALREADY_REQUESTED = "CANCEL_ALREADY_REQUESTED";
+    /** D42: withdraw without a standing request of the caller. */
+    public static final String NO_CANCEL_REQUEST = "NO_CANCEL_REQUEST";
 
     private final String code;
 

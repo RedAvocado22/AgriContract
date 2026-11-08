@@ -20,9 +20,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
- * Step two of InitiateSign (#95, endpoint in #96): after the consent is appended in the same transaction, kill the
- * signer's still-usable challenges for this content, enforce the resend cooldown and hourly limit, and insert a new
- * one. Only the newest challenge stays usable,
+ * Step two of InitiateSign (#95, endpoint in #96) and of the D42 cancel request: after the consent is appended in the
+ * same transaction, kill the party's still-usable challenges for this action and content, enforce the resend cooldown
+ * and hourly limit (per action), and insert a new one bound to the consented action. Only the newest challenge stays usable,
  * also when two resends race: both lock the contract row first, so the second kills the first one's challenge.
  */
 @Service
@@ -37,27 +37,28 @@ public class OtpChallengeIssuer {
     @Transactional(propagation = Propagation.MANDATORY)
     public IssuedOtp issue(Contract contract, ConsentEvidence consent, Instant authTime) {
         String currentHash = contract.getCoffeeTerms().signedContentHash();
-        if (consent.actionType() != ConsentActionType.SIGN_CONTRACT
-                || !consent.subjectId().equals(contract.getContractId().value())
+        if (!consent.subjectId().equals(contract.getContractId().value())
                 || !consent.presentedContentHash().equals(currentHash)) {
-            throw new IllegalStateException("Consent " + consent.consentId() + " does not cover signing the current terms of "
+            throw new IllegalStateException("Consent " + consent.consentId() + " does not cover the current terms of "
                     + contract.getContractId().value());
         }
         Instant now = now();
+        ConsentActionType action = consent.actionType();
         int killed = challenges.expireUsableChallenges(consent.subjectId(), consent.actorUserId(), consent.actorRole(),
-                currentHash, now, policy.maxAttempts());
+                action, currentHash, now, policy.maxAttempts());
         // Counted under the contract lock taken above, so two concurrent resends cannot both pass. A refusal here
         // rolls the whole transaction back, the kill above and the consent included.
         policy.ensureCanSend(
-                challenges.lastSentAt(consent.subjectId(), consent.actorUserId(), consent.actorRole()).orElse(null),
-                challenges.countSentSince(consent.subjectId(), consent.actorUserId(), consent.actorRole(),
+                challenges.lastSentAt(consent.subjectId(), consent.actorUserId(), consent.actorRole(), action)
+                        .orElse(null),
+                challenges.countSentSince(consent.subjectId(), consent.actorUserId(), consent.actorRole(), action,
                         now.minusSeconds(3600)),
                 now);
 
         String code = otpCodes.newCode();
         OtpChallenge challenge = OtpChallenge.issue(UUID.randomUUID(), consent.consentId(), consent.subjectId(),
                 consent.actorRole(), consent.actorUserId(), authTime, currentHash, otpCodes.hash(code), now,
-                policy.expirySeconds());
+                policy.expirySeconds(), action);
         challenges.insert(challenge);
         log.info("OTP challenge {} for contract {} signer {} as {}, replaced {} earlier", challenge.otpId(),
                 challenge.contractId(), challenge.userId(), challenge.signerRole(), killed);

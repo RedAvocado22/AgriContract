@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
+import com.agricontract.contract.domain.model.consent.ConsentActionType;
 import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.signature.OtpChallenge;
 import com.agricontract.contract.domain.model.signature.Signature;
@@ -133,7 +134,7 @@ class ContractSignTest {
 
     private static OtpChallenge challenge(Contract contract, SignerRole role, String user, String hash) {
         return OtpChallenge.issue(UUID.randomUUID(), UUID.randomUUID(), contract.getContractId().value(), role, user,
-                NOW, hash, "e".repeat(64), NOW, 300);
+                NOW, hash, "e".repeat(64), NOW, 300, ConsentActionType.SIGN_CONTRACT);
     }
 
     private static void assertConflict(ThrowingCallable call, String code) {

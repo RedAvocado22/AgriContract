@@ -10,6 +10,7 @@ import com.agricontract.contract.application.service.SignerEligibility;
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.Contract;
+import com.agricontract.contract.domain.model.consent.ConsentActionType;
 import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.signature.OtpChallenge;
 import com.agricontract.contract.domain.model.signature.OtpPolicy;
@@ -104,6 +105,10 @@ public class VerifyOtpAndSignUseCase {
         }
         if (challenge.signerRole() != role) {
             throw new UnauthorizedContractAccessException("This signing code was issued for the other party.");
+        }
+        if (challenge.actionType() != ConsentActionType.SIGN_CONTRACT) {
+            // A cancel-request code (D42) never signs; looks like an unknown code to the signer.
+            throw new ContractConflictException(OTP_NOT_FOUND, "No such signing code.");
         }
         Instant now = Instant.now(clock).truncatedTo(ChronoUnit.MICROS);
         challenge.ensureUsable(now, policy.maxAttempts());

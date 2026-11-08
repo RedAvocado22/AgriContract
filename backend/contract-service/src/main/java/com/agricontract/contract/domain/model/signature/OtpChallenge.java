@@ -1,5 +1,6 @@
 package com.agricontract.contract.domain.model.signature;
 
+import com.agricontract.contract.domain.model.consent.ConsentActionType;
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.model.consent.SignerRole;
 
@@ -11,6 +12,8 @@ import java.util.UUID;
  * One OTP sent to one signer for one contract content (signature design §6, #95). Only the HMAC of the code is
  * kept. A challenge is usable while it is not verified, not past expiresAt and below the attempt limit; a resend
  * or a failed email "kills" it by moving expiresAt to now (no extra status column, as the design requires).
+ * actionType: which consented action the code confirms (signing, or the D42 cancel request); a code of one action
+ * never confirms the other.
  */
 public record OtpChallenge(
         UUID otpId,
@@ -24,7 +27,8 @@ public record OtpChallenge(
         Instant sentAt,
         Instant expiresAt,
         Instant verifiedAt,
-        int attemptCount) {
+        int attemptCount,
+        ConsentActionType actionType) {
 
     public static final String OTP_EXPIRED = "OTP_EXPIRED";
     public static final String OTP_LOCKED = "OTP_ATTEMPTS_EXHAUSTED";
@@ -33,11 +37,11 @@ public record OtpChallenge(
     /** Instants are kept at microsecond precision, the precision MySQL TIMESTAMP(6) stores. */
     public static OtpChallenge issue(UUID otpId, UUID consentId, String contractId, SignerRole signerRole,
                                      String userId, Instant authTime, String signedContentHash, String otpHash,
-                                     Instant now, long expirySeconds) {
+                                     Instant now, long expirySeconds, ConsentActionType actionType) {
         Instant sentAt = now.truncatedTo(ChronoUnit.MICROS);
         return new OtpChallenge(otpId, consentId, contractId, signerRole, userId,
                 authTime.truncatedTo(ChronoUnit.MICROS), signedContentHash, otpHash, sentAt,
-                sentAt.plusSeconds(expirySeconds), null, 0);
+                sentAt.plusSeconds(expirySeconds), null, 0, actionType);
     }
 
     public boolean isUsable(Instant now, int maxAttempts) {

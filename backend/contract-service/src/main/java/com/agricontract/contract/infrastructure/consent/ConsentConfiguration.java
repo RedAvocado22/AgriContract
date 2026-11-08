@@ -30,7 +30,14 @@ public class ConsentConfiguration {
             signContract.put(role, new ConsentStatement(code, properties.signContractVersion(), text,
                     CanonicalTerms.sha256(text)));
         }
-        return new ConsentStatements(signContract);
+        Map<SignerRole, ConsentStatement> cancelActivation = new EnumMap<>(SignerRole.class);
+        for (SignerRole role : SignerRole.values()) {
+            String code = ConsentStatements.cancelActivationCode(role);
+            String text = load("consent-statement/" + code + "-" + properties.cancelActivationVersion() + ".txt");
+            cancelActivation.put(role, new ConsentStatement(code, properties.cancelActivationVersion(), text,
+                    CanonicalTerms.sha256(text)));
+        }
+        return new ConsentStatements(signContract, cancelActivation);
     }
 
     @Bean

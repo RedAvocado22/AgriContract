@@ -10,14 +10,29 @@ import java.util.Map;
  */
 public final class ConsentStatements {
     private final Map<SignerRole, ConsentStatement> signContract;
+    private final Map<SignerRole, ConsentStatement> cancelActivation;
 
-    public ConsentStatements(Map<SignerRole, ConsentStatement> signContract) {
+    public ConsentStatements(Map<SignerRole, ConsentStatement> signContract,
+                             Map<SignerRole, ConsentStatement> cancelActivation) {
         for (SignerRole role : SignerRole.values()) {
             if (!signContract.containsKey(role)) {
                 throw new IllegalArgumentException("Missing SIGN_CONTRACT statement for " + role);
             }
+            if (!cancelActivation.containsKey(role)) {
+                throw new IllegalArgumentException("Missing CANCEL_ACTIVATION statement for " + role);
+            }
         }
         this.signContract = Map.copyOf(signContract);
+        this.cancelActivation = Map.copyOf(cancelActivation);
+    }
+
+    public static String cancelActivationCode(SignerRole role) {
+        return "CANCEL_ACTIVATION_AS_" + role.name();
+    }
+
+    /** D42 cancel request: same rule as signing, only the version in force may be ticked. */
+    public ConsentStatement requireActiveCancelActivation(SignerRole role, String presentedVersion) {
+        return requireActive(cancelActivation.get(role), presentedVersion);
     }
 
     public static String signContractCode(SignerRole role) {
@@ -30,7 +45,10 @@ public final class ConsentStatements {
 
     /** The client may only tick the version currently in force; an old page must reload. */
     public ConsentStatement requireActiveSignContract(SignerRole role, String presentedVersion) {
-        ConsentStatement active = signContract.get(role);
+        return requireActive(signContract.get(role), presentedVersion);
+    }
+
+    private static ConsentStatement requireActive(ConsentStatement active, String presentedVersion) {
         if (!active.statementVersion().equals(presentedVersion)) {
             throw new ContractConflictException(ContractConflictException.CONSENT_STATEMENT_OUTDATED,
                     "Consent statement version " + presentedVersion + " is not in force; current is "
