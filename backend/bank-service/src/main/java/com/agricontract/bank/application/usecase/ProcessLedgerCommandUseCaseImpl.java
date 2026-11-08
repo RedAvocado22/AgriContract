@@ -1,7 +1,7 @@
 package com.agricontract.bank.application.usecase;
 
-import com.agricontract.bank.application.dto.LockFundsCommand;
-import com.agricontract.bank.application.port.LockResultPublisher;
+import com.agricontract.bank.application.dto.LedgerCommand;
+import com.agricontract.bank.application.port.LedgerResultPublisher;
 import com.agricontract.bank.domain.exception.DuplicateLedgerEntryException;
 import com.agricontract.bank.domain.exception.InvalidLedgerEntryException;
 import com.agricontract.bank.domain.model.LedgerEntry;
@@ -23,15 +23,15 @@ import java.util.Objects;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ProcessLockRequestUseCaseImpl implements ProcessLockRequestUseCase {
+public class ProcessLedgerCommandUseCaseImpl implements ProcessLedgerCommandUseCase {
 
     private final LedgerEntryRepository ledger;
-    private final LockResultPublisher results;
+    private final LedgerResultPublisher results;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     @Override
-    public void execute(LockFundsCommand command) {
+    public void execute(LedgerCommand command) {
         var recorded = ledger.findBySourceEventId(command.sourceEventId());
         if (recorded.isPresent()) {
             replay(command, recorded.get());
@@ -63,7 +63,7 @@ public class ProcessLockRequestUseCaseImpl implements ProcessLockRequestUseCase 
         }
     }
 
-    private void replay(LockFundsCommand command, LedgerEntry recorded) {
+    private void replay(LedgerCommand command, LedgerEntry recorded) {
         if (!sameCommand(command, recorded)) {
             // Same sourceEventId, different content: a producer bug or an edited replay. Confirming it would tell
             // escrow an amount was locked that never was, so nothing is sent.
@@ -76,7 +76,7 @@ public class ProcessLockRequestUseCaseImpl implements ProcessLockRequestUseCase 
         transactionTemplate.executeWithoutResult(status -> results.completed(command, recorded));
     }
 
-    private static boolean sameCommand(LockFundsCommand command, LedgerEntry recorded) {
+    private static boolean sameCommand(LedgerCommand command, LedgerEntry recorded) {
         return command.contractId().equals(recorded.getContractId())
                 && Objects.equals(command.milestoneId(), recorded.getMilestoneId())
                 && command.userId().equals(recorded.getUserId())

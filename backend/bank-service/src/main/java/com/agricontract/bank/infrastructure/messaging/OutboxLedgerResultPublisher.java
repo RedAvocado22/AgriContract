@@ -1,7 +1,7 @@
 package com.agricontract.bank.infrastructure.messaging;
 
-import com.agricontract.bank.application.dto.LockFundsCommand;
-import com.agricontract.bank.application.port.LockResultPublisher;
+import com.agricontract.bank.application.dto.LedgerCommand;
+import com.agricontract.bank.application.port.LedgerResultPublisher;
 import com.agricontract.bank.domain.model.LedgerEntry;
 import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.outbox.OutboxWriter;
@@ -22,7 +22,7 @@ import java.util.UUID;
  */
 @Component
 @RequiredArgsConstructor
-public class OutboxLockResultPublisher implements LockResultPublisher {
+public class OutboxLedgerResultPublisher implements LedgerResultPublisher {
 
     static final String PRODUCER = "bank-service";
     static final String COMPLETED = "bank.lock_completed";
@@ -32,21 +32,21 @@ public class OutboxLockResultPublisher implements LockResultPublisher {
     private final Clock clock;
 
     @Override
-    public void completed(LockFundsCommand command, LedgerEntry entry) {
+    public void completed(LedgerCommand command, LedgerEntry entry) {
         Map<String, Object> payload = basePayload(command);
         payload.put("ledgerEntryId", entry.getEntryId());
         outbox.append(envelope(COMPLETED, command, payload));
     }
 
     @Override
-    public void failed(LockFundsCommand command, String reason) {
+    public void failed(LedgerCommand command, String reason) {
         Map<String, Object> payload = basePayload(command);
         payload.put("failureReason", reason);
         outbox.append(envelope(FAILED, command, payload));
     }
 
     // Nullable fields stay on the wire as null: the schema lists them as required.
-    private static Map<String, Object> basePayload(LockFundsCommand command) {
+    private static Map<String, Object> basePayload(LedgerCommand command) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contractId", command.contractId());
         payload.put("milestoneId", command.milestoneId());
@@ -60,7 +60,7 @@ public class OutboxLockResultPublisher implements LockResultPublisher {
         return payload;
     }
 
-    private EventEnvelope envelope(String eventType, LockFundsCommand command, Map<String, Object> payload) {
+    private EventEnvelope envelope(String eventType, LedgerCommand command, Map<String, Object> payload) {
         // The pooled "account" is the contract (bank design §2b.3), so the contract is the aggregate.
         return new EventEnvelope(UUID.randomUUID(), eventType, 1, clock.instant(), PRODUCER, command.contractId(),
                 command.correlationId(), command.requestEventId(), null, payload);

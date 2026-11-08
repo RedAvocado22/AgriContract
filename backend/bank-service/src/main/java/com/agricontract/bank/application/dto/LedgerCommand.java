@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 
 // One bank.lock_requested, already parsed. requestEventId == sourceEventId (checked by the consumer); both are kept
 // because the result needs the request eventId as causationId and the payload's sourceEventId echoed back.
-public record LockFundsCommand(
+public record LedgerCommand(
         String requestEventId,
         String correlationId,
         String contractId,

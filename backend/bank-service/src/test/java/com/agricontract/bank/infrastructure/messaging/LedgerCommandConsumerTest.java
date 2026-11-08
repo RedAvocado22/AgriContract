@@ -1,6 +1,6 @@
 package com.agricontract.bank.infrastructure.messaging;
 
-import com.agricontract.bank.application.dto.LockFundsCommand;
+import com.agricontract.bank.application.dto.LedgerCommand;
 import com.agricontract.bank.domain.model.EntryType;
 import com.agricontract.bank.domain.model.FundType;
 import com.agricontract.eventing.EventEnvelopeCodec;
@@ -20,15 +20,15 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class LockRequestConsumerTest {
+class LedgerCommandConsumerTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private final LockRequestConsumer consumer = new LockRequestConsumer(new EventEnvelopeCodec(), command -> { });
+    private final LedgerCommandConsumer consumer = new LedgerCommandConsumer(new EventEnvelopeCodec(), command -> { });
 
     @Test
     void readsAValidRequest() throws Exception {
         Map<String, Object> event = validRequest();
-        LockFundsCommand command = consumer.toCommand(JSON.writeValueAsBytes(event));
+        LedgerCommand command = consumer.toCommand(JSON.writeValueAsBytes(event));
 
         @SuppressWarnings("unchecked") Map<String, Object> payload = (Map<String, Object>) event.get("payload");
         assertThat(command.requestEventId()).isEqualTo(event.get("eventId"));

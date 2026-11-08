@@ -1,7 +1,7 @@
 package com.agricontract.bank.infrastructure.messaging;
 
-import com.agricontract.bank.application.dto.LockFundsCommand;
-import com.agricontract.bank.application.usecase.ProcessLockRequestUseCase;
+import com.agricontract.bank.application.dto.LedgerCommand;
+import com.agricontract.bank.application.usecase.ProcessLedgerCommandUseCase;
 import com.agricontract.bank.domain.model.EntryType;
 import com.agricontract.bank.domain.model.FundType;
 import com.agricontract.bank.infrastructure.config.RabbitConfiguration;
@@ -19,13 +19,13 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Reads bank.lock_requested exactly as golden-flow-events.yaml freezes it and hands a LockFundsCommand to the use
+ * Reads bank.lock_requested exactly as golden-flow-events.yaml freezes it and hands a LedgerCommand to the use
  * case. Anything that does not match the schema is an InvalidEventPayloadException (DLQ, no retry). A payload that
  * matches the schema but breaks a ledger rule is not rejected here: the use case answers it with bank.lock_failed.
  */
 @Component
 @RequiredArgsConstructor
-public class LockRequestConsumer {
+public class LedgerCommandConsumer {
 
     static final String EVENT_TYPE = "bank.lock_requested";
     static final String PRODUCER = "escrow-service";
@@ -43,14 +43,14 @@ public class LockRequestConsumer {
             Pattern.compile("^(?:0\\.(?:0[1-9]|[1-9][0-9])|[1-9][0-9]*\\.[0-9]{2})$");
 
     private final EventEnvelopeCodec codec;
-    private final ProcessLockRequestUseCase processLockRequest;
+    private final ProcessLedgerCommandUseCase processLedgerCommand;
 
     @RabbitListener(queues = RabbitConfiguration.LOCK_REQUEST_QUEUE)
     public void onLockRequested(Message message) {
-        processLockRequest.execute(toCommand(message.getBody()));
+        processLedgerCommand.execute(toCommand(message.getBody()));
     }
 
-    LockFundsCommand toCommand(byte[] body) {
+    LedgerCommand toCommand(byte[] body) {
         EventEnvelope envelope;
         try {
             envelope = codec.parse(body);
@@ -79,7 +79,7 @@ public class LockRequestConsumer {
             throw new InvalidEventPayloadException("entryType is not a lock");
         }
 
-        return new LockFundsCommand(
+        return new LedgerCommand(
                 envelope.eventId().toString(),
                 envelope.correlationId(),
                 uuid(payload, "contractId"),
