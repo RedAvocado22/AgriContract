@@ -70,7 +70,7 @@ ConsentEvidence:
 
 | Nhóm hành vi | Ví dụ | Mức bằng chứng |
 |---|---|---|
-| Ký/cam kết rủi ro cao | ký hợp đồng, xác nhận mutual replacement, mutual termination | Checkbox bắt buộc + session step-up còn hạn + OTP bind subject/action/content hash |
+| Ký/cam kết rủi ro cao | ký hợp đồng, xác nhận mutual replacement, mutual termination, yêu cầu huỷ hợp đồng khoá cọc thất bại (`CANCEL_ACTIVATION`, D42) | Checkbox bắt buộc + session step-up còn hạn + OTP bind subject/action/content hash |
 | Xác nhận vận hành có hệ quả | khai cân giao, xác nhận nhận hàng sạch, flag hàng, chấp nhận giá trong band | Checkbox bắt buộc + authenticated session + ownership/role check |
 | Quyết định quản trị | resolve breach/force majeure | Statement xác nhận quyết định + authenticated privileged session + maker-checker nếu owner design yêu cầu |
 

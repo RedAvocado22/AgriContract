@@ -65,7 +65,7 @@ Bản đầu ADMIN ôm toàn bộ vận hành: KYC, review report, moderate, gi�
 
 ### 5.2 Đường cắt: theo bản chất quyết định, không cắt theo service
 
-- **OPERATOR** — nghiệp vụ hằng ngày, đảo ngược được hoặc no-fault, có hàng đợi: duyệt/reject KYC; review external report `PENDING_REVIEW`, xác nhận case ID, upload report thủ công, xử lý email intake lỗi; moderate category/listing/product; nhập giá manual (`OPERATOR_MANUAL`); **`RetryDepositLock` / `RetryMilestoneFunding` / `MarkActivationFailed`** (sửa 12/10/2026 — trước là ADMIN; cả 3 đều no-fault, không phạt ai, không chuyển tiền giữa 2 bên, `MarkActivationFailed` vẫn cần 2 bên xác nhận — khớp UC29/UC39 SRS v1.6); propose unlock sớm / clear `ELEVATED_RISK`; propose replay DLQ.
+- **OPERATOR** — nghiệp vụ hằng ngày, đảo ngược được hoặc no-fault, có hàng đợi: duyệt/reject KYC; review external report `PENDING_REVIEW`, xác nhận case ID, upload report thủ công, xử lý email intake lỗi; moderate category/listing/product; nhập giá manual (`OPERATOR_MANUAL`); **`RetryDepositLock` / `RetryMilestoneFunding`** (sửa 12/10/2026 — trước là ADMIN; no-fault, không phạt ai, không chuyển tiền giữa 2 bên — khớp UC29/UC39 SRS v1.6). *Sửa 08/11/2026 (D42): bỏ `MarkActivationFailed` khỏi OPERATOR — dừng hợp đồng khoá cọc thất bại do 2 bên ký tự yêu cầu (`ActivationCancel`, milestone-escrow §3.1 bước 3); OPERATOR chỉ sửa kỹ thuật rồi retry*; propose unlock sớm / clear `ELEVATED_RISK`; propose replay DLQ.
 - **ARBITRATOR** (mới 12/10/2026) — phán xử có hậu quả tiền/uy tín giữa 2 bên: quyết định `BreachCase` (attribution + remedy), quyết định force majeure, khởi tạo Level 2 inspection (`InitiateLevel2Inspection`), approve/reject maker-checker reputation (§5.3).
 - **ADMIN** — quản trị hệ thống, không phán xử nghiệp vụ: quản lý role/account (Keycloak), export bằng chứng `/admin/audit/**`, đọc `/admin/security/**`, analytics, cấu hình hệ thống, approve replay DLQ nhóm tiền/security/evidence do OPERATOR đề xuất (§8b — GB-48, ngoại lệ tiền duy nhất của ADMIN và chỉ là replay kỹ thuật), quyết định mở traffic sau restore (§8c).
 - **Không role nào** sửa ledger, hợp đồng đã ký, `audit_record`, `Signature`, snapshot đã anchor.
@@ -99,7 +99,8 @@ Muốn gian phải mua **hai người khác nhau đúng cặp**, cả 2 để v�
 | Review report `PENDING_REVIEW`, xác nhận case ID, upload thủ công, email intake lỗi | ❌ | ✅ | ❌ | ❌ |
 | Khởi tạo Level 2 inspection (`InitiateLevel2Inspection`) | ❌ | ❌ | ✅ | ❌ |
 | Moderate category/product/listing; giá manual | ❌ | ✅ | ❌ | ❌ |
-| `RetryDepositLock` / `RetryMilestoneFunding` / `MarkActivationFailed` | Xác nhận (MarkActivationFailed) | ✅ | ❌ | ❌ |
+| `RetryDepositLock` / `RetryMilestoneFunding` | ❌ | ✅ | ❌ | ❌ |
+| Yêu cầu huỷ / rút yêu cầu huỷ khi khoá cọc thất bại (`ActivationCancel`, D42 08/11/2026) | ✅ (bên của hợp đồng; checkbox + step-up + OTP) | ❌ | ❌ | ❌ |
 | Báo vi phạm / claim force majeure | ✅ | ❌ | ❌ | ❌ |
 | Quyết định `BreachCase` (attribution + remedy), quyết định force majeure | ❌ | ❌ | ✅ | ❌ |
 | Unlock sớm / clear `ELEVATED_RISK` | ❌ | Propose | Approve/Reject | ❌ |

@@ -291,7 +291,11 @@ paths:
     post:
       operationId: retryDepositLock
       x-roles: [OPERATOR]
-      description: OPERATOR-only recovery of the missing deposit leg after escrow.deposit_lock_failed.
+      description: >-
+        OPERATOR-only technical recovery after escrow.deposit_lock_failed, once the cause is fixed: escrow runs a
+        new automatic retry cycle for the legs that are not LOCKED. It does not move oneSidedCancelAllowedFrom and is
+        refused (409) once the refund has started. Stopping the contract belongs to the parties
+        (/activation/cancel/*), not to OPERATOR.
       security: [{bearerAuth: []}]
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
@@ -300,18 +304,69 @@ paths:
         '204': {description: Retry accepted; escrow retries only the missing leg.}
         '403': {$ref: '#/components/responses/Forbidden'}
         '409': {$ref: '#/components/responses/Conflict'}
-  /api/v1/contracts/{contractId}/activation/mark-failed:
+  /api/v1/contracts/{contractId}/activation/cancel/initiate:
     x-service-owner: contract-service
     post:
-      operationId: markActivationFailed
-      x-roles: [OPERATOR]
-      description: OPERATOR-only terminal activation recovery; partial locks are refunded before ACTIVATION_FAILED.
+      operationId: initiateActivationCancel
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        A party asks to stop a SIGNED contract whose deposit lock failed (escrow.deposit_lock_failed received)
+        before it became ACTIVE. High-risk consent tier, like signing: checkbox statement CANCEL_ACTIVATION bound
+        to the current signedContentHash, a fresh login (auth_time within 300 s) and an emailed OTP. Records the
+        consent and the OTP challenge in one transaction and requests the OTP email with purpose CANCEL_ACTIVATION.
+        No cancel request exists until /activation/cancel/verify.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/InitiateActivationCancelRequest'}}}}
+      responses:
+        '200':
+          description: OTP email accepted by notification-service; no cancel request is recorded yet.
+          content: {application/json: {schema: {$ref: '#/components/schemas/InitiateSignResponse'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/activation/cancel/verify:
+    x-service-owner: contract-service
+    post:
+      operationId: verifyActivationCancel
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Checks the CANCEL_ACTIVATION OTP and records this party's cancel request. In the same transaction, when
+        both parties have a standing request, or one party has and now >= oneSidedCancelAllowedFrom (5 business
+        days after the first escrow.deposit_lock_failed of the contract), the contract moves
+        SIGNED -> ACTIVATION_REFUND_PENDING and writes contract.activation_refund_requested. A one-sided request
+        made earlier is executed by contract-service when that instant passes, without a further call. No
+        OPERATOR approval exists in this path.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VerifyOtpAndSignRequest'}}}}
+      responses:
+        '204': {description: Cancel request recorded; the refund starts at once when the conditions above hold.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/activation/cancel:
+    x-service-owner: contract-service
+    delete:
+      operationId: withdrawActivationCancel
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Withdraws the caller's own standing cancel request while the contract is still SIGNED. Once the refund
+        has started (ACTIVATION_REFUND_PENDING) nothing can be withdrawn (409).
       security: [{bearerAuth: []}]
       parameters:
         - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
         - {$ref: '#/components/parameters/IdempotencyKey'}
       responses:
-        '204': {description: Activation failure workflow started.}
+        '204': {description: The caller's cancel request is withdrawn.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '409': {$ref: '#/components/responses/Conflict'}
   /api/v1/contracts/{contractId}/milestones/{milestoneId}/weigh:
@@ -943,6 +998,15 @@ components:
         milestones:
           type: array
           items: {$ref: '#/components/schemas/MilestoneResponse'}
+        activationRecovery:
+          description: Present only after escrow.deposit_lock_failed was received for this contract.
+          type: object
+          required: [depositLockFailedAt, oneSidedCancelAllowedFrom, cancelRequestedBy]
+          additionalProperties: false
+          properties:
+            depositLockFailedAt: {type: string, format: date-time, description: First escrow.deposit_lock_failed of the contract (UTC).}
+            oneSidedCancelAllowedFrom: {type: string, format: date-time, description: depositLockFailedAt + 5 business days; from then one party's request is enough. Never moved by RetryDepositLock.}
+            cancelRequestedBy: {type: array, uniqueItems: true, maxItems: 2, items: {enum: [BUYER, SELLER]}}
     MilestoneResponse:
       type: object
       required: [milestoneId, milestoneIndex, status, fundingStatus, committedQuantity, batchAmount, effectiveUnitPrice, acceptedPriceAdjustment, expectedDeliveryDate, graceDays, fundingDelayBusinessDays, effectiveDeliveryDeadline]
@@ -1282,6 +1346,7 @@ components:
         otpCode: {type: string, pattern: '^[0-9]{6}$'}
         signedContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
         expiresAt: {type: string, format: date-time, description: UTC OTP expiry instant derived from the owner service system timestamp.}
+        purpose: {enum: [SIGN_CONTRACT, CANCEL_ACTIVATION], default: SIGN_CONTRACT, description: Which action the code confirms; selects the email template. Absent means SIGN_CONTRACT.}
       additionalProperties: false
     InitiateSignRequest:
       type: object
@@ -1304,6 +1369,14 @@ components:
       properties:
         otpId: {type: string, format: uuid}
         expiresAt: {type: string, format: date-time, description: UTC OTP expiry instant; client clock and timezone are not authoritative.}
+      additionalProperties: false
+    InitiateActivationCancelRequest:
+      type: object
+      required: [requesterRole, consentStatementVersion, presentedContentHash]
+      properties:
+        requesterRole: {enum: [BUYER, SELLER]}
+        consentStatementVersion: {type: string, minLength: 1, description: Active server-owned CANCEL_ACTIVATION checkbox statement version displayed to the party.}
+        presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: signedContentHash displayed to the party; must equal the contract's.}
       additionalProperties: false
     VerifyOtpAndSignRequest:
       type: object

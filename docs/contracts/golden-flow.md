@@ -51,7 +51,7 @@ Every numeric deviation entry is `{direction, tolerance, penalty, reject, discou
 The OpenAPI file freezes the owner-design command paths:
 
 - Contract/signature/document: create, list/detail, pre-sign terms update, sign initiate/verify, draft preview, document list/detail, withdraw offer, mutual termination/replacement, breach report/review/resolve, termination execute.
-- Activation recovery: retry deposit lock and mark activation failed.
+- Activation recovery: OPERATOR retries the deposit lock after fixing the cause; the parties request cancellation (both, or one after 5 business days from the first lock failure) and the locked deposits return to their owners (D42).
 - Milestone actions: weigh, confirm, flag, respond, force-majeure claim/resolve, milestone funding retry, bounded price propose/accept.
 - Reputation: authenticated public summary and maker-checker propose/approve/reject.
 - User/internal user, OTP delivery, audit reconciliation/hash, bank ledger read, escrow statement, and External Verifier lock/unlock.
