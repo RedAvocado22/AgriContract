@@ -38,4 +38,17 @@ public class SigningConsentRecorder {
                 actorId, signerRole, presentedContentHash);
         return evidence;
     }
+
+    /** D42 cancel request: same append-only evidence, CANCEL_ACTIVATION statement. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ConsentEvidence recordCancelActivation(Contract contract, String actorId, SignerRole role,
+                                                  String statementVersion, String presentedContentHash,
+                                                  String correlationId) {
+        ConsentEvidence evidence = contract.consentToCancelActivation(actorId, role, statementVersion,
+                presentedContentHash, consentStatements, UUID.randomUUID(), Instant.now(clock), correlationId);
+        consentEvidenceRepository.append(evidence);
+        log.info("Consent {} to cancel contract {} by {} as {}", evidence.consentId(), evidence.subjectId(), actorId,
+                role);
+        return evidence;
+    }
 }

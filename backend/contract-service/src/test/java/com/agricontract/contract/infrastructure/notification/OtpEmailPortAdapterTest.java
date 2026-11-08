@@ -104,6 +104,18 @@ class OtpEmailPortAdapterTest {
         assertThat(body.get("expiresAt").asText()).isEqualTo("2026-11-08T10:05:00Z");
     }
 
+    /** D42: a cancel-request code carries purpose CANCEL_ACTIVATION; a signing code keeps the pre-D42 body above. */
+    @Test
+    void cancelRequestCode_carriesItsPurpose() throws Exception {
+        reply.set(new Reply(200, "", 0));
+
+        port.send(new OtpEmail(EMAIL.requestId(), EMAIL.recipientUserId(), EMAIL.recipientEmail(),
+                EMAIL.contractId(), EMAIL.otpCode(), EMAIL.signedContentHash(), EMAIL.expiresAt(),
+                OtpEmail.CANCEL_ACTIVATION));
+
+        assertThat(objectMapper.readTree(lastBody.get()).get("purpose").asText()).isEqualTo("CANCEL_ACTIVATION");
+    }
+
     @Test
     void providerFailure_isNotSent_withTheEnvelopeCode_andIsNotRetried() {
         reply.set(new Reply(502, "{\"status\":502,\"code\":\"OTP_EMAIL_PROVIDER_FAILED\",\"message\":\"x\"}", 0));

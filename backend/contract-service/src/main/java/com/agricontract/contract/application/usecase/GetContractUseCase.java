@@ -8,6 +8,7 @@ import com.agricontract.contract.application.exception.ContractNotFoundException
 import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractId;
+import com.agricontract.contract.domain.repository.ActivationCancelRequestRepository;
 import com.agricontract.contract.domain.repository.ActivationRecoveryRepository;
 import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class GetContractUseCase {
 
     private final ContractRepository contractRepository;
     private final ActivationRecoveryRepository activationRecoveries;
+    private final ActivationCancelRequestRepository cancelRequests;
 
     public ContractDetail execute(String contractId, String requesterId, boolean isAdmin) {
         Contract contract = contractRepository.findById(new ContractId(contractId))
@@ -30,7 +32,10 @@ public class GetContractUseCase {
 
         return contract.getCoffeeTerms() != null
                 ? new ContractDetail(CoffeeContractView.from(contract).withActivationRecovery(
-                        activationRecoveries.findByContractId(contractId).map(ActivationRecoveryView::from)
+                        activationRecoveries.findByContractId(contractId)
+                                .map(recovery -> ActivationRecoveryView.from(recovery, cancelRequests
+                                        .findStanding(contractId).stream()
+                                        .map(r -> r.partyRole().name()).sorted().toList()))
                                 .orElse(null)), null)
                 : new ContractDetail(null, ContractResponse.from(contract));
     }

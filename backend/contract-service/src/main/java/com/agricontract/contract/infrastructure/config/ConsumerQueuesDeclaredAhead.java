@@ -20,7 +20,9 @@ import org.springframework.context.annotation.Configuration;
  * <ul>
  *   <li>notification-service (#278, and #234 for {@code notification.contract_activation_failed_requested}):
  *       {@code notification-svc.<routingKey>}, DLX {@code notification-svc.contracts.dlx} (topology.ts);</li>
- *   <li>product-service: {@code product-svc.<routingKey>}, DLX {@code agricontract.product.dlx} (RabbitMQConfig).</li>
+ *   <li>product-service: {@code product-svc.<routingKey>}, DLX {@code agricontract.product.dlx} (RabbitMQConfig);</li>
+ *   <li>escrow-service, until #385 merges: {@code escrow-svc.contract.activation_refund_requested}, DLX
+ *       {@code agricontract.contracts.dlx} (its RabbitMQConfig).</li>
  * </ul>
  * Remove a pair once its consumer declares it. Plain Queue/Binding beans, not a Declarables: DlqMonitor watches
  * contract-service's own DLQs only.
@@ -38,6 +40,14 @@ public class ConsumerQueuesDeclaredAhead {
 
     static final String ACTIVATION_FAILED_KEY = "notification.contract_activation_failed_requested";
     static final String ACTIVATION_FAILED_QUEUE = "notification-svc." + ACTIVATION_FAILED_KEY;
+
+    static final String CANCEL_REQUESTED_KEY = "notification.activation_cancel_requested";
+    static final String CANCEL_REQUESTED_QUEUE = "notification-svc." + CANCEL_REQUESTED_KEY;
+    static final String ACTIVATION_FAILED_EVENT_KEY = "contract.activation_failed";
+    static final String ACTIVATION_FAILED_EVENT_QUEUE = "product-svc." + ACTIVATION_FAILED_EVENT_KEY;
+    static final String REFUND_REQUESTED_KEY = "contract.activation_refund_requested";
+    static final String REFUND_REQUESTED_QUEUE = "escrow-svc." + REFUND_REQUESTED_KEY;
+    static final String ESCROW_DLX = "agricontract.contracts.dlx";
 
     private static final TopicExchange CONTRACTS = new TopicExchange("agricontract.contracts", true, false);
 
@@ -110,5 +120,70 @@ public class ConsumerQueuesDeclaredAhead {
     Binding activationFailedRequestedDlqBinding() {
         return BindingBuilder.bind(activationFailedRequestedDlq()).to(notificationContractsDlx())
                 .with(ACTIVATION_FAILED_KEY);
+    }
+
+    @Bean
+    Queue cancelRequestedQueue() {
+        return QueueBuilder.durable(CANCEL_REQUESTED_QUEUE).deadLetterExchange(NOTIFICATION_DLX).build();
+    }
+
+    @Bean
+    Queue cancelRequestedDlq() {
+        return QueueBuilder.durable(CANCEL_REQUESTED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding cancelRequestedBinding() {
+        return BindingBuilder.bind(cancelRequestedQueue()).to(CONTRACTS).with(CANCEL_REQUESTED_KEY);
+    }
+
+    @Bean
+    Binding cancelRequestedDlqBinding() {
+        return BindingBuilder.bind(cancelRequestedDlq()).to(notificationContractsDlx()).with(CANCEL_REQUESTED_KEY);
+    }
+
+    @Bean
+    Queue activationFailedEventQueue() {
+        return QueueBuilder.durable(ACTIVATION_FAILED_EVENT_QUEUE).deadLetterExchange(PRODUCT_DLX).build();
+    }
+
+    @Bean
+    Queue activationFailedEventDlq() {
+        return QueueBuilder.durable(ACTIVATION_FAILED_EVENT_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding activationFailedEventBinding() {
+        return BindingBuilder.bind(activationFailedEventQueue()).to(CONTRACTS).with(ACTIVATION_FAILED_EVENT_KEY);
+    }
+
+    @Bean
+    Binding activationFailedEventDlqBinding() {
+        return BindingBuilder.bind(activationFailedEventDlq()).to(productDlx()).with(ACTIVATION_FAILED_EVENT_KEY);
+    }
+
+    @Bean
+    DirectExchange escrowContractsDlx() {
+        return new DirectExchange(ESCROW_DLX, true, false);
+    }
+
+    @Bean
+    Queue refundRequestedQueue() {
+        return QueueBuilder.durable(REFUND_REQUESTED_QUEUE).deadLetterExchange(ESCROW_DLX).build();
+    }
+
+    @Bean
+    Queue refundRequestedDlq() {
+        return QueueBuilder.durable(REFUND_REQUESTED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding refundRequestedBinding() {
+        return BindingBuilder.bind(refundRequestedQueue()).to(CONTRACTS).with(REFUND_REQUESTED_KEY);
+    }
+
+    @Bean
+    Binding refundRequestedDlqBinding() {
+        return BindingBuilder.bind(refundRequestedDlq()).to(escrowContractsDlx()).with(REFUND_REQUESTED_KEY);
     }
 }

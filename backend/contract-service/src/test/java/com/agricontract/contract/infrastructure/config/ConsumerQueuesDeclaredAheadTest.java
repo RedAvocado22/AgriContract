@@ -48,6 +48,20 @@ class ConsumerQueuesDeclaredAheadTest {
                 "notification.contract_activation_failed_requested");
     }
 
+    @Test
+    void cancelBranchQueuesAreDeclaredLikeTheirOwnersDo() {
+        assertDurableWithDlx(config.cancelRequestedQueue(), "notification-svc.notification.activation_cancel_requested",
+                "notification-svc.contracts.dlx");
+        assertDurableWithDlx(config.activationFailedEventQueue(), "product-svc.contract.activation_failed",
+                "agricontract.product.dlx");
+        assertDurableWithDlx(config.refundRequestedQueue(), "escrow-svc.contract.activation_refund_requested",
+                "agricontract.contracts.dlx");
+        assertBinding(config.refundRequestedBinding(), "agricontract.contracts",
+                "escrow-svc.contract.activation_refund_requested", "contract.activation_refund_requested");
+        assertBinding(config.refundRequestedDlqBinding(), "agricontract.contracts.dlx",
+                "escrow-svc.contract.activation_refund_requested.dlq", "contract.activation_refund_requested");
+    }
+
     private static void assertDurableWithDlx(Queue queue, String name, String dlx) {
         assertThat(queue.getName()).isEqualTo(name);
         assertThat(queue.isDurable()).isTrue();

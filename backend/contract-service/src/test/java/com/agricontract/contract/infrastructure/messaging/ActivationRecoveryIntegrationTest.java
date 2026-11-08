@@ -25,6 +25,7 @@ import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.infrastructure.config.BusinessCalendarConfiguration;
 import com.agricontract.contract.infrastructure.consent.ConsentConfiguration;
 import com.agricontract.contract.infrastructure.contract.FrozenSchemas;
+import com.agricontract.contract.infrastructure.persistence.activation.JdbcActivationCancelRequestRepository;
 import com.agricontract.contract.infrastructure.persistence.activation.JdbcActivationRecoveryRepository;
 import com.agricontract.contract.infrastructure.persistence.idempotency.JdbcIdempotencyStore;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
@@ -70,6 +71,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
 @Import({DepositLockFailedConsumer.class, RecordDepositLockFailureUseCase.class, RetryDepositLockUseCase.class,
         GetContractUseCase.class, OutboxContractEventPublisher.class, JdbcActivationRecoveryRepository.class,
+        JdbcActivationCancelRequestRepository.class,
         JdbcIdempotencyStore.class, BusinessCalendarConfiguration.class, ContractRepositoryImpl.class,
         JdbcSignatureRepository.class, ContractMapper.class, JcsTermsCanonicalizer.class,
         ContractTermsConfiguration.class, ConsentConfiguration.class})

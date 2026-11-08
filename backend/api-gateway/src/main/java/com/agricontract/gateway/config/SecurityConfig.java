@@ -105,8 +105,11 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.POST,
                                 "/api/v1/contracts/*/milestones/*/force-majeure/resolve").hasRole("ARBITRATOR")
                         .pathMatchers(HttpMethod.POST,
-                                "/api/v1/contracts/*/activation/**",
+                                "/api/v1/contracts/*/activation/retry-deposit-lock",
                                 "/api/v1/contracts/*/milestones/*/funding/retry").hasRole("OPERATOR")
+                        // D42: the parties, not OPERATOR, stop a contract whose deposit lock failed.
+                        .pathMatchers("/api/v1/contracts/*/activation/cancel",
+                                "/api/v1/contracts/*/activation/cancel/**").hasAnyRole("BUYER", "SELLER")
                         .pathMatchers("/api/v1/admin/categories/**", "/api/v1/admin/products/**").hasRole("OPERATOR")
                         .pathMatchers(HttpMethod.POST, "/api/v1/admin/reputation/actions/propose").hasRole("OPERATOR")
                         .pathMatchers(HttpMethod.POST,

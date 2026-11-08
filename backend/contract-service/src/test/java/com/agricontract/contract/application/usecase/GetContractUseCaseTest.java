@@ -5,6 +5,7 @@ import com.agricontract.contract.application.exception.ContractNotFoundException
 import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.*;
+import com.agricontract.contract.domain.repository.ActivationCancelRequestRepository;
 import com.agricontract.contract.domain.repository.ActivationRecoveryRepository;
 import com.agricontract.contract.domain.repository.ContractRepository;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ class GetContractUseCaseTest {
 
     @Mock private ContractRepository contractRepository;
     @Mock private ActivationRecoveryRepository activationRecoveries;
+    @Mock private ActivationCancelRequestRepository cancelRequests;
 
     private GetContractUseCase useCase;
 
@@ -48,7 +50,7 @@ class GetContractUseCaseTest {
 
     @Test
     void execute_contractNotFound_throws() {
-        useCase = new GetContractUseCase(contractRepository, activationRecoveries);
+        useCase = new GetContractUseCase(contractRepository, activationRecoveries, cancelRequests);
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute("contract-1", "buyer-1", false))
@@ -57,7 +59,7 @@ class GetContractUseCaseTest {
 
     @Test
     void execute_buyerAccesses_returnsResponse() {
-        useCase = new GetContractUseCase(contractRepository, activationRecoveries);
+        useCase = new GetContractUseCase(contractRepository, activationRecoveries, cancelRequests);
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
@@ -69,7 +71,7 @@ class GetContractUseCaseTest {
 
     @Test
     void execute_sellerAccesses_returnsResponse() {
-        useCase = new GetContractUseCase(contractRepository, activationRecoveries);
+        useCase = new GetContractUseCase(contractRepository, activationRecoveries, cancelRequests);
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
@@ -80,7 +82,7 @@ class GetContractUseCaseTest {
 
     @Test
     void execute_adminAccesses_returnsResponse() {
-        useCase = new GetContractUseCase(contractRepository, activationRecoveries);
+        useCase = new GetContractUseCase(contractRepository, activationRecoveries, cancelRequests);
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
@@ -91,7 +93,7 @@ class GetContractUseCaseTest {
 
     @Test
     void execute_strangerNotAdmin_throwsUnauthorized() {
-        useCase = new GetContractUseCase(contractRepository, activationRecoveries);
+        useCase = new GetContractUseCase(contractRepository, activationRecoveries, cancelRequests);
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
@@ -102,7 +104,7 @@ class GetContractUseCaseTest {
     @Test
     void execute_buyerOfDifferentContract_throwsUnauthorized() {
         // buyer-2 is a legit user but NOT a party of contract-1 — must be denied
-        useCase = new GetContractUseCase(contractRepository, activationRecoveries);
+        useCase = new GetContractUseCase(contractRepository, activationRecoveries, cancelRequests);
         Contract contract = offeredContract();  // buyer-1, seller-1
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 

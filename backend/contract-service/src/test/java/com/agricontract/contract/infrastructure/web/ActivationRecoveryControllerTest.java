@@ -8,7 +8,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.agricontract.contract.application.dto.RetryDepositLockCommand;
+import com.agricontract.contract.application.usecase.ActivationCancelUseCases;
 import com.agricontract.contract.application.usecase.RetryDepositLockUseCase;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,11 +25,12 @@ class ActivationRecoveryControllerTest {
     private static final String OPERATOR = "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a";
 
     private final RetryDepositLockUseCase useCase = mock(RetryDepositLockUseCase.class);
+    private final ActivationCancelUseCases cancel = mock(ActivationCancelUseCases.class);
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.standaloneSetup(new ActivationRecoveryController(useCase))
+        mvc = MockMvcBuilders.standaloneSetup(new ActivationRecoveryController(useCase, cancel, new ObjectMapper()))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
