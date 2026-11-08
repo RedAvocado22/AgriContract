@@ -63,6 +63,13 @@ notification-service:
   url: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
 
 contract:
+  calendar:
+    # Comma-separated YYYY-MM-DD Vietnam public holidays (shared/java-business-calendar). Required: startup fails
+    # without it.
+    vietnam-holidays: ${VIETNAM_HOLIDAYS:}
+  activation:
+    # D42: from first escrow.deposit_lock_failed + this many business days, one party's cancel request is enough.
+    one-sided-cancel-window-business-days: 5
   terms:
     template-code: VN_COFFEE_B2B
     template-version: "1.0"
