@@ -1,0 +1,40 @@
+meta {
+  name: 11. [Error] Sign verify with a password-grant token — no auth_time (expect 403 STEP_UP_REQUIRED)
+  type: http
+  seq: 11
+}
+
+docs {
+  The Phase 1 PUT /sign is gone (#97). Signing is POST /sign/initiate (consent + emailed code) then POST /sign/verify,
+  and both require a login younger than 300s, read from the JWT auth_time. Password-grant tokens (01-03) carry no
+  auth_time, so Bruno can only show the refusal; the full flow needs a code-flow login from the frontend.
+  The fresh-login check runs before the contract is looked up, so any contract id shows it.
+}
+
+post {
+  url: {{base_url}}/api/v1/contracts/6f1c2a52-0d8e-4b55-9d0c-6b2e7c3f9a12/sign/verify
+  body: json
+  auth: bearer
+}
+
+headers {
+  Idempotency-Key: 6f1c2a52-0d8e-4b55-9d0c-6b2e7c3f9a11
+}
+
+auth:bearer {
+  token: {{buyer_token}}
+}
+
+body:json {
+  {
+    "otpId": "6f1c2a52-0d8e-4b55-9d0c-6b2e7c3f9a10",
+    "otpCode": "123456"
+  }
+}
+
+tests {
+  test("should return 403 STEP_UP_REQUIRED", function() {
+    expect(res.getStatus()).to.equal(403);
+    expect(res.getBody().error).to.match(/^STEP_UP_REQUIRED/);
+  });
+}

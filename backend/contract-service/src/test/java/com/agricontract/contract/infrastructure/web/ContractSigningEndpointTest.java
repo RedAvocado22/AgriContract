@@ -1,6 +1,8 @@
 package com.agricontract.contract.infrastructure.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -14,10 +16,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.agricontract.contract.application.dto.InitiateSignCommand;
 import com.agricontract.contract.application.dto.SignChallengeView;
+import com.agricontract.contract.application.dto.VerifySignCommand;
 import com.agricontract.contract.application.exception.OtpEmailNotSentException;
 import com.agricontract.contract.application.exception.SignerNotEligibleException;
 import com.agricontract.contract.application.exception.UserServiceUnavailableException;
 import com.agricontract.contract.application.usecase.InitiateSignUseCase;
+import com.agricontract.contract.application.usecase.VerifyOtpAndSignUseCase;
+import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.infrastructure.config.GatewayAuthDetails;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,15 +49,18 @@ class ContractSigningEndpointTest {
             + "\"presentedContentHash\":\"" + HASH + "\"}";
     private static final Instant AUTH_TIME = Instant.parse("2026-11-08T09:59:00Z");
     private static final UUID OTP_ID = UUID.randomUUID();
+    private static final String VERIFY_BODY = "{\"otpId\":\"" + OTP_ID + "\",\"otpCode\":\"123456\"}";
 
     private final InitiateSignUseCase useCase = mock(InitiateSignUseCase.class);
+    private final VerifyOtpAndSignUseCase verifyUseCase = mock(VerifyOtpAndSignUseCase.class);
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        mvc = MockMvcBuilders.standaloneSetup(new ContractSigningController(useCase, mapper))
+        mvc = MockMvcBuilders.standaloneSetup(new ContractSigningController(useCase, verifyUseCase,
+                        new ClientIpResolver(), mapper))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 // Same order as Spring's defaults: the raw String body is read before Jackson gets a chance.
                 .setMessageConverters(new StringHttpMessageConverter(),
@@ -111,6 +119,67 @@ class ContractSigningEndpointTest {
                 "STEP_UP_REQUIRED");
         expect(new UserServiceUnavailableException("down", null), 503, "USER_SERVICE_UNAVAILABLE");
         expect(new OtpEmailNotSentException("OTP_EMAIL_PROVIDER_FAILED", "502"), 502, "OTP_EMAIL_NOT_SENT");
+    }
+
+    @Test
+    void verify_returns204_andPassesCodeAuthTimeAndNoIp() throws Exception {
+        UUID key = UUID.randomUUID();
+        UUID contractId = UUID.randomUUID();
+
+        mvc.perform(verifyRequest(contractId, VERIFY_BODY, "SELLER").header("Idempotency-Key", key.toString()))
+                .andExpect(status().isNoContent());
+
+        ArgumentCaptor<VerifySignCommand> sent = ArgumentCaptor.forClass(VerifySignCommand.class);
+        verify(verifyUseCase).execute(sent.capture());
+        assertThat(sent.getValue()).isEqualTo(new VerifySignCommand(contractId.toString(), "seller-1", key, OTP_ID,
+                "123456", AUTH_TIME, null));
+    }
+
+    @Test
+    void verify_badBody_isBadRequest_withoutEchoingTheCode() throws Exception {
+        for (String bad : List.of(
+                VERIFY_BODY.replace("123456", "12345"),
+                VERIFY_BODY.replace("123456", "12345a"),
+                VERIFY_BODY.replace("}", ",\"signerRole\":\"SELLER\"}"),
+                "{\"otpCode\":\"123456\"}",
+                "not json")) {
+            mvc.perform(verifyRequest(UUID.randomUUID(), bad, "SELLER")
+                            .header("Idempotency-Key", UUID.randomUUID().toString()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value(not(containsString("12345"))));
+        }
+        mvc.perform(verifyRequest(UUID.randomUUID(), VERIFY_BODY, "SELLER")).andExpect(status().isBadRequest());
+        verify(verifyUseCase, never()).execute(any());
+    }
+
+    @Test
+    void verify_onlyBuyerOrSeller() throws Exception {
+        mvc.perform(verifyRequest(UUID.randomUUID(), VERIFY_BODY, "ADMIN")
+                        .header("Idempotency-Key", UUID.randomUUID().toString()))
+                .andExpect(status().isForbidden());
+        verify(verifyUseCase, never()).execute(any());
+    }
+
+    @Test
+    void verify_wrongCodeIs409_counterpartyIs409() throws Exception {
+        for (String code : List.of(VerifyOtpAndSignUseCase.OTP_INVALID,
+                ContractConflictException.COUNTERPARTY_NOT_ELIGIBLE)) {
+            doThrow(new ContractConflictException(code, "no")).when(verifyUseCase).execute(any());
+            mvc.perform(verifyRequest(UUID.randomUUID(), VERIFY_BODY, "SELLER")
+                            .header("Idempotency-Key", UUID.randomUUID().toString()))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").value(startsWith(code)));
+        }
+    }
+
+    private static MockHttpServletRequestBuilder verifyRequest(UUID contractId, String json, String role) {
+        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken("seller-1", null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+        auth.setDetails(new GatewayAuthDetails(AUTH_TIME));
+        return post("/api/v1/contracts/{id}/sign/verify", contractId)
+                .principal(auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json);
     }
 
     private void expect(RuntimeException thrown, int status, String code) throws Exception {
