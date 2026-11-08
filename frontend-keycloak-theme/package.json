@@ -1,0 +1,41 @@
+{
+  "name": "agricontract-keycloak-theme",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "lint": "oxlint src scripts vite.config.ts",
+    "build": "tsc && vite build",
+    "build-keycloak-theme": "npm run build && keycloakify build",
+    "prepare-local-realm": "node scripts/prepare-local-realm.mjs",
+    "start-keycloak": "npm run prepare-local-realm && keycloakify start-keycloak"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.6.0",
+    "@fontsource/be-vietnam-pro": "5.2.8",
+    "@fontsource/jetbrains-mono": "5.2.8",
+    "@fontsource/material-symbols-outlined": "^5.2.0",
+    "@hookform/resolvers": "^5.4.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "keycloakify": "11.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.81.0",
+    "tailwind-merge": "3.6.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "oxlint": "^1.71.0",
+    "tailwindcss": "^4.3.2",
+    "typescript": "~5.9.3",
+    "vite": "^6.4.1"
+  }
+}
