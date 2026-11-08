@@ -24,6 +24,8 @@ public final class DepositLeg {
     private int failedAttempts;             // bank.lock_failed results received
     private Instant nextAttemptAt;          // FAILED: when the retry is due; null when none is left
     private String lastFailureReason;
+    private String returnRequestEventId;    // eventId = sourceEventId of the return command (#247); a retry resends it
+    private String returnLedgerEntryId;     // bank ledger row of the return, set when RETURNED
     private final Instant createdAt;
     private Instant updatedAt;
 
@@ -34,12 +36,40 @@ public final class DepositLeg {
         /** No retry is left; the leg stays FAILED (reported in escrow.deposit_lock_failed, #247). */
         RETRIES_EXHAUSTED,
         /** The leg is already LOCKED: the bank ledger holds the money, a late failure changes nothing. */
-        IGNORED_ALREADY_LOCKED
+        IGNORED_ALREADY_LOCKED,
+        /** The parties cancelled while this lock was in flight; it failed, so nothing was locked: CANCELLED. */
+        CANCELLED,
+        /** The leg was already cancelled; a late failure changes nothing. */
+        IGNORED_CANCELLED
+    }
+
+    /** What the parties' cancel (contract.activation_refund_requested, D42) did to the leg. */
+    public enum StopOutcome {
+        /** The money was locked: its return command must be sent (status RETURN_REQUESTED). */
+        RETURN_REQUESTED,
+        /** A lock request is in flight: its result decides (status CANCEL_PENDING). */
+        WAITING_FOR_LOCK_RESULT,
+        /** Nothing was locked: the leg is CANCELLED, nothing to return. */
+        CANCELLED,
+        /** The leg is already on the cancel path (a redelivered request). */
+        ALREADY_STOPPED
+    }
+
+    /** What a bank return result did to the leg. */
+    public enum ReturnOutcome {
+        RETURNED,
+        DUPLICATE,
+        RETRY_SCHEDULED,
+        /** No resend is left: the money stays locked, OPERATOR must act (alert). */
+        RETRIES_EXHAUSTED,
+        /** Already RETURNED: a late failure changes nothing. */
+        IGNORED_ALREADY_RETURNED
     }
 
     private DepositLeg(String legId, String contractId, DepositLegParty party, String userId, Money amount,
                        DepositLegStatus status, String requestEventId, String ledgerEntryId, int failedAttempts,
-                       Instant nextAttemptAt, String lastFailureReason, Instant createdAt, Instant updatedAt) {
+                       Instant nextAttemptAt, String lastFailureReason, String returnRequestEventId,
+                       String returnLedgerEntryId, Instant createdAt, Instant updatedAt) {
         this.legId = legId;
         this.contractId = contractId;
         this.party = party;
@@ -51,6 +81,8 @@ public final class DepositLeg {
         this.failedAttempts = failedAttempts;
         this.nextAttemptAt = nextAttemptAt;
         this.lastFailureReason = lastFailureReason;
+        this.returnRequestEventId = returnRequestEventId;
+        this.returnLedgerEntryId = returnLedgerEntryId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -84,6 +116,8 @@ public final class DepositLeg {
                 0,
                 null,
                 null,
+                null,
+                null,
                 now,
                 now
         );
@@ -95,35 +129,52 @@ public final class DepositLeg {
     public static DepositLeg reconstitute(String legId, String contractId, DepositLegParty party, String userId,
                                           Money amount, DepositLegStatus status, String requestEventId,
                                           String ledgerEntryId, int failedAttempts, Instant nextAttemptAt,
-                                          String lastFailureReason, Instant createdAt, Instant updatedAt) {
+                                          String lastFailureReason, String returnRequestEventId,
+                                          String returnLedgerEntryId, Instant createdAt, Instant updatedAt) {
         return new DepositLeg(legId, contractId, party, userId, amount, status, requestEventId, ledgerEntryId,
-                failedAttempts, nextAttemptAt, lastFailureReason, createdAt, updatedAt);
+                failedAttempts, nextAttemptAt, lastFailureReason, returnRequestEventId, returnLedgerEntryId,
+                createdAt, updatedAt);
     }
 
     /**
-     * bank.lock_completed. Returns true when the leg became LOCKED now, false when it already was (duplicate
-     * result). Also accepted after a failure: the retry succeeded.
+     * bank.lock_completed. Returns true when the leg changed now, false when the money was already known locked
+     * (duplicate result). Also accepted after a failure: the retry succeeded. The bank ledger is the truth, so a lock
+     * that lands after the parties cancelled (CANCEL_PENDING, or CANCELLED) is returned at once: the leg goes straight
+     * to RETURN_REQUESTED and the caller sends the return command.
      */
     public boolean markLocked(String ledgerEntryId, Instant now) {
         requireUuid("ledgerEntryId", ledgerEntryId);
-        if (status == DepositLegStatus.LOCKED) {
+        if (holdsLockedMoney()) {
             return false;
         }
+        boolean cancelled = status == DepositLegStatus.CANCEL_PENDING || status == DepositLegStatus.CANCELLED;
         this.status = DepositLegStatus.LOCKED;
         this.ledgerEntryId = ledgerEntryId;
         this.nextAttemptAt = null;
         this.updatedAt = now;
+        if (cancelled) {
+            requestReturn(now);
+        }
         return true;
     }
 
     /** bank.lock_failed: counts the failure and schedules the next resend, or none when the schedule is used up. */
     public FailureOutcome markFailed(String reason, Instant now, RetrySchedule schedule) {
-        if (status == DepositLegStatus.LOCKED) {
+        if (holdsLockedMoney()) {
             return FailureOutcome.IGNORED_ALREADY_LOCKED;
+        }
+        if (status == DepositLegStatus.CANCELLED) {
+            return FailureOutcome.IGNORED_CANCELLED;
+        }
+        if (status == DepositLegStatus.CANCEL_PENDING) {
+            this.status = DepositLegStatus.CANCELLED;
+            this.lastFailureReason = clip(reason);
+            this.updatedAt = now;
+            return FailureOutcome.CANCELLED;
         }
         this.status = DepositLegStatus.FAILED;
         this.failedAttempts += 1;
-        this.lastFailureReason = reason == null ? null : reason.substring(0, Math.min(reason.length(), 500));
+        this.lastFailureReason = clip(reason);
         this.nextAttemptAt = schedule.nextAttempt(failedAttempts, now).orElse(null);
         this.updatedAt = now;
         return nextAttemptAt == null ? FailureOutcome.RETRIES_EXHAUSTED : FailureOutcome.RETRY_SCHEDULED;
@@ -146,6 +197,105 @@ public final class DepositLeg {
 
     public boolean isLocked() {
         return status == DepositLegStatus.LOCKED;
+    }
+
+    /**
+     * contract.activation_refund_requested (D41/D42): the parties stop the contract. A LOCKED leg's money goes back
+     * to its owner; a lock in flight waits for its result; a failed leg is cancelled; no lock is ever retried again.
+     */
+    public StopOutcome stopForRefund(Instant now) {
+        switch (status) {
+            case LOCKED -> {
+                requestReturn(now);
+                return StopOutcome.RETURN_REQUESTED;
+            }
+            case REQUESTED -> {
+                this.status = DepositLegStatus.CANCEL_PENDING;
+                this.updatedAt = now;
+                return StopOutcome.WAITING_FOR_LOCK_RESULT;
+            }
+            case FAILED -> {
+                this.status = DepositLegStatus.CANCELLED;
+                this.nextAttemptAt = null;
+                this.updatedAt = now;
+                return StopOutcome.CANCELLED;
+            }
+            default -> {
+                return StopOutcome.ALREADY_STOPPED;
+            }
+        }
+    }
+
+    /** bank.refund_completed / bank.release_completed for this leg's return. False for a duplicate result. */
+    public boolean markReturned(String returnLedgerEntryId, Instant now) {
+        requireUuid("returnLedgerEntryId", returnLedgerEntryId);
+        if (status == DepositLegStatus.RETURNED) {
+            return false;
+        }
+        requireReturnInProgress();
+        this.status = DepositLegStatus.RETURNED;
+        this.returnLedgerEntryId = returnLedgerEntryId;
+        this.nextAttemptAt = null;
+        this.updatedAt = now;
+        return true;
+    }
+
+    /** bank.refund_failed / bank.release_failed: a resend of the same return command per the schedule. */
+    public ReturnOutcome markReturnFailed(String reason, Instant now, RetrySchedule schedule) {
+        if (status == DepositLegStatus.RETURNED) {
+            return ReturnOutcome.IGNORED_ALREADY_RETURNED;
+        }
+        requireReturnInProgress();
+        this.status = DepositLegStatus.RETURN_FAILED;
+        this.failedAttempts += 1;
+        this.lastFailureReason = clip(reason);
+        this.nextAttemptAt = schedule.nextAttempt(failedAttempts, now).orElse(null);
+        this.updatedAt = now;
+        return nextAttemptAt == null ? ReturnOutcome.RETRIES_EXHAUSTED : ReturnOutcome.RETRY_SCHEDULED;
+    }
+
+    /** A RETURN_FAILED leg whose resend time has come. */
+    public boolean isReturnRetryDue(Instant now) {
+        return status == DepositLegStatus.RETURN_FAILED && nextAttemptAt != null && !now.isBefore(nextAttemptAt);
+    }
+
+    /** The same return command is being sent again. */
+    public void returnRetryRequested(Instant now) {
+        if (!isReturnRetryDue(now)) {
+            throw new IllegalStateException("Leg " + legId + " has no return retry due (" + status + ")");
+        }
+        this.status = DepositLegStatus.RETURN_REQUESTED;
+        this.nextAttemptAt = null;
+        this.updatedAt = now;
+    }
+
+    /** Nothing more will happen to the money of this leg on the cancel path: never locked, or returned. */
+    public boolean isRefundSettled() {
+        return status == DepositLegStatus.CANCELLED || status == DepositLegStatus.RETURNED;
+    }
+
+    /** The bank holds (or held, then returned) this leg's money: LOCKED or on its way back. */
+    private boolean holdsLockedMoney() {
+        return status == DepositLegStatus.LOCKED || status == DepositLegStatus.RETURN_REQUESTED
+                || status == DepositLegStatus.RETURN_FAILED || status == DepositLegStatus.RETURNED;
+    }
+
+    private void requestReturn(Instant now) {
+        this.status = DepositLegStatus.RETURN_REQUESTED;
+        this.returnRequestEventId = UUID.randomUUID().toString();
+        this.failedAttempts = 0;
+        this.nextAttemptAt = null;
+        this.updatedAt = now;
+    }
+
+    private void requireReturnInProgress() {
+        if (status != DepositLegStatus.RETURN_REQUESTED && status != DepositLegStatus.RETURN_FAILED) {
+            throw new InvalidDepositLegException("Leg " + legId + " has no return in progress (" + status + ")");
+        }
+    }
+
+    private static String clip(String reason) {
+        return reason == null ? null : reason.substring(0, Math.min(reason.length(), 500));
     }
 
     /**
