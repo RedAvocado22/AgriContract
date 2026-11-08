@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.config;
 
+import com.agricontract.contract.application.exception.ActivationRefusedException;
 import com.agricontract.contract.application.exception.InvalidEventPayloadException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,13 +25,21 @@ import java.util.Map;
 @EnableRabbit
 public class RabbitMQConfig {
 
-    // Phase 1 escrow.locked/escrow.released queues are gone; #103 adds the escrow.deposit_locked consumer here.
+    public static final String DEPOSIT_LOCKED_QUEUE = "contract-svc.escrow.deposit_locked";
+
+    // DlqMonitor reads the .dlq queues from this bean. agricontract.escrow.dlx is contract-service's own DLX
+    // (kept from Phase 1, used by no other service).
     @Bean
     public Declarables contractDeclarables() {
+        TopicExchange escrow = new TopicExchange("agricontract.escrow", true, false);
+        DirectExchange dlx = new DirectExchange("agricontract.escrow.dlx", true, false);
+        Queue depositLocked = QueueBuilder.durable(DEPOSIT_LOCKED_QUEUE).deadLetterExchange(dlx.getName()).build();
+        Queue depositLockedDlq = QueueBuilder.durable(DEPOSIT_LOCKED_QUEUE + ".dlq").build();
         return new Declarables(List.of(
-                new TopicExchange("agricontract.contracts", true, false),
-                new TopicExchange("agricontract.escrow", true, false),
-                new DirectExchange("agricontract.escrow.dlx", true, false)));
+                new TopicExchange("agricontract.contracts", true, false), escrow, dlx,
+                depositLocked, depositLockedDlq,
+                BindingBuilder.bind(depositLocked).to(escrow).with("escrow.deposit_locked"),
+                BindingBuilder.bind(depositLockedDlq).to(dlx).with("escrow.deposit_locked")));
     }
 
     @Bean
@@ -60,7 +69,9 @@ public class RabbitMQConfig {
     @Bean
     public RetryOperationsInterceptor retryInterceptor() {
         Map<Class<? extends Throwable>, Boolean> retryableExceptions = Map.of(
-                InvalidEventPayloadException.class, false
+                InvalidEventPayloadException.class, false,
+                // A contract that cannot be activated now will not be on a retry either (D40).
+                ActivationRefusedException.class, false
         );
         SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(3, retryableExceptions, true, true);
 
