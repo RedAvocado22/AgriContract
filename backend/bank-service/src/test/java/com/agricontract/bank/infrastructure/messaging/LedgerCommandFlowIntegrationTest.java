@@ -39,7 +39,7 @@ import static org.awaitility.Awaitility.await;
  * results checked against the frozen bank.lock_* schemas.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class LockRequestFlowIntegrationTest {
+class LedgerCommandFlowIntegrationTest {
 
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.42")
             .withDatabaseName("bank_db").withUsername("bank_migration")
@@ -137,6 +137,59 @@ class LockRequestFlowIntegrationTest {
                 Integer.class, request.get("eventId"))).isZero();
     }
 
+    /** #124: seller deposit back to the seller (D41 activation refund) → one entry, bank.release_completed. */
+    @Test
+    void releaseRequestWritesOneEntryAndConfirmsAsReleaseCompleted() throws Exception {
+        Map<String, Object> request =
+                LedgerCommandConsumerTest.request("bank.release_requested", "RELEASE_TO_SELLER", "SELLER_DEPOSIT");
+        send(request);
+
+        JsonNode result = receive(1).get(0);
+        FrozenSchemas.assertEvent("bankReleaseCompleted", result);
+        assertThat(result.get("causationId").asText()).isEqualTo(request.get("eventId"));
+        assertThat(jdbc.queryForObject("SELECT entry_type FROM ledger_entry WHERE source_event_id = ?",
+                String.class, request.get("eventId"))).isEqualTo("RELEASE_TO_SELLER");
+    }
+
+    /** #138 refund leg: buyer deposit back to the buyer → one entry, bank.refund_completed. */
+    @Test
+    void refundRequestWritesOneEntryAndConfirmsAsRefundCompleted() throws Exception {
+        Map<String, Object> request =
+                LedgerCommandConsumerTest.request("bank.refund_requested", "REFUND_TO_BUYER", "BUYER_DEPOSIT");
+        send(request);
+        send(request);
+
+        List<JsonNode> results = receive(2);
+        for (JsonNode result : results) {
+            FrozenSchemas.assertEvent("bankRefundCompleted", result);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ledger_entry WHERE source_event_id = ?",
+                Integer.class, request.get("eventId"))).isEqualTo(1);
+    }
+
+    /** A refund that breaks a ledger rule (a seller deposit cannot be refunded to the buyer) → bank.refund_failed. */
+    @Test
+    void refundBreakingALedgerRuleIsAnsweredWithRefundFailed() throws Exception {
+        Map<String, Object> request =
+                LedgerCommandConsumerTest.request("bank.refund_requested", "REFUND_TO_BUYER", "SELLER_DEPOSIT");
+        send(request);
+
+        JsonNode result = receive(1).get(0);
+        FrozenSchemas.assertEvent("bankRefundFailed", result);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ledger_entry WHERE source_event_id = ?",
+                Integer.class, request.get("eventId"))).isZero();
+    }
+
+    /** D23: escrow's release/refund result queues exist before escrow consumes them, so the outbox never stalls. */
+    @Test
+    void resultsReachTheQueuesDeclaredAheadForEscrow() throws Exception {
+        admin.purgeQueue("escrow-svc.bank.release_completed", false);
+        send(LedgerCommandConsumerTest.request("bank.release_requested", "RELEASE_TO_SELLER", "SELLER_DEPOSIT"));
+
+        receive(1);
+        assertThat(rabbit.receive("escrow-svc.bank.release_completed", 10_000)).isNotNull();
+    }
+
     @Test
     void unreadableRequestGoesToTheDlqWithoutAnyResult() throws Exception {
         Map<String, Object> request = LedgerCommandConsumerTest.validRequest();
@@ -151,7 +204,7 @@ class LockRequestFlowIntegrationTest {
     private void send(Map<String, Object> event) throws Exception {
         Message message = MessageBuilder.withBody(JSON.writeValueAsBytes(event))
                 .setContentType(MessageProperties.CONTENT_TYPE_JSON).build();
-        rabbit.send(RabbitConfiguration.ESCROW_EXCHANGE, RabbitConfiguration.LOCK_REQUEST_KEY, message);
+        rabbit.send(RabbitConfiguration.ESCROW_EXCHANGE, (String) event.get("eventType"), message);
     }
 
     private List<JsonNode> receive(int count) {

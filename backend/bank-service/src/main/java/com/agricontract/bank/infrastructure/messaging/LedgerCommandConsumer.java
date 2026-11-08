@@ -1,6 +1,7 @@
 package com.agricontract.bank.infrastructure.messaging;
 
 import com.agricontract.bank.application.dto.LedgerCommand;
+import com.agricontract.bank.application.dto.LedgerOperation;
 import com.agricontract.bank.application.usecase.ProcessLedgerCommandUseCase;
 import com.agricontract.bank.domain.model.EntryType;
 import com.agricontract.bank.domain.model.FundType;
@@ -27,15 +28,12 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class LedgerCommandConsumer {
 
-    static final String EVENT_TYPE = "bank.lock_requested";
     static final String PRODUCER = "escrow-service";
 
     private static final Set<String> REQUIRED = Set.of("contractId", "userId", "entryType", "fundType",
             "remedyDecisionId", "remedyLegId", "amount", "sourceEventId");
     private static final Set<String> ALLOWED = Set.of("contractId", "milestoneId", "userId", "entryType", "fundType",
             "remedyDecisionId", "remedyLegId", "amount", "sourceEventId");
-    private static final Set<EntryType> LOCK_TYPES =
-            Set.of(EntryType.LOCK_BUYER_DEPOSIT, EntryType.LOCK_SELLER_DEPOSIT, EntryType.LOCK_MILESTONE);
     private static final Pattern UUID =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
     // $defs.positiveMoney: exactly two decimals, no leading zeros, zero excluded.
@@ -47,17 +45,30 @@ public class LedgerCommandConsumer {
 
     @RabbitListener(queues = RabbitConfiguration.LOCK_REQUEST_QUEUE)
     public void onLockRequested(Message message) {
-        processLedgerCommand.execute(toCommand(message.getBody()));
+        processLedgerCommand.execute(toCommand(message.getBody(), LedgerOperation.LOCK));
     }
 
-    LedgerCommand toCommand(byte[] body) {
+    /** Seller deposit or milestone payment to the seller (#124, D41 activation refund). */
+    @RabbitListener(queues = RabbitConfiguration.RELEASE_REQUEST_QUEUE)
+    public void onReleaseRequested(Message message) {
+        processLedgerCommand.execute(toCommand(message.getBody(), LedgerOperation.RELEASE));
+    }
+
+    /** Buyer deposit or milestone payment back to the buyer (#138 refund leg, D41 activation refund). */
+    @RabbitListener(queues = RabbitConfiguration.REFUND_REQUEST_QUEUE)
+    public void onRefundRequested(Message message) {
+        processLedgerCommand.execute(toCommand(message.getBody(), LedgerOperation.REFUND));
+    }
+
+    /** The command of one queue: its eventType and entryType must be that queue's operation. */
+    LedgerCommand toCommand(byte[] body, LedgerOperation operation) {
         EventEnvelope envelope;
         try {
             envelope = codec.parse(body);
         } catch (InvalidEnvelopeException | IllegalArgumentException e) {
             throw new InvalidEventPayloadException("Malformed event envelope");
         }
-        if (!EVENT_TYPE.equals(envelope.eventType()) || !PRODUCER.equals(envelope.producer())
+        if (!operation.requested().equals(envelope.eventType()) || !PRODUCER.equals(envelope.producer())
                 || envelope.eventVersion() != 1) {
             throw new InvalidEventPayloadException("Unexpected event type, producer or version");
         }
@@ -67,7 +78,7 @@ public class LedgerCommandConsumer {
 
         Map<String, Object> payload = envelope.payload();
         if (!payload.keySet().containsAll(REQUIRED) || !ALLOWED.containsAll(payload.keySet())) {
-            throw new InvalidEventPayloadException("Payload fields do not match bank.lock_requested");
+            throw new InvalidEventPayloadException("Payload fields do not match " + operation.requested());
         }
         String sourceEventId = uuid(payload, "sourceEventId");
         // The request eventId is the idempotency key; the payload copy must be the same value (bank design §4).
@@ -75,8 +86,8 @@ public class LedgerCommandConsumer {
             throw new InvalidEventPayloadException("sourceEventId must equal the envelope eventId");
         }
         EntryType entryType = enumValue(EntryType.class, payload, "entryType");
-        if (!LOCK_TYPES.contains(entryType)) {
-            throw new InvalidEventPayloadException("entryType is not a lock");
+        if (!operation.allows(entryType)) {
+            throw new InvalidEventPayloadException("entryType " + entryType + " is not allowed in " + operation.requested());
         }
 
         return new LedgerCommand(

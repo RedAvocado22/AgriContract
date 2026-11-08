@@ -25,8 +25,6 @@ import java.util.UUID;
 public class OutboxLedgerResultPublisher implements LedgerResultPublisher {
 
     static final String PRODUCER = "bank-service";
-    static final String COMPLETED = "bank.lock_completed";
-    static final String FAILED = "bank.lock_failed";
 
     private final OutboxWriter outbox;
     private final Clock clock;
@@ -35,14 +33,14 @@ public class OutboxLedgerResultPublisher implements LedgerResultPublisher {
     public void completed(LedgerCommand command, LedgerEntry entry) {
         Map<String, Object> payload = basePayload(command);
         payload.put("ledgerEntryId", entry.getEntryId());
-        outbox.append(envelope(COMPLETED, command, payload));
+        outbox.append(envelope(command.operation().completed(), command, payload));
     }
 
     @Override
     public void failed(LedgerCommand command, String reason) {
         Map<String, Object> payload = basePayload(command);
         payload.put("failureReason", reason);
-        outbox.append(envelope(FAILED, command, payload));
+        outbox.append(envelope(command.operation().failed(), command, payload));
     }
 
     // Nullable fields stay on the wire as null: the schema lists them as required.

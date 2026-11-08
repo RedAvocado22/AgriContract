@@ -4,6 +4,7 @@ import com.agricontract.bank.infrastructure.messaging.DlqMonitor;
 import com.agricontract.bank.infrastructure.messaging.InvalidEventPayloadException;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.Declarable;
 import org.springframework.amqp.core.Declarables;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -38,19 +40,34 @@ public class RabbitConfiguration {
     public static final String LOCK_REQUEST_KEY = "bank.lock_requested";
     public static final String LOCK_REQUEST_QUEUE = "bank-svc." + LOCK_REQUEST_KEY;
     public static final String LOCK_REQUEST_DLQ = LOCK_REQUEST_QUEUE + ".dlq";
-    public static final List<String> DLQS = List.of(LOCK_REQUEST_DLQ);
+    public static final String RELEASE_REQUEST_KEY = "bank.release_requested";
+    public static final String RELEASE_REQUEST_QUEUE = "bank-svc." + RELEASE_REQUEST_KEY;
+    public static final String REFUND_REQUEST_KEY = "bank.refund_requested";
+    public static final String REFUND_REQUEST_QUEUE = "bank-svc." + REFUND_REQUEST_KEY;
+    public static final List<String> DLQS =
+            List.of(LOCK_REQUEST_DLQ, RELEASE_REQUEST_QUEUE + ".dlq", REFUND_REQUEST_QUEUE + ".dlq");
 
     @Bean
     Declarables bankTopology() {
         TopicExchange escrow = new TopicExchange(ESCROW_EXCHANGE, true, false);
         TopicExchange bank = new TopicExchange(BANK_EXCHANGE, true, false);
         DirectExchange dlx = new DirectExchange(DLX, true, false);
-        Queue lockRequests = QueueBuilder.durable(LOCK_REQUEST_QUEUE).deadLetterExchange(DLX).build();
-        Queue lockRequestsDlq = QueueBuilder.durable(LOCK_REQUEST_DLQ).build();
-        return new Declarables(escrow, bank, dlx, lockRequests, lockRequestsDlq,
-                BindingBuilder.bind(lockRequests).to(escrow).with(LOCK_REQUEST_KEY),
-                // Dead-lettered messages keep their original routing key.
-                BindingBuilder.bind(lockRequestsDlq).to(dlx).with(LOCK_REQUEST_KEY));
+        List<Declarable> declarables = new ArrayList<>(List.of(escrow, bank, dlx));
+        commandQueue(declarables, LOCK_REQUEST_QUEUE, LOCK_REQUEST_KEY, escrow, dlx);
+        commandQueue(declarables, RELEASE_REQUEST_QUEUE, RELEASE_REQUEST_KEY, escrow, dlx);
+        commandQueue(declarables, REFUND_REQUEST_QUEUE, REFUND_REQUEST_KEY, escrow, dlx);
+        return new Declarables(declarables);
+    }
+
+    private static void commandQueue(List<Declarable> declarables, String queueName, String routingKey,
+                                     TopicExchange escrow, DirectExchange dlx) {
+        Queue queue = QueueBuilder.durable(queueName).deadLetterExchange(DLX).build();
+        Queue dlq = QueueBuilder.durable(queueName + ".dlq").build();
+        declarables.add(queue);
+        declarables.add(dlq);
+        declarables.add(BindingBuilder.bind(queue).to(escrow).with(routingKey));
+        // Dead-lettered messages keep their original routing key.
+        declarables.add(BindingBuilder.bind(dlq).to(dlx).with(routingKey));
     }
 
     @Bean

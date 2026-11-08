@@ -1,6 +1,7 @@
 package com.agricontract.bank.infrastructure.messaging;
 
 import com.agricontract.bank.application.dto.LedgerCommand;
+import com.agricontract.bank.application.dto.LedgerOperation;
 import com.agricontract.bank.domain.model.EntryType;
 import com.agricontract.bank.domain.model.FundType;
 import com.agricontract.eventing.EventEnvelopeCodec;
@@ -8,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.math.BigDecimal;
@@ -28,7 +30,7 @@ class LedgerCommandConsumerTest {
     @Test
     void readsAValidRequest() throws Exception {
         Map<String, Object> event = validRequest();
-        LedgerCommand command = consumer.toCommand(JSON.writeValueAsBytes(event));
+        LedgerCommand command = consumer.toCommand(JSON.writeValueAsBytes(event), LedgerOperation.LOCK);
 
         @SuppressWarnings("unchecked") Map<String, Object> payload = (Map<String, Object>) event.get("payload");
         assertThat(command.requestEventId()).isEqualTo(event.get("eventId"));
@@ -41,6 +43,37 @@ class LedgerCommandConsumerTest {
         assertThat(command.amount()).isEqualByComparingTo(new BigDecimal("40000000.00"));
     }
 
+    /** #124/#138: release and refund commands share the lock payload; each queue takes only its own entry type. */
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({
+            "bank.release_requested, RELEASE_TO_SELLER, SELLER_DEPOSIT, RELEASE",
+            "bank.release_requested, RELEASE_TO_SELLER, MILESTONE_PAYMENT, RELEASE",
+            "bank.refund_requested, REFUND_TO_BUYER, BUYER_DEPOSIT, REFUND",
+            "bank.refund_requested, REFUND_TO_BUYER, MILESTONE_PAYMENT, REFUND"})
+    void readsReleaseAndRefundRequests(String eventType, String entryType, String fundType, LedgerOperation operation)
+            throws Exception {
+        Map<String, Object> event = request(eventType, entryType, fundType);
+
+        LedgerCommand command = consumer.toCommand(JSON.writeValueAsBytes(event), operation);
+
+        assertThat(command.entryType()).isEqualTo(EntryType.valueOf(entryType));
+        assertThat(command.operation()).isEqualTo(operation);
+    }
+
+    @Test
+    void aQueueRefusesAnotherOperationsEventOrEntryType() throws Exception {
+        byte[] release = JSON.writeValueAsBytes(request("bank.release_requested", "RELEASE_TO_SELLER", "SELLER_DEPOSIT"));
+        byte[] refundTypedAsRelease =
+                JSON.writeValueAsBytes(request("bank.release_requested", "REFUND_TO_BUYER", "BUYER_DEPOSIT"));
+
+        assertThatThrownBy(() -> consumer.toCommand(release, LedgerOperation.REFUND))
+                .isInstanceOf(InvalidEventPayloadException.class);
+        assertThatThrownBy(() -> consumer.toCommand(release, LedgerOperation.LOCK))
+                .isInstanceOf(InvalidEventPayloadException.class);
+        assertThatThrownBy(() -> consumer.toCommand(refundTypedAsRelease, LedgerOperation.RELEASE))
+                .isInstanceOf(InvalidEventPayloadException.class);
+    }
+
     /** Every way a message can fail the frozen schema or the bank command rules ends as a DLQ-bound rejection. */
     @ParameterizedTest(name = "{0}")
     @MethodSource("brokenRequests")
@@ -49,7 +82,8 @@ class LedgerCommandConsumerTest {
         breakIt.accept(event);
         byte[] body = JSON.writeValueAsBytes(event);
 
-        assertThatThrownBy(() -> consumer.toCommand(body)).isInstanceOf(InvalidEventPayloadException.class);
+        assertThatThrownBy(() -> consumer.toCommand(body, LedgerOperation.LOCK))
+                .isInstanceOf(InvalidEventPayloadException.class);
     }
 
     @SuppressWarnings("unchecked")
@@ -71,6 +105,17 @@ class LedgerCommandConsumerTest {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> payload(Map<String, Object> event) {
         return (Map<String, Object>) event.get("payload");
+    }
+
+    static Map<String, Object> request(String eventType, String entryType, String fundType) {
+        Map<String, Object> event = validRequest();
+        event.put("eventType", eventType);
+        payload(event).put("entryType", entryType);
+        payload(event).put("fundType", fundType);
+        if ("MILESTONE_PAYMENT".equals(fundType)) {
+            payload(event).put("milestoneId", id());
+        }
+        return event;
     }
 
     static Map<String, Object> validRequest() {
