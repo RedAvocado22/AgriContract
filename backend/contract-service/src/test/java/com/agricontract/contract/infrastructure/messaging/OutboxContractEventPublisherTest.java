@@ -22,6 +22,7 @@ import com.agricontract.eventing.outbox.OutboxWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import org.erdtman.jcs.JsonCanonicalizer;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,8 @@ class OutboxContractEventPublisherTest {
     private static final Instant SIGNED_AT = Instant.parse("2026-11-08T10:00:00.123456Z");
 
     private final OutboxWriter outbox = mock(OutboxWriter.class);
-    private final OutboxContractEventPublisher publisher = new OutboxContractEventPublisher(outbox);
+    private final OutboxContractEventPublisher publisher = new OutboxContractEventPublisher(outbox,
+            new ObjectMapper());
     private final JcsTermsCanonicalizer canonicalizer = new JcsTermsCanonicalizer();
 
     @Test
@@ -83,6 +85,41 @@ class OutboxContractEventPublisherTest {
         verify(outbox, never()).append(any());
     }
 
+    @Test
+    void anchorCommand_matchesTheFrozenSchema_withBothPartiesAndTheExactSignedTerms() throws Exception {
+        Contract contract = contract(ContractStatus.SIGNED, UUID.randomUUID().toString(), BUYER);
+
+        publisher.contractAnchorRequested(contract, SIGNED_AT);
+
+        EventEnvelope envelope = appended();
+        JsonNode json = new ObjectMapper().readTree(new EventEnvelopeCodec().toJson(envelope));
+        FrozenSchemas.assertCommand("contractAnchorRequested", json);
+        String id = contract.getContractId().value();
+        assertThat(envelope.eventType()).isEqualTo("notification.contract_anchor_requested");
+        assertThat(envelope.correlationId()).isEqualTo(id);
+        assertThat(json.at("/payload/recipients")).hasSize(2);
+        assertThat(json.at("/payload/recipients/0/email").asText()).isEqualTo("buyer@example.com");
+        assertThat(json.at("/payload/recipients/0/role").asText()).isEqualTo("BUYER");
+        assertThat(json.at("/payload/recipients/0/userId").asText()).isEqualTo(BUYER);
+        assertThat(json.at("/payload/recipients/1/email").asText()).isEqualTo("seller@example.com");
+        assertThat(json.at("/payload/recipients/1/role").asText()).isEqualTo("SELLER");
+        assertThat(json.at("/payload/signedContentHash").asText())
+                .isEqualTo(contract.getCoffeeTerms().signedContentHash());
+        // The snapshot in the email is the signed one: canonicalising it again gives the same hash.
+        String resent = new ObjectMapper().writeValueAsString(json.at("/payload/contractTermsSnapshot"));
+        assertThat(CanonicalTerms.sha256(new JsonCanonicalizer(resent).getEncodedString()))
+                .isEqualTo(contract.getCoffeeTerms().signedContentHash());
+    }
+
+    @Test
+    void anchorCommand_notSignedYet_isRefused() {
+        Contract contract = contract(ContractStatus.NEGOTIATING, UUID.randomUUID().toString(), BUYER);
+
+        assertThatThrownBy(() -> publisher.contractAnchorRequested(contract, SIGNED_AT))
+                .isInstanceOf(IllegalStateException.class);
+        verify(outbox, never()).append(any());
+    }
+
     private EventEnvelope appended() {
         ArgumentCaptor<EventEnvelope> captor = ArgumentCaptor.forClass(EventEnvelope.class);
         verify(outbox).append(captor.capture());
@@ -93,7 +130,7 @@ class OutboxContractEventPublisherTest {
         CanonicalTerms terms = CanonicalTerms.of(snapshot(), canonicalizer);
         String hash = terms.signedContentHash();
         return Contract.reconstitute(new ContractId(contractId), goods().listingId().toString(), buyerId, SELLER,
-                "Cà phê", "HTX Mua", "HTX Bán", "b@x.test", "s@x.test", null, terms, status,
+                "Cà phê", "HTX Mua", "HTX Bán", "buyer@example.com", "seller@example.com", null, terms, status,
                 Map.of(SignerRole.BUYER, hash, SignerRole.SELLER, hash), 0L);
     }
 }

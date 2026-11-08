@@ -6,6 +6,10 @@ import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.outbox.OutboxWriter;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -13,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -29,11 +34,13 @@ import java.util.regex.Pattern;
 public class OutboxContractEventPublisher implements ContractEventPublisher {
     static final String PRODUCER = "contract-service";
     static final String CONTRACT_SIGNED = "contract.signed";
+    static final String CONTRACT_ANCHOR_REQUESTED = "notification.contract_anchor_requested";
 
     private static final Pattern UUID_TEXT =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     private final OutboxWriter outbox;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -64,6 +71,56 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
         // contract can be joined in the logs. Root event: no causationId.
         outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_SIGNED, 1, signedAt, PRODUCER, contractId,
                 contractId, null, null, payload));
+    }
+
+    /**
+     * notification-commands.yaml contractAnchorRequested. Recipients are the buyer and seller emails stored on the
+     * contract at offer time (D38); the snapshot is the exact canonical JSON the parties signed, as an object.
+     * Routed by its eventType on agricontract.contracts, like every command (notification design §2.1).
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void contractAnchorRequested(Contract contract, Instant signedAt) {
+        if (contract.getStatus() != ContractStatus.SIGNED || contract.getCoffeeTerms() == null) {
+            throw new IllegalStateException("contract_anchor_requested for contract "
+                    + contract.getContractId().value() + " in status " + contract.getStatus());
+        }
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("recipients", List.of(
+                recipient(contract.getBuyerId(), contract.getBuyerEmail(), "BUYER"),
+                recipient(contract.getSellerId(), contract.getSellerEmail(), "SELLER")));
+        payload.put("contractTermsSnapshot", snapshot(contract));
+        payload.put("signedContentHash", contract.getCoffeeTerms().signedContentHash());
+        payload.put("signedAt", signedAt.toString());
+
+        outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_ANCHOR_REQUESTED, 1, signedAt, PRODUCER,
+                contractId, contractId, null, null, payload));
+    }
+
+    private static Map<String, Object> recipient(String userId, String email, String role) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalStateException("contract_anchor_requested needs the " + role + " email");
+        }
+        Map<String, Object> recipient = new LinkedHashMap<>();
+        recipient.put("userId", uuid(userId, role.toLowerCase() + "Id"));
+        recipient.put("email", email);
+        recipient.put("role", role);
+        return recipient;
+    }
+
+    private Map<String, Object> snapshot(Contract contract) {
+        try {
+            // BigDecimal, not double: the numbers must reach the email exactly as signed.
+            return objectMapper.readerFor(new TypeReference<Map<String, Object>>() {})
+                    .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readValue(contract.getCoffeeTerms().canonicalJson());
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Stored terms of " + contract.getContractId().value()
+                    + " are not a JSON object", e);
+        }
     }
 
     private static String uuid(String value, String field) {

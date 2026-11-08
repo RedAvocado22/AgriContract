@@ -12,4 +12,10 @@ public interface ContractEventPublisher {
 
     /** contract.signed, once, by the verify that made the contract SIGNED; signedAt is the second signature. */
     void contractSigned(Contract contract, Instant signedAt);
+
+    /**
+     * notification.contract_anchor_requested (#360): the "contract signed" email to both parties, with the signed
+     * terms and their hash. Written next to contract.signed, which notification-service does not consume.
+     */
+    void contractAnchorRequested(Contract contract, Instant signedAt);
 }
