@@ -23,6 +23,19 @@ spring:
     port: 5672
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    # Required by the java-eventing outbox poller: it marks an event published only once the broker routed and
+    # confirmed it.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+# java-eventing outbox (D38): canonical events such as contract.signed. The Phase 1 contract_domain_events
+# poller keeps publishing the older events to the same exchange.
+agricontract:
+  eventing:
+    outbox:
+      enabled: true
+      exchange: agricontract.contracts
+
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
 
