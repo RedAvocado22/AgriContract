@@ -21,7 +21,10 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { otpRequest } from '../../../test/support/otp';
 import { APP_OPTIONS } from '../../app.options';
-import { OTP_EMAIL_LOG_BODY } from '../../application/otp/otp-email-template';
+import {
+  OTP_EMAIL_LOG_BODY,
+  OTP_EMAIL_TEMPLATE_VERSION,
+} from '../../application/otp/otp-email-template';
 import { validate } from '../../config/env.validation';
 import { OtpEmailModule } from '../../otp-email.module';
 
@@ -76,7 +79,8 @@ describe('OTP email endpoint on real MySQL and MailHog', () => {
   };
   const rowOf = async (requestId: string) => {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT status, retry_count, subject, body FROM notification_logs WHERE event_id = ?',
+      `SELECT status, retry_count, subject, body, recipient_user_id, template_version
+         FROM notification_logs WHERE event_id = ?`,
       [requestId],
     );
     return rows;
@@ -134,7 +138,14 @@ describe('OTP email endpoint on real MySQL and MailHog', () => {
 
     const rows = await rowOf(body.requestId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ status: 'SENT', body: OTP_EMAIL_LOG_BODY });
+    expect(rows[0]).toMatchObject({
+      status: 'SENT',
+      body: OTP_EMAIL_LOG_BODY,
+      // The platform id of the recipient, as the caller sent it (#114, design §6),
+      // and the template that rendered the mail.
+      recipient_user_id: body.recipientUserId,
+      template_version: OTP_EMAIL_TEMPLATE_VERSION,
+    });
     expect(JSON.stringify(rows[0])).not.toContain(body.otpCode);
   });
 

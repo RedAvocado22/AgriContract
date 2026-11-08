@@ -21,7 +21,11 @@ import {
   type NotificationSenderOptions,
 } from './notification-sender';
 
-const KIND = { eventType: 'test.event', notificationType: 'TEST_MAIL' };
+const KIND = {
+  eventType: 'test.event',
+  notificationType: 'TEST_MAIL',
+  templateVersion: 'test-mail/v1',
+};
 /** Key of the email sent by sender.send('evt-1', KIND, 'a@example.test', ...). */
 const KEY = {
   eventId: 'evt-1',
@@ -127,6 +131,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
     const OTHER_KIND = {
       eventType: 'test.event',
       notificationType: 'OTHER_MAIL',
+      templateVersion: 'other-mail/v1',
     };
 
     it('records the kind of the email and, once SENT, its sent time', async () => {
@@ -136,6 +141,8 @@ describe('NotificationSender.send (plan §4.3)', () => {
       expect(logs.get(KEY)).toMatchObject({
         eventType: 'test.event',
         notificationType: 'TEST_MAIL',
+        templateVersion: 'test-mail/v1',
+        recipientUserId: null,
         sentAt: 1_234,
         failureReason: null,
       });

@@ -19,6 +19,15 @@ describe('PHASE1_KINDS', () => {
     expect(types).not.toContain('LEGACY_P1');
   });
 
+  it('names an explicit template version per kind, never the pre-V2 p1-unknown default', () => {
+    const versions = kinds.map((k) => k.templateVersion);
+
+    expect(new Set(versions).size).toBe(versions.length);
+    expect(versions).not.toContain('p1-unknown');
+    // template_version is VARCHAR(50) (migration V2).
+    expect(versions.every((v) => v.length > 0 && v.length <= 50)).toBe(true);
+  });
+
   it('keeps the stored types: renaming one breaks dedup of events in flight at deploy', () => {
     expect(Object.values(PHASE1_KINDS).map((k) => k.notificationType)).toEqual([
       'CONTRACT_SIGNED',

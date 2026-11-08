@@ -9,6 +9,7 @@ import {
   OTP_EMAIL_KIND,
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_SUBJECT,
+  OTP_EMAIL_TEMPLATE_VERSION,
 } from './otp-email-template';
 import {
   OtpEmailDeliveryError,
@@ -43,10 +44,12 @@ describe('SendOtpEmailUseCase', () => {
       eventId: request.requestId,
       eventType: OTP_EMAIL_KIND.eventType,
       notificationType: OTP_EMAIL_KIND.notificationType,
+      recipientUserId: request.recipientUserId,
       recipientEmail: request.recipientEmail,
       status: NotificationStatus.SENT,
       subject: OTP_EMAIL_SUBJECT,
       body: OTP_EMAIL_LOG_BODY,
+      templateVersion: OTP_EMAIL_TEMPLATE_VERSION,
     });
     expect(JSON.stringify(row())).not.toContain(request.otpCode);
   });

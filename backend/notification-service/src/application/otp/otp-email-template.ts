@@ -1,7 +1,7 @@
 import type { NotificationKind } from '../../domain/notification-log';
 import type { OtpEmailRequest } from './otp-email-request';
 
-/** Template identity, for notification_logs.template_version (column added by V2, not written yet). */
+/** Template identity, stored in notification_logs.template_version (design §3.1). */
 export const OTP_EMAIL_TEMPLATE_VERSION = 'otp-email/v1';
 
 /*
@@ -14,6 +14,7 @@ export const OTP_EMAIL_TEMPLATE_VERSION = 'otp-email/v1';
 export const OTP_EMAIL_KIND = {
   eventType: 'notification.otp_email_requested',
   notificationType: 'CONTRACT_SIGNING_OTP',
+  templateVersion: OTP_EMAIL_TEMPLATE_VERSION,
 } as const satisfies NotificationKind;
 
 export const OTP_EMAIL_SUBJECT = '[AgriContract] Your contract signing code';
