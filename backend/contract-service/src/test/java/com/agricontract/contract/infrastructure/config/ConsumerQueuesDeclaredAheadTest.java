@@ -36,6 +36,18 @@ class ConsumerQueuesDeclaredAheadTest {
                 "contract.activated");
     }
 
+    @Test
+    void activationFailedQueueIsDeclaredLikeNotificationServiceDoes() {
+        assertDurableWithDlx(config.activationFailedRequestedQueue(),
+                "notification-svc.notification.contract_activation_failed_requested", "notification-svc.contracts.dlx");
+        assertBinding(config.activationFailedRequestedBinding(), "agricontract.contracts",
+                "notification-svc.notification.contract_activation_failed_requested",
+                "notification.contract_activation_failed_requested");
+        assertBinding(config.activationFailedRequestedDlqBinding(), "notification-svc.contracts.dlx",
+                "notification-svc.notification.contract_activation_failed_requested.dlq",
+                "notification.contract_activation_failed_requested");
+    }
+
     private static void assertDurableWithDlx(Queue queue, String name, String dlx) {
         assertThat(queue.getName()).isEqualTo(name);
         assertThat(queue.isDurable()).isTrue();

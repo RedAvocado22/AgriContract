@@ -2,6 +2,7 @@ package com.agricontract.contract.infrastructure.messaging;
 
 import com.agricontract.contract.application.port.ContractEventPublisher;
 import com.agricontract.contract.domain.model.Contract;
+import com.agricontract.contract.domain.model.activation.ActivationRecovery;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.eventing.EventEnvelope;
@@ -36,6 +37,8 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
     static final String CONTRACT_SIGNED = "contract.signed";
     static final String CONTRACT_ANCHOR_REQUESTED = "notification.contract_anchor_requested";
     static final String CONTRACT_ACTIVATED = "contract.activated";
+    static final String ACTIVATION_FAILED_REQUESTED = "notification.contract_activation_failed_requested";
+    static final String DEPOSIT_LOCK_RETRY_REQUESTED = "contract.deposit_lock_retry_requested";
 
     private static final Pattern UUID_TEXT =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -122,6 +125,45 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
 
         outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_ACTIVATED, 1, activatedAt, PRODUCER, contractId,
                 correlationId, causationId, null, payload));
+    }
+
+    /**
+     * notification-commands.yaml contractActivationFailedRequested. Recipients are the parties' emails stored on the
+     * contract; OPERATOR is reached by notification-service's own operator address (notification design §8).
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void contractActivationFailedRequested(Contract contract, ActivationRecovery recovery,
+                                                  String buyerDepositState, String sellerDepositState,
+                                                  String correlationId, String causationId) {
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("recipients", List.of(
+                recipient(contract.getBuyerId(), contract.getBuyerEmail(), "BUYER"),
+                recipient(contract.getSellerId(), contract.getSellerEmail(), "SELLER")));
+        payload.put("failedLeg", recovery.lastFailedLeg().name());
+        payload.put("buyerDepositState", buyerDepositState);
+        payload.put("sellerDepositState", sellerDepositState);
+        payload.put("nextActions", List.of("RETRY_DEPOSIT_LOCK", "REQUEST_ACTIVATION_CANCEL"));
+        payload.put("oneSidedCancelAllowedFrom", recovery.oneSidedCancelAllowedFrom().toString());
+
+        outbox.append(new EventEnvelope(UUID.randomUUID(), ACTIVATION_FAILED_REQUESTED, 1, recovery.lastFailedAt(),
+                PRODUCER, contractId, correlationId, causationId, null, payload));
+    }
+
+    /** golden-flow-events.yaml contractDepositLockRetryRequested, to escrow-service. */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void depositLockRetryRequested(Contract contract, String operatorUserId, Instant requestedAt) {
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("operatorUserId", uuid(operatorUserId, "operatorUserId"));
+        payload.put("requestedAt", requestedAt.toString());
+
+        outbox.append(new EventEnvelope(UUID.randomUUID(), DEPOSIT_LOCK_RETRY_REQUESTED, 1, requestedAt, PRODUCER,
+                contractId, contractId, null, null, payload));
     }
 
     private static Map<String, Object> recipient(String userId, String email, String role) {
