@@ -73,15 +73,23 @@ public class ContractController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
+    /**
+     * A coffee contract is the frozen ContractResponse without a wrapper (D32), so the client gets the terms and
+     * signedContentHash it must present to /sign/initiate. A Phase 1 row (no coffee terms) keeps its old wrapped body
+     * until the Phase 1 cleanup.
+     */
     @GetMapping("/{contractId}")
-    public ResponseEntity<ApiResponse<ContractResponse>> getContract(
+    @Operation(summary = "Get a contract: terms as stored and the signedContentHash to present when signing")
+    public ResponseEntity<?> getContract(
             @PathVariable String contractId,
             Authentication auth) {
         boolean isAdmin = auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch("ROLE_ADMIN"::equals);
-        ContractResponse response = getContractUseCase.execute(contractId, auth.getName(), isAdmin);
-        return ResponseEntity.ok(ApiResponse.ok(response));
+        ContractDetail detail = getContractUseCase.execute(contractId, auth.getName(), isAdmin);
+        return detail.isCoffee()
+                ? ResponseEntity.ok(CoffeeContractResponse.from(detail.coffee()))
+                : ResponseEntity.ok(ApiResponse.ok(detail.legacy()));
     }
 
     @GetMapping
