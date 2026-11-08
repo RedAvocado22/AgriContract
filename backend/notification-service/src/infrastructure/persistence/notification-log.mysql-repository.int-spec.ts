@@ -27,6 +27,7 @@ const LEASE_MS = CLAIM_LEASE_MS;
 const KIND = {
   eventType: 'contract.signed',
   notificationType: 'CONTRACT_SIGNED',
+  templateVersion: 'contract-signed/p1',
 };
 
 describe('MysqlNotificationLogRepository on real MySQL', () => {
@@ -282,6 +283,7 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
     const OTHER_KIND = {
       eventType: 'contract.signed',
       notificationType: 'OTHER_MAIL',
+      templateVersion: 'other-mail/v1',
     };
     /** SMTP that records mail; addresses in `failFor` are refused like a 550. */
     const recordingSmtp = () => {
@@ -300,7 +302,8 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
     };
     const rowsOf = async (eventId: string) => {
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT recipient_email, user_id, event_type, notification_type, status, retry_count,
+        `SELECT recipient_email, user_id, recipient_user_id, event_type, notification_type,
+                template_version, status, retry_count,
                 failure_reason, sent_at IS NOT NULL AS has_sent_at
            FROM notification_logs WHERE event_id = ? ORDER BY id`,
         [eventId],
@@ -351,6 +354,8 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
       const sentRow = {
         event_type: 'contract.signed',
         notification_type: 'CONTRACT_SIGNED',
+        template_version: 'contract-signed/p1',
+        recipient_user_id: null, // a Phase 1 payload carries addresses only
         status: 'SENT',
         retry_count: 0,
         failure_reason: null,
@@ -372,15 +377,42 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
 
     it('one event and recipient, two notification types: both claimed, two rows (the old key would refuse)', async () => {
       const eventId = newEvent();
-
       await expect(repo.claim(log(eventId), LEASE_MS)).resolves.toBe('CLAIMED');
       await expect(
         repo.claim(log(eventId, 'buyer@it.test', OTHER_KIND), LEASE_MS),
       ).resolves.toBe('CLAIMED');
 
       expect(
-        (await rowsOf(eventId)).map((r) => r.notification_type as string),
-      ).toEqual(['CONTRACT_SIGNED', 'OTHER_MAIL']);
+        (await rowsOf(eventId)).map((r) => ({
+          notification_type: r.notification_type as string,
+          template_version: r.template_version as string,
+        })),
+      ).toEqual([
+        {
+          notification_type: 'CONTRACT_SIGNED',
+          template_version: 'contract-signed/p1',
+        },
+        { notification_type: 'OTHER_MAIL', template_version: 'other-mail/v1' },
+      ]);
+    });
+
+    it('template_version records the template of each row; p1-unknown stays the pre-V2 default', async () => {
+      const eventId = newEvent();
+      await insertLegacyRow(eventId, 'buyer@it.test', 'FAILED');
+      const { smtp } = recordingSmtp();
+
+      await new NotificationSender(repo, smtp).send(
+        eventId,
+        KIND,
+        'buyer@it.test',
+        'S',
+        'B',
+      );
+
+      // The row written before V2 kept the column default; the new one names its template.
+      expect(
+        (await rowsOf(eventId)).map((r) => r.template_version as string),
+      ).toEqual(['p1-unknown', 'contract-signed/p1']);
     });
 
     it('the unique key refuses a second row with the same event, recipient and type', async () => {

@@ -2,9 +2,13 @@
 -- instead of (event_id, user_id), plus delivery metadata. Additive: no column is dropped or
 -- renamed, and every Phase 1 row is kept.
 --
--- user_id is kept as it is (Phase 1 stores the recipient email there) and recipient_user_id
--- is added, nullable, for Phase 2 recipients[].userId. Proposal of the Phase 2 plan §3, waiting
--- for the owner's decision; renaming user_id would be a separate V3.
+-- user_id is kept as it is (Phase 1 stores the recipient email there) and recipient_user_id is
+-- added, nullable, for the platform id of the recipient: the OTP row writes it from
+-- OtpEmailRequest.recipientUserId, Phase 1 rows leave it null (their payloads carry addresses
+-- only), and Phase 2 recipients[].userId will use it. VARCHAR(255) matches what the OTP request
+-- validator accepts for an id (1-255 characters), so a long id is never rejected by the column.
+-- Keeping or renaming user_id is a proposal of the Phase 2 plan §3, waiting for the owner's
+-- decision; renaming it would be a separate V3.
 --
 -- Rollback: once V2 has run on an environment, the Java service no longer works there (it
 -- inserts without recipient_email/notification_type, so a second recipient of the same event
@@ -15,12 +19,14 @@
 -- statements that did run before migrating again.
 
 -- 1. New columns. NOT NULL columns get a sentinel DEFAULT so the ALTER runs on a table with
---    data whatever the SQL mode. recipient_email is VARCHAR(320), not 255: the backfill below
---    writes 'legacy:' (7 characters) + user_id (up to 255), which must never be truncated.
+--    data whatever the SQL mode; after V2, template_version = 'p1-unknown' therefore means
+--    "row written before V2" (every row the service writes names its template). recipient_email
+--    is VARCHAR(320), not 255: the backfill below writes 'legacy:' (7 characters) + user_id
+--    (up to 255), which must never be truncated.
 ALTER TABLE notification_logs
     ADD COLUMN event_type          VARCHAR(100) NOT NULL DEFAULT 'LEGACY_P1' AFTER event_id,
     ADD COLUMN notification_type   VARCHAR(100) NOT NULL DEFAULT 'LEGACY_P1' AFTER event_type,
-    ADD COLUMN recipient_user_id   VARCHAR(36)  NULL                         AFTER user_id,
+    ADD COLUMN recipient_user_id   VARCHAR(255) NULL                         AFTER user_id,
     ADD COLUMN recipient_email     VARCHAR(320) NOT NULL DEFAULT ''          AFTER recipient_user_id,
     ADD COLUMN template_version    VARCHAR(50)  NOT NULL DEFAULT 'p1-unknown' AFTER body,
     ADD COLUMN provider_message_id VARCHAR(255) NULL                         AFTER retry_count,

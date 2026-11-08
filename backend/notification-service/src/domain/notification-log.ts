@@ -13,15 +13,21 @@ export enum NotificationChannel {
 }
 
 /**
- * What an email is: the event it answers and its template semantic (design
- * §3.1). One event may send several notification types, and two events may
- * send the same type.
+ * What an email is: the event it answers, its template semantic and the
+ * template that renders it (design §3.1). One event may send several
+ * notification types, and two events may send the same type.
  */
 export interface NotificationKind {
   /** Routing key of the event or command, for routing and audit (`event_type`). */
   eventType: string;
   /** Template semantic, part of the dedup key (`notification_type`). */
   notificationType: string;
+  /**
+   * Which template rendered the email (`template_version`), the evidence of
+   * what was sent (design §3.1). Every kind names one explicitly, so the
+   * column's `p1-unknown` default only ever means "row written before V2".
+   */
+  templateVersion: string;
 }
 
 /**
@@ -40,6 +46,12 @@ export interface NotificationLogProps {
   eventType: string;
   notificationType: string;
   /**
+   * `recipient_user_id`: the platform user id of the recipient, when the
+   * sender knows it. Null for the Phase 1 events, whose payloads carry
+   * addresses only, and for any recipient without an account (design §3.1).
+   */
+  recipientUserId: string | null;
+  /**
    * `recipient_email`. Phase 1 code also writes it to `user_id`, which held
    * the recipient email before V2 (as in Java).
    */
@@ -47,6 +59,8 @@ export interface NotificationLogProps {
   channel: NotificationChannel;
   subject: string;
   body: string;
+  /** `template_version` of the kind that was sent. */
+  templateVersion: string;
   status: NotificationStatus;
   retryCount: number;
 }
@@ -62,16 +76,20 @@ export class NotificationLog {
     channel: NotificationChannel,
     subject: string,
     body: string,
+    /** Omitted when the sender has only the address (every Phase 1 event). */
+    recipientUserId: string | null = null,
   ): NotificationLog {
     return new NotificationLog({
       notificationId: randomUUID(),
       eventId,
       eventType: kind.eventType,
       notificationType: kind.notificationType,
+      recipientUserId,
       recipientEmail,
       channel,
       subject,
       body,
+      templateVersion: kind.templateVersion,
       status: NotificationStatus.PENDING,
       retryCount: 0,
     });
@@ -93,6 +111,9 @@ export class NotificationLog {
   get notificationType(): string {
     return this.props.notificationType;
   }
+  get recipientUserId(): string | null {
+    return this.props.recipientUserId;
+  }
   get recipientEmail(): string {
     return this.props.recipientEmail;
   }
@@ -111,6 +132,9 @@ export class NotificationLog {
   }
   get body(): string {
     return this.props.body;
+  }
+  get templateVersion(): string {
+    return this.props.templateVersion;
   }
   get status(): NotificationStatus {
     return this.props.status;

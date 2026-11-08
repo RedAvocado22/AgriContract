@@ -26,8 +26,10 @@ const keyParams = (key: NotificationKey) => [
 /**
  * `notification_logs` (schema V2). One row per email, unique by
  * `(event_id, recipient_email, notification_type)`. `user_id` still receives
- * the recipient email, as before V2; `recipient_user_id`, `template_version`
- * and `provider_message_id` are left to their defaults for now.
+ * the recipient email, as before V2; `recipient_user_id` holds the platform id
+ * of the recipient when the sender knows it (null otherwise), and
+ * `template_version` the template that rendered the mail. `provider_message_id`
+ * is left to its default for now.
  * `updated_at` doubles as the claim timestamp; all timestamps come from the
  * database clock in UTC (UTC_TIMESTAMP), so the lease does not depend on the
  * app host clock.
@@ -113,19 +115,22 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
     try {
       await this.pool.query(
         `INSERT INTO notification_logs
-           (notification_id, event_id, event_type, notification_type, user_id, recipient_email,
-            channel, subject, body, status, retry_count, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))`,
+           (notification_id, event_id, event_type, notification_type, user_id, recipient_user_id,
+            recipient_email, channel, subject, body, template_version, status, retry_count,
+            created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))`,
         [
           log.notificationId,
           log.eventId,
           log.eventType,
           log.notificationType,
           log.recipientEmail,
+          log.recipientUserId,
           log.recipientEmail,
           log.channel,
           log.subject,
           log.body,
+          log.templateVersion,
         ],
       );
       return true;

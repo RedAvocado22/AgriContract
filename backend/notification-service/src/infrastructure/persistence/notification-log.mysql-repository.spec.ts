@@ -39,14 +39,21 @@ const KEY = {
 const KEY_PARAMS = ['evt-1', 'buyer@example.test', 'CONTRACT_SIGNED'];
 const BY_KEY = 'event_id = ? AND recipient_email = ? AND notification_type = ?';
 
-const newLog = () =>
+const KIND = {
+  eventType: 'contract.signed',
+  notificationType: 'CONTRACT_SIGNED',
+  templateVersion: 'contract-signed/p1',
+};
+
+const newLog = (recipientUserId?: string) =>
   NotificationLog.create(
     'evt-1',
-    { eventType: 'contract.signed', notificationType: 'CONTRACT_SIGNED' },
+    KIND,
     'buyer@example.test',
     NotificationChannel.EMAIL,
     'Subject',
     'Body',
+    recipientUserId,
   );
 
 describe('MysqlNotificationLogRepository.claim', () => {
@@ -85,7 +92,7 @@ describe('MysqlNotificationLogRepository.claim', () => {
       { affectedRows: 1 },
       [],
     ]);
-    const log = newLog();
+    const log = newLog('user-7');
 
     await expect(
       new MysqlNotificationLogRepository(pool).claim(log, CLAIM_LEASE_MS),
@@ -93,22 +100,39 @@ describe('MysqlNotificationLogRepository.claim', () => {
 
     expect(query).toHaveBeenCalledTimes(2);
     expect(sql(query, 1)).toBe(
-      'INSERT INTO notification_logs (notification_id, event_id, event_type, notification_type, user_id, recipient_email, ' +
-        'channel, subject, body, status, retry_count, created_at, updated_at) ' +
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
+      'INSERT INTO notification_logs (notification_id, event_id, event_type, notification_type, user_id, recipient_user_id, ' +
+        'recipient_email, channel, subject, body, template_version, status, retry_count, created_at, updated_at) ' +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
     );
-    // user_id still receives the recipient email, as before V2.
+    // user_id still receives the recipient email, as before V2; the platform id
+    // of the recipient goes to recipient_user_id, and the kind names the template.
     expect(params(query, 1)).toEqual([
       log.notificationId,
       'evt-1',
       'contract.signed',
       'CONTRACT_SIGNED',
       'buyer@example.test',
+      'user-7',
       'buyer@example.test',
       'EMAIL',
       'Subject',
       'Body',
+      'contract-signed/p1',
     ]);
+  });
+
+  it('writes recipient_user_id as NULL when the sender has only the address', async () => {
+    const { pool, query } = scriptedPool(noLegacyRow(), [
+      { affectedRows: 1 },
+      [],
+    ]);
+
+    await new MysqlNotificationLogRepository(pool).claim(
+      newLog(),
+      CLAIM_LEASE_MS,
+    );
+
+    expect(params(query, 1)[5]).toBeNull();
   });
 
   it('on an existing row, retakes it by its key only if FAILED or PENDING older than the lease', async () => {

@@ -54,9 +54,9 @@ export type OtpEmailResult = 'SENT' | 'ALREADY_SENT';
  * A call is claimed in notification_logs by (requestId, recipientEmail,
  * CONTRACT_SIGNING_OTP) before sending, so a repeated call never sends twice.
  * Since V2 (#115) the address is in recipient_email (and still in user_id, as
- * in every Phase 1 row and in Java). recipientUserId is not stored yet: V2
- * adds recipient_user_id as a nullable column, and the Phase 2 recipients[]
- * work fills it.
+ * in every Phase 1 row and in Java), the caller's platform id is in
+ * recipient_user_id, and template_version records which template rendered the
+ * mail (otp-email/v1).
  * - no row, or the earlier call FAILED: send now (the caller asked again, so
  *   this is not a late background send);
  * - SENT: return ALREADY_SENT without sending;
@@ -75,7 +75,7 @@ export class SendOtpEmailUseCase {
   ) {}
 
   async execute(request: OtpEmailRequest): Promise<OtpEmailResult> {
-    const { requestId, recipientEmail } = request;
+    const { requestId, recipientUserId, recipientEmail } = request;
     const { subject, body } = renderOtpEmail(request);
     const log = NotificationLog.create(
       requestId,
@@ -84,6 +84,7 @@ export class SendOtpEmailUseCase {
       NotificationChannel.EMAIL,
       subject,
       OTP_EMAIL_LOG_BODY,
+      recipientUserId,
     );
 
     let claim;

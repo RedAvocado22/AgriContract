@@ -59,7 +59,8 @@ Errors use the shared envelope (`timestamp, status, error, code, message, path, 
   `test/contract/otp-email-request.contract.spec.ts` checks the fields and verdicts against the contract file.
 - Since the V2 migration (#115) these rows carry `notification_type = CONTRACT_SIGNING_OTP` and
   `event_type = notification.otp_email_requested`; OTP rows written before V2 were backfilled like any Phase 1
-  row. `recipient_user_id` exists but is not written yet (the Phase 2 `recipients[]` work fills it).
+  row. `recipient_user_id` holds the caller's `recipientUserId` and `template_version` the template that
+  rendered the mail (`otp-email/v1`).
 
 **Known limitations.** The SMTP inactivity timeout restarts whenever the server answers, so a server that answers
 slowly can take longer than 5s; and a mail the server accepted just as the caller gave up is still delivered. Both
@@ -74,6 +75,8 @@ the Java service's Flyway V1 (same checksum), then
 identity and metadata columns, backfills every Phase 1 row to `recipient_email = legacy:{user_id}`, and replaces
 `uq_event_user` with `uq_event_recipient_type (event_id, recipient_email, notification_type)`. The app does not
 run migrations; the compose service `notification-migrate` (`flyway/flyway:10.10.0`) does, before the app starts.
+Every row the service writes names its `template_version` (each `NotificationKind` carries one), so after V2 the
+column default `p1-unknown` only ever means "row written before V2". `provider_message_id` is not written yet.
 
 > **V2 is one-way for the Java service.** Once V2 has run, the Java `notification-service` can no longer write to
 > this database: it inserts without `recipient_email`/`notification_type`, so a second recipient of the same event

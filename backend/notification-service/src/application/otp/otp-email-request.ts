@@ -53,8 +53,9 @@ const DATE_TIME =
  *   lines, so it is limited to 36 characters without spaces or control
  *   characters (an otpId is a UUID);
  * - recipientEmail goes into user_id, VARCHAR(255) (an address is at most 254);
- * - recipientUserId and contractId must be non-empty and at most 255
- *   characters, so the email names a contract and stays small.
+ * - recipientUserId goes into recipient_user_id, VARCHAR(255) since V2 (#115),
+ *   and contractId is rendered into the email: both must be non-empty and at
+ *   most 255 characters, so the id is stored whole and the email stays small.
  */
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,36}$/;
 const MAX_EMAIL_LENGTH = 254;
