@@ -1,7 +1,7 @@
 ---
 name: notification-service-phase2-design
 description: "Notification-service Phase 2 — event-to-template routing, OTP delivery, email anchor, retry/DLQ và idempotency theo recipient."
-status: DESIGNED — chưa code.
+status: PARTLY IMPLEMENTED — §2.2 OTP endpoint (#114), §3.1/§6 V2 dedup (#115) và command `notification.contract_anchor_requested` đã code; các command còn lại của §4 chưa.
 metadata:
   type: design
   phase: 2
@@ -142,6 +142,8 @@ Các domain event (`contract.signed`, `milestone.settled`...) vẫn giữ payloa
 Buyer/seller chỉ được báo tampering sau khi Admin khoanh vùng đúng contract bị ảnh hưởng; flow này là notification command riêng có người xác nhận nội dung, không tự fan-out từ global verify failure.
 
 **Làm rõ template `notification.milestone_status_requested` (17/07/2026):** payload có field `statusType`; mỗi `statusType` map 1 `notificationType`/template version riêng để dedup key hoạt động đúng. Ngoài các trạng thái đã liệt kê, 2 template bắt buộc dễ sót khi implement: `LEVEL2_OPTOUT_REQUESTED` — hỏi buyer chọn mức release provisional, **mail actionable có deadline `disputeOptOutWindowDays`** (milestone-escrow §3.2 Bước 0, buyer im lặng → default sàn); và `BUYER_RECEIVE_REMINDER` — nhắc buyer cân nhận hàng khi hết `buyerReceiveWindowDays` (milestone-escrow §3.2).
+
+**Cập nhật (08/11/2026, `notification.contract_anchor_requested` đã implement):** command đầu tiên của §2.1 được consume. Queue `notification-svc.notification.contract_anchor_requested` trên exchange `agricontract.contracts`, DLX `notification-svc.contracts.dlx` — đúng tên contract-service đã declare trước (`ConsumerQueuesDeclaredAhead`, vì outbox của nó publish `mandatory=true` nên sẽ stall nếu không có queue nhận). `notificationType = CONTRACT_ANCHOR`, `templateVersion = contract-anchor/v1`; mỗi entry của `payload.recipients` là một email và một row riêng, `recipient_user_id` lấy `recipients[].userId` (contract cho phép `null`). Body render **nguyên** `contractTermsSnapshot` dưới dạng canonical JSON kèm `signedContentHash`: contract khai báo snapshot là object không có field bắt buộc nào, nên template không đọc field nào ra khỏi nó — và đây là mail bằng chứng, không phải final document (final document vẫn là `contract_document_ready_requested`, §3.3). Envelope của command bị check nghiêm hơn `event-envelope.yaml` theo đúng `commandEnvelope`: `correlationId` bắt buộc, không cho `subject`, `producer`/`eventType` phải khớp `const`; sai thì đi DLQ ngay và log chỉ nêu tên field (và `recipients[i]`), không nêu địa chỉ.
 
 ## 5. Processing, Retry & Idempotency
 

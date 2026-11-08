@@ -20,12 +20,15 @@ import {
   parseEscrowPenalized,
   parseEscrowReleased,
 } from './legacy-payload.parsers';
-import type { RoutingKey } from './topology';
+import type { LegacyRoutingKey } from './topology';
 
 /** Injection token of the routing-key -> handler table built by legacyRoutes. */
 export const LEGACY_ROUTES = Symbol('LEGACY_ROUTES');
 
-export type LegacyRoutes = Record<RoutingKey, (body: Buffer) => Promise<void>>;
+export type LegacyRoutes = Record<
+  LegacyRoutingKey,
+  (body: Buffer) => Promise<void>
+>;
 
 export interface NotificationUseCases {
   contractSigned: NotifyContractSignedUseCase;
@@ -41,7 +44,8 @@ export interface NotificationUseCases {
 
 /**
  * Flat Phase 1 payload -> parser -> use case, per queue. A Record over
- * RoutingKey: the compiler rejects a queue of TOPOLOGY without a route.
+ * LegacyRoutingKey: the compiler rejects a Phase 1 queue of TOPOLOGY without a
+ * route; its Phase 2 commands are routed by commandRoutes instead.
  */
 export function legacyRoutes(u: NotificationUseCases): LegacyRoutes {
   return {

@@ -18,6 +18,7 @@ import {
 import {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
+  NotifyContractAnchorUseCase,
   NotifyContractCancelledUseCase,
   NotifyContractDeliveredUseCase,
   NotifyContractDisputedUseCase,
@@ -29,6 +30,7 @@ import {
 import { validate } from '../../config/env.validation';
 import { MysqlNotificationLogRepository } from '../persistence/notification-log.mysql-repository';
 import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
+import { commandRoutes } from './command-routes';
 import { legacyRoutes } from './legacy-routes';
 import { NotificationEventConsumer } from './notification-event.consumer';
 
@@ -114,7 +116,10 @@ describe('shutdown park on real MySQL', () => {
       nack: () => void settled.push('nack'),
       cancel: () => Promise.resolve({}),
     };
-    const consumer = new NotificationEventConsumer(amqp, routes);
+    const commands = commandRoutes({
+      contractAnchor: new NotifyContractAnchorUseCase(sender),
+    });
+    const consumer = new NotificationEventConsumer(amqp, routes, commands);
     await consumer.onModuleInit();
     await ready(channel as unknown as Channel);
 

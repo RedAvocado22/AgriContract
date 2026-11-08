@@ -3,7 +3,7 @@
 Migrated from the Spring Boot `notification-service`; see `docs/notification-service-nestjs-migration.md`
 (done, M5).
 
-**Status: M5 (cutover done).** The service consumes the 9 Phase 1 queues, sends the same emails as the Java service
+**Status: M5 (cutover done), Phase 2 in progress.** The service consumes the 9 Phase 1 queues, sends the same emails as the Java service
 did and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient deduplication.
 Parity with Java was signed off in M4 (`docs/notification-service-parity-m4.md`). The Java service is
 removed; tag `notification-java-final` is the rollback point (plan §7).
@@ -29,6 +29,35 @@ removed; tag `notification-java-final` is the rollback point (plan §7).
 - Every 5 minutes a warning is logged for each DLQ that holds messages.
 - On shutdown the consumers are cancelled and in-flight messages finish (up to 8s) before the channel and the
   database pool close.
+
+### Signed-contract email (Phase 2, `notification.contract_anchor_requested`)
+
+The first Phase 2 **notification command** (`contracts/events/notification-commands.yaml`
+`contractAnchorRequested`, design §2.1 and §4). Unlike the 9 Phase 1 events, a command is a full event envelope
+and its addresses sit in `payload.recipients`, so the publisher — contract-service, in the verify-sign transaction
+(#360) — decides who is written to and this service only validates, renders, sends and deduplicates.
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.contract_anchor_requested` (DLX `notification-svc.contracts.dlx`) |
+| Exchange, routing key | `agricontract.contracts`, `notification.contract_anchor_requested` |
+| Recipients | every entry of `payload.recipients`, in order (buyer then seller today) |
+| Row per email | `notification_type = CONTRACT_ANCHOR`, `template_version = contract-anchor/v1` |
+
+- The queue, its DLQ and the DLX are already declared by contract-service (`ConsumerQueuesDeclaredAhead`), because
+  its outbox publishes with `mandatory=true` and would stall on an event no queue receives. `topology.ts` declares
+  them identically, so both declarations are the same and the messages waiting there are consumed.
+- **The body carries the terms snapshot whole**, as the canonical JSON `signedContentHash` covers, plus the hash
+  itself: this is the evidence mail, not the final document (the PDF is
+  `notification.contract_document_ready_requested`, design §3.3). The command declares the snapshot as a plain
+  object with no required field, so no template line reads a field out of it.
+- `recipient_user_id` holds `recipients[].userId`, which the contract allows to be `null` (a contact without an
+  account); the address alone identifies the recipient either way.
+- Each recipient is claimed on its own, so a send that fails for the second recipient leaves the first `SENT` and
+  the redelivery mails only the second. A command whose envelope or payload breaks the contract goes to the DLQ at
+  once; the log names the field (and `recipients[i]`), never an address.
+- `test/contract/notification-commands.contract.spec.ts` checks the parser against the contract file in both
+  directions: nothing the contract accepts is dead-lettered, and nothing it rejects is mailed.
 
 ### OTP email endpoint (Phase 2, #114)
 
@@ -193,6 +222,13 @@ is gone, so the fixture is not regenerated: change it only together with an inte
 `execute(command)`, the shared `NotificationSender`, the ports and their errors. `NotificationModule` builds these
 classes with factories from the `EMAIL_PORT`, `NOTIFICATION_LOG_REPOSITORY` and `NOTIFICATION_SETTINGS` tokens;
 `src/infrastructure` holds the Nest/amqplib/mysql2/nodemailer adapters.
+
+The Phase 2 commands follow that split too, with their own pair of files per layer so the Phase 1 parity code stays
+untouched: `notification-command-kinds.ts` (the kind and template version of each command) and
+`src/infrastructure/messaging/notification-command.parsers.ts` + `command-routes.ts` (envelope validation and the
+command routing table), beside `phase1-notification-kinds.ts`, `legacy-payload.parsers.ts` and `legacy-routes.ts`.
+`NotificationEventConsumer` merges both tables into one `Record` over every routing key of `TOPOLOGY`, so a queue
+left without a route is a compile error.
 
 The OTP endpoint follows the same split: `src/application/otp` (request validation, template,
 `SendOtpEmailUseCase`), `src/infrastructure/http` (controller, `X-Internal-Secret` guard, error envelope filter,

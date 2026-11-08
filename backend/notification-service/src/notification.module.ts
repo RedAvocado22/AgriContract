@@ -13,6 +13,7 @@ import {
 import {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
+  NotifyContractAnchorUseCase,
   NotifyContractCancelledUseCase,
   NotifyContractDeliveredUseCase,
   NotifyContractDisputedUseCase,
@@ -26,6 +27,10 @@ import {
   NodemailerEmailAdapter,
   mailTransportFactory,
 } from './infrastructure/email/nodemailer-email.adapter';
+import {
+  COMMAND_ROUTES,
+  commandRoutes,
+} from './infrastructure/messaging/command-routes';
 import { DlqMonitor } from './infrastructure/messaging/dlq-monitor';
 import {
   LEGACY_ROUTES,
@@ -65,7 +70,10 @@ const USE_CASES = {
   categoryRejected: NotifyCategoryRejectedUseCase,
 } as const;
 
-/** Phase 1 notifications: 9 RabbitMQ consumers -> use cases -> email + notification_logs. */
+/**
+ * Phase 1 notifications (9 flat events) and the Phase 2 notification commands:
+ * one RabbitMQ consumer per queue -> use case -> email + notification_logs.
+ */
 @Module({
   imports: [PersistenceModule, MessagingModule],
   providers: [
@@ -113,6 +121,13 @@ const USE_CASES = {
     useCaseOf(NotifyEscrowPenalizedUseCase),
     useCaseOf(NotifyCategoryApprovedUseCase),
     useCaseOf(NotifyCategoryRejectedUseCase),
+    useCaseOf(NotifyContractAnchorUseCase),
+    {
+      provide: COMMAND_ROUTES,
+      inject: [NotifyContractAnchorUseCase],
+      useFactory: (contractAnchor: NotifyContractAnchorUseCase) =>
+        commandRoutes({ contractAnchor }),
+    },
     {
       provide: LEGACY_ROUTES,
       inject: Object.values(USE_CASES),

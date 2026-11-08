@@ -112,6 +112,12 @@ export class NotificationSender {
     recipientEmail: string,
     subject: string,
     body: string,
+    /**
+     * The recipient's platform id when the sender knows it (a Phase 2 command
+     * carries one per recipient); omitted by the Phase 1 events, whose
+     * payloads hold addresses only.
+     */
+    recipientUserId: string | null = null,
   ): Promise<void> {
     const log = NotificationLog.create(
       eventId,
@@ -120,6 +126,7 @@ export class NotificationSender {
       NotificationChannel.EMAIL,
       subject,
       body,
+      recipientUserId,
     );
     const claim = await this.claimOrWait(log);
     if (claim === 'ALREADY_SENT') return;

@@ -7,6 +7,8 @@ import {
 } from '@agricontract/eventing';
 import type { Channel } from 'amqplib';
 import { ClaimWaitAbortedError } from '../../application/notification-errors';
+import { anchorCommand, anchorEnvelope } from '../../../test/support/commands';
+import { commandRoutes, type CommandUseCases } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
 import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
 import {
@@ -49,6 +51,7 @@ class FakeChannel {
 }
 
 const HANDLERS = [
+  'contractAnchor',
   'contractSigned',
   'contractCancelled',
   'contractDelivered',
@@ -79,14 +82,15 @@ function setup() {
     (typeof HANDLERS)[number],
     jest.Mock<Promise<void>, [Record<string, unknown>]>
   >;
-  // Fake use cases: execute() is the mock, routed through the real legacyRoutes.
+  // Fake use cases: execute() is the mock, routed through the real route tables.
   const useCases = Object.fromEntries(
     HANDLERS.map((h) => [h, { execute: service[h] }]),
-  ) as unknown as NotificationUseCases;
+  ) as unknown as NotificationUseCases & CommandUseCases;
   const shutdownController = new AbortController();
   const consumer = new NotificationEventConsumer(
     amqp,
     legacyRoutes(useCases),
+    commandRoutes(useCases),
     shutdownController,
   );
   const open = async (channel: FakeChannel) => {
@@ -194,7 +198,7 @@ describe('NotificationEventConsumer', () => {
     expect(consumer.inFlightCount).toBe(0);
   });
 
-  it('consumes the 9 queues on every channel, again after a reconnect', async () => {
+  it('consumes every queue on every channel, again after a reconnect', async () => {
     const { consumer, open } = setup();
     await consumer.onModuleInit();
     const first = new FakeChannel();
@@ -204,7 +208,7 @@ describe('NotificationEventConsumer', () => {
     await open(second);
 
     for (const channel of [first, second]) {
-      expect(channel.consume).toHaveBeenCalledTimes(9);
+      expect(channel.consume).toHaveBeenCalledTimes(queueNames().length);
       expect([...channel.consumers.keys()].sort()).toEqual(queueNames().sort());
       for (const call of channel.consume.mock.calls as unknown[][]) {
         expect(call[2]).toEqual({ noAck: false });
@@ -235,6 +239,53 @@ describe('NotificationEventConsumer', () => {
       expect(consumer.inFlightCount).toBe(0);
     },
   );
+
+  /*
+   * The Phase 2 commands are not in PAYLOADS: that table delivers every event
+   * with `eventType: 'ignored'`, because a flat Phase 1 payload has no
+   * envelope and its parser reads only the fields the template needs. A
+   * command does have an envelope, and its eventType is part of the contract,
+   * so the two cases below say what this queue does with it instead.
+   */
+  const ANCHOR_QUEUE =
+    'notification-svc.notification.contract_anchor_requested';
+
+  it('runs the anchor use case with the parsed command, recipients included, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(ANCHOR_QUEUE, anchorEnvelope());
+    await flush();
+
+    expect(service.contractAnchor).toHaveBeenCalledTimes(1);
+    expect(service.contractAnchor.mock.calls[0][0]).toEqual(anchorCommand());
+    for (const other of HANDLERS.filter((h) => h !== 'contractAnchor')) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('dead-letters a command whose eventType is not this queue’s, without calling the handler', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    channel.deliver(
+      ANCHOR_QUEUE,
+      anchorEnvelope({
+        eventType: 'notification.contract_terminated_requested',
+      }),
+    );
+    await flush();
+
+    expect(service.contractAnchor).not.toHaveBeenCalled();
+    expect(channel.nacked).toHaveLength(1);
+    expect(channel.acked).toEqual([]);
+  });
 
   it('dead-letters a malformed payload at once, without calling the handler', async () => {
     const { consumer, service, open } = setup();
@@ -273,7 +324,7 @@ describe('NotificationEventConsumer', () => {
       .then(() => (drained = true));
     await flush();
 
-    expect(channel.cancel).toHaveBeenCalledTimes(9);
+    expect(channel.cancel).toHaveBeenCalledTimes(queueNames().length);
     expect(channel.cancel).toHaveBeenCalledWith(
       'tag:notification-svc.escrow.locked',
     );

@@ -1,5 +1,6 @@
 export { NotifyCategoryApprovedUseCase } from './notify-category-approved.use-case';
 export { NotifyCategoryRejectedUseCase } from './notify-category-rejected.use-case';
+export { NotifyContractAnchorUseCase } from './notify-contract-anchor.use-case';
 export { NotifyContractCancelledUseCase } from './notify-contract-cancelled.use-case';
 export { NotifyContractDeliveredUseCase } from './notify-contract-delivered.use-case';
 export { NotifyContractDisputedUseCase } from './notify-contract-disputed.use-case';

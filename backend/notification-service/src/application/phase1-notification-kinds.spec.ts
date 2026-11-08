@@ -1,11 +1,11 @@
-import { TOPOLOGY } from '../infrastructure/messaging/topology';
+import { legacyRoutingKeys } from '../infrastructure/messaging/topology';
 import { PHASE1_KINDS } from './phase1-notification-kinds';
 
 describe('PHASE1_KINDS', () => {
   const kinds = Object.values(PHASE1_KINDS);
 
   it('gives each Phase 1 routing key exactly one kind', () => {
-    const routingKeys = TOPOLOGY.flatMap((row) => [...row.routingKeys]);
+    const routingKeys = legacyRoutingKeys();
 
     expect(kinds.map((k) => k.eventType).sort()).toEqual(
       [...routingKeys].sort(),
