@@ -37,6 +37,14 @@ public final class FrozenSchemas {
         assertThat(FACTORY.getSchema(schema, CONFIG).validate(instance)).as(definition).isEmpty();
     }
 
+    /** A notification command against contracts/events/notification-commands.yaml (no external refs there). */
+    public static void assertCommand(String definition, JsonNode instance) throws IOException {
+        ObjectNode schema = read("events/notification-commands.yaml");
+        schema.remove("oneOf");
+        schema.put("$ref", "#/$defs/" + definition);
+        assertThat(FACTORY.getSchema(schema, CONFIG).validate(instance)).as(definition).isEmpty();
+    }
+
     private static ObjectNode read(String file) throws IOException {
         return (ObjectNode) YAML.readTree(Path.of(System.getProperty("contracts.directory"), file).toFile());
     }
