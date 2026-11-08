@@ -9,6 +9,7 @@ public class ContractConflictException extends RuntimeException {
     public static final String ALREADY_SIGNED = "CONTRACT_ALREADY_SIGNED_BY_ACTOR";
     public static final String CONSENT_STATEMENT_OUTDATED = "CONSENT_STATEMENT_OUTDATED";
     public static final String PRESENTED_CONTENT_STALE = "PRESENTED_CONTENT_HASH_MISMATCH";
+    public static final String TERMS_CHANGED_SINCE_CODE = "OTP_TERMS_CHANGED";
 
     private final String code;
 

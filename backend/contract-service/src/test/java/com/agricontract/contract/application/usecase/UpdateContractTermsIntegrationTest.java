@@ -23,6 +23,7 @@ import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.infrastructure.persistence.idempotency.JdbcIdempotencyStore;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
 import com.agricontract.contract.infrastructure.persistence.repository.ContractRepositoryImpl;
+import com.agricontract.contract.infrastructure.persistence.signature.JdbcSignatureRepository;
 import com.agricontract.contract.infrastructure.terms.ContractTermsConfiguration;
 import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
 import java.util.UUID;
@@ -48,7 +49,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({UpdateContractTermsUseCase.class, JdbcIdempotencyStore.class, ContractRepositoryImpl.class,
+@Import({UpdateContractTermsUseCase.class, JdbcIdempotencyStore.class, ContractRepositoryImpl.class, JdbcSignatureRepository.class,
         ContractMapper.class, JcsTermsCanonicalizer.class, ContractTermsConfiguration.class})
 @Testcontainers
 class UpdateContractTermsIntegrationTest {
@@ -139,9 +140,7 @@ class UpdateContractTermsIntegrationTest {
     @Test
     void termsAreFrozenAfterTheFirstSignature() {
         String id = offer();
-        Contract contract = contracts.findById(new ContractId(id)).orElseThrow();
-        contract.sign(BUYER);
-        contracts.save(contract);
+        signAsBuyer(id);
 
         assertThatThrownBy(() -> useCase.execute(command(id, SELLER, UUID.randomUUID(), withPrice("96000.00"))))
                 .isInstanceOf(ContractConflictException.class)
@@ -190,5 +189,23 @@ class UpdateContractTermsIntegrationTest {
                 t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
                 t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+    }
+
+    /** A buyer signature row as #97 writes it (consent + verified challenge + signature), straight in SQL. */
+    private void signAsBuyer(String contractId) {
+        String hash = contracts.findById(new ContractId(contractId)).orElseThrow().getCoffeeTerms().signedContentHash();
+        String consentId = UUID.randomUUID().toString();
+        String otpId = UUID.randomUUID().toString();
+        jdbc.update("INSERT INTO consent_evidence (consent_id, action_type, subject_type, subject_id, actor_user_id,"
+                + " actor_role, statement_code, statement_version, statement_hash, presented_content_hash,"
+                + " consented_at) VALUES (?, 'SIGN_CONTRACT', 'CONTRACT', ?, ?, 'BUYER', 'SIGN_CONTRACT_AS_BUYER',"
+                + " '1.0', ?, ?, NOW(6))", consentId, contractId, BUYER, "c".repeat(64), hash);
+        jdbc.update("INSERT INTO signature_otp (otp_id, consent_id, contract_id, signer_role, user_id, auth_time,"
+                + " signed_content_hash, otp_hash, sent_at, expires_at, verified_at) VALUES (?, ?, ?, 'BUYER', ?,"
+                + " NOW(6), ?, ?, NOW(6), NOW(6) + INTERVAL 5 MINUTE, NOW(6))",
+                otpId, consentId, contractId, BUYER, hash, "e".repeat(64));
+        jdbc.update("INSERT INTO signature (signature_id, contract_id, signer_role, signer_user_id, otp_id,"
+                + " consent_id, auth_time, signed_at, signed_content_hash) VALUES (?, ?, 'BUYER', ?, ?, ?, NOW(6),"
+                + " NOW(6), ?)", UUID.randomUUID().toString(), contractId, BUYER, otpId, consentId, hash);
     }
 }

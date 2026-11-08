@@ -87,7 +87,8 @@ public class ContractJpaEntity {
     @Column(nullable = false, length = 30)
     private ContractStatus status;
 
-    @Column(columnDefinition = "TEXT")
+    /** Phase 1 only, kept for old rows and never written: signatures live in the signature table (#97). */
+    @Column(columnDefinition = "TEXT", insertable = false, updatable = false)
     private String signatories;
 
     @CreationTimestamp

@@ -24,6 +24,7 @@ import com.agricontract.contract.infrastructure.consent.ConsentConfiguration;
 import com.agricontract.contract.infrastructure.persistence.consent.JdbcConsentEvidenceRepository;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
 import com.agricontract.contract.infrastructure.persistence.repository.ContractRepositoryImpl;
+import com.agricontract.contract.infrastructure.persistence.signature.JdbcSignatureRepository;
 import com.agricontract.contract.infrastructure.persistence.signature.JdbcOtpChallengeRepository;
 import com.agricontract.contract.infrastructure.terms.ContractTermsConfiguration;
 import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
@@ -62,7 +63,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({OtpChallengeIssuer.class, JdbcOtpChallengeRepository.class, OtpConfiguration.class,
         SigningConsentRecorder.class, JdbcConsentEvidenceRepository.class, ConsentConfiguration.class,
-        ContractRepositoryImpl.class, ContractMapper.class, JcsTermsCanonicalizer.class,
+        ContractRepositoryImpl.class, JdbcSignatureRepository.class, ContractMapper.class, JcsTermsCanonicalizer.class,
         ContractTermsConfiguration.class})
 @Testcontainers
 class OtpChallengeIntegrationTest {
