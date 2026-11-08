@@ -7,13 +7,13 @@ import java.util.List;
 
 /**
  * ContractResponse.activationRecovery (D42): present only after escrow.deposit_lock_failed. cancelRequestedBy lists
- * the parties with a standing cancel request (empty until the parties' cancel requests ship, #234).
+ * the parties with a standing cancel request.
  */
 public record ActivationRecoveryView(Instant depositLockFailedAt, Instant oneSidedCancelAllowedFrom,
                                      List<String> cancelRequestedBy) {
 
-    public static ActivationRecoveryView from(ActivationRecovery recovery) {
+    public static ActivationRecoveryView from(ActivationRecovery recovery, List<String> cancelRequestedBy) {
         return new ActivationRecoveryView(recovery.depositLockFailedAt(), recovery.oneSidedCancelAllowedFrom(),
-                List.of());
+                List.copyOf(cancelRequestedBy));
     }
 }

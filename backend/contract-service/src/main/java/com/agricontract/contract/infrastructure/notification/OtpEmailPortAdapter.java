@@ -28,7 +28,7 @@ public class OtpEmailPortAdapter implements OtpEmailPort {
         try {
             client.sendOtpEmail(new NotificationServiceClient.OtpEmailBody(email.requestId(), email.recipientUserId(),
                     email.recipientEmail(), email.contractId(), email.otpCode(), email.signedContentHash(),
-                    email.expiresAt().toString()));
+                    email.expiresAt().toString(), email.purpose()));
         } catch (RetryableException noResponse) {
             String code = noResponse.getCause() instanceof SocketTimeoutException
                     ? OtpEmailNotSentException.TIMEOUT : OtpEmailNotSentException.UNREACHABLE;

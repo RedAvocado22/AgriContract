@@ -175,6 +175,33 @@ public class Contract {
      * the statement version is not the one in force, or the caller is looking at other terms than the current
      * ones. Returns the evidence to append in the same transaction as the OTP challenge.
      */
+    /**
+     * D42: a party ticks the CANCEL_ACTIVATION statement while looking at the signed terms. Only for a SIGNED coffee
+     * contract; whether its deposit lock failed is the caller's check (activation recovery lives outside the aggregate).
+     */
+    public ConsentEvidence consentToCancelActivation(String userId, SignerRole claimedRole,
+                                                     String presentedStatementVersion, String presentedContentHash,
+                                                     ConsentStatements statements, UUID consentId,
+                                                     Instant consentedAt, String correlationId) {
+        String partyId = claimedRole == SignerRole.BUYER ? buyerId : sellerId;
+        if (!userId.equals(partyId)) {
+            throw new UnauthorizedContractAccessException("This user is not the " + claimedRole + " of this contract.");
+        }
+        if (this.coffeeTerms == null || this.status != ContractStatus.SIGNED) {
+            throw new ContractConflictException(ContractConflictException.NOT_CANCELLABLE,
+                    "Only a SIGNED contract waiting for its deposits can be cancelled, not " + this.status + ".");
+        }
+        ConsentStatement statement = statements.requireActiveCancelActivation(claimedRole, presentedStatementVersion);
+        if (!this.coffeeTerms.signedContentHash().equals(presentedContentHash)) {
+            throw new ContractConflictException(ContractConflictException.PRESENTED_CONTENT_STALE,
+                    "The fingerprint shown is not this contract's; reload the page.");
+        }
+        return new ConsentEvidence(consentId, ConsentActionType.CANCEL_ACTIVATION, ConsentSubjectType.CONTRACT,
+                this.contractId.value(), userId, claimedRole, statement.statementCode(),
+                statement.statementVersion(), statement.statementHash(), presentedContentHash, consentedAt,
+                correlationId);
+    }
+
     public ConsentEvidence consentToSign(String userId, SignerRole claimedRole, String presentedStatementVersion,
                                          String presentedContentHash, ConsentStatements statements,
                                          UUID consentId, Instant consentedAt, String correlationId) {

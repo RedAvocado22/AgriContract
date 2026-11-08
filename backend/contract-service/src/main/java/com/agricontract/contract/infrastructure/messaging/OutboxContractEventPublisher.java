@@ -3,6 +3,7 @@ package com.agricontract.contract.infrastructure.messaging;
 import com.agricontract.contract.application.port.ContractEventPublisher;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.activation.ActivationRecovery;
+import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.eventing.EventEnvelope;
@@ -39,6 +40,9 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
     static final String CONTRACT_ACTIVATED = "contract.activated";
     static final String ACTIVATION_FAILED_REQUESTED = "notification.contract_activation_failed_requested";
     static final String DEPOSIT_LOCK_RETRY_REQUESTED = "contract.deposit_lock_retry_requested";
+    static final String ACTIVATION_REFUND_REQUESTED = "contract.activation_refund_requested";
+    static final String ACTIVATION_CANCEL_REQUESTED = "notification.activation_cancel_requested";
+    static final String ACTIVATION_FAILED = "contract.activation_failed";
 
     private static final Pattern UUID_TEXT =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -164,6 +168,57 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
 
         outbox.append(new EventEnvelope(UUID.randomUUID(), DEPOSIT_LOCK_RETRY_REQUESTED, 1, requestedAt, PRODUCER,
                 contractId, contractId, null, null, payload));
+    }
+
+    /** golden-flow-events.yaml contractActivationRefundRequested, to escrow-service. */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void activationRefundRequested(Contract contract, List<SignerRole> requestedBy, String trigger,
+                                          Instant at) {
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("requestedBy", requestedBy.stream().map(Enum::name).toList());
+        payload.put("trigger", trigger);
+        payload.put("requestedAt", at.toString());
+        outbox.append(new EventEnvelope(UUID.randomUUID(), ACTIVATION_REFUND_REQUESTED, 1, at, PRODUCER, contractId,
+                contractId, null, null, payload));
+    }
+
+    /** notification-commands.yaml activationCancelRequested: to the other party (OPERATOR via its own address). */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void activationCancelRequested(Contract contract, SignerRole requestedBy, Instant oneSidedCancelAllowedFrom,
+                                          Instant at) {
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("recipients", List.of(requestedBy == SignerRole.BUYER
+                ? recipient(contract.getSellerId(), contract.getSellerEmail(), "SELLER")
+                : recipient(contract.getBuyerId(), contract.getBuyerEmail(), "BUYER")));
+        payload.put("requestedByRole", requestedBy.name());
+        payload.put("oneSidedCancelAllowedFrom", oneSidedCancelAllowedFrom.toString());
+        outbox.append(new EventEnvelope(UUID.randomUUID(), ACTIVATION_CANCEL_REQUESTED, 1, at, PRODUCER, contractId,
+                contractId, null, null, payload));
+    }
+
+    /** golden-flow-events.yaml contractActivationFailed, after every deposit came back (lock = 0). */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void contractActivationFailed(Contract contract, Instant failedAt, String correlationId,
+                                         String causationId) {
+        if (contract.getStatus() != ContractStatus.ACTIVATION_FAILED || contract.getCoffeeTerms() == null) {
+            throw new IllegalStateException("contract.activation_failed for contract "
+                    + contract.getContractId().value() + " in status " + contract.getStatus());
+        }
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("listingId", uuid(contract.getListingId(), "listingId"));
+        payload.put("reservedQuantity", contract.getCoffeeTerms().snapshot().totalQuantity());
+        payload.put("activationFailedAt", failedAt.toString());
+        outbox.append(new EventEnvelope(UUID.randomUUID(), ACTIVATION_FAILED, 1, failedAt, PRODUCER, contractId,
+                correlationId, causationId, null, payload));
     }
 
     private static Map<String, Object> recipient(String userId, String email, String role) {
