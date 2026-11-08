@@ -11,6 +11,7 @@ public class ContractConflictException extends RuntimeException {
     public static final String PRESENTED_CONTENT_STALE = "PRESENTED_CONTENT_HASH_MISMATCH";
     public static final String TERMS_CHANGED_SINCE_CODE = "OTP_TERMS_CHANGED";
     public static final String COUNTERPARTY_NOT_ELIGIBLE = "COUNTERPARTY_NOT_ELIGIBLE";
+    public static final String NOT_ACTIVATABLE = "CONTRACT_NOT_ACTIVATABLE";
 
     private final String code;
 

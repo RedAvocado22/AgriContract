@@ -305,17 +305,18 @@ public class Contract {
     }
 
     /**
-     * SIGNED → ACTIVE once deposits are locked (escrow.deposit_locked wiring is #103)
+     * SIGNED → ACTIVE once every required deposit is locked (escrow.deposit_locked, #103, D40). Signing is not
+     * activation: only this moves the contract to the money milestone. contract.activated is written by the
+     * caller to the event outbox in the same transaction.
      */
     public void activate() {
         //Guard
         if (this.status != ContractStatus.SIGNED) {
-            throw new IllegalArgumentException("This contract can't be activated.");
+            throw new ContractConflictException(ContractConflictException.NOT_ACTIVATABLE,
+                    "Only a SIGNED contract can be activated, not " + this.status + ".");
         }
         //Mutate
         this.status = ContractStatus.ACTIVE;
-        //Emit
-        this.domainEvents.add(new ContractActivatedEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail));
     }
 
     public List<DomainEvent> pullDomainEvents() {
