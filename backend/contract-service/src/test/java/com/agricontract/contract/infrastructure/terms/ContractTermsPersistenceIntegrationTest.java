@@ -15,6 +15,7 @@ import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
 import com.agricontract.contract.infrastructure.persistence.repository.ContractRepositoryImpl;
+import com.agricontract.contract.infrastructure.persistence.signature.JdbcSignatureRepository;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +36,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({ContractRepositoryImpl.class, ContractMapper.class, JcsTermsCanonicalizer.class,
+@Import({ContractRepositoryImpl.class, JdbcSignatureRepository.class, ContractMapper.class, JcsTermsCanonicalizer.class,
         ContractTermsConfiguration.class})
 @Testcontainers
 class ContractTermsPersistenceIntegrationTest {

@@ -1,24 +1,20 @@
 package com.agricontract.contract.infrastructure.persistence.mapper;
 
 import com.agricontract.contract.domain.model.Contract;
+import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
 import com.agricontract.contract.domain.model.terms.TermsCanonicalizer;
 import com.agricontract.contract.domain.model.vo.*;
 import com.agricontract.contract.infrastructure.persistence.entity.ContractJpaEntity;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
 public class ContractMapper {
 
-    private final ObjectMapper objectMapper;
     private final TermsCanonicalizer termsCanonicalizer;
 
     public ContractJpaEntity toJpaEntity(Contract contract) {
@@ -45,11 +41,11 @@ public class ContractMapper {
                 .termsSnapshot(coffeeTerms == null ? null : coffeeTerms.canonicalJson())
                 .signedContentHash(coffeeTerms == null ? null : coffeeTerms.signedContentHash())
                 .status(contract.getStatus())
-                .signatories(serializeSignatories(contract.getSignatories()))
                 .build();
     }
 
-    public Contract toDomain(ContractJpaEntity e) {
+    /** signedHashes: from the signature table, the only record of who signed. */
+    public Contract toDomain(ContractJpaEntity e, Map<SignerRole, String> signedHashes) {
         ContractTerms terms = new ContractTerms(
                 new Quantity(e.getQuantity(), e.getQuantityUnit()),
                 new Money(e.getAgreedPrice(), e.getCurrency()),
@@ -72,25 +68,8 @@ public class ContractMapper {
                 e.getTermsSnapshot() == null ? null
                         : CanonicalTerms.restore(e.getTermsSnapshot(), e.getSignedContentHash(), termsCanonicalizer),
                 e.getStatus(),
-                deserializeSignatories(e.getSignatories()),
+                signedHashes,
                 e.getVersion()
         );
-    }
-
-    private String serializeSignatories(Set<String> signatories) {
-        try {
-            return objectMapper.writeValueAsString(signatories);
-        } catch (JsonProcessingException ex) {
-            throw new RuntimeException("Failed to serialize signatories", ex);
-        }
-    }
-
-    private Set<String> deserializeSignatories(String json) {
-        if (json == null || json.isBlank()) return new HashSet<>();
-        try {
-            return objectMapper.readValue(json, new TypeReference<Set<String>>() {});
-        } catch (JsonProcessingException ex) {
-            throw new RuntimeException("Failed to deserialize signatories", ex);
-        }
     }
 }

@@ -5,6 +5,7 @@ import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.repository.ContractRepository;
+import com.agricontract.contract.domain.repository.SignatureRepository;
 import com.agricontract.contract.infrastructure.persistence.entity.ContractDomainEventJpaEntity;
 import com.agricontract.contract.infrastructure.persistence.entity.ContractJpaEntity;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
@@ -26,6 +27,7 @@ public class ContractRepositoryImpl implements ContractRepository {
     private final ContractJpaRepository jpaRepo;
     private final ContractDomainEventJpaRepository eventRepo;
     private final ContractMapper mapper;
+    private final SignatureRepository signatures;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -53,14 +55,14 @@ public class ContractRepositoryImpl implements ContractRepository {
     @Transactional(readOnly = true)
     public Optional<Contract> findById(ContractId contractId) {
         return jpaRepo.findByContractId(contractId.value())
-                      .map(mapper::toDomain);
+                      .map(this::toDomain);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Contract> findByBuyerId(String buyerId) {
         return jpaRepo.findByBuyerId(buyerId).stream()
-                      .map(mapper::toDomain)
+                      .map(this::toDomain)
                       .toList();
     }
 
@@ -68,7 +70,7 @@ public class ContractRepositoryImpl implements ContractRepository {
     @Transactional(readOnly = true)
     public List<Contract> findBySellerId(String sellerId) {
         return jpaRepo.findBySellerId(sellerId).stream()
-                      .map(mapper::toDomain)
+                      .map(this::toDomain)
                       .toList();
     }
 
@@ -76,7 +78,7 @@ public class ContractRepositoryImpl implements ContractRepository {
     @Transactional(readOnly = true)
     public List<Contract> findByStatus(ContractStatus status) {
         return jpaRepo.findByStatus(status).stream()
-                      .map(mapper::toDomain)
+                      .map(this::toDomain)
                       .toList();
     }
 
@@ -86,7 +88,7 @@ public class ContractRepositoryImpl implements ContractRepository {
         Page<ContractJpaEntity> page = status != null
                 ? jpaRepo.findByBuyerIdAndStatus(buyerId, status, pageable)
                 : jpaRepo.findByBuyerId(buyerId, pageable);
-        return page.getContent().stream().map(mapper::toDomain).toList();
+        return page.getContent().stream().map(this::toDomain).toList();
     }
 
     @Override
@@ -95,7 +97,7 @@ public class ContractRepositoryImpl implements ContractRepository {
         Page<ContractJpaEntity> page = status != null
                 ? jpaRepo.findBySellerIdAndStatus(sellerId, status, pageable)
                 : jpaRepo.findBySellerId(sellerId, pageable);
-        return page.getContent().stream().map(mapper::toDomain).toList();
+        return page.getContent().stream().map(this::toDomain).toList();
     }
 
     @Override
@@ -112,6 +114,10 @@ public class ContractRepositoryImpl implements ContractRepository {
         return status != null
                 ? jpaRepo.countBySellerIdAndStatus(sellerId, status)
                 : jpaRepo.countBySellerId(sellerId);
+    }
+
+    private Contract toDomain(ContractJpaEntity entity) {
+        return mapper.toDomain(entity, signatures.signedHashes(entity.getContractId()));
     }
 
     private ContractDomainEventJpaEntity toOutboxEntity(DomainEvent event) {

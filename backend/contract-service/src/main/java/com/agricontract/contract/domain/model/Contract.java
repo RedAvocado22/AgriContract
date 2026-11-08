@@ -9,6 +9,8 @@ import com.agricontract.contract.domain.model.consent.ConsentStatement;
 import com.agricontract.contract.domain.model.consent.ConsentStatements;
 import com.agricontract.contract.domain.model.consent.ConsentSubjectType;
 import com.agricontract.contract.domain.model.consent.SignerRole;
+import com.agricontract.contract.domain.model.signature.OtpChallenge;
+import com.agricontract.contract.domain.model.signature.Signature;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.model.vo.ContractTerms;
@@ -24,8 +26,10 @@ import lombok.Getter;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -50,13 +54,14 @@ public class Contract {
     private ContractStatus status;
     /** Optimistic-lock version as loaded; null for a contract not stored yet. */
     private Long version;
+    /** signedContentHash per party that has signed, loaded from the signature table (the only source). */
     @Getter(AccessLevel.NONE)
-    private Set<String> signatories;
+    private Map<SignerRole, String> signedHashes;
     @Getter(AccessLevel.NONE)
     private List<DomainEvent> domainEvents;
 
     private Contract() {
-        this.signatories = new HashSet<>();
+        this.signedHashes = new EnumMap<>(SignerRole.class);
         this.domainEvents = new ArrayList<>();
     }
 
@@ -66,7 +71,7 @@ public class Contract {
             String productName, String buyerOrgName, String sellerOrgName,
             String buyerEmail, String sellerEmail,
             ContractTerms terms, CanonicalTerms coffeeTerms, ContractStatus status,
-            Set<String> signatories, Long version) {
+            Map<SignerRole, String> signedHashes, Long version) {
         Contract contract = new Contract();
         contract.coffeeTerms = coffeeTerms;
         contract.version = version;
@@ -82,7 +87,7 @@ public class Contract {
         contract.sellerEmail = sellerEmail;
         contract.terms = terms;
         contract.status = status;
-        contract.signatories = new HashSet<>(signatories);
+        contract.signedHashes.putAll(signedHashes);
 
         return contract;
     }
@@ -145,7 +150,7 @@ public class Contract {
             throw new ContractConflictException(ContractConflictException.NOT_NEGOTIABLE,
                     "Terms can only change while the contract is OFFERED or NEGOTIATING, not " + this.status + ".");
         }
-        if (!this.signatories.isEmpty()) {
+        if (!this.signedHashes.isEmpty()) {
             throw new ContractConflictException(ContractConflictException.TERMS_FROZEN,
                     "Terms are frozen after the first signature.");
         }
@@ -186,7 +191,7 @@ public class Contract {
             throw new ContractConflictException(ContractConflictException.NOT_SIGNABLE,
                     "Only an OFFERED or NEGOTIATING contract can be signed, not " + this.status + ".");
         }
-        if (this.signatories.contains(userId)) {
+        if (this.signedHashes.containsKey(claimedRole)) {
             throw new ContractConflictException(ContractConflictException.ALREADY_SIGNED,
                     "This party has already signed.");
         }
@@ -235,32 +240,68 @@ public class Contract {
         this.domainEvents.add(new ContractNegotiatingEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, userId, newTerms));
     }
 
-    public void sign(String userId) {
+    /** The party this user is on this contract, empty for anyone else. */
+    public Optional<SignerRole> roleOf(String userId) {
+        if (userId.equals(buyerId)) {
+            return Optional.of(SignerRole.BUYER);
+        }
+        if (userId.equals(sellerId)) {
+            return Optional.of(SignerRole.SELLER);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Records one party's signature once its OTP is verified (#97, signature design §6 steps 4-5). The challenge
+     * must be for these exact terms; the second signature must be on the same hash as the first, and then the
+     * contract becomes SIGNED. Throws, without any change, when the contract can no longer be signed.
+     */
+    public Signature sign(String userId, OtpChallenge verified, Instant authTime, Instant signedAt,
+                          String ipAddress, UUID signatureId) {
         //Guard
-        if (!userId.equals(sellerId) && !userId.equals(buyerId)) {
-            throw new UnauthorizedContractAccessException("This user doesn't have right to access.");
+        SignerRole role = verified.signerRole();
+        String partyId = role == SignerRole.BUYER ? buyerId : sellerId;
+        if (!userId.equals(partyId) || !userId.equals(verified.userId())) {
+            throw new UnauthorizedContractAccessException("This user is not the " + role + " of this contract.");
         }
-
-        if (this.status != ContractStatus.NEGOTIATING && this.status != ContractStatus.OFFERED) {
-            throw new IllegalArgumentException("This contract can't be update.");
+        if (!verified.contractId().equals(this.contractId.value())) {
+            throw new IllegalStateException("Challenge " + verified.otpId() + " is not for contract "
+                    + this.contractId.value());
         }
-
-        if (signatories.contains(userId)) {
-            throw new IllegalArgumentException("This user already signed.");
+        if (this.coffeeTerms == null) {
+            throw new ContractConflictException(ContractConflictException.LEGACY_TERMS,
+                    "This contract has no coffee terms; create a new offer instead.");
+        }
+        if (this.status != ContractStatus.OFFERED && this.status != ContractStatus.NEGOTIATING) {
+            throw new ContractConflictException(ContractConflictException.NOT_SIGNABLE,
+                    "Only an OFFERED or NEGOTIATING contract can be signed, not " + this.status + ".");
+        }
+        if (this.signedHashes.containsKey(role)) {
+            throw new ContractConflictException(ContractConflictException.ALREADY_SIGNED,
+                    "This party has already signed.");
+        }
+        String hash = this.coffeeTerms.signedContentHash();
+        if (!hash.equals(verified.signedContentHash())) {
+            throw new ContractConflictException(ContractConflictException.TERMS_CHANGED_SINCE_CODE,
+                    "The terms changed after this code was sent; start signing again.");
+        }
+        String otherHash = this.signedHashes.get(role == SignerRole.BUYER ? SignerRole.SELLER : SignerRole.BUYER);
+        if (otherHash != null && !otherHash.equals(hash)) {
+            throw new IllegalStateException("Contract " + this.contractId.value()
+                    + " has a signature on other terms than the current ones");
         }
         //Mutate
-        this.signatories.add(userId);
-        if (this.signatories.contains(sellerId) && this.signatories.contains(buyerId)) {
+        this.signedHashes.put(role, hash);
+        if (this.signedHashes.size() == 2) {
             this.status = ContractStatus.SIGNED;
         }
-        //Emit
-        if (this.status == ContractStatus.SIGNED) {
-            this.domainEvents.add(new ContractSignedEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, this.buyerId, this.sellerId, this.listingId, this.terms));
-        } else {
-            Set<String> remaining = new HashSet<>(Set.of(buyerId, sellerId));
-            remaining.removeAll(signatories);
-            this.domainEvents.add(new ContractPartiallySignedEvent(this.contractId.value(), this.buyerEmail, this.sellerEmail, userId, remaining));
-        }
+        return new Signature(signatureId, this.contractId.value(), role, userId, verified.otpId(),
+                verified.consentId(), authTime, signedAt, hash, ipAddress);
+    }
+
+    /** Parties that have signed, BUYER and/or SELLER. */
+    public Set<SignerRole> getSignedRoles() {
+        return Set.copyOf(signedHashes.keySet());
     }
 
     /**
@@ -281,9 +322,5 @@ public class Contract {
         List<DomainEvent> events = new ArrayList<>(this.domainEvents);
         this.domainEvents.clear();
         return events;
-    }
-
-    public Set<String> getSignatories() {
-        return Set.copyOf(signatories);
     }
 }

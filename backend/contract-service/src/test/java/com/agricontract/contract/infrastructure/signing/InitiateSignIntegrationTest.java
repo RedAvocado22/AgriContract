@@ -37,6 +37,7 @@ import com.agricontract.contract.infrastructure.persistence.consent.JdbcConsentE
 import com.agricontract.contract.infrastructure.persistence.idempotency.JdbcIdempotencyStore;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
 import com.agricontract.contract.infrastructure.persistence.repository.ContractRepositoryImpl;
+import com.agricontract.contract.infrastructure.persistence.signature.JdbcSignatureRepository;
 import com.agricontract.contract.infrastructure.persistence.signature.JdbcOtpChallengeRepository;
 import com.agricontract.contract.infrastructure.terms.ContractTermsConfiguration;
 import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
@@ -77,7 +78,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Import({InitiateSignUseCase.class, SignerEligibility.class, OtpChallengeIssuer.class,
         JdbcOtpChallengeRepository.class, OtpConfiguration.class, SigningConsentRecorder.class,
         JdbcConsentEvidenceRepository.class, ConsentConfiguration.class, JdbcIdempotencyStore.class,
-        ContractRepositoryImpl.class, ContractMapper.class, JcsTermsCanonicalizer.class,
+        ContractRepositoryImpl.class, JdbcSignatureRepository.class, ContractMapper.class, JcsTermsCanonicalizer.class,
         ContractTermsConfiguration.class, InitiateSignIntegrationTest.Stubs.class})
 @Testcontainers
 class InitiateSignIntegrationTest {

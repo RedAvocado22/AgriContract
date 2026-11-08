@@ -19,6 +19,7 @@ import com.agricontract.contract.domain.model.terms.TermsCanonicalizer;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -80,7 +81,7 @@ class ContractConsentToSignTest {
         assertThat(e.statementCode()).isEqualTo("SIGN_CONTRACT_AS_BUYER");
         assertThat(e.statementHash()).isEqualTo("c".repeat(64));
         assertThat(contract.getStatus()).isEqualTo(ContractStatus.OFFERED);
-        assertThat(contract.getSignatories()).isEmpty();
+        assertThat(contract.getSignedRoles()).isEmpty();
         assertThat(contract.pullDomainEvents()).isEmpty();
     }
 
@@ -144,7 +145,7 @@ class ContractConsentToSignTest {
     void phase1ContractWithoutCoffeeTermsIsRefused() {
         Contract legacy = Contract.reconstitute(new ContractId(UUID.randomUUID().toString()), "listing", BUYER,
                 SELLER, "Cà phê", "HTX Mua", "HTX Bán", "b@x.test", "s@x.test", null, null, ContractStatus.OFFERED,
-                Set.of(), 0L);
+                Map.of(), 0L);
 
         assertConflict(() -> legacy.consentToSign(SELLER, SignerRole.SELLER, "1.0", HASH_A, STATEMENTS,
                 UUID.randomUUID(), NOW, null), ContractConflictException.LEGACY_TERMS);
@@ -162,10 +163,14 @@ class ContractConsentToSignTest {
                 .isEqualTo(code);
     }
 
-    private static Contract contract(ContractStatus status, Set<String> signatories) {
+    /** signers: user ids that already signed these terms. */
+    private static Contract contract(ContractStatus status, Set<String> signers) {
         CanonicalTerms terms = CanonicalTerms.of(ContractTermsSnapshot.assemble(input(), goods(), template(), RULES), FAKE);
+        Map<SignerRole, String> signed = new EnumMap<>(SignerRole.class);
+        signers.forEach(user -> signed.put(user.equals(BUYER) ? SignerRole.BUYER : SignerRole.SELLER,
+                terms.signedContentHash()));
         return Contract.reconstitute(new ContractId(UUID.randomUUID().toString()), goods().listingId().toString(),
                 BUYER, SELLER, "Cà phê", "HTX Mua", "HTX Bán", "b@x.test", "s@x.test", null, terms, status,
-                signatories, 0L);
+                signed, 0L);
     }
 }

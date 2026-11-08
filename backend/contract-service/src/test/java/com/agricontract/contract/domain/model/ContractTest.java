@@ -2,6 +2,7 @@ package com.agricontract.contract.domain.model;
 
 import com.agricontract.contract.domain.event.*;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
+import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.vo.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -106,73 +108,6 @@ class ContractTest {
                 .isInstanceOf(UnauthorizedContractAccessException.class);
     }
 
-    // ─── sign ─────────────────────────────────────────────────────────────────
-
-    @Test
-    void sign_buyerOnly_emitsPartiallySignedEvent() {
-        Contract contract = offered();
-        contract.pullDomainEvents();
-
-        contract.sign(BUYER_ID);
-
-        assertThat(contract.getStatus()).isEqualTo(ContractStatus.OFFERED);
-        List<DomainEvent> events = contract.pullDomainEvents();
-        assertThat(events).hasSize(1);
-        assertThat(events.get(0)).isInstanceOf(ContractPartiallySignedEvent.class);
-    }
-
-    @Test
-    void sign_sellerOnly_emitsPartiallySignedEvent() {
-        Contract contract = offered();
-        contract.pullDomainEvents();
-
-        contract.sign(SELLER_ID);
-
-        assertThat(contract.getStatus()).isEqualTo(ContractStatus.OFFERED);
-        List<DomainEvent> events = contract.pullDomainEvents();
-        assertThat(events).hasSize(1);
-        assertThat(events.get(0)).isInstanceOf(ContractPartiallySignedEvent.class);
-    }
-
-    @Test
-    void sign_bothParties_statusSignedAndSignedEventEmitted() {
-        Contract contract = offered();
-        contract.sign(BUYER_ID);
-        contract.pullDomainEvents();
-
-        contract.sign(SELLER_ID);
-
-        assertThat(contract.getStatus()).isEqualTo(ContractStatus.SIGNED);
-        List<DomainEvent> events = contract.pullDomainEvents();
-        assertThat(events).hasSize(1);
-        assertThat(events.get(0)).isInstanceOf(ContractSignedEvent.class);
-    }
-
-    @Test
-    void sign_doubleSign_throws() {
-        Contract contract = offered();
-        contract.sign(BUYER_ID);
-
-        assertThatThrownBy(() -> contract.sign(BUYER_ID))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void sign_invalidStatus_throws() {
-        Contract contract = signedContract();
-
-        assertThatThrownBy(() -> contract.sign(BUYER_ID))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void sign_invalidUser_throws() {
-        Contract contract = offered();
-
-        assertThatThrownBy(() -> contract.sign("stranger-id"))
-                .isInstanceOf(UnauthorizedContractAccessException.class);
-    }
-
     // ─── activate ────────────────────────────────────────────────────────────
 
     @Test
@@ -221,11 +156,11 @@ class ContractTest {
         );
     }
 
+    /** Signing itself is covered by ContractSignTest (Phase 2 coffee terms only). */
     private Contract signedContract() {
-        Contract contract = offered();
-        contract.sign(BUYER_ID);
-        contract.sign(SELLER_ID);
-        return contract;
+        return Contract.reconstitute(CONTRACT_ID, LISTING_ID, BUYER_ID, SELLER_ID, "Rice", "Buyer Org",
+                "Seller Org", BUYER_EMAIL, SELLER_EMAIL, terms, null, ContractStatus.SIGNED,
+                Map.of(SignerRole.BUYER, "a".repeat(64), SignerRole.SELLER, "a".repeat(64)), 0L);
     }
 
 }

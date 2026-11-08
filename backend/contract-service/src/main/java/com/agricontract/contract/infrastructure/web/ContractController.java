@@ -26,7 +26,6 @@ public class ContractController {
 
     private final CreateContractUseCase createContractUseCase;
     private final NegotiateContractUseCase negotiateContractUseCase;
-    private final SignContractUseCase signContractUseCase;
     private final GetContractUseCase getContractUseCase;
     private final ListContractsUseCase listContractsUseCase;
     private final UpdateContractTermsUseCase updateContractTermsUseCase;
@@ -72,14 +71,6 @@ public class ContractController {
                 new NegotiateContractCommand(contractId, userId, request.newTerms())
         );
         return ResponseEntity.ok(ApiResponse.ok(response));
-    }
-
-    @PutMapping("/{contractId}/sign")
-    public ResponseEntity<ApiResponse<Void>> sign(
-            @PathVariable String contractId,
-            Authentication auth) {
-        signContractUseCase.execute(new SignContractCommand(contractId, auth.getName()));
-        return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
     @GetMapping("/{contractId}")

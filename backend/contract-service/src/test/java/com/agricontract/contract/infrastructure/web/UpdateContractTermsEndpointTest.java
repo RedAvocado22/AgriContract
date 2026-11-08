@@ -37,7 +37,7 @@ class UpdateContractTermsEndpointTest {
     @BeforeEach
     void setUp() {
         ContractController controller = new ContractController(mock(CreateContractUseCase.class),
-                mock(NegotiateContractUseCase.class), mock(SignContractUseCase.class),
+                mock(NegotiateContractUseCase.class),
                 mock(GetContractUseCase.class), mock(ListContractsUseCase.class), useCase, canonicalizer);
         mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new GlobalExceptionHandler()).build();
         body = canonicalizer.canonicalInputJson(input());

@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
+import com.agricontract.contract.domain.model.consent.SignerRole;
+import com.agricontract.contract.domain.model.signature.OtpChallenge;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
 import com.agricontract.contract.domain.model.terms.ContractTermsInput;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
@@ -17,6 +19,7 @@ import com.agricontract.contract.domain.model.terms.VndAmount;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -68,7 +71,7 @@ class ContractReviseCoffeeTermsTest {
     @Test
     void termsFreezeAtTheFirstSignature() {
         Contract contract = offered();
-        contract.sign(BUYER);
+        sign(contract, BUYER);
 
         assertThatThrownBy(() -> contract.reviseCoffeeTerms(SELLER, terms(withPrice("96000.00"))))
                 .isInstanceOf(ContractConflictException.class)
@@ -79,8 +82,8 @@ class ContractReviseCoffeeTermsTest {
     @Test
     void signedContractIsNotNegotiable() {
         Contract contract = offered();
-        contract.sign(BUYER);
-        contract.sign(SELLER);
+        sign(contract, BUYER);
+        sign(contract, SELLER);
 
         assertThatThrownBy(() -> contract.reviseCoffeeTerms(SELLER, terms(input())))
                 .isInstanceOf(ContractConflictException.class)
@@ -159,5 +162,15 @@ class ContractReviseCoffeeTermsTest {
                 t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
                 t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+    }
+
+    /** Signs through the Phase 2 path: a verified challenge for the current terms. */
+    private static void sign(Contract contract, String user) {
+        SignerRole role = user.equals(BUYER) ? SignerRole.BUYER : SignerRole.SELLER;
+        Instant now = Instant.now();
+        OtpChallenge challenge = OtpChallenge.issue(UUID.randomUUID(), UUID.randomUUID(),
+                contract.getContractId().value(), role, user, now, contract.getCoffeeTerms().signedContentHash(),
+                "e".repeat(64), now, 300);
+        contract.sign(user, challenge, now, now, null, UUID.randomUUID());
     }
 }
