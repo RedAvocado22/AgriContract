@@ -1,0 +1,4 @@
+# Test-only values, loaded on top of the main application.yml.
+contract:
+  calendar:
+    vietnam-holidays: 2026-01-01,2026-04-30,2026-05-01,2026-09-02,2027-01-01

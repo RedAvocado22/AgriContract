@@ -457,6 +457,9 @@ services:
       PRODUCT_SERVICE_URL: http://product-service:8082
       USER_SERVICE_URL: http://user-service:8081
       NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      # Shared Vietnam business-day calendar (#295, D42 cancel window). Dev default only: production sets it from the
+      # official holiday announcement every year (Tết moves). Override in .env.
+      VIETNAM_HOLIDAYS: ${VIETNAM_HOLIDAYS:-2026-01-01,2026-02-16,2026-02-17,2026-02-18,2026-02-19,2026-02-20,2026-04-27,2026-04-30,2026-05-01,2026-09-01,2026-09-02,2027-01-01}
     depends_on:
       contract-db:
         condition: service_healthy
