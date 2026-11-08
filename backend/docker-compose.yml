@@ -480,6 +480,8 @@ services:
       KEYCLOAK_JWK_URI: ${KEYCLOAK_JWK_URI:-http://keycloak:8080/realms/agricontract/protocol/openid-connect/certs}
       RABBITMQ_HOST: rabbitmq
       GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
+      # ESCROW_SPRING_PROFILES=demo in .env: deposit lock retries after seconds instead of 5m/30m/2h (D39).
+      SPRING_PROFILES_ACTIVE: ${ESCROW_SPRING_PROFILES:-}
     depends_on:
       escrow-db:
         condition: service_healthy
