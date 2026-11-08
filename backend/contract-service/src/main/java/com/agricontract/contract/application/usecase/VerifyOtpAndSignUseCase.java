@@ -3,6 +3,7 @@ package com.agricontract.contract.application.usecase;
 import com.agricontract.contract.application.dto.VerifySignCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
 import com.agricontract.contract.application.exception.IdempotencyKeyReusedException;
+import com.agricontract.contract.application.port.ContractEventPublisher;
 import com.agricontract.contract.application.port.IdempotencyStore;
 import com.agricontract.contract.application.port.OtpCodes;
 import com.agricontract.contract.application.service.SignerEligibility;
@@ -15,6 +16,7 @@ import com.agricontract.contract.domain.model.signature.OtpPolicy;
 import com.agricontract.contract.domain.model.signature.Signature;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
 import com.agricontract.contract.domain.model.vo.ContractId;
+import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.repository.ContractRepository;
 import com.agricontract.contract.domain.repository.OtpChallengeRepository;
 import com.agricontract.contract.domain.repository.SignatureRepository;
@@ -35,7 +37,8 @@ import java.util.UUID;
  *       that is locked, unverified or past its authorization stops the signature, also the one who signed first.</li>
  *   <li>One transaction under the contract row lock, so the two parties' verifies run one after the other and the
  *       second always sees the first signature: check the challenge, then either count a wrong code or record the
- *       signature (and SIGNED when it is the second one).</li>
+ *       signature. The second one makes the contract SIGNED and writes contract.signed to the outbox in the same
+ *       transaction (#98), so the event exists exactly when SIGNED commits.</li>
  * </ol>
  * Some refusals must be committed (a wrong code is counted, a challenge for changed terms is killed). The
  * transaction returns them instead of throwing, and they are thrown after commit. The Idempotency-Key is claimed
@@ -55,6 +58,7 @@ public class VerifyOtpAndSignUseCase {
     private final OtpChallengeRepository challenges;
     private final SignatureRepository signatures;
     private final IdempotencyStore idempotencyStore;
+    private final ContractEventPublisher events;
     private final OtpCodes otpCodes;
     private final OtpPolicy policy;
     private final TransactionTemplate tx;
@@ -129,6 +133,11 @@ public class VerifyOtpAndSignUseCase {
                 command.ipAddress(), UUID.randomUUID());
         signatures.insert(signature);
         contractRepository.save(contract);
+        if (contract.getStatus() == ContractStatus.SIGNED) {
+            // Only the verify that adds the second signature gets here, once per contract (row lock + status
+            // check in Contract.sign); a replay of the same key returned above without reaching this line.
+            events.contractSigned(contract, now);
+        }
         if (idempotencyStore.claim(command.actorId(), OPERATION, command.idempotencyKey(), requestHash)
                 != IdempotencyStore.Outcome.FIRST) {
             throw new IllegalStateException("Idempotency-Key " + command.idempotencyKey() + " claimed concurrently");
