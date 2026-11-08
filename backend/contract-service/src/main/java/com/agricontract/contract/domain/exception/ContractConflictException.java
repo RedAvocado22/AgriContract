@@ -12,6 +12,8 @@ public class ContractConflictException extends RuntimeException {
     public static final String TERMS_CHANGED_SINCE_CODE = "OTP_TERMS_CHANGED";
     public static final String COUNTERPARTY_NOT_ELIGIBLE = "COUNTERPARTY_NOT_ELIGIBLE";
     public static final String NOT_ACTIVATABLE = "CONTRACT_NOT_ACTIVATABLE";
+    /** RetryDepositLock on a contract whose deposit lock has not failed (no escrow.deposit_lock_failed, D42). */
+    public static final String ACTIVATION_NOT_FAILED = "ACTIVATION_NOT_FAILED";
 
     private final String code;
 
