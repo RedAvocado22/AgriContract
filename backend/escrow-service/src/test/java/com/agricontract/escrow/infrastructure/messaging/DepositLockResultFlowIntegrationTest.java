@@ -51,6 +51,7 @@ class DepositLockResultFlowIntegrationTest {
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:3.13-management");
     static final String LOCK_COMMANDS = "test.result-flow.lock-commands";
     static final String DEPOSIT_EVENTS = "test.result-flow.deposit-locked";
+    static final String LOCK_FAILED_EVENTS = "test.result-flow.deposit-lock-failed";
     static final String COMPLETED_DLQ = RabbitMQConfig.LOCK_COMPLETED_QUEUE + ".dlq";
     static final ObjectMapper JSON = new ObjectMapper();
 
@@ -88,6 +89,10 @@ class DepositLockResultFlowIntegrationTest {
         admin.declareQueue(events);
         admin.declareBinding(BindingBuilder.bind(commands).to(escrow).with("bank.#"));
         admin.declareBinding(BindingBuilder.bind(events).to(escrow).with("escrow.deposit_locked"));
+        Queue lockFailed = new Queue(LOCK_FAILED_EVENTS, false, false, false);
+        admin.declareQueue(lockFailed);
+        admin.declareBinding(BindingBuilder.bind(lockFailed).to(escrow).with("escrow.deposit_lock_failed"));
+        admin.purgeQueue(LOCK_FAILED_EVENTS, false);
         admin.purgeQueue(LOCK_COMMANDS, false);
         admin.purgeQueue(DEPOSIT_EVENTS, false);
         admin.purgeQueue(COMPLETED_DLQ, false);
@@ -191,6 +196,57 @@ class DepositLockResultFlowIntegrationTest {
         assertThat(rabbit.receive(DEPOSIT_EVENTS, 500)).isNull();
     }
 
+    /** #247: buyer locked, seller out of retries → one escrow.deposit_lock_failed; a replay adds nothing. */
+    @Test
+    void sellerOutOfRetries_whileBuyerLocked_reportsOneLockFailure() throws Exception {
+        Map<String, JsonNode> commands = sign("20000000.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+        JsonNode seller = commands.get("LOCK_SELLER_DEPOSIT");
+        result(buyer, true);
+        exhaust(seller);
+
+        JsonNode event = receiveOne(LOCK_FAILED_EVENTS);
+        FrozenSchemas.assertEvent("escrowDepositLockFailed", event);
+        assertThat(event.at("/payload/failedLeg").asText()).isEqualTo("SELLER");
+        assertThat(event.at("/payload/buyerDepositState").asText()).isEqualTo("DEPOSIT_LOCKED");
+        assertThat(event.at("/payload/sellerDepositState").asText()).isEqualTo("LOCK_FAILED");
+        assertThat(event.at("/payload/reason").asText()).contains("SELLER: SYSTEM_LOCK_ACTIVE");
+
+        result(seller, false);                                          // bank replay of the last failure
+        assertThat(rabbit.receive(LOCK_FAILED_EVENTS, 2_000)).isNull();
+        assertThat(outboxRows(commands, "escrow.deposit_lock_failed")).isEqualTo(1);
+        assertThat(rabbit.receive(DEPOSIT_EVENTS, 500)).isNull();
+    }
+
+    /** #247: one leg out of retries while the other is still retrying → nothing yet; reported once both end. */
+    @Test
+    void lockFailureWaitsUntilNoLegIsInProgress_thenReportsBoth() throws Exception {
+        Map<String, JsonNode> commands = sign("20000000.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+        JsonNode seller = commands.get("LOCK_SELLER_DEPOSIT");
+        exhaust(buyer);
+        assertThat(rabbit.receive(LOCK_FAILED_EVENTS, 1_500)).as("seller still in progress").isNull();
+
+        exhaust(seller);
+
+        JsonNode event = receiveOne(LOCK_FAILED_EVENTS);
+        FrozenSchemas.assertEvent("escrowDepositLockFailed", event);
+        assertThat(event.at("/payload/failedLeg").asText()).isEqualTo("BOTH");
+        assertThat(outboxRows(commands, "escrow.deposit_lock_failed")).isEqualTo(1);
+    }
+
+    /** #247: no seller deposit → the seller state is NOT_REQUIRED (the field is a string, never null). */
+    @Test
+    void contractWithoutASellerDeposit_reportsTheSellerLegAsNotRequired() throws Exception {
+        Map<String, JsonNode> commands = sign("0.00");
+        exhaust(commands.get("LOCK_BUYER_DEPOSIT"));
+
+        JsonNode event = receiveOne(LOCK_FAILED_EVENTS);
+        FrozenSchemas.assertEvent("escrowDepositLockFailed", event);
+        assertThat(event.at("/payload/failedLeg").asText()).isEqualTo("BUYER");
+        assertThat(event.at("/payload/sellerDepositState").asText()).isEqualTo("NOT_REQUIRED");
+    }
+
     @Test
     void resultForARequestEscrowNeverSent_goesToTheDlq() throws Exception {
         Map<String, JsonNode> commands = sign("0.00");
@@ -252,6 +308,18 @@ class DepositLockResultFlowIntegrationTest {
             return commands.size() >= expected;
         });
         return commands;
+    }
+
+    /** Fails the leg until no retry is left: three failures each answered by a resend, then the last one. */
+    private void exhaust(JsonNode command) throws Exception {
+        for (int failure = 1; failure <= 3; failure++) {
+            int counted = failure;
+            result(command, false);
+            await().atMost(Duration.ofSeconds(10))
+                    .until(() -> failures(command) == counted && "REQUESTED".equals(status(command)));
+        }
+        result(command, false);
+        await().atMost(Duration.ofSeconds(10)).until(() -> failures(command) == 4);
     }
 
     private void result(JsonNode command, boolean locked) throws Exception {
