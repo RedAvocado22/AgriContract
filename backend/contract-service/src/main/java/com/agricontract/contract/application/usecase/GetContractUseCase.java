@@ -1,5 +1,7 @@
 package com.agricontract.contract.application.usecase;
 
+import com.agricontract.contract.application.dto.CoffeeContractView;
+import com.agricontract.contract.application.dto.ContractDetail;
 import com.agricontract.contract.application.dto.ContractResponse;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
 import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
@@ -15,7 +17,7 @@ public class GetContractUseCase {
 
     private final ContractRepository contractRepository;
 
-    public ContractResponse execute(String contractId, String requesterId, boolean isAdmin) {
+    public ContractDetail execute(String contractId, String requesterId, boolean isAdmin) {
         Contract contract = contractRepository.findById(new ContractId(contractId))
                 .orElseThrow(() -> new ContractNotFoundException(contractId));
 
@@ -23,6 +25,8 @@ public class GetContractUseCase {
             throw new UnauthorizedContractActionException("Access denied");
         }
 
-        return ContractResponse.from(contract);
+        return contract.getCoffeeTerms() != null
+                ? new ContractDetail(CoffeeContractView.from(contract), null)
+                : new ContractDetail(null, ContractResponse.from(contract));
     }
 }

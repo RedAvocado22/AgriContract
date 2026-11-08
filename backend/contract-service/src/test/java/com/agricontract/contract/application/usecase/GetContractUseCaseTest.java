@@ -59,7 +59,7 @@ class GetContractUseCaseTest {
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
-        ContractResponse response = useCase.execute("contract-1", "buyer-1", false);
+        ContractResponse response = useCase.execute("contract-1", "buyer-1", false).legacy();
 
         assertThat(response.contractId()).isEqualTo("contract-1");
         assertThat(response.buyerId()).isEqualTo("buyer-1");
@@ -71,7 +71,7 @@ class GetContractUseCaseTest {
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
-        ContractResponse response = useCase.execute("contract-1", "seller-1", false);
+        ContractResponse response = useCase.execute("contract-1", "seller-1", false).legacy();
 
         assertThat(response.sellerId()).isEqualTo("seller-1");
     }
@@ -82,7 +82,7 @@ class GetContractUseCaseTest {
         Contract contract = offeredContract();
         when(contractRepository.findById(new ContractId("contract-1"))).thenReturn(Optional.of(contract));
 
-        ContractResponse response = useCase.execute("contract-1", "admin-99", true);
+        ContractResponse response = useCase.execute("contract-1", "admin-99", true).legacy();
 
         assertThat(response.contractId()).isEqualTo("contract-1");
     }
