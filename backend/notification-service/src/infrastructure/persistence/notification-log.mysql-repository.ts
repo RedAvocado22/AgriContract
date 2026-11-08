@@ -44,14 +44,26 @@ export class MysqlNotificationLogRepository implements NotificationLogRepository
 
     // The row exists. Retake it only if FAILED or if its PENDING claim is stale;
     // the row lock makes this check-and-set atomic between concurrent callers.
+    // The retake also overwrites what the first attempt rendered: this delivery
+    // sends the email it rendered now, so template_version (the evidence of what
+    // was sent, design §3.1), subject, body and recipient_user_id must describe
+    // this attempt and not the one that failed before a template change.
     const [result] = await this.pool.query<ResultSetHeader>(
       `UPDATE notification_logs
-          SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6)
+          SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6),
+              recipient_user_id = ?, subject = ?, body = ?, template_version = ?
         WHERE ${BY_KEY}
           AND (status = 'FAILED'
                OR (status = 'PENDING'
                    AND updated_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND))`,
-      [...keyParams(log.key), leaseMs * 1000],
+      [
+        log.recipientUserId,
+        log.subject,
+        log.body,
+        log.templateVersion,
+        ...keyParams(log.key),
+        leaseMs * 1000,
+      ],
     );
     if (result.affectedRows === 1) return 'CLAIMED';
 

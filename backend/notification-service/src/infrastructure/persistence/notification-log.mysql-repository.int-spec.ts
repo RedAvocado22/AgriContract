@@ -415,6 +415,47 @@ describe('MysqlNotificationLogRepository on real MySQL', () => {
       ).toEqual(['p1-unknown', 'contract-signed/p1']);
     });
 
+    it('a redelivery after a template bump records the version it actually sent, not the failed one', async () => {
+      const eventId = newEvent();
+      const { smtp, sent, failFor } = recordingSmtp();
+      failFor.add('buyer@it.test');
+      const p1 = new NotificationSender(repo, smtp);
+
+      await expect(
+        p1.send(eventId, KIND, 'buyer@it.test', 'Old subject', 'Old body'),
+      ).rejects.toThrow('Event ' + eventId);
+      expect(await rowsOf(eventId)).toMatchObject([
+        { status: 'FAILED', template_version: 'contract-signed/p1' },
+      ]);
+
+      // The template is bumped, then the message is redelivered: the retake must
+      // overwrite the evidence left by the failed attempt.
+      failFor.clear();
+      const bumped = { ...KIND, templateVersion: 'contract-signed/p2' };
+      await p1.send(
+        eventId,
+        bumped,
+        'buyer@it.test',
+        'New subject',
+        'New body',
+      );
+
+      expect(sent.map((m) => m.subject)).toEqual(['New subject']);
+      expect(await rowsOf(eventId)).toMatchObject([
+        {
+          status: 'SENT',
+          retry_count: 1,
+          template_version: 'contract-signed/p2',
+          has_sent_at: 1,
+        },
+      ]);
+      const [[row]] = await pool.query<RowDataPacket[]>(
+        'SELECT subject, body FROM notification_logs WHERE event_id = ?',
+        [eventId],
+      );
+      expect(row).toMatchObject({ subject: 'New subject', body: 'New body' });
+    });
+
     it('the unique key refuses a second row with the same event, recipient and type', async () => {
       const eventId = newEvent();
       await repo.claim(log(eventId), LEASE_MS);

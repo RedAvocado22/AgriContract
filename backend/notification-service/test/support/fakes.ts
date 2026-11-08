@@ -79,6 +79,12 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
     if (row.status === NotificationStatus.FAILED || stale) {
       row.status = NotificationStatus.PENDING;
       row.updatedAt = this.now;
+      // As the MySQL retake does: what this attempt rendered replaces what the
+      // previous one did, so the row describes the email actually sent.
+      row.recipientUserId = log.recipientUserId;
+      row.subject = log.subject;
+      row.body = log.body;
+      row.templateVersion = log.templateVersion;
       return Promise.resolve('CLAIMED');
     }
     return Promise.resolve('IN_PROGRESS');
