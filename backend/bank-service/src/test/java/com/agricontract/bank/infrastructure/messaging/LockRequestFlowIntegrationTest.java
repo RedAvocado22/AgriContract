@@ -98,7 +98,7 @@ class LockRequestFlowIntegrationTest {
 
     @Test
     void repeatedRequestLocksOnceAndConfirmsEveryTime() throws Exception {
-        Map<String, Object> request = LockRequestConsumerTest.validRequest();
+        Map<String, Object> request = LedgerCommandConsumerTest.validRequest();
         String requestId = (String) request.get("eventId");
         send(request);
         send(request);
@@ -123,7 +123,7 @@ class LockRequestFlowIntegrationTest {
 
     @Test
     void ledgerRuleViolationIsAnsweredWithLockFailed() throws Exception {
-        Map<String, Object> request = LockRequestConsumerTest.validRequest();
+        Map<String, Object> request = LedgerCommandConsumerTest.validRequest();
         @SuppressWarnings("unchecked") Map<String, Object> payload = (Map<String, Object>) request.get("payload");
         payload.put("entryType", "LOCK_MILESTONE");
         payload.put("fundType", "MILESTONE_PAYMENT"); // a milestone lock with no milestoneId
@@ -139,7 +139,7 @@ class LockRequestFlowIntegrationTest {
 
     @Test
     void unreadableRequestGoesToTheDlqWithoutAnyResult() throws Exception {
-        Map<String, Object> request = LockRequestConsumerTest.validRequest();
+        Map<String, Object> request = LedgerCommandConsumerTest.validRequest();
         request.remove("correlationId");
         send(request);
 
