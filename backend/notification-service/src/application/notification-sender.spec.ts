@@ -200,6 +200,31 @@ describe('NotificationSender.send (plan §4.3)', () => {
       });
     });
 
+    it('a retake records what this attempt rendered, not the failed one', async () => {
+      email.failFor.add('a@example.test');
+      await expect(
+        sender.send('evt-1', KIND, 'a@example.test', 'Old', 'Old body'),
+      ).rejects.toThrow();
+      email.failFor.clear();
+
+      // The template is bumped between the failure and the redelivery.
+      await sender.send(
+        'evt-1',
+        { ...KIND, templateVersion: 'test-mail/v2' },
+        'a@example.test',
+        'New',
+        'New body',
+      );
+
+      expect(logs.size).toBe(1);
+      expect(logs.get(KEY)).toMatchObject({
+        status: NotificationStatus.SENT,
+        templateVersion: 'test-mail/v2',
+        subject: 'New',
+        body: 'New body',
+      });
+    });
+
     it('an email SENT before migration V2 is not sent again when its event is redelivered', async () => {
       logs.seedLegacy('evt-1', 'a@example.test', NotificationStatus.SENT);
 

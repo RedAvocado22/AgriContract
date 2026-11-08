@@ -23,6 +23,10 @@ export interface NotificationLogRepository {
    * it as PENDING, or turns an existing FAILED row, or a PENDING row older
    * than `leaseMs`, back to a fresh PENDING. At most one concurrent caller
    * gets CLAIMED. No transaction is held afterwards (the send happens outside).
+   * A retake also replaces what the previous attempt recorded
+   * (`templateVersion`, `subject`, `body`, `recipientUserId`) with `log`'s
+   * values: the caller sends the email it rendered now, and
+   * `template_version` is the evidence of what was sent (design §3.1).
    *
    * Also ALREADY_SENT when a row written before migration V2 (recipient
    * `legacy:<email>`, type LEGACY_P1) shows the same event already SENT to

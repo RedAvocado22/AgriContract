@@ -142,15 +142,54 @@ describe('MysqlNotificationLogRepository.claim', () => {
     ]);
 
     await expect(
-      new MysqlNotificationLogRepository(pool).claim(newLog(), CLAIM_LEASE_MS),
+      new MysqlNotificationLogRepository(pool).claim(
+        newLog('user-7'),
+        CLAIM_LEASE_MS,
+      ),
     ).resolves.toBe('CLAIMED');
 
     expect(sql(query, 2)).toBe(
-      "UPDATE notification_logs SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6) " +
+      "UPDATE notification_logs SET status = 'PENDING', updated_at = UTC_TIMESTAMP(6), " +
+        'recipient_user_id = ?, subject = ?, body = ?, template_version = ? ' +
         `WHERE ${BY_KEY} AND (status = 'FAILED' OR (status = 'PENDING' ` +
         'AND updated_at < UTC_TIMESTAMP(6) - INTERVAL ? MICROSECOND))',
     );
-    expect(params(query, 2)).toEqual([...KEY_PARAMS, 45_000_000]);
+    expect(params(query, 2)).toEqual([
+      'user-7',
+      'Subject',
+      'Body',
+      'contract-signed/p1',
+      ...KEY_PARAMS,
+      45_000_000,
+    ]);
+  });
+
+  it('the retake overwrites what the failed attempt rendered, so the row describes the email sent now', async () => {
+    const { pool, query } = scriptedPool(noLegacyRow(), duplicate(), [
+      { affectedRows: 1 },
+      [],
+    ]);
+    const log = NotificationLog.create(
+      'evt-1',
+      { ...KIND, templateVersion: 'contract-signed/p2' },
+      'buyer@example.test',
+      NotificationChannel.EMAIL,
+      'New subject',
+      'New body',
+    );
+
+    await expect(
+      new MysqlNotificationLogRepository(pool).claim(log, CLAIM_LEASE_MS),
+    ).resolves.toBe('CLAIMED');
+
+    // Set, not read: a template bumped between the failure and the redelivery
+    // must not leave the row claiming the old version was sent.
+    expect(params(query, 2).slice(0, 4)).toEqual([
+      null,
+      'New subject',
+      'New body',
+      'contract-signed/p2',
+    ]);
   });
 
   it('reports ALREADY_SENT when the row could not be retaken and is SENT', async () => {
