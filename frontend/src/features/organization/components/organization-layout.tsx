@@ -36,7 +36,10 @@ export function OrganizationLayout({
         ]
       : []),
     ...(roles.some((role) => role === "BUYER" || role === "SELLER")
-      ? [{ label: "Sàn nguồn hàng", icon: "storefront", href: "/listing" }]
+      ? [
+          { label: "Hợp đồng của tôi", icon: "description", href: "/contracts" },
+          { label: "Sàn nguồn hàng", icon: "storefront", href: "/listing" },
+        ]
       : []),
     { label: "Trang chủ", icon: "home", href: "/" },
   ]

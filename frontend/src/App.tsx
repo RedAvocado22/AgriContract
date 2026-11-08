@@ -19,6 +19,9 @@ import { AccountPage } from "@/routes/account-page"
 import { APP_ROLES } from "@/shared/auth/auth-store"
 import { RequireOrganizationProfile } from "@/features/organization/components/organization-guards"
 import { OrganizationOnboardingPage } from "@/routes/organization-onboarding-page"
+import { ContractsPage } from "@/routes/contracts-page"
+import { ContractDetailPage } from "@/routes/contract-detail-page"
+import { CreateContractPage } from "@/routes/create-contract-page"
 
 function App() {
   return (
@@ -31,6 +34,11 @@ function App() {
               element={<OrganizationOnboardingPage />}
             />
             <Route element={<RequireOrganizationProfile />}>
+              <Route element={<RequireRole roles={["BUYER", "SELLER"]} />}>
+                <Route path="/contracts" element={<ContractsPage />} />
+                <Route path="/contracts/new" element={<CreateContractPage />} />
+                <Route path="/contracts/:id" element={<ContractDetailPage />} />
+              </Route>
               <Route path="/account" element={<AccountPage />} />
               <Route element={<RequireRole roles={APP_ROLES} />}>
                 <Route path="/workspace" element={<AccountPage />} />

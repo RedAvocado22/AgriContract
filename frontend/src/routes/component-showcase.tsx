@@ -764,6 +764,9 @@ function ComponentShowcase() {
       </Section>
 
       <Section title="MoneyDisplay">
+        <Row label="Chuỗi decimal chính xác (dữ liệu minh họa)">
+          <MoneyDisplay amount="9999999999999999.99" />
+        </Row>
         <Row label="Sign + emphasis">
           <MoneyDisplay amount={2_500_000_000} sign="positive" />
           <MoneyDisplay amount={400_000_000} sign="negative" />
