@@ -74,6 +74,16 @@ class RequestActivationDepositsUseCaseImplTest {
             public void resend(DepositLeg leg) {
                 throw new UnsupportedOperationException("requesting deposits never resends");
             }
+
+            @Override
+            public void returnRequested(DepositLeg leg, String correlationId, String causationId) {
+                throw new UnsupportedOperationException("requesting deposits never returns money");
+            }
+
+            @Override
+            public void resendReturn(DepositLeg leg) {
+                throw new UnsupportedOperationException("requesting deposits never returns money");
+            }
         };
         useCase = new RequestActivationDepositsUseCaseImpl(legs, publisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }

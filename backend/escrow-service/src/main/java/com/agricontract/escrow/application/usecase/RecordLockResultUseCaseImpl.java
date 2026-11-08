@@ -2,10 +2,12 @@ package com.agricontract.escrow.application.usecase;
 
 import com.agricontract.escrow.application.dto.LockResultCommand;
 import com.agricontract.escrow.application.port.DepositEventPublisher;
+import com.agricontract.escrow.application.port.LockCommandPublisher;
 import com.agricontract.escrow.domain.exception.InvalidDepositLegException;
 import com.agricontract.escrow.domain.model.ActivationDeposits;
 import com.agricontract.escrow.domain.model.DepositLeg;
 import com.agricontract.escrow.domain.model.DepositLegParty;
+import com.agricontract.escrow.domain.model.DepositLegStatus;
 import com.agricontract.escrow.domain.model.RetrySchedule;
 import com.agricontract.escrow.domain.repository.DepositLegRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,8 @@ import java.util.List;
  *       written in the same transaction: exactly once, since a duplicate result changes no leg.</li>
  *   <li>Failed: counted and a resend scheduled per the RetrySchedule; ignored when the leg is already LOCKED,
  *       because the bank ledger holds the money.</li>
+ *   <li>After the parties cancelled (#247): a lock that lands anyway is returned at once; a lock that fails cancels
+ *       the leg, and the result that settles the last leg writes escrow.activation_refund_completed.</li>
  *   <li>The result that leaves nothing in progress while a leg's lock failed with no retry left writes
  *       escrow.deposit_lock_failed (#247). Only that transition writes it, so a duplicate or replayed result does
  *       not; a later retry cycle (contract.deposit_lock_retry_requested) that fails again reports again.</li>
@@ -38,6 +42,7 @@ public class RecordLockResultUseCaseImpl implements RecordLockResultUseCase {
 
     private final DepositLegRepository legs;
     private final DepositEventPublisher events;
+    private final LockCommandPublisher bankCommands;
     private final RetrySchedule retrySchedule;
     private final Clock clock;
 
@@ -52,6 +57,7 @@ public class RecordLockResultUseCaseImpl implements RecordLockResultUseCase {
         requireSameRequest(leg, command);
         Instant now = clock.instant();
         boolean failedBefore = new ActivationDeposits(contractLegs).lockFailed();
+        boolean refundSettledBefore = new ActivationDeposits(contractLegs).refundSettled();
 
         if (command.locked()) {
             if (!leg.markLocked(command.ledgerEntryId(), now)) {
@@ -60,6 +66,13 @@ public class RecordLockResultUseCaseImpl implements RecordLockResultUseCase {
                 return;
             }
             legs.update(leg);
+            if (leg.getStatus() == DepositLegStatus.RETURN_REQUESTED) {
+                // Locked after the parties cancelled (#247): the bank ledger holds the money, so it goes back now.
+                bankCommands.returnRequested(leg, command.correlationId(), command.eventId());
+                log.warn("event=deposit_locked_after_cancel_returned contractId={} leg={} ledgerEntryId={}",
+                        command.contractId(), leg.getParty(), command.ledgerEntryId());
+                return;
+            }
             log.info("event=deposit_leg_locked contractId={} leg={} ledgerEntryId={}",
                     command.contractId(), leg.getParty(), command.ledgerEntryId());
             ActivationDeposits deposits = new ActivationDeposits(contractLegs);
@@ -73,6 +86,22 @@ public class RecordLockResultUseCaseImpl implements RecordLockResultUseCase {
         }
 
         DepositLeg.FailureOutcome outcome = leg.markFailed(command.failureReason(), now, retrySchedule);
+        if (outcome == DepositLeg.FailureOutcome.IGNORED_CANCELLED) {
+            log.info("event=deposit_lock_failure_after_cancel_ignored contractId={} leg={}", command.contractId(),
+                    leg.getParty());
+            return;
+        }
+        if (outcome == DepositLeg.FailureOutcome.CANCELLED) {
+            legs.update(leg);
+            ActivationDeposits deposits = new ActivationDeposits(contractLegs);
+            log.info("event=deposit_leg_cancelled contractId={} leg={}", command.contractId(), leg.getParty());
+            if (!refundSettledBefore && deposits.refundSettled()) {
+                events.activationRefundCompleted(command.contractId(), deposits, command.correlationId(),
+                        command.eventId());
+                log.info("event=activation_refund_completed contractId={}", command.contractId());
+            }
+            return;
+        }
         if (outcome == DepositLeg.FailureOutcome.IGNORED_ALREADY_LOCKED) {
             log.warn("event=deposit_lock_late_failure_ignored contractId={} leg={} sourceEventId={} reason={}",
                     command.contractId(), leg.getParty(), command.sourceEventId(), command.failureReason());

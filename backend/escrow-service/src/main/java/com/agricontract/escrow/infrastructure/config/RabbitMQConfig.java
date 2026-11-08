@@ -28,6 +28,11 @@ public class RabbitMQConfig {
     public static final String LOCK_COMPLETED_QUEUE = "escrow-svc.bank.lock_completed";
     public static final String LOCK_FAILED_QUEUE = "escrow-svc.bank.lock_failed";
     public static final String DEPOSIT_LOCK_RETRY_QUEUE = "escrow-svc.contract.deposit_lock_retry_requested";
+    public static final String ACTIVATION_REFUND_QUEUE = "escrow-svc.contract.activation_refund_requested";
+    public static final String REFUND_COMPLETED_QUEUE = "escrow-svc.bank.refund_completed";
+    public static final String REFUND_FAILED_QUEUE = "escrow-svc.bank.refund_failed";
+    public static final String RELEASE_COMPLETED_QUEUE = "escrow-svc.bank.release_completed";
+    public static final String RELEASE_FAILED_QUEUE = "escrow-svc.bank.release_failed";
 
     // One Declarables bean on purpose: DlqMonitor reads the .dlq queues from it.
     // The bank.lock_* queues are read by BankLockResultConsumer (#102). They must always exist: bank's outbox poller
@@ -43,6 +48,13 @@ public class RabbitMQConfig {
         bindWithDlq(declarables, CONTRACT_SIGNED_QUEUE, contracts, "contract.signed", dlx);
         // OPERATOR RetryDepositLock (D42), read by DepositLockRetryConsumer.
         bindWithDlq(declarables, DEPOSIT_LOCK_RETRY_QUEUE, contracts, "contract.deposit_lock_retry_requested", dlx);
+        // Activation deposit returns when the parties cancel (#247, D42). The bank result queues have the same name and
+        // DLX bank-service declared ahead for them (#384), so both declarations agree.
+        bindWithDlq(declarables, ACTIVATION_REFUND_QUEUE, contracts, "contract.activation_refund_requested", dlx);
+        bindWithDlq(declarables, REFUND_COMPLETED_QUEUE, bank, "bank.refund_completed", dlx);
+        bindWithDlq(declarables, REFUND_FAILED_QUEUE, bank, "bank.refund_failed", dlx);
+        bindWithDlq(declarables, RELEASE_COMPLETED_QUEUE, bank, "bank.release_completed", dlx);
+        bindWithDlq(declarables, RELEASE_FAILED_QUEUE, bank, "bank.release_failed", dlx);
         bindWithDlq(declarables, LOCK_COMPLETED_QUEUE, bank, "bank.lock_completed", dlx);
         bindWithDlq(declarables, LOCK_FAILED_QUEUE, bank, "bank.lock_failed", dlx);
         return new Declarables(declarables);

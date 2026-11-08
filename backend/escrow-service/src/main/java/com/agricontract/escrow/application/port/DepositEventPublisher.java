@@ -19,4 +19,11 @@ public interface DepositEventPublisher {
      * failed with no retry left (#247).
      */
     void depositLockFailed(String contractId, ActivationDeposits deposits, String correlationId, String causationId);
+
+    /**
+     * escrow.activation_refund_completed (escrowActivationRefundCompleted, #247): every leg is settled on the cancel
+     * path; returnedLegs lists the deposits given back (empty when none was locked).
+     */
+    void activationRefundCompleted(String contractId, ActivationDeposits deposits, String correlationId,
+                                   String causationId);
 }

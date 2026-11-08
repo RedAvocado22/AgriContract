@@ -66,4 +66,39 @@ public class OutboxLockCommandPublisher implements LockCommandPublisher {
                     + " (" + leg.getRequestEventId() + ")");
         }
     }
+
+    /**
+     * Same payload shape as the lock (golden-flow-events.yaml bankRefundRequested / bankReleaseRequested): the leg's
+     * user, its deposit fundType, the locked amount, no remedy (a technical-failure return, milestone-escrow §6.7).
+     */
+    @Override
+    public void returnRequested(DepositLeg leg, String correlationId, String causationId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", leg.getContractId());
+        payload.put("milestoneId", null);
+        payload.put("userId", leg.getUserId());
+        payload.put("entryType", leg.getParty().returnEntryType());
+        payload.put("fundType", leg.getParty().fundType());
+        payload.put("remedyDecisionId", null);
+        payload.put("remedyLegId", null);
+        payload.put("amount", leg.getAmount().amount().toPlainString());
+        payload.put("sourceEventId", leg.getReturnRequestEventId());
+
+        outbox.append(new EventEnvelope(UUID.fromString(leg.getReturnRequestEventId()),
+                leg.getParty().returnCommand(), 1, clock.instant(), PRODUCER, leg.getContractId(), correlationId,
+                causationId, null, payload));
+    }
+
+    /** As resend: the original return envelope goes back to PENDING, same eventId. */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void resendReturn(DepositLeg leg) {
+        int reset = jdbc.update("UPDATE event_outbox SET status = 'PENDING', published_at = NULL, attempts = 0,"
+                + " last_error = NULL, created_at = NOW(3) WHERE event_id = ? AND event_type = ?",
+                leg.getReturnRequestEventId(), leg.getParty().returnCommand());
+        if (reset != 1) {
+            throw new IllegalStateException("No " + leg.getParty().returnCommand() + " in event_outbox for leg "
+                    + leg.getLegId() + " (" + leg.getReturnRequestEventId() + ")");
+        }
+    }
 }
