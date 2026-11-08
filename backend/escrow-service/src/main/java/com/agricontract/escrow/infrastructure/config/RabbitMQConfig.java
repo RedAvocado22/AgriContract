@@ -29,8 +29,8 @@ public class RabbitMQConfig {
     public static final String LOCK_FAILED_QUEUE = "escrow-svc.bank.lock_failed";
 
     // One Declarables bean on purpose: DlqMonitor reads the .dlq queues from it.
-    // The bank.lock_* queues have no listener until #102, but must exist now: bank's outbox poller stops its whole
-    // batch on a result it cannot route (D23), so an unbound result would stall bank-service.
+    // The bank.lock_* queues are read by BankLockResultConsumer (#102). They must always exist: bank's outbox poller
+    // stops its whole batch on a result it cannot route (D23), so an unbound result would stall bank-service.
     @Bean
     public Declarables escrowDeclarables() {
         TopicExchange contracts = new TopicExchange("agricontract.contracts", true, false);
