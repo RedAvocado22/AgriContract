@@ -38,6 +38,16 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Outcome> lookup(String actorId, String operation, UUID idempotencyKey, String requestHash) {
+        return jdbc.queryForList("SELECT request_hash FROM idempotency_record"
+                        + " WHERE actor_id = ? AND operation = ? AND idempotency_key = ?",
+                String.class, actorId, operation, idempotencyKey.toString()).stream()
+                .findFirst()
+                .map(stored -> requestHash.equals(stored) ? Outcome.REPLAY : Outcome.CONFLICT);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public void recordResult(String actorId, String operation, UUID idempotencyKey, String resultRef) {
         int updated = jdbc.update("UPDATE idempotency_record SET result_ref = ?"
                 + " WHERE actor_id = ? AND operation = ? AND idempotency_key = ?",

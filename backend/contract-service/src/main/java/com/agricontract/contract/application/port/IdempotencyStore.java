@@ -20,6 +20,13 @@ public interface IdempotencyStore {
 
     Outcome claim(String actorId, String operation, UUID idempotencyKey, String requestHash);
 
+    /**
+     * REPLAY or CONFLICT if this key was already used, empty if not; claims nothing. For a command that must commit
+     * some refusals (a wrong OTP is counted) without burning the key: look up first, claim only on success. Safe
+     * only while the caller holds a lock that serialises every request for this key.
+     */
+    Optional<Outcome> lookup(String actorId, String operation, UUID idempotencyKey, String requestHash);
+
     /** After FIRST, in the same transaction: the id of what this command created, for replays to return. */
     void recordResult(String actorId, String operation, UUID idempotencyKey, String resultRef);
 

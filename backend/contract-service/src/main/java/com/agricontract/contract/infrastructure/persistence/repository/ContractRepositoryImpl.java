@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -56,6 +57,16 @@ public class ContractRepositoryImpl implements ContractRepository {
     public Optional<Contract> findById(ContractId contractId) {
         return jpaRepo.findByContractId(contractId.value())
                       .map(this::toDomain);
+    }
+
+    /**
+     * Locks the contract row until the caller's transaction ends (SELECT ... FOR UPDATE). Everything read after it,
+     * the signatures included, sees what concurrent writers on this contract committed before.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Contract> findByIdForUpdate(ContractId contractId) {
+        return jpaRepo.findForUpdate(contractId.value()).map(this::toDomain);
     }
 
     @Override

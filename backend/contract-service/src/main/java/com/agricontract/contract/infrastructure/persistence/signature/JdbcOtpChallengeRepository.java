@@ -90,4 +90,30 @@ public class JdbcOtpChallengeRepository implements OtpChallengeRepository {
     public Optional<OtpChallenge> findById(UUID otpId) {
         return jdbc.query("SELECT * FROM signature_otp WHERE otp_id = ?", ROW, otpId.toString()).stream().findFirst();
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<OtpChallenge> findByIdForUpdate(UUID otpId) {
+        return jdbc.query("SELECT * FROM signature_otp WHERE otp_id = ? FOR UPDATE", ROW, otpId.toString())
+                .stream().findFirst();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int recordFailedAttempt(UUID otpId) {
+        jdbc.update("UPDATE signature_otp SET attempt_count = attempt_count + 1 WHERE otp_id = ?", otpId.toString());
+        Integer count = jdbc.queryForObject("SELECT attempt_count FROM signature_otp WHERE otp_id = ?",
+                Integer.class, otpId.toString());
+        return count == null ? 0 : count;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void markVerified(UUID otpId, Instant verifiedAt) {
+        int updated = jdbc.update("UPDATE signature_otp SET verified_at = ? WHERE otp_id = ? AND verified_at IS NULL",
+                Timestamp.from(verifiedAt), otpId.toString());
+        if (updated != 1) {
+            throw new IllegalStateException("Challenge " + otpId + " was already verified");
+        }
+    }
 }

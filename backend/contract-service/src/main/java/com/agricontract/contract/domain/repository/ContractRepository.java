@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface ContractRepository {
     Contract save(Contract contract);
     Optional<Contract> findById(ContractId contractId);
+    /** Same, and holds the contract row lock until the caller's transaction ends (serialises signing). */
+    Optional<Contract> findByIdForUpdate(ContractId contractId);
     List<Contract> findByBuyerId(String buyerId);
     List<Contract> findBySellerId(String sellerId);
     List<Contract> findByStatus(ContractStatus status);
