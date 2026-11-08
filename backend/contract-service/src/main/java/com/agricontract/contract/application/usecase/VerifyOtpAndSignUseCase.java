@@ -137,6 +137,7 @@ public class VerifyOtpAndSignUseCase {
             // Only the verify that adds the second signature gets here, once per contract (row lock + status
             // check in Contract.sign); a replay of the same key returned above without reaching this line.
             events.contractSigned(contract, now);
+            events.contractAnchorRequested(contract, now);
         }
         if (idempotencyStore.claim(command.actorId(), OPERATION, command.idempotencyKey(), requestHash)
                 != IdempotencyStore.Outcome.FIRST) {
