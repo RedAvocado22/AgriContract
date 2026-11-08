@@ -105,7 +105,7 @@
 <tr>
 <td>11b</td>
 <td>Partial lock không nuốt tiền: buyer LOCKED + seller fail → terminal phải refund</td>
-<td>Mock seller-leg fail vĩnh viễn → <code>MarkActivationFailed</code> → <code>bank.refund_requested</code> cho leg buyer, qua <code>ACTIVATION_REFUND_PENDING</code>, chỉ <code>ACTIVATION_FAILED</code> khi refund confirmed; refund fail → đứng lại + alert</td>
+<td>Mock seller-leg fail vĩnh viễn → 2 bên yêu cầu huỷ (hoặc 1 bên sau 5 ngày làm việc, D42) → <code>bank.refund_requested</code> cho leg buyer, qua <code>ACTIVATION_REFUND_PENDING</code>, chỉ <code>ACTIVATION_FAILED</code> khi refund confirmed; refund fail → đứng lại + alert</td>
 <td>milestone §3.1 (18/07)</td>
 </tr>
 <tr>
@@ -268,7 +268,7 @@
 <tr>
 <td class="numeric">16</td>
 <td>OPERATOR không chạm đường ARBITRATOR/ADMIN</td>
-<td>OPERATOR gọi approve/reject reputation, resolve breach case, resolve FM, <code>InitiateLevel2Inspection</code>, <code>/admin/audit</code>, approve replay → <code>403</code>; OPERATOR gọi <code>RetryDepositLock</code>/<code>RetryMilestoneFunding</code>/<code>MarkActivationFailed</code> → pass (sửa 12/10/2026, SRS v1.6)</td>
+<td>OPERATOR gọi approve/reject reputation, resolve breach case, resolve FM, <code>InitiateLevel2Inspection</code>, <code>/admin/audit</code>, approve replay → <code>403</code>; OPERATOR gọi <code>RetryDepositLock</code>/<code>RetryMilestoneFunding</code> → pass (sửa 12/10/2026, SRS v1.6); OPERATOR gọi <code>activation/cancel/*</code> → <code>403</code> (D42, 08/11/2026)</td>
 <td>governance §5.4</td>
 </tr>
 <tr>

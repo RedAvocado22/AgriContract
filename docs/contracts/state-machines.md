@@ -24,6 +24,7 @@ OFFERED -> NEGOTIATING -> SIGNED -> ACTIVE -> SETTLED
 - `REPLACEMENT_PENDING` starts only after the replacement contract reaches `SIGNED`.
 - `SUPERSEDE_REFUND_PENDING` cannot reach `SUPERSEDED` until every old-contract lock is confirmed returned.
 - `ACTIVATION_REFUND_PENDING` cannot reach `ACTIVATION_FAILED` until every partially locked deposit is returned to its owner.
+- `SIGNED -> ACTIVATION_REFUND_PENDING` only on the parties' cancel requests after `escrow.deposit_lock_failed`: both parties, or one party once 5 business days have passed since the first lock failure. OPERATOR cannot trigger it (D42).
 - Normal completion keeps the contract `ACTIVE` after the last milestone settles, emits the existing no-fault `remedy.finalized` owner-return legs, and reaches `SETTLED` only after ledger reconciliation proves every leg complete and remaining lock is zero.
 - Generic termination likewise keeps the current state non-terminal after `remedy.finalized`; `TERMINATED` and `contract.terminated` are committed/published only after the same reconciliation guard succeeds.
 - Every terminal state (`SETTLED`, `TERMINATED`, `WITHDRAWN`, `SUPERSEDED`, `ACTIVATION_FAILED`) requires total locked funds for the contract to equal zero.

@@ -10,6 +10,7 @@ oneOf:
   - {$ref: "#/$defs/contractAnchorRequested"}
   - {$ref: "#/$defs/contractDocumentReadyRequested"}
   - {$ref: "#/$defs/contractActivationFailedRequested"}
+  - {$ref: "#/$defs/activationCancelRequested"}
   - {$ref: "#/$defs/contractTerminatedRequested"}
   - {$ref: "#/$defs/breachNoticeRequested"}
   - {$ref: "#/$defs/remedyFinalizedRequested"}
@@ -155,7 +156,7 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [contractId, recipients, failedLeg, buyerDepositState, sellerDepositState, nextActions]
+            required: [contractId, recipients, failedLeg, buyerDepositState, sellerDepositState, nextActions, oneSidedCancelAllowedFrom]
             additionalProperties: false
             properties:
               contractId: {$ref: "#/$defs/uuid"}
@@ -163,7 +164,27 @@ $defs:
               failedLeg: {enum: [BUYER, SELLER, BOTH]}
               buyerDepositState: {type: string}
               sellerDepositState: {type: string}
-              nextActions: {type: array, items: {enum: [RETRY_DEPOSIT_LOCK, MARK_ACTIVATION_FAILED]}}
+              nextActions: {type: array, items: {enum: [RETRY_DEPOSIT_LOCK, REQUEST_ACTIVATION_CANCEL]}}
+              oneSidedCancelAllowedFrom: {type: string, format: date-time}
+  activationCancelRequested:
+    x-publisher: contract-service
+    x-consumers: [notification-service]
+    x-semantics: Sent to the other party (and OPERATOR) when one party records an activation cancel request, so silence is an informed choice before oneSidedCancelAllowedFrom.
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.activation_cancel_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, recipients, requestedByRole, oneSidedCancelAllowedFrom]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              recipients: {$ref: "#/$defs/recipients"}
+              requestedByRole: {enum: [BUYER, SELLER]}
+              oneSidedCancelAllowedFrom: {type: string, format: date-time}
   breachNoticeRequested:
     x-publisher: contract-service
     x-consumers: [notification-service]

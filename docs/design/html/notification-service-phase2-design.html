@@ -66,9 +66,13 @@
   "contractId": "uuid",
   "otpCode": "123456",
   "signedContentHash": "sha256-hex",
-  "expiresAt": "..."
+  "expiresAt": "...",
+  "purpose": "SIGN_CONTRACT"
 }
 </code></pre></figure>
+<ul>
+<li><code>purpose</code> (thêm 08/11/2026, D42): <code>SIGN_CONTRACT</code> (mặc định khi thiếu) hoặc <code>CANCEL_ACTIVATION</code> — chọn template email (mã ký hợp đồng / mã xác nhận yêu cầu huỷ hợp đồng chưa kích hoạt). Dedup và lưu log như nhau; <code>notification_type</code> theo purpose.</li>
+</ul>
 <ul>
 <li>API trả <code>200 OK</code> chỉ khi mail provider đã nhận request gửi; lỗi provider trả 5xx để contract-service không nói sai “OTP đã gửi”.</li>
 <li>Idempotent theo <code>requestId</code>: <code>SENT</code> → <code>200</code> không gửi lại; <code>FAILED</code> → gửi lại theo retry của caller; claim còn hiệu lực → <code>503</code> (xem §5).</li>
@@ -255,7 +259,12 @@
 <tr>
 <td><code>notification.contract_activation_failed_requested</code> / contract-service</td>
 <td>Buyer + Seller + Operator</td>
-<td>Hợp đồng đã ký nhưng khoá cọc fail sau retry (milestone-escrow §3.1) — không penalty, nêu bước tiếp theo (Operator retry / xác nhận không tiếp tục)</td>
+<td>Hợp đồng đã ký nhưng khoá cọc fail sau retry (milestone-escrow §3.1) — không penalty, nêu bước tiếp theo (Operator retry khi đã sửa lỗi / 2 bên yêu cầu huỷ, mốc <code>oneSidedCancelAllowedFrom</code> — D42)</td>
+</tr>
+<tr>
+<td><code>notification.activation_cancel_requested</code> / contract-service</td>
+<td>Bên kia + Operator</td>
+<td>Một bên đã yêu cầu huỷ hợp đồng khoá cọc thất bại; nêu mốc từ đó yêu cầu 1 bên là đủ, để bên kia im lặng là lựa chọn có thông tin</td>
 </tr>
 <tr>
 <td><code>notification.reconciliation_mismatch_requested</code> / bank-service</td>

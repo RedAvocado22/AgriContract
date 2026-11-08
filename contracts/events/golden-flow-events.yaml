@@ -279,15 +279,22 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [contractId, operatorUserId, requestedAt]
+            required: [contractId, requestedBy, trigger, requestedAt]
             properties:
               contractId: {$ref: "#/$defs/uuid"}
-              operatorUserId: {$ref: "#/$defs/uuid"}
+              requestedBy:
+                description: Parties with a standing OTP-confirmed cancel request when the refund started.
+                type: array
+                minItems: 1
+                maxItems: 2
+                uniqueItems: true
+                items: {enum: [BUYER, SELLER]}
+              trigger: {enum: [BOTH_PARTIES, ONE_PARTY_AFTER_WINDOW]}
               requestedAt: {type: string, format: date-time}
             additionalProperties: false
         x-publisher: contract-service
         x-consumers: [escrow-service]
-        x-source: milestone-escrow-phase2-design.md sections 3.1, 6.7 and 7.2 (MarkActivationFailed)
+        x-source: milestone-escrow-phase2-design.md sections 3.1, 6.7 and 7.2 (party activation cancel, D42)
         x-verification-matrix: [11b, 11i]
         x-semantics: Written in the transaction that moves the contract SIGNED -> ACTIVATION_REFUND_PENDING. Escrow stops deposit lock retries and returns every LOCKED deposit leg to its owner by fundType (BUYER_DEPOSIT via bank.refund_requested REFUND_TO_BUYER, SELLER_DEPOSIT via bank.release_requested RELEASE_TO_SELLER). No penalty, no reputation effect.
   escrowActivationRefundCompleted:

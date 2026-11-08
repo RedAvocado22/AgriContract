@@ -172,7 +172,7 @@
 <p>Bản đầu ADMIN ôm toàn bộ vận hành: KYC, review report, moderate, giá manual, unlock, AML, security, quyết định vi phạm. Hệ quả: (1) blast radius 1 account ADMIN bị compromise = toàn hệ thống; (2) mọi ADMIN thấy mọi thứ; (3) cost mua chuộc = mua đúng 1 người; (4) người quản trị kỹ thuật lại cầm quyền phán xử tiền giữa 2 bên — xung đột vai trò. Attribution thì hệ đã có sẵn (<code>verifiedByActorId</code> — tên mới 18/07, các trường proposedBy/approvedBy... đều vào chain) — cái thiếu là <strong>least privilege + separation of duties</strong>.</p>
 </section><section aria-labelledby="heading-sec-5-2" class="section" id="sec-5-2"><h3 id="heading-sec-5-2"><span class="sec-num">§5.2</span> Đường cắt: theo bản chất quyết định, không cắt theo service <a aria-label="Sao chép liên kết tới §5.2" class="anchor" href="#sec-5-2">#</a></h3>
 <ul>
-<li><strong>OPERATOR</strong> — nghiệp vụ hằng ngày, đảo ngược được hoặc no-fault, có hàng đợi: duyệt/reject KYC; review external report <code>PENDING_REVIEW</code>, xác nhận case ID, upload report thủ công, xử lý email intake lỗi; moderate category/listing/product; nhập giá manual (<code>OPERATOR_MANUAL</code>); <strong><code>RetryDepositLock</code> / <code>RetryMilestoneFunding</code> / <code>MarkActivationFailed</code></strong> (sửa 12/10/2026 — trước là ADMIN; cả 3 đều no-fault, không phạt ai, không chuyển tiền giữa 2 bên, <code>MarkActivationFailed</code> vẫn cần 2 bên xác nhận — khớp UC29/UC39 SRS v1.6); propose unlock sớm / clear <code>ELEVATED_RISK</code>; propose replay DLQ.</li>
+<li><strong>OPERATOR</strong> — nghiệp vụ hằng ngày, đảo ngược được hoặc no-fault, có hàng đợi: duyệt/reject KYC; review external report <code>PENDING_REVIEW</code>, xác nhận case ID, upload report thủ công, xử lý email intake lỗi; moderate category/listing/product; nhập giá manual (<code>OPERATOR_MANUAL</code>); <strong><code>RetryDepositLock</code> / <code>RetryMilestoneFunding</code></strong> (sửa 12/10/2026 — trước là ADMIN; no-fault, không phạt ai, không chuyển tiền giữa 2 bên — khớp UC29/UC39 SRS v1.6). <em>Sửa 08/11/2026 (D42): bỏ <code>MarkActivationFailed</code> khỏi OPERATOR — dừng hợp đồng khoá cọc thất bại do 2 bên ký tự yêu cầu (<code>ActivationCancel</code>, milestone-escrow §3.1 bước 3); OPERATOR chỉ sửa kỹ thuật rồi retry</em>; propose unlock sớm / clear <code>ELEVATED_RISK</code>; propose replay DLQ.</li>
 <li><strong>ARBITRATOR</strong>  — phán xử có hậu quả tiền/uy tín giữa 2 bên: quyết định <code>BreachCase</code> (attribution + remedy), quyết định force majeure, khởi tạo Level 2 inspection (<code>InitiateLevel2Inspection</code>), approve/reject maker-checker reputation (§5.3).</li>
 <li><strong>ADMIN</strong> — quản trị hệ thống, không phán xử nghiệp vụ: quản lý role/account (Keycloak), export bằng chứng <code>/admin/audit/**</code>, đọc <code>/admin/security/**</code>, analytics, cấu hình hệ thống, approve replay DLQ nhóm tiền/security/evidence do OPERATOR đề xuất (§8b — GB-48, ngoại lệ tiền duy nhất của ADMIN và chỉ là replay kỹ thuật), quyết định mở traffic sau restore (§8c).</li>
 <li><strong>Không role nào</strong> sửa ledger, hợp đồng đã ký, <code>audit_record</code>, <code>Signature</code>, snapshot đã anchor.</li>
@@ -246,9 +246,16 @@ Cả propose lẫn approve/reject đều vào audit chain (payload event mang c�
 <td>❌</td>
 </tr>
 <tr>
-<td><code>RetryDepositLock</code> / <code>RetryMilestoneFunding</code> / <code>MarkActivationFailed</code></td>
-<td>Xác nhận (MarkActivationFailed)</td>
+<td><code>RetryDepositLock</code> / <code>RetryMilestoneFunding</code></td>
+<td>❌</td>
 <td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Yêu cầu huỷ / rút yêu cầu huỷ khi khoá cọc thất bại (<code>ActivationCancel</code>, D42 08/11/2026)</td>
+<td>✅ (bên của hợp đồng; checkbox + step-up + OTP)</td>
+<td>❌</td>
 <td>❌</td>
 <td>❌</td>
 </tr>

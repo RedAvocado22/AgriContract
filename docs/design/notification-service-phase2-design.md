@@ -65,9 +65,12 @@ Mọi notification không cần caller biết kết quả gửi ngay lập tức
   "contractId": "uuid",
   "otpCode": "123456",
   "signedContentHash": "sha256-hex",
-  "expiresAt": "..."
+  "expiresAt": "...",
+  "purpose": "SIGN_CONTRACT"
 }
 ```
+
+- `purpose` (thêm 08/11/2026, D42): `SIGN_CONTRACT` (mặc định khi thiếu) hoặc `CANCEL_ACTIVATION` — chọn template email (mã ký hợp đồng / mã xác nhận yêu cầu huỷ hợp đồng chưa kích hoạt). Dedup và lưu log như nhau; `notification_type` theo purpose.
 
 - API trả `200 OK` chỉ khi mail provider đã nhận request gửi; lỗi provider trả 5xx để contract-service không nói sai “OTP đã gửi”.
 - Idempotent theo `requestId`: `SENT` → `200` không gửi lại; `FAILED` → gửi lại theo retry của caller; claim còn hiệu lực → `503` (xem §5).
@@ -130,7 +133,8 @@ Template được version trong code/resources để review cùng source; DB ch�
 | `notification.audit_failure_requested` / audit-service | Admin + **nhiều** Software Buyer contacts song song | Vị trí lỗi/anchored hash; không qua Admin approval |
 | `notification.verifier_key_anchor_requested` / bank-service | External Verifier contacts | Public-key fingerprint |
 | `notification.security_lock_changed_requested` / bank-service | Admin + External Verifier | LOCKED/UNLOCKED, reason/timestamp; không fan-out buyer/seller |
-| `notification.contract_activation_failed_requested` / contract-service (**mới 17/07/2026**) | Buyer + Seller + Operator | Hợp đồng đã ký nhưng khoá cọc fail sau retry (milestone-escrow §3.1) — không penalty, nêu bước tiếp theo (Operator retry / xác nhận không tiếp tục) |
+| `notification.contract_activation_failed_requested` / contract-service (**mới 17/07/2026**) | Buyer + Seller + Operator | Hợp đồng đã ký nhưng khoá cọc fail sau retry (milestone-escrow §3.1) — không penalty, nêu bước tiếp theo (Operator retry khi đã sửa lỗi / 2 bên yêu cầu huỷ, mốc `oneSidedCancelAllowedFrom` — D42) |
+| `notification.activation_cancel_requested` / contract-service (**mới 08/11/2026, D42**) | Bên kia + Operator | Một bên đã yêu cầu huỷ hợp đồng khoá cọc thất bại; nêu mốc từ đó yêu cầu 1 bên là đủ, để bên kia im lặng là lựa chọn có thông tin |
 | `notification.reconciliation_mismatch_requested` / bank-service (**mới 18/07/2026**) | Admin only | Ledger lệch số với audit record đã anchor (bank §5b.1) — vị trí lệch (contractId/milestoneId, chênh lệch); không fan-out buyer/seller, không auto-fix |
 
 Các domain event (`contract.signed`, `milestone.settled`...) vẫn giữ payload nghiệp vụ canonical ở owner design. Owner/audit consumer publish notification command tương ứng; notification-service không subscribe trực tiếp domain event nếu payload đó không đủ template/recipient. `contract.delivered` là dead event Phase 1 và phải xoá listener/template.
