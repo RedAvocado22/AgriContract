@@ -31,7 +31,7 @@ public final class DepositLeg {
     public enum FailureOutcome {
         /** A retry of the same request is scheduled at nextAttemptAt. */
         RETRY_SCHEDULED,
-        /** No retry is left; the leg stays FAILED (#247 reports it). */
+        /** No retry is left; the leg stays FAILED (reported in escrow.deposit_lock_failed, #247). */
         RETRIES_EXHAUSTED,
         /** The leg is already LOCKED: the bank ledger holds the money, a late failure changes nothing. */
         IGNORED_ALREADY_LOCKED
@@ -146,6 +146,11 @@ public final class DepositLeg {
 
     public boolean isLocked() {
         return status == DepositLegStatus.LOCKED;
+    }
+
+    /** FAILED with no retry left: the lock of this leg failed for this retry cycle (#247). */
+    public boolean isLockFailed() {
+        return status == DepositLegStatus.FAILED && nextAttemptAt == null;
     }
 
     private static void requireUuid(String field, String value) {

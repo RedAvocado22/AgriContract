@@ -1,11 +1,22 @@
 package com.agricontract.escrow.application.port;
 
+import com.agricontract.escrow.domain.model.ActivationDeposits;
+
 /**
- * escrow.deposit_locked (golden-flow-events.yaml escrowDepositLocked) to the outbox. Must run inside the caller's
- * transaction, so the event exists exactly when the last leg's LOCKED state commits.
+ * Activation deposit outcomes to the outbox. Must run inside the caller's transaction, so the event exists exactly
+ * when the leg state that ends the set commits.
  */
 public interface DepositEventPublisher {
 
-    /** hasSellerLeg: false when the contract has no seller deposit, so sellerDepositState is null. */
+    /**
+     * escrow.deposit_locked (golden-flow-events.yaml escrowDepositLocked). hasSellerLeg: false when the contract has
+     * no seller deposit, so sellerDepositState is null.
+     */
     void depositLocked(String contractId, boolean hasSellerLeg, String correlationId, String causationId);
+
+    /**
+     * escrow.deposit_lock_failed (escrowDepositLockFailed): nothing is left in progress and at least one leg's lock
+     * failed with no retry left (#247).
+     */
+    void depositLockFailed(String contractId, ActivationDeposits deposits, String correlationId, String causationId);
 }
