@@ -46,11 +46,34 @@ class RequestActivationDepositsUseCaseImplTest {
             public List<DepositLeg> findByContractId(String contractId) {
                 return inserted.stream().filter(l -> l.getContractId().equals(contractId)).toList();
             }
+
+            @Override
+            public List<DepositLeg> findByContractIdForUpdate(String contractId) {
+                return findByContractId(contractId);
+            }
+
+            @Override
+            public void update(DepositLeg leg) {
+                throw new UnsupportedOperationException("requesting deposits never updates a leg");
+            }
+
+            @Override
+            public List<String> findContractsWithRetryDue(Instant now, int limit) {
+                return List.of();
+            }
         };
-        LockCommandPublisher publisher = (leg, correlationId, causationId) -> {
-            // A command must never be published for a leg that was not stored first.
-            assertThat(inserted).contains(leg);
-            published.add(leg.getLegId() + "|" + correlationId + "|" + causationId);
+        LockCommandPublisher publisher = new LockCommandPublisher() {
+            @Override
+            public void lockRequested(DepositLeg leg, String correlationId, String causationId) {
+                // A command must never be published for a leg that was not stored first.
+                assertThat(inserted).contains(leg);
+                published.add(leg.getLegId() + "|" + correlationId + "|" + causationId);
+            }
+
+            @Override
+            public void resend(DepositLeg leg) {
+                throw new UnsupportedOperationException("requesting deposits never resends");
+            }
         };
         useCase = new RequestActivationDepositsUseCaseImpl(legs, publisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }

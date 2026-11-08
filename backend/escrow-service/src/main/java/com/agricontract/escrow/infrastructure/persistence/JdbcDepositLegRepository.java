@@ -8,9 +8,13 @@ import com.agricontract.escrow.domain.repository.DepositLegRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public class JdbcDepositLegRepository implements DepositLegRepository {
@@ -20,9 +24,15 @@ public class JdbcDepositLegRepository implements DepositLegRepository {
                                      created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
-    private static final String SELECT_BY_CONTRACT = """
-            SELECT leg_id, contract_id, leg, user_id, amount, status, request_event_id, created_at, updated_at
-            FROM deposit_leg WHERE contract_id = ? ORDER BY leg
+    private static final String COLUMNS = """
+            leg_id, contract_id, leg, user_id, amount, status, request_event_id, ledger_entry_id, failed_attempts,
+            next_attempt_at, last_failure_reason, created_at, updated_at""";
+    private static final String SELECT_BY_CONTRACT =
+            "SELECT " + COLUMNS + " FROM deposit_leg WHERE contract_id = ? ORDER BY leg";
+    private static final String UPDATE_RESULT = """
+            UPDATE deposit_leg SET status = ?, ledger_entry_id = ?, failed_attempts = ?, next_attempt_at = ?,
+                                   last_failure_reason = ?, updated_at = ?
+            WHERE leg_id = ?
             """;
 
     private static final RowMapper<DepositLeg> ROW = (rs, rowNum) -> DepositLeg.reconstitute(
@@ -33,6 +43,10 @@ public class JdbcDepositLegRepository implements DepositLegRepository {
             new Money(rs.getBigDecimal("amount")),
             DepositLegStatus.valueOf(rs.getString("status")),
             rs.getString("request_event_id"),
+            rs.getString("ledger_entry_id"),
+            rs.getInt("failed_attempts"),
+            Optional.ofNullable(rs.getTimestamp("next_attempt_at")).map(Timestamp::toInstant).orElse(null),
+            rs.getString("last_failure_reason"),
             rs.getTimestamp("created_at").toInstant(),
             rs.getTimestamp("updated_at").toInstant());
 
@@ -59,5 +73,38 @@ public class JdbcDepositLegRepository implements DepositLegRepository {
     @Override
     public List<DepositLeg> findByContractId(String contractId) {
         return jdbc.query(SELECT_BY_CONTRACT, ROW, contractId);
+    }
+
+    /**
+     * Every leg of the contract, row-locked until the caller's transaction ends. Two results for one contract are
+     * then handled one after the other, so the one that completes the set always sees the other (D39).
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<DepositLeg> findByContractIdForUpdate(String contractId) {
+        return jdbc.query(SELECT_BY_CONTRACT + " FOR UPDATE", ROW, contractId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void update(DepositLeg leg) {
+        int updated = jdbc.update(UPDATE_RESULT,
+                leg.getStatus().name(),
+                leg.getLedgerEntryId(),
+                leg.getFailedAttempts(),
+                leg.getNextAttemptAt() == null ? null : Timestamp.from(leg.getNextAttemptAt()),
+                leg.getLastFailureReason(),
+                Timestamp.from(leg.getUpdatedAt()),
+                leg.getLegId());
+        if (updated != 1) {
+            throw new IllegalStateException("No deposit leg " + leg.getLegId());
+        }
+    }
+
+    @Override
+    public List<String> findContractsWithRetryDue(Instant now, int limit) {
+        return jdbc.queryForList("SELECT DISTINCT contract_id FROM deposit_leg"
+                        + " WHERE status = 'FAILED' AND next_attempt_at <= ? ORDER BY contract_id LIMIT ?",
+                String.class, Timestamp.from(now), limit);
     }
 }

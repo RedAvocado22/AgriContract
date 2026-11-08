@@ -5,7 +5,10 @@ import com.agricontract.escrow.domain.model.DepositLeg;
 import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.outbox.OutboxWriter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.LinkedHashMap;
@@ -26,6 +29,7 @@ public class OutboxLockCommandPublisher implements LockCommandPublisher {
 
     private final OutboxWriter outbox;
     private final Clock clock;
+    private final JdbcTemplate jdbc;
 
     @Override
     public void lockRequested(DepositLeg leg, String correlationId, String causationId) {
@@ -44,5 +48,22 @@ public class OutboxLockCommandPublisher implements LockCommandPublisher {
         // The bank pool is per contract (bank design §2b.3), so the contract is the aggregate.
         outbox.append(new EventEnvelope(UUID.fromString(leg.getRequestEventId()), LOCK_REQUESTED, 1,
                 clock.instant(), PRODUCER, leg.getContractId(), correlationId, causationId, null, payload));
+    }
+
+    /**
+     * The retry resends the original envelope: its event_outbox row goes back to PENDING (event_id is UNIQUE there,
+     * and a new envelope would need a new id, which bank would treat as a new command). created_at is reset so the
+     * stale monitor measures from the resend.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void resend(DepositLeg leg) {
+        int reset = jdbc.update("UPDATE event_outbox SET status = 'PENDING', published_at = NULL, attempts = 0,"
+                + " last_error = NULL, created_at = NOW(3) WHERE event_id = ? AND event_type = ?",
+                leg.getRequestEventId(), LOCK_REQUESTED);
+        if (reset != 1) {
+            throw new IllegalStateException("No bank.lock_requested in event_outbox for leg " + leg.getLegId()
+                    + " (" + leg.getRequestEventId() + ")");
+        }
     }
 }
