@@ -1,8 +1,7 @@
 package com.agricontract.contract.domain.repository;
 
-import com.agricontract.contract.domain.model.signature.OtpChallenge;
-
 import com.agricontract.contract.domain.model.consent.SignerRole;
+import com.agricontract.contract.domain.model.signature.OtpChallenge;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -30,4 +29,13 @@ public interface OtpChallengeRepository {
     void expire(UUID otpId, Instant now);
 
     Optional<OtpChallenge> findById(UUID otpId);
+
+    /** Locks the challenge row until the verify transaction ends. */
+    Optional<OtpChallenge> findByIdForUpdate(UUID otpId);
+
+    /** One more wrong code; returns the new attempt count. Must commit even though the request is refused. */
+    int recordFailedAttempt(UUID otpId);
+
+    /** The right code was entered: the challenge can never be answered again. */
+    void markVerified(UUID otpId, Instant verifiedAt);
 }
