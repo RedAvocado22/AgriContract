@@ -3,6 +3,7 @@ package com.agricontract.contract.application.service;
 import com.agricontract.contract.application.dto.UserInfo;
 import com.agricontract.contract.application.exception.SignerNotEligibleException;
 import com.agricontract.contract.application.port.UserPort;
+import com.agricontract.contract.domain.exception.ContractConflictException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -50,11 +51,11 @@ public class SignerEligibility {
             throw refuse(userId, SignerNotEligibleException.NOT_VERIFIED,
                     "Your profile has not been verified yet.");
         }
-        if (user.authorizationExpiresAt() != null && !now.isBefore(user.authorizationExpiresAt())) {
+        if (authorizationEnded(user, now)) {
             throw refuse(userId, SignerNotEligibleException.AUTHORIZATION_EXPIRED,
                     "Your authorization to sign for the organization ended on " + user.authorizationExpiresAt() + ".");
         }
-        if (user.lockedUntil() != null && now.isBefore(user.lockedUntil())) {
+        if (locked(user, now)) {
             throw refuse(userId, SignerNotEligibleException.LOCKED,
                     "Your account is locked from new contracts until " + user.lockedUntil() + ".");
         }
@@ -63,6 +64,34 @@ public class SignerEligibility {
                     "Your profile has no email to send the signing code to.");
         }
         return user;
+    }
+
+    /**
+     * The other party must still be allowed to sign (D37): a contract never becomes SIGNED with a party that is
+     * unverified, past its authorization or reputation-locked, even if that party signed earlier. The reason stays
+     * in the log; the caller only learns that the other party cannot sign now, and may withdraw the offer.
+     */
+    public void requireCounterpartyEligible(String counterpartyId) {
+        Instant now = clock.instant();
+        UserInfo user = userPort.findUser(counterpartyId).orElse(null);
+        String reason = user == null ? SignerNotEligibleException.UNKNOWN_USER
+                : !VERIFIED.equals(user.verificationStatus()) ? SignerNotEligibleException.NOT_VERIFIED
+                : authorizationEnded(user, now) ? SignerNotEligibleException.AUTHORIZATION_EXPIRED
+                : locked(user, now) ? SignerNotEligibleException.LOCKED
+                : null;
+        if (reason != null) {
+            log.warn("Signing refused: counterparty {} is not eligible ({})", counterpartyId, reason);
+            throw new ContractConflictException(ContractConflictException.COUNTERPARTY_NOT_ELIGIBLE,
+                    "The other party cannot sign contracts right now; you can withdraw this offer.");
+        }
+    }
+
+    private static boolean authorizationEnded(UserInfo user, Instant now) {
+        return user.authorizationExpiresAt() != null && !now.isBefore(user.authorizationExpiresAt());
+    }
+
+    private static boolean locked(UserInfo user, Instant now) {
+        return user.lockedUntil() != null && now.isBefore(user.lockedUntil());
     }
 
     private static SignerNotEligibleException refuse(String userId, String code, String message) {

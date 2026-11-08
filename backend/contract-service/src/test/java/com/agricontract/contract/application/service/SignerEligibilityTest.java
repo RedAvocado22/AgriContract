@@ -4,6 +4,7 @@ import com.agricontract.contract.application.dto.UserInfo;
 import com.agricontract.contract.application.exception.SignerNotEligibleException;
 import com.agricontract.contract.application.exception.UserServiceUnavailableException;
 import com.agricontract.contract.application.port.UserPort;
+import com.agricontract.contract.domain.exception.ContractConflictException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -90,6 +91,37 @@ class SignerEligibilityTest {
         when(users.findUser("seller-1")).thenThrow(new UserServiceUnavailableException("down", null));
 
         assertThatThrownBy(() -> eligibility.requireEligible("seller-1"))
+                .isInstanceOf(UserServiceUnavailableException.class);
+    }
+
+    @Test
+    void counterpartyThatCanSign_passes_evenWithoutAnEmail() {
+        when(users.findUser("seller-1")).thenReturn(Optional.of(user("VERIFIED", NOW.plusSeconds(1), NOW, null)));
+
+        eligibility.requireCounterpartyEligible("seller-1");
+    }
+
+    @Test
+    void counterpartyUnverifiedPastAuthorizationLockedOrUnknown_isAConflictWithoutTheReason() {
+        for (UserInfo blocked : new UserInfo[]{
+                user("PENDING", null, null, "s@x.test"),
+                user("VERIFIED", NOW, null, "s@x.test"),
+                user("VERIFIED", null, NOW.plusSeconds(1), "s@x.test"),
+                null}) {
+            when(users.findUser("seller-1")).thenReturn(Optional.ofNullable(blocked));
+
+            assertThatThrownBy(() -> eligibility.requireCounterpartyEligible("seller-1"))
+                    .isInstanceOf(ContractConflictException.class)
+                    .hasMessageNotContaining("lock")
+                    .extracting("code").isEqualTo(ContractConflictException.COUNTERPARTY_NOT_ELIGIBLE);
+        }
+    }
+
+    @Test
+    void counterpartyCheckWithUserServiceDown_failsClosed() {
+        when(users.findUser("seller-1")).thenThrow(new UserServiceUnavailableException("down", null));
+
+        assertThatThrownBy(() -> eligibility.requireCounterpartyEligible("seller-1"))
                 .isInstanceOf(UserServiceUnavailableException.class);
     }
 
