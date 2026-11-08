@@ -17,6 +17,8 @@ import {
 } from "@/features/auth/components/auth-guards"
 import { AccountPage } from "@/routes/account-page"
 import { APP_ROLES } from "@/shared/auth/auth-store"
+import { RequireOrganizationProfile } from "@/features/organization/components/organization-guards"
+import { OrganizationOnboardingPage } from "@/routes/organization-onboarding-page"
 
 function App() {
   return (
@@ -24,9 +26,15 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<RequireAuth />}>
-            <Route path="/account" element={<AccountPage />} />
-            <Route element={<RequireRole roles={APP_ROLES} />}>
-              <Route path="/workspace" element={<AccountPage />} />
+            <Route
+              path="/onboarding"
+              element={<OrganizationOnboardingPage />}
+            />
+            <Route element={<RequireOrganizationProfile />}>
+              <Route path="/account" element={<AccountPage />} />
+              <Route element={<RequireRole roles={APP_ROLES} />}>
+                <Route path="/workspace" element={<AccountPage />} />
+              </Route>
             </Route>
           </Route>
           <Route path="/" element={<HomePage />} />

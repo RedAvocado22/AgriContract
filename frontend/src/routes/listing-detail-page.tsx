@@ -6,6 +6,10 @@ import { buttonVariants } from "@/shared/ui/button"
 import { Footer } from "@/shared/ui/footer"
 import { PublicNav } from "@/shared/ui/public-nav"
 import { StatusBadge } from "@/shared/ui/status-badge"
+import { useAuthStore } from "@/shared/auth/auth-store"
+import { useOrganizationPermissions } from "@/features/organization/hooks/use-organization-permissions"
+import { Button } from "@/shared/ui/button"
+import { Banner } from "@/shared/ui/banner"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -428,6 +432,8 @@ function DescriptionCard({ text }: { text: string }) {
 // ─── PriceCtaCard ─────────────────────────────────────────────────────────────
 
 function PriceCtaCard({ listing }: { listing: ListingDetail }) {
+  const authenticated = useAuthStore(state => state.authenticated)
+  const { canCreateOrSign, profile } = useOrganizationPermissions()
   const diff = listing.pricePerKg - listing.referencePrice
   const diffSign = diff >= 0 ? "+" : ""
 
@@ -455,7 +461,15 @@ function PriceCtaCard({ listing }: { listing: ListingDetail }) {
         )}
       </div>
 
-      <Link
+      {authenticated ? <div className="space-y-3">
+        <Button disabled className="w-full" size="lg">Gửi đề nghị</Button>
+        <Banner variant={canCreateOrSign ? "info" : "warning"}>
+          {profile.isFetching ? "Đang kiểm tra hồ sơ doanh nghiệp…" : canCreateOrSign
+            ? "Chức năng gửi đề nghị chưa sẵn sàng."
+            : "Chưa đủ điều kiện tạo hoặc ký hợp đồng. Cần hồ sơ đã xác minh và vai trò phù hợp."}
+        </Banner>
+        <Link to="/account" className="block text-sm text-primary">Xem hồ sơ doanh nghiệp</Link>
+      </div> : <><Link
         to="/login"
         id="listing-detail-login-cta"
         className="mb-2.5 flex h-[46px] items-center justify-center rounded-[9px] bg-primary text-[15px] font-medium text-white transition-opacity hover:opacity-90"
@@ -468,7 +482,7 @@ function PriceCtaCard({ listing }: { listing: ListingDetail }) {
         className="flex h-[44px] items-center justify-center rounded-[9px] border-[0.5px] border-border text-sm font-medium text-text-primary transition-colors hover:bg-surface-muted"
       >
         Đăng ký doanh nghiệp
-      </Link>
+      </Link></>}
 
       <div className="mt-4 flex items-start gap-2 rounded-[9px] bg-surface-muted px-3.5 py-3">
         <span className="ms mt-px text-[17px] text-text-secondary">lock</span>

@@ -5,7 +5,7 @@ interface FileUploadItem {
   name: string
   /** vd "2,1 MB". Bỏ trống khi status = "failed" — hiện failureReason thay vào. */
   sizeLabel?: string
-  status: "processing" | "ready" | "failed"
+  status: "processing" | "ready" | "failed" | "local"
   failureReason?: string
   onRetry?: () => void
 }
@@ -17,7 +17,10 @@ interface FileUploadProps {
 
 function FileUpload({ files, className }: FileUploadProps) {
   return (
-    <div data-slot="file-upload" className={cn("flex flex-col gap-2", className)}>
+    <div
+      data-slot="file-upload"
+      className={cn("flex flex-col gap-2", className)}
+    >
       {files.map((file) => (
         <div
           key={file.key ?? file.name}
@@ -30,13 +33,17 @@ function FileUpload({ files, className }: FileUploadProps) {
             )}
           />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm text-text-primary">{file.name}</div>
+            <div className="truncate text-sm text-text-primary">
+              {file.name}
+            </div>
             {file.status === "failed" ? (
               <div className="truncate text-[11px] text-danger">
                 Không xử lý được: {file.failureReason}
               </div>
             ) : file.sizeLabel ? (
-              <div className="text-[11px] text-text-muted">{file.sizeLabel}</div>
+              <div className="text-[11px] text-text-muted">
+                {file.sizeLabel}
+              </div>
             ) : null}
           </div>
           {file.status === "processing" ? (
@@ -48,6 +55,10 @@ function FileUpload({ files, className }: FileUploadProps) {
             <span className="flex shrink-0 items-center gap-1 text-[13px] text-success">
               <span className="ms text-[15px]">check_circle</span>
               Sẵn sàng
+            </span>
+          ) : file.status === "local" ? (
+            <span className="shrink-0 text-xs text-text-secondary">
+              Chỉ trên thiết bị
             </span>
           ) : (
             <button

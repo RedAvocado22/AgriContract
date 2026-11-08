@@ -1,20 +1,9 @@
-import { apiClient } from "@/shared/api/client"
-
-export interface MyProfile {
-  userId: string
-  organizationName: string
-}
-
-export async function getMyProfile(signal?: AbortSignal): Promise<MyProfile> {
-  const { data } = await apiClient.get<MyProfile>("/api/v1/users/me", {
-    signal,
-  })
-  if (
-    !data ||
-    typeof data.userId !== "string" ||
-    typeof data.organizationName !== "string"
-  ) {
-    throw new Error("Phản hồi hồ sơ không đúng định dạng.")
-  }
-  return data
+// Compatibility entry point for Phase B consumers.
+import { useAuthStore } from "@/shared/auth/auth-store"
+import { getOrganizationProfile } from "@/features/organization/api/profile"
+export type { OrganizationProfile as MyProfile } from "@/features/organization/api/profile"
+export function getMyProfile(signal?: AbortSignal) {
+  const userId = useAuthStore.getState().userId
+  if (!userId) throw new Error("Bạn cần đăng nhập để đọc hồ sơ.")
+  return getOrganizationProfile(userId, signal)
 }

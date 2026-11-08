@@ -1,13 +1,2 @@
-import { useQuery } from "@tanstack/react-query"
-import { useAuthStore } from "@/shared/auth/auth-store"
-import { getMyProfile } from "../api/profile"
-
-export function useMyProfile() {
-  const userId = useAuthStore((state) => state.userId)
-  const authenticated = useAuthStore((state) => state.authenticated)
-  return useQuery({
-    queryKey: ["my-profile", userId],
-    queryFn: ({ signal }) => getMyProfile(signal),
-    enabled: authenticated && Boolean(userId),
-  })
-}
+// Compatibility entry point for Phase B consumers; organization owns the query.
+export { useOrganizationProfile as useMyProfile } from "@/features/organization/hooks/use-organization-profile"
