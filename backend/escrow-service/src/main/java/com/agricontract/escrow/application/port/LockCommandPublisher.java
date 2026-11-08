@@ -7,4 +7,10 @@ import com.agricontract.escrow.domain.model.DepositLeg;
 public interface LockCommandPublisher {
 
     void lockRequested(DepositLeg leg, String correlationId, String causationId);
+
+    /**
+     * Sends the leg's original bank.lock_requested again, same eventId and payload (bank dedups on sourceEventId and
+     * re-evaluates a request it refused, D39). Must run inside the caller's transaction.
+     */
+    void resend(DepositLeg leg);
 }
