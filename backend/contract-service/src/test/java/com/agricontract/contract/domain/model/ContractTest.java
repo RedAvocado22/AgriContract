@@ -1,6 +1,7 @@
 package com.agricontract.contract.domain.model;
 
 import com.agricontract.contract.domain.event.*;
+import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.exception.UnauthorizedContractAccessException;
 import com.agricontract.contract.domain.model.consent.SignerRole;
 import com.agricontract.contract.domain.model.vo.*;
@@ -111,24 +112,25 @@ class ContractTest {
     // ─── activate ────────────────────────────────────────────────────────────
 
     @Test
-    void activate_happyPath_statusActiveAndEventEmitted() {
+    void activate_signedContract_becomesActive_withoutALegacyEvent() {
         Contract contract = signedContract();
         contract.pullDomainEvents();
 
         contract.activate();
 
         assertThat(contract.getStatus()).isEqualTo(ContractStatus.ACTIVE);
-        List<DomainEvent> events = contract.pullDomainEvents();
-        assertThat(events).hasSize(1);
-        assertThat(events.get(0)).isInstanceOf(ContractActivatedEvent.class);
+        // contract.activated goes through the event outbox (#103), not the Phase 1 domain events.
+        assertThat(contract.pullDomainEvents()).isEmpty();
     }
 
     @Test
-    void activate_invalidStatus_throws() {
+    void activate_notSigned_isAConflict() {
         Contract contract = offered();
 
         assertThatThrownBy(contract::activate)
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(ContractConflictException.class)
+                .extracting(e -> ((ContractConflictException) e).getCode())
+                .isEqualTo(ContractConflictException.NOT_ACTIVATABLE);
     }
 
     // ─── pullDomainEvents ─────────────────────────────────────────────────────
