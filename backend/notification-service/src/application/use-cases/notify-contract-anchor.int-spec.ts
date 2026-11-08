@@ -32,6 +32,10 @@ const config = validate(process.env);
 const db = config.db;
 const MAILHOG = process.env.MAILHOG_API_URL ?? 'http://localhost:8025';
 const KIND = COMMAND_KINDS.contractAnchor;
+/** A Message-ID as the mail server reports it: `<token@sender-domain>`. */
+const MESSAGE_ID = expect.stringMatching(
+  /^<[^<>@\s]+@[^<>@\s]+>$/,
+) as unknown as string;
 
 interface MailHogMessage {
   ID: string;
@@ -114,7 +118,7 @@ describe('contract anchor email on real MySQL and MailHog', () => {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT recipient_email, recipient_user_id, event_type, notification_type,
               template_version, status, retry_count, user_id,
-              sent_at IS NOT NULL AS has_sent_at
+              provider_message_id, sent_at IS NOT NULL AS has_sent_at
          FROM notification_logs
         WHERE event_id = ?
         ORDER BY recipient_email`,
@@ -177,6 +181,8 @@ describe('contract anchor email on real MySQL and MailHog', () => {
         retry_count: 0,
         // Phase 1's column still holds the address (design §6, V3 decides its fate).
         user_id: 'buyer-a1@anchor.int.test',
+        // The Message-ID the mail server accepted (design §8).
+        provider_message_id: MESSAGE_ID,
         has_sent_at: 1,
       },
       {
@@ -188,9 +194,16 @@ describe('contract anchor email on real MySQL and MailHog', () => {
         status: 'SENT',
         retry_count: 0,
         user_id: 'seller-a1@anchor.int.test',
+        provider_message_id: MESSAGE_ID,
         has_sent_at: 1,
       },
     ]);
+
+    // Each email got its own id, and an id names the sender's domain, never
+    // the recipient: nothing about the addressee is copied into the column.
+    const ids = rows.map((r) => String(r.provider_message_id));
+    expect(ids[0]).not.toBe(ids[1]);
+    expect(ids.join(' ')).not.toContain('anchor.int.test');
 
     const mails = await mailsContaining('buyer-a1@anchor.int.test');
     mailIds.push(...mails.map((m) => m.ID));

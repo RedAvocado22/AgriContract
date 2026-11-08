@@ -15,6 +15,7 @@ import {
   EmailDeliveryError,
   type EmailMessage,
   type EmailPort,
+  type EmailReceipt,
 } from './ports/email.port';
 import type { NotificationLogRepository } from './ports/notification-log.repository';
 
@@ -98,9 +99,10 @@ export class NotificationSender {
    *    the wait after one more look: ClaimWaitAbortedError, and the consumer
    *    parks the message for redelivery.
    * 3. Send outside any transaction, refreshing the claim every
-   *    CLAIM_HEARTBEAT_MS until the send ends, then record SENT, or FAILED
-   *    with retry_count + 1 and the failure code, and rethrow so the whole
-   *    message is retried (recipients already SENT are skipped then).
+   *    CLAIM_HEARTBEAT_MS until the send ends, then record SENT with the
+   *    provider's message id, or FAILED with retry_count + 1 and the failure
+   *    code, and rethrow so the whole message is retried (recipients already
+   *    SENT are skipped then).
    *
    * Every error thrown is a NotificationError whose message holds only the
    * event id and a failure code: it is logged on each retry, so it must not
@@ -131,8 +133,9 @@ export class NotificationSender {
     const claim = await this.claimOrWait(log);
     if (claim === 'ALREADY_SENT') return;
 
+    let receipt: EmailReceipt;
     try {
-      await this.sendWithHeartbeat(log.key, {
+      receipt = await this.sendWithHeartbeat(log.key, {
         to: recipientEmail,
         subject,
         body,
@@ -143,7 +146,9 @@ export class NotificationSender {
       await this.logStep(eventId, () => this.logs.markFailed(log.key, code));
       throw new NotificationDeliveryError(eventId, 'email', code);
     }
-    await this.logStep(eventId, () => this.logs.markSent(log.key));
+    await this.logStep(eventId, () =>
+      this.logs.markSent(log.key, receipt.providerMessageId),
+    );
   }
 
   /**
@@ -168,14 +173,15 @@ export class NotificationSender {
 
   /**
    * Sends `message`, refreshing its claim every CLAIM_HEARTBEAT_MS until the
-   * send ends, successfully or not. A failed beat is logged (event id and
-   * code only) and does not stop the send: the next beat may succeed, and if
-   * none does the claim can be taken over after the lease, as for a crash.
+   * send ends, successfully or not, and gives back the provider's receipt. A
+   * failed beat is logged (event id and code only) and does not stop the
+   * send: the next beat may succeed, and if none does the claim can be taken
+   * over after the lease, as for a crash.
    */
   private async sendWithHeartbeat(
     key: NotificationKey,
     message: EmailMessage,
-  ): Promise<void> {
+  ): Promise<EmailReceipt> {
     let beating = false;
     const timer = setInterval(() => {
       if (beating) return; // the previous beat is still waiting for the database
@@ -190,7 +196,7 @@ export class NotificationSender {
         .finally(() => (beating = false));
     }, CLAIM_HEARTBEAT_MS);
     try {
-      await this.email.send(message);
+      return await this.email.send(message);
     } finally {
       clearInterval(timer);
     }

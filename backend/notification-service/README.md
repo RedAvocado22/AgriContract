@@ -118,7 +118,15 @@ identity and metadata columns, backfills every Phase 1 row to `recipient_email =
 `uq_event_user` with `uq_event_recipient_type (event_id, recipient_email, notification_type)`. The app does not
 run migrations; the compose service `notification-migrate` (`flyway/flyway:10.10.0`) does, before the app starts.
 Every row the service writes names its `template_version` (each `NotificationKind` carries one), so after V2 the
-column default `p1-unknown` only ever means "row written before V2". `provider_message_id` is not written yet.
+column default `p1-unknown` only ever means "row written before V2".
+
+`provider_message_id` is written with `sent_at`, for every email including the OTP one: the log keeps the
+provider's id and the sent time (design §8), which is what traces a delivery at the provider later, and what
+matches a bounce — it quotes the Message-ID of the mail it answers — back to the row that sent it. It is evidence,
+never a key: an email the mail server accepted is `SENT` whether or not the server named an id, so a missing one
+stays `NULL` and nothing fails. An id wider than the column (`VARCHAR(255)`) is stored as `NULL` rather than
+truncated or passed on to fail — by the time it is written the email has already gone out, and an `UPDATE` the
+server refused would leave the row `PENDING` and send that email a second time after the claim lease.
 
 > **V2 is one-way for the Java service.** Once V2 has run, the Java `notification-service` can no longer write to
 > this database: it inserts without `recipient_email`/`notification_type`, so a second recipient of the same event

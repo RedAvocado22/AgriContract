@@ -26,6 +26,8 @@ const KIND = {
   notificationType: 'TEST_MAIL',
   templateVersion: 'test-mail/v1',
 };
+/** Provider id of a send by another delivery of the same email. */
+const OTHER_PROVIDER_ID = '<other-delivery@provider.test>';
 /** Key of the email sent by sender.send('evt-1', KIND, 'a@example.test', ...). */
 const KEY = {
   eventId: 'evt-1',
@@ -117,6 +119,67 @@ describe('NotificationSender.send (plan §4.3)', () => {
     expect(logs.get(KEY)).toMatchObject({
       status: NotificationStatus.SENT,
       retryCount: 1,
+    });
+  });
+
+  /*
+   * The log keeps the provider's id with the sent time (design §8): it is how
+   * a delivery is traced at the provider afterwards, and how a bounce — which
+   * quotes the Message-ID of the mail it answers — is matched back to the row
+   * that sent it (design §9).
+   */
+  describe('provider message id', () => {
+    it('records the id the provider gave the accepted email', async () => {
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+      expect(logs.get(KEY)).toMatchObject({
+        status: NotificationStatus.SENT,
+        providerMessageId: '<fake-1@provider.test>',
+      });
+    });
+
+    it('records SENT with no id when the provider named none', async () => {
+      email.providerMessageId = () => null;
+
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+      expect(logs.get(KEY)).toMatchObject({
+        status: NotificationStatus.SENT,
+        providerMessageId: null,
+      });
+    });
+
+    it('a failed attempt records no id, and keeps none after the retake', async () => {
+      email.failFor.add('a@example.test');
+      await expect(
+        sender.send('evt-1', KIND, 'a@example.test', 'S', 'B'),
+      ).rejects.toThrow();
+
+      expect(logs.get(KEY)).toMatchObject({
+        status: NotificationStatus.FAILED,
+        providerMessageId: null,
+      });
+
+      // The row then holds the id of the send that actually went out.
+      email.failFor.clear();
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+
+      expect(logs.get(KEY)).toMatchObject({
+        status: NotificationStatus.SENT,
+        retryCount: 1,
+        providerMessageId: '<fake-1@provider.test>',
+      });
+    });
+
+    it('each recipient of one event keeps its own id', async () => {
+      await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
+      await sender.send('evt-1', KIND, 'b@example.test', 'S', 'B');
+
+      expect(logs.get(KEY)?.providerMessageId).toBe('<fake-1@provider.test>');
+      expect(
+        logs.get({ ...KEY, recipientEmail: 'b@example.test' })
+          ?.providerMessageId,
+      ).toBe('<fake-2@provider.test>');
     });
   });
 
@@ -338,7 +401,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
 
     it('SENT meanwhile: skips the recipient without sending', async () => {
       clock.onSleep = (n) => {
-        if (n === 5) void logs.markSent(KEY);
+        if (n === 5) void logs.markSent(KEY, OTHER_PROVIDER_ID);
       };
 
       await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
@@ -419,7 +482,7 @@ describe('NotificationSender.send (plan §4.3)', () => {
       it('SENT on the last look: skips the recipient, no error', async () => {
         clock.onSleep = (n) => {
           if (n !== 3) return;
-          void logs.markSent(KEY);
+          void logs.markSent(KEY, OTHER_PROVIDER_ID);
           shutdown.abort();
         };
 

@@ -4,6 +4,7 @@ import { EmailDeliveryError } from '../../application/ports/email.port';
 import {
   NodemailerEmailAdapter,
   OTP_SMTP_TIMEOUTS,
+  sentMessageId,
   smtpFailureCode,
   type CreateMailTransport,
 } from './nodemailer-email.adapter';
@@ -89,6 +90,52 @@ describe('NodemailerEmailAdapter', () => {
       (sendMail.mock.calls[0] as [Record<string, unknown>])[0],
     ).toMatchObject({
       from: 'noreply@agricontract.com',
+    });
+  });
+
+  /*
+   * The log keeps the provider's id with the sent time (design §8), so the
+   * adapter has to report what the server answered. It is evidence only: an
+   * email the server accepted is sent whether or not it named an id, so a
+   * missing one must never turn into a failure (which would send a second
+   * copy on the retry).
+   */
+  describe('provider message id', () => {
+    it('reports the Message-ID the server accepted', async () => {
+      const sendMail = jest
+        .fn()
+        .mockResolvedValue({ messageId: '<abc123@agricontract.test>' });
+      const { adapter } = adapterWith(sendMail);
+
+      await expect(
+        adapter.send({ to: 'a@x.test', subject: 's', body: 'b' }),
+      ).resolves.toEqual({ providerMessageId: '<abc123@agricontract.test>' });
+    });
+
+    it.each([
+      ['no id at all', {}],
+      ['a blank id', { messageId: '   ' }],
+      ['nothing but the id missing', { response: '250 OK' }],
+    ])('succeeds with a null id when the server gives %s', async (_c, info) => {
+      const { adapter } = adapterWith(jest.fn().mockResolvedValue(info));
+
+      await expect(
+        adapter.send({ to: 'a@x.test', subject: 's', body: 'b' }),
+      ).resolves.toEqual({ providerMessageId: null });
+    });
+
+    it('survives a transport that resolves with nothing', async () => {
+      const { adapter } = adapterWith(jest.fn().mockResolvedValue(undefined));
+
+      await expect(
+        adapter.send({ to: 'a@x.test', subject: 's', body: 'b' }),
+      ).resolves.toEqual({ providerMessageId: null });
+    });
+
+    it('trims the id, as a header value may arrive padded', () => {
+      expect(sentMessageId({ messageId: ' <abc@x.test> ' })).toBe(
+        '<abc@x.test>',
+      );
     });
   });
 

@@ -1,7 +1,7 @@
 ---
 name: notification-service-phase2-design
 description: "Notification-service Phase 2 — event-to-template routing, OTP delivery, email anchor, retry/DLQ và idempotency theo recipient."
-status: PARTLY IMPLEMENTED — §2.2 OTP endpoint (#114), §3.1/§6 V2 dedup (#115) và command `notification.contract_anchor_requested` đã code; các command còn lại của §4 chưa.
+status: PARTLY IMPLEMENTED — §2.2 OTP endpoint (#114), §3.1/§6 V2 dedup (#115), §8 provider id + sent time và command `notification.contract_anchor_requested` đã code; các command còn lại của §4 chưa.
 metadata:
   type: design
   phase: 2
@@ -190,6 +190,15 @@ Khi migrate, cột Phase 1 `user_id` đổi semantics thành `recipient_user_id`
 **Lưu ý (05/11/2026):** dù tên là `user_id`, Phase 1 (Java và NestJS) thực tế lưu **email người nhận** vào cột này, không phải platform userId; row OTP của §2.2 cũng vậy (`event_id = requestId`, `user_id = recipientEmail`). Vì thế backfill có dạng `legacy:alice@…`. Platform userId (`recipients[].userId`, `recipientUserId`) chỉ được lưu khi V2 thêm cột riêng; việc giữ hay đổi tên `user_id` chờ owner chốt.
 
 **Cập nhật (08/11/2026, V2 của #115 đã implement):** V2 ghi `recipient_user_id` ngay cho row OTP của §2.2 (lấy từ `OtpEmailRequest.recipientUserId`); 9 event Phase 1 để `NULL` vì payload của chúng chỉ có email. Cột là `VARCHAR(255)` (khớp giới hạn 1–255 ký tự mà validator của `recipientUserId` nhận) và `recipient_email` là `VARCHAR(320)` thay vì 255 (backfill ghi `legacy:` + `user_id` tối đa 255, không được truncate). `template_version` cũng được ghi cho **mọi** row mới: mỗi `NotificationKind` khai báo version của nó (`otp-email/v1` cho OTP, `contract-signed/p1`… cho Phase 1), nên sau V2 giá trị `p1-unknown` chỉ còn nghĩa "row ghi trước V2". `user_id` giữ nguyên, việc rename/drop vẫn chờ owner chốt (sẽ là V3).
+
+**Cập nhật (08/11/2026, `provider_message_id` đã ghi):** mọi email — kể cả email OTP của §2.2 — ghi
+`provider_message_id` cùng `sent_at`: id mail server trả về khi nhận message (với SMTP là Message-ID). Đây là bằng
+chứng theo §8 và là đường để đối soát bounce (§9: bounce quote lại Message-ID của mail nó trả lời), **không phải
+key**: điều kiện duy nhất để row thành `SENT` là provider đã nhận mail, nên provider không trả id thì cột để `NULL`
+và không có gì fail. Id dài hơn `VARCHAR(255)` cũng ghi `NULL` chứ không truncate và không để `UPDATE` fail — lúc
+markSent chạy thì email đã gửi rồi, một `UPDATE` bị server từ chối (ER_DATA_TOO_LONG ở strict mode) sẽ để row
+`PENDING` và gửi lại chính email đó sau khi hết claim lease; id bị cắt thì không match bounce nào mà trông như
+match được. Retake (row `FAILED` hoặc `PENDING` quá hạn) xoá cột, nên mỗi row `PENDING` chỉ mô tả lần gửi đang chạy.
 
 ## 7. Configuration
 

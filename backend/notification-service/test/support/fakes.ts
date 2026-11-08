@@ -2,6 +2,7 @@ import {
   EmailDeliveryError,
   type EmailMessage,
   type EmailPort,
+  type EmailReceipt,
 } from '../../src/application/ports/email.port';
 import type {
   ClaimResult,
@@ -20,6 +21,8 @@ interface Row extends NotificationLogProps {
   failureReason: string | null;
   /** sent_at, on the fake clock. */
   sentAt: number | null;
+  /** provider_message_id, written with sent_at. */
+  providerMessageId: string | null;
 }
 
 /** A row as stored, without the claim timestamp. */
@@ -69,6 +72,7 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
         updatedAt: this.now,
         failureReason: null,
         sentAt: null,
+        providerMessageId: null,
       });
       return Promise.resolve('CLAIMED');
     }
@@ -85,6 +89,7 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
       row.subject = log.subject;
       row.body = log.body;
       row.templateVersion = log.templateVersion;
+      row.providerMessageId = null;
       return Promise.resolve('CLAIMED');
     }
     return Promise.resolve('IN_PROGRESS');
@@ -96,10 +101,14 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
     return Promise.resolve();
   }
 
-  markSent(key: NotificationKey): Promise<void> {
+  markSent(
+    key: NotificationKey,
+    providerMessageId: string | null,
+  ): Promise<void> {
     this.update(key, (row) => {
       row.status = NotificationStatus.SENT;
       row.sentAt = this.now;
+      row.providerMessageId = providerMessageId;
     });
     return Promise.resolve();
   }
@@ -135,6 +144,7 @@ export class InMemoryNotificationLogRepository implements NotificationLogReposit
       updatedAt,
       failureReason: null,
       sentAt: status === NotificationStatus.SENT ? updatedAt : null,
+      providerMessageId: null,
     });
   }
 
@@ -182,6 +192,13 @@ function legacyKey(eventId: string, email: string): NotificationKey {
 export class FakeEmailPort implements EmailPort {
   readonly sent: EmailMessage[] = [];
   readonly failFor = new Set<string>();
+  /**
+   * The provider id each accepted message reports, numbered over the sends
+   * that succeeded: `<fake-1@provider.test>`, `<fake-2@provider.test>`...
+   * Replace it with `() => null` to stand for a provider that names none.
+   */
+  providerMessageId: () => string | null = () =>
+    `<fake-${this.sent.length}@provider.test>`;
   private held?: Promise<void>;
 
   hold(): () => void {
@@ -190,7 +207,7 @@ export class FakeEmailPort implements EmailPort {
     return release;
   }
 
-  async send(message: EmailMessage): Promise<void> {
+  async send(message: EmailMessage): Promise<EmailReceipt> {
     const held = this.held;
     this.held = undefined;
     if (held) await held;
@@ -198,5 +215,6 @@ export class FakeEmailPort implements EmailPort {
       throw new EmailDeliveryError('EENVELOPE/550');
     }
     this.sent.push(message);
+    return { providerMessageId: this.providerMessageId() };
   }
 }

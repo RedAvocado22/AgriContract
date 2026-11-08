@@ -42,8 +42,17 @@ export interface NotificationLogRepository {
    */
   heartbeat(key: NotificationKey): Promise<void>;
 
-  /** Records the claimed email as SENT, with `sent_at` on the database clock. */
-  markSent(key: NotificationKey): Promise<void>;
+  /**
+   * Records the claimed email as SENT, with `sent_at` on the database clock
+   * and the provider's id of the accepted message — the log keeps both
+   * (design §8). `providerMessageId` is null when the provider named none;
+   * the row is SENT either way, because the provider accepting the email is
+   * what makes it sent.
+   */
+  markSent(
+    key: NotificationKey,
+    providerMessageId: string | null,
+  ): Promise<void>;
 
   /**
    * Records the claimed email as FAILED and counts the failure (retry_count + 1).
