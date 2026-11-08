@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.agricontract.contract.application.dto.ActivationRecoveryView;
 import com.agricontract.contract.application.dto.CoffeeContractView;
 import com.agricontract.contract.application.dto.ContractDetail;
 import com.agricontract.contract.application.dto.ContractResponse;
@@ -15,6 +16,7 @@ import com.agricontract.contract.application.usecase.*;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +57,25 @@ class GetContractEndpointTest {
                 .andExpect(jsonPath("$.signedContentHash").value("d".repeat(64)))
                 .andExpect(jsonPath("$.milestones").isEmpty())
                 .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    void activationRecoveryAppearsOnlyAfterADepositLockFailure() throws Exception {
+        String id = UUID.randomUUID().toString();
+        CoffeeContractView view = new CoffeeContractView(id, "listing-1", new BigDecimal("2500.5"), "buyer-1",
+                "seller-1", ContractStatus.SIGNED, TERMS_JSON, "d".repeat(64));
+        when(useCase.execute(anyString(), anyString(), anyBoolean())).thenReturn(new ContractDetail(view, null));
+        mvc.perform(get("/api/v1/contracts/{id}", id).principal(buyer()))
+                .andExpect(jsonPath("$.activationRecovery").doesNotExist());
+
+        when(useCase.execute(anyString(), anyString(), anyBoolean())).thenReturn(new ContractDetail(
+                view.withActivationRecovery(new ActivationRecoveryView(Instant.parse("2026-11-09T03:00:00Z"),
+                        Instant.parse("2026-11-16T17:00:00Z"), List.of())), null));
+        mvc.perform(get("/api/v1/contracts/{id}", id).principal(buyer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activationRecovery.depositLockFailedAt").value("2026-11-09T03:00:00Z"))
+                .andExpect(jsonPath("$.activationRecovery.oneSidedCancelAllowedFrom").value("2026-11-16T17:00:00Z"))
+                .andExpect(jsonPath("$.activationRecovery.cancelRequestedBy").isEmpty());
     }
 
     @Test
