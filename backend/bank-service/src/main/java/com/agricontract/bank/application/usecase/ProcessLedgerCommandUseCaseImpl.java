@@ -16,8 +16,9 @@ import java.time.Clock;
 import java.util.Objects;
 
 /**
- * bank.lock_requested → one ledger entry → bank.lock_completed, or bank.lock_failed when the command breaks a ledger
- * rule (bank design §3, §4). sourceEventId is the idempotency key: a repeated command writes nothing and re-sends the
+ * A bank command (lock, release or refund) → one ledger entry → its _completed result, or its _failed result when the
+ * command breaks a ledger rule (bank design §3, §4). The bank is a "dumb writer": escrow validated conservation before
+ * sending a release or refund (bank design §2b.5), so no balance is checked here. sourceEventId is the idempotency key: a repeated command writes nothing and re-sends the
  * confirmation of the entry already recorded, because the repeat may mean the first confirmation was lost.
  */
 @Slf4j
@@ -44,8 +45,8 @@ public class ProcessLedgerCommandUseCaseImpl implements ProcessLedgerCommandUseC
                     command.userId(), command.entryType(), command.fundType(), command.remedyDecisionId(),
                     command.remedyLegId(), new Money(command.amount()), clock.instant());
         } catch (InvalidLedgerEntryException e) {
-            log.warn("event=bank_lock_rejected sourceEventId={} contractId={} reason={}",
-                    command.sourceEventId(), command.contractId(), e.getMessage());
+            log.warn("event=bank_command_rejected operation={} sourceEventId={} contractId={} reason={}",
+                    command.operation(), command.sourceEventId(), command.contractId(), e.getMessage());
             transactionTemplate.executeWithoutResult(status -> results.failed(command, e.getMessage()));
             return;
         }
@@ -55,7 +56,7 @@ public class ProcessLedgerCommandUseCaseImpl implements ProcessLedgerCommandUseC
                 ledger.append(entry);
                 results.completed(command, entry);
             });
-            log.info("event=bank_lock_recorded sourceEventId={} contractId={} entryType={} ledgerEntryId={}",
+            log.info("event=bank_entry_recorded sourceEventId={} contractId={} entryType={} ledgerEntryId={}",
                     command.sourceEventId(), command.contractId(), command.entryType(), entry.getEntryId());
         } catch (DuplicateLedgerEntryException e) {
             // A concurrent delivery committed first; its entry is the answer for this one too.
@@ -67,11 +68,11 @@ public class ProcessLedgerCommandUseCaseImpl implements ProcessLedgerCommandUseC
         if (!sameCommand(command, recorded)) {
             // Same sourceEventId, different content: a producer bug or an edited replay. Confirming it would tell
             // escrow an amount was locked that never was, so nothing is sent.
-            log.error("event=bank_lock_replay_mismatch sourceEventId={} contractId={} ledgerEntryId={}",
+            log.error("event=bank_command_replay_mismatch sourceEventId={} contractId={} ledgerEntryId={}",
                     command.sourceEventId(), command.contractId(), recorded.getEntryId());
             return;
         }
-        log.info("event=bank_lock_replayed sourceEventId={} ledgerEntryId={}",
+        log.info("event=bank_command_replayed sourceEventId={} ledgerEntryId={}",
                 command.sourceEventId(), recorded.getEntryId());
         transactionTemplate.executeWithoutResult(status -> results.completed(command, recorded));
     }
