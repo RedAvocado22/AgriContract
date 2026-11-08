@@ -35,6 +35,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
     static final String PRODUCER = "contract-service";
     static final String CONTRACT_SIGNED = "contract.signed";
     static final String CONTRACT_ANCHOR_REQUESTED = "notification.contract_anchor_requested";
+    static final String CONTRACT_ACTIVATED = "contract.activated";
 
     private static final Pattern UUID_TEXT =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -98,6 +99,29 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
 
         outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_ANCHOR_REQUESTED, 1, signedAt, PRODUCER,
                 contractId, contractId, null, null, payload));
+    }
+
+    /**
+     * contract.activated (golden-flow-events.yaml contractActivated): product-service moves the reservation from
+     * SIGNED_RELEASABLE to COMMITTED. reservedQuantity is the terms' total until #232 (as for contract.signed).
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void contractActivated(Contract contract, Instant activatedAt, String correlationId, String causationId) {
+        if (contract.getStatus() != ContractStatus.ACTIVE || contract.getCoffeeTerms() == null) {
+            throw new IllegalStateException("contract.activated for contract " + contract.getContractId().value()
+                    + " in status " + contract.getStatus());
+        }
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("listingId", uuid(contract.getListingId(), "listingId"));
+        payload.put("reservedQuantity", contract.getCoffeeTerms().snapshot().totalQuantity());
+        payload.put("activatedAt", activatedAt.toString());
+
+        outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_ACTIVATED, 1, activatedAt, PRODUCER, contractId,
+                correlationId, causationId, null, payload));
     }
 
     private static Map<String, Object> recipient(String userId, String email, String role) {

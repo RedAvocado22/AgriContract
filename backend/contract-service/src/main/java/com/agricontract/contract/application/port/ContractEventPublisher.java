@@ -18,4 +18,10 @@ public interface ContractEventPublisher {
      * terms and their hash. Written next to contract.signed, which notification-service does not consume.
      */
     void contractAnchorRequested(Contract contract, Instant signedAt);
+
+    /**
+     * contract.activated (#103): product-service's hard inventory commit. correlationId continues the activation
+     * chain; causationId is the escrow.deposit_locked that activated the contract.
+     */
+    void contractActivated(Contract contract, Instant activatedAt, String correlationId, String causationId);
 }
