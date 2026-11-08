@@ -250,6 +250,78 @@ $defs:
         x-consumers: [contract-service]
         x-source: milestone-escrow-phase2-design.md sections 3.1 and 7.2
         x-verification-matrix: [11, 11b]
+  contractDepositLockRetryRequested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.deposit_lock_retry_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, operatorUserId, requestedAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              operatorUserId: {$ref: "#/$defs/uuid"}
+              requestedAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service]
+        x-source: milestone-escrow-phase2-design.md sections 3.1 and 7.2 (RetryDepositLock)
+        x-verification-matrix: [11]
+        x-semantics: OPERATOR RetryDepositLock on a SIGNED contract after escrow.deposit_lock_failed. Escrow starts a new retry cycle for deposit legs that are not LOCKED; LOCKED legs are never requested again.
+  contractActivationRefundRequested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: contract.activation_refund_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, operatorUserId, requestedAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              operatorUserId: {$ref: "#/$defs/uuid"}
+              requestedAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: contract-service
+        x-consumers: [escrow-service]
+        x-source: milestone-escrow-phase2-design.md sections 3.1, 6.7 and 7.2 (MarkActivationFailed)
+        x-verification-matrix: [11b, 11i]
+        x-semantics: Written in the transaction that moves the contract SIGNED -> ACTIVATION_REFUND_PENDING. Escrow stops deposit lock retries and returns every LOCKED deposit leg to its owner by fundType (BUYER_DEPOSIT via bank.refund_requested REFUND_TO_BUYER, SELLER_DEPOSIT via bank.release_requested RELEASE_TO_SELLER). No penalty, no reputation effect.
+  escrowActivationRefundCompleted:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: escrow.activation_refund_completed}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, returnedLegs, completedAt]
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              returnedLegs:
+                description: Deposit legs returned to their owner; empty when no leg was LOCKED.
+                type: array
+                maxItems: 2
+                items:
+                  type: object
+                  required: [fundType, userId, amount, ledgerEntryId]
+                  properties:
+                    fundType: {enum: [BUYER_DEPOSIT, SELLER_DEPOSIT]}
+                    userId: {$ref: "#/$defs/uuid"}
+                    amount: {$ref: "#/$defs/positiveMoney"}
+                    ledgerEntryId: {$ref: "#/$defs/uuid"}
+                  additionalProperties: false
+              completedAt: {type: string, format: date-time}
+            additionalProperties: false
+        x-publisher: escrow-service
+        x-consumers: [contract-service]
+        x-source: milestone-escrow-phase2-design.md sections 3.1 and 7.2
+        x-verification-matrix: [11b, 11i, 8]
+        x-terminal-guard: Published once, only after the bank confirmed every return and the contract's remaining deposit lock is 0. A failed return publishes nothing; the contract stays ACTIVATION_REFUND_PENDING and escrow alerts the operator.
   bankLockRequested:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -1349,6 +1421,9 @@ oneOf:
   - $ref: "#/$defs/contractActivated"
   - $ref: "#/$defs/escrowDepositLocked"
   - $ref: "#/$defs/escrowDepositLockFailed"
+  - $ref: "#/$defs/contractDepositLockRetryRequested"
+  - $ref: "#/$defs/contractActivationRefundRequested"
+  - $ref: "#/$defs/escrowActivationRefundCompleted"
   - $ref: "#/$defs/bankLockRequested"
   - $ref: "#/$defs/bankLockCompleted"
   - $ref: "#/$defs/bankLockFailed"
