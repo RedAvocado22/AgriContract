@@ -247,6 +247,58 @@ class DepositLockResultFlowIntegrationTest {
         assertThat(event.at("/payload/sellerDepositState").asText()).isEqualTo("NOT_REQUIRED");
     }
 
+    /** D42: OPERATOR retry restarts only the failed leg with its original request; the lock then succeeds. */
+    @Test
+    void operatorRetry_resendsTheFailedLegOnly_thenTheContractLocks() throws Exception {
+        Map<String, JsonNode> commands = sign("20000000.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+        JsonNode seller = commands.get("LOCK_SELLER_DEPOSIT");
+        result(buyer, true);
+        exhaust(seller);
+        receiveOne(LOCK_FAILED_EVENTS);
+        admin.purgeQueue(LOCK_COMMANDS, false);
+
+        retryRequested(buyer);
+
+        assertThat(receiveOne(LOCK_COMMANDS)).as("same request, same eventId").isEqualTo(seller);
+        assertThat(rabbit.receive(LOCK_COMMANDS, 1_500)).as("the locked buyer leg is not requested again").isNull();
+        assertThat(status(seller)).isEqualTo("REQUESTED");
+        assertThat(failures(seller)).isZero();
+
+        result(seller, true);
+        FrozenSchemas.assertEvent("escrowDepositLocked", receiveOne(DEPOSIT_EVENTS));
+    }
+
+    /** D42: a retry cycle that fails again is reported again, so OPERATOR learns the retry failed too. */
+    @Test
+    void retryCycleThatFailsAgain_isReportedAgain() throws Exception {
+        Map<String, JsonNode> commands = sign("0.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+        exhaust(buyer);
+        receiveOne(LOCK_FAILED_EVENTS);
+
+        retryRequested(buyer);
+        await().atMost(Duration.ofSeconds(10)).until(() -> "REQUESTED".equals(status(buyer)));
+        exhaust(buyer);
+
+        receiveOne(LOCK_FAILED_EVENTS);
+        assertThat(outboxRows(commands, "escrow.deposit_lock_failed")).isEqualTo(2);
+    }
+
+    /** D42: a retry while the legs are still in their cycle (or a redelivered retry) sends nothing. */
+    @Test
+    void retryWithNothingFailed_sendsNothing() throws Exception {
+        Map<String, JsonNode> commands = sign("0.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+
+        Map<String, Object> retry = retryEvent(buyer);
+        send(retry, "agricontract.contracts");
+        send(retry, "agricontract.contracts");
+
+        assertThat(rabbit.receive(LOCK_COMMANDS, 2_000)).isNull();
+        assertThat(status(buyer)).isEqualTo("REQUESTED");
+    }
+
     @Test
     void resultForARequestEscrowNeverSent_goesToTheDlq() throws Exception {
         Map<String, JsonNode> commands = sign("0.00");
@@ -354,9 +406,36 @@ class DepositLockResultFlowIntegrationTest {
     }
 
     private void send(Map<String, Object> event) throws Exception {
+        send(event, "agricontract.bank");
+    }
+
+    private void send(Map<String, Object> event, String exchange) throws Exception {
         Message message = MessageBuilder.withBody(JSON.writeValueAsBytes(event))
                 .setContentType(MessageProperties.CONTENT_TYPE_JSON).build();
-        rabbit.send("agricontract.bank", (String) event.get("eventType"), message);
+        rabbit.send(exchange, (String) event.get("eventType"), message);
+    }
+
+    private void retryRequested(JsonNode anyCommandOfTheContract) throws Exception {
+        send(retryEvent(anyCommandOfTheContract), "agricontract.contracts");
+    }
+
+    /** What contract-service writes for OPERATOR RetryDepositLock (contractDepositLockRetryRequested). */
+    private static Map<String, Object> retryEvent(JsonNode command) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", command.at("/payload/contractId").asText());
+        payload.put("operatorUserId", UUID.randomUUID().toString());
+        payload.put("requestedAt", "2026-11-09T02:00:00Z");
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("eventId", UUID.randomUUID().toString());
+        event.put("eventType", "contract.deposit_lock_retry_requested");
+        event.put("eventVersion", 1);
+        event.put("occurredAt", "2026-11-09T02:00:00Z");
+        event.put("producer", "contract-service");
+        event.put("aggregateId", payload.get("contractId"));
+        event.put("correlationId", payload.get("contractId"));
+        event.put("causationId", null);
+        event.put("payload", payload);
+        return event;
     }
 
     private static LockResultCommand locked(JsonNode command) {

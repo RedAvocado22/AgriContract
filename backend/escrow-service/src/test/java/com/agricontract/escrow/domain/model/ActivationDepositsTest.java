@@ -46,6 +46,24 @@ class ActivationDepositsTest {
         assertThat(buyerOnly.leg(DepositLegParty.SELLER)).isEmpty();
     }
 
+    @Test
+    void restartingAFailedLeg_givesItAFreshCycle_andLeavesOtherLegsAlone() {
+        DepositLeg failed = exhausted(DepositLegParty.SELLER);
+        DepositLeg locked = leg(DepositLegParty.BUYER);
+        locked.markLocked(UUID.randomUUID().toString(), NOW);
+
+        assertThat(failed.restartLockCycle(NOW)).isTrue();
+        assertThat(failed.getStatus()).isEqualTo(DepositLegStatus.REQUESTED);
+        assertThat(failed.getFailedAttempts()).isZero();
+        assertThat(failed.markFailed("down again", NOW, ONE_RETRY))
+                .as("the schedule applies again from its first step")
+                .isEqualTo(DepositLeg.FailureOutcome.RETRY_SCHEDULED);
+
+        assertThat(locked.restartLockCycle(NOW)).isFalse();
+        assertThat(locked.getStatus()).isEqualTo(DepositLegStatus.LOCKED);
+        assertThat(leg(DepositLegParty.BUYER).restartLockCycle(NOW)).as("still in its cycle").isFalse();
+    }
+
     private static DepositLeg exhausted(DepositLegParty party) {
         DepositLeg leg = leg(party);
         leg.markFailed("bank down", NOW, ONE_RETRY);
