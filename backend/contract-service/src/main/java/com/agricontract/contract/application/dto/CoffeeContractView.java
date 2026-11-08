@@ -14,7 +14,19 @@ public record CoffeeContractView(
         String sellerId,
         ContractStatus status,
         String termsJson,
-        String signedContentHash) {
+        String signedContentHash,
+        ActivationRecoveryView activationRecovery) {
+
+    /** Without activation recovery: every contract whose deposit lock has not failed. */
+    public CoffeeContractView(String contractId, String listingId, BigDecimal reservedQuantity, String buyerId,
+                              String sellerId, ContractStatus status, String termsJson, String signedContentHash) {
+        this(contractId, listingId, reservedQuantity, buyerId, sellerId, status, termsJson, signedContentHash, null);
+    }
+
+    public CoffeeContractView withActivationRecovery(ActivationRecoveryView recovery) {
+        return new CoffeeContractView(contractId, listingId, reservedQuantity, buyerId, sellerId, status, termsJson,
+                signedContentHash, recovery);
+    }
 
     public static CoffeeContractView from(Contract contract) {
         var terms = contract.getCoffeeTerms();

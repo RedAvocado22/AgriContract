@@ -1,5 +1,6 @@
 package com.agricontract.contract.application.usecase;
 
+import com.agricontract.contract.application.dto.ActivationRecoveryView;
 import com.agricontract.contract.application.dto.CoffeeContractView;
 import com.agricontract.contract.application.dto.ContractDetail;
 import com.agricontract.contract.application.dto.ContractResponse;
@@ -7,6 +8,7 @@ import com.agricontract.contract.application.exception.ContractNotFoundException
 import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractId;
+import com.agricontract.contract.domain.repository.ActivationRecoveryRepository;
 import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 public class GetContractUseCase {
 
     private final ContractRepository contractRepository;
+    private final ActivationRecoveryRepository activationRecoveries;
 
     public ContractDetail execute(String contractId, String requesterId, boolean isAdmin) {
         Contract contract = contractRepository.findById(new ContractId(contractId))
@@ -26,7 +29,9 @@ public class GetContractUseCase {
         }
 
         return contract.getCoffeeTerms() != null
-                ? new ContractDetail(CoffeeContractView.from(contract), null)
+                ? new ContractDetail(CoffeeContractView.from(contract).withActivationRecovery(
+                        activationRecoveries.findByContractId(contractId).map(ActivationRecoveryView::from)
+                                .orElse(null)), null)
                 : new ContractDetail(null, ContractResponse.from(contract));
     }
 }
