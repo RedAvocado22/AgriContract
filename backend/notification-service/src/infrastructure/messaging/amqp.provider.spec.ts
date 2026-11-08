@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Channel, ChannelModel } from 'amqplib';
 import { validate, type AppConfig } from '../../config/env.validation';
 import { AmqpService, PREFETCH, type AmqpConnect } from './amqp.provider';
+import { queueNames } from './topology';
 
 class FakeChannel extends EventEmitter {
   prefetch = jest.fn(() => Promise.resolve());
@@ -108,7 +109,9 @@ describe('AmqpService', () => {
     service.onModuleInit();
     await jest.advanceTimersByTimeAsync(0);
     expect(first.channel.prefetch).toHaveBeenCalledWith(PREFETCH);
-    expect(first.channel.assertQueue).toHaveBeenCalledTimes(18);
+    expect(first.channel.assertQueue).toHaveBeenCalledTimes(
+      queueNames().length * 2,
+    );
     expect(ready).toHaveBeenCalledWith(first.channel);
 
     first.channel.emit('error', new Error('PRECONDITION_FAILED'));
@@ -120,7 +123,9 @@ describe('AmqpService', () => {
     expect(service.isHealthy()).toBe(true);
     expect(second.channel.prefetch).toHaveBeenCalledWith(PREFETCH);
     expect(second.channel.assertExchange).toHaveBeenCalledTimes(6);
-    expect(second.channel.bindQueue).toHaveBeenCalledTimes(18);
+    expect(second.channel.bindQueue).toHaveBeenCalledTimes(
+      queueNames().length * 2,
+    );
     expect(ready).toHaveBeenCalledTimes(2);
     expect(ready).toHaveBeenLastCalledWith(second.channel);
     expect(first.close).toHaveBeenCalled(); // the old connection is not leaked

@@ -17,6 +17,7 @@ export const TOPOLOGY = [
       'contract.delivered',
       'contract.cancelled',
       'contract.disputed',
+      'notification.contract_anchor_requested',
     ],
   },
   {
@@ -32,6 +33,39 @@ export const TOPOLOGY = [
 ] as const;
 
 export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
+
+/**
+ * Phase 2 notification commands: a full event envelope whose
+ * `payload.recipients` carries the addresses (notification-commands.yaml),
+ * not a flat Phase 1 event. They ride their publisher's exchange and are
+ * routed by their eventType (design §2.1), so a command of
+ * agricontract.contracts sits in the same TOPOLOGY row as contract.signed and
+ * dead-letters to the same DLX.
+ *
+ * `notification.contract_anchor_requested` is the signed-contract email.
+ * contract-service already writes it to its outbox (#360) and declares this
+ * queue, its DLQ and the DLX ahead of us (ConsumerQueuesDeclaredAhead), so
+ * the names and options here must stay byte-identical to that class.
+ */
+export const COMMAND_ROUTING_KEYS = [
+  'notification.contract_anchor_requested',
+] as const;
+
+export type CommandRoutingKey = (typeof COMMAND_ROUTING_KEYS)[number];
+
+/** The flat Phase 1 events (D5), everything TOPOLOGY holds that is not a command. */
+export type LegacyRoutingKey = Exclude<RoutingKey, CommandRoutingKey>;
+
+export const isCommandRoutingKey = (
+  key: RoutingKey,
+): key is CommandRoutingKey =>
+  (COMMAND_ROUTING_KEYS as readonly string[]).includes(key);
+
+/** Routing keys of the flat Phase 1 events, in TOPOLOGY order. */
+export const legacyRoutingKeys = (): LegacyRoutingKey[] =>
+  TOPOLOGY.flatMap((row) => [...row.routingKeys]).filter(
+    (key): key is LegacyRoutingKey => !isCommandRoutingKey(key),
+  );
 
 export const queueName = (routingKey: RoutingKey): string =>
   `notification-svc.${routingKey}`;

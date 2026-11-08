@@ -22,8 +22,22 @@ import {
 } from '../../application/notification-errors';
 import { eventingLogger } from '../logging/eventing-logger';
 import { AmqpService } from './amqp.provider';
+import { COMMAND_ROUTES, type CommandRoutes } from './command-routes';
 import { LEGACY_ROUTES, type LegacyRoutes } from './legacy-routes';
-import { TOPOLOGY, queueName } from './topology';
+import {
+  TOPOLOGY,
+  isCommandRoutingKey,
+  queueName,
+  type RoutingKey,
+} from './topology';
+
+/**
+ * What a consumer calls itself in the eventing logs. A Phase 1 routing key is
+ * prefixed, as it has been since M1 (`notification.contract.signed`); a Phase 2
+ * command already starts with `notification.`, so it is used as it is.
+ */
+const consumerName = (key: RoutingKey): string =>
+  isCommandRoutingKey(key) ? key : `notification.${key}`;
 
 /**
  * Upper bound on waiting for in-flight messages at shutdown: above the
@@ -126,11 +140,21 @@ export class NotificationEventConsumer
 
   constructor(
     private readonly amqp: AmqpService,
-    @Inject(LEGACY_ROUTES) private readonly routes: LegacyRoutes,
+    @Inject(LEGACY_ROUTES) private readonly legacy: LegacyRoutes,
+    @Inject(COMMAND_ROUTES) private readonly commands: CommandRoutes,
     @Optional()
     @Inject(SHUTDOWN_CONTROLLER)
     private readonly shutdown?: AbortController,
   ) {}
+
+  /**
+   * The handler of every queue of TOPOLOGY: the flat Phase 1 events and the
+   * Phase 2 commands together. Typed as a Record over RoutingKey, so a key
+   * neither table routes is a compile error, not a queue consumed by nobody.
+   */
+  private get routes(): Record<RoutingKey, (body: Buffer) => Promise<void>> {
+    return { ...this.legacy, ...this.commands };
+  }
 
   async onModuleInit(): Promise<void> {
     await this.amqp.onChannelReady((channel) => this.attach(channel));
@@ -159,14 +183,15 @@ export class NotificationEventConsumer
     this.consumerTags = [];
     const tracked = this.track(channel);
     const logger = eventingLogger(this.logger);
+    const routes = this.routes;
     for (const row of TOPOLOGY) {
       for (const key of row.routingKeys) {
         const tag = await consumeEvents({
           channel: tracked,
           queue: queueName(key),
           consumer: new QueueConsumer(
-            `notification.${key}`,
-            this.routes[key],
+            consumerName(key),
+            routes[key],
             this.gate,
           ),
           logger,

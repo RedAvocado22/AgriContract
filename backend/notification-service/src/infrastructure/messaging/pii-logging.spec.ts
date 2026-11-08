@@ -11,12 +11,15 @@ import type { Channel } from 'amqplib';
 import { InMemoryNotificationLogRepository } from '../../../test/support/fakes';
 import { NotificationSender } from '../../application/notification-sender';
 import {
+  NotifyContractAnchorUseCase,
   NotifyContractSignedUseCase,
   NotifyEscrowLockedUseCase,
 } from '../../application/use-cases';
 import { validate, type AppConfig } from '../../config/env.validation';
 import { NodemailerEmailAdapter } from '../email/nodemailer-email.adapter';
 import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
+import { anchorEnvelope, anchorPayload } from '../../../test/support/commands';
+import { commandRoutes } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
 import { NotificationEventConsumer } from './notification-event.consumer';
 
@@ -71,7 +74,10 @@ async function harness(sendMail: jest.Mock) {
     cancel: () => Promise.resolve(),
   };
 
-  const consumer = new NotificationEventConsumer(amqp, routes);
+  const commands = commandRoutes({
+    contractAnchor: new NotifyContractAnchorUseCase(sender),
+  });
+  const consumer = new NotificationEventConsumer(amqp, routes, commands);
   await consumer.onModuleInit();
   await ready(channel as unknown as Channel);
 
@@ -141,6 +147,37 @@ describe('no personal data in the logs', () => {
     for (const secret of [SELLER, NAME, 'sellerName']) {
       expect(log).not.toContain(secret);
     }
+  });
+
+  /*
+   * A Phase 2 command carries its addresses inside `payload.recipients`, so
+   * a rejected command is the one case where the parser has read an address
+   * before failing.
+   */
+  it('a rejected notification command: the dead-letter log shows no recipient address', async () => {
+    const lines = captureLogs();
+    const { deliver, nacks } = await harness(jest.fn());
+
+    deliver(
+      'notification-svc.notification.contract_anchor_requested',
+      JSON.stringify(
+        anchorEnvelope({
+          payload: anchorPayload({
+            recipients: [{ userId: null, email: BUYER, role: 'BANK' }],
+          }),
+        }),
+      ),
+    );
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(nacks).toEqual([false]); // dead-lettered at once, no retry
+    const log = lines.join('\n');
+    expect(log).toContain(
+      'Malformed notification.contract_anchor_requested command',
+    );
+    expect(log).toContain('recipients[0].role');
+    expect(log).not.toContain(BUYER);
+    expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });
 
   it('an unexpected error with personal data in its message is reduced to its code', async () => {

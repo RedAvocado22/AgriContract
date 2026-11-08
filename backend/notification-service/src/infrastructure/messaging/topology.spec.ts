@@ -32,6 +32,8 @@ const EXPECTED_QUEUES = [
   'notification-svc.contract.delivered',
   'notification-svc.contract.cancelled',
   'notification-svc.contract.disputed',
+  // Phase 2 command, on the publisher's exchange like the events above.
+  'notification-svc.notification.contract_anchor_requested',
   'notification-svc.escrow.locked',
   'notification-svc.escrow.released',
   'notification-svc.escrow.penalized',
@@ -39,8 +41,16 @@ const EXPECTED_QUEUES = [
   'notification-svc.category.rejected',
 ];
 
+/** The exchange row a queue belongs to, from the routing key in its name. */
+const dlxOf = (queue: string): string => {
+  const key = queue.replace('notification-svc.', '').replace(/\.dlq$/, '');
+  if (key.startsWith('escrow.')) return 'notification-svc.escrow.dlx';
+  if (key.startsWith('category.')) return 'notification-svc.events.dlx';
+  return 'notification-svc.contracts.dlx';
+};
+
 describe('topology (must match the Java RabbitMQConfig)', () => {
-  it('names the 9 queues and 9 DLQs', () => {
+  it('names the 10 queues and 10 DLQs', () => {
     expect(queueNames()).toEqual(EXPECTED_QUEUES);
     expect(dlqNames()).toEqual(EXPECTED_QUEUES.map((q) => `${q}.dlq`));
   });
@@ -60,17 +70,11 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     ]);
   });
 
-  it('declares 18 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
+  it('declares 20 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
     const { channel, queues } = recordingChannel();
     await declareTopology(channel);
 
-    expect(queues).toHaveLength(18);
-    const dlxOf = (q: string) =>
-      q.includes('.contract.')
-        ? 'notification-svc.contracts.dlx'
-        : q.includes('.escrow.')
-          ? 'notification-svc.escrow.dlx'
-          : 'notification-svc.events.dlx';
+    expect(queues).toHaveLength(20);
 
     for (const q of EXPECTED_QUEUES) {
       // toEqual on the whole options object also fails on any extra option
@@ -100,11 +104,23 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, bindings } = recordingChannel();
     await declareTopology(channel);
 
-    expect(bindings).toHaveLength(18);
+    expect(bindings).toHaveLength(20);
     expect(bindings).toContainEqual([
       'notification-svc.contract.signed',
       'agricontract.contracts',
       'contract.signed',
+    ]);
+    // Exactly the queue, DLX and binding contract-service declares ahead of us
+    // (ConsumerQueuesDeclaredAhead), so its declaration and ours are the same.
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.contract_anchor_requested',
+      'agricontract.contracts',
+      'notification.contract_anchor_requested',
+    ]);
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.contract_anchor_requested.dlq',
+      'notification-svc.contracts.dlx',
+      'notification.contract_anchor_requested',
     ]);
     expect(bindings).toContainEqual([
       'notification-svc.contract.signed.dlq',

@@ -6,6 +6,7 @@ import type { AmqpMessageLike } from '@agricontract/eventing';
 import { validate } from '../../config/env.validation';
 import { MYSQL_POOL, MysqlService } from '../persistence/mysql.provider';
 import { AMQP_CONNECT, AmqpService } from './amqp.provider';
+import { COMMAND_ROUTES } from './command-routes';
 import { LEGACY_ROUTES, type LegacyRoutes } from './legacy-routes';
 import {
   DRAIN_TIMEOUT_MS,
@@ -78,6 +79,7 @@ async function startApp(handler: () => Promise<void>) {
       { provide: AMQP_CONNECT, useValue: () => Promise.resolve(connection) },
       NotificationEventConsumer,
       { provide: LEGACY_ROUTES, useValue: routes },
+      { provide: COMMAND_ROUTES, useValue: routes },
       MysqlService,
       { provide: MYSQL_POOL, useValue: pool },
     ],

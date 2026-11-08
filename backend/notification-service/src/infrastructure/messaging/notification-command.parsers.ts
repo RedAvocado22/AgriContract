@@ -1,0 +1,286 @@
+import {
+  InvalidEnvelopeError,
+  NonRetryableError,
+  parseEnvelope,
+  type EventEnvelope,
+} from '@agricontract/eventing';
+import {
+  RECIPIENT_ROLES,
+  type ContractAnchorRequestedCommand,
+  type NotificationRecipient,
+  type RecipientRole,
+} from '../../application/commands';
+
+/*
+ * Parsers for the Phase 2 notification commands of
+ * contracts/events/notification-commands.yaml. Unlike the flat Phase 1 events
+ * (legacy-payload.parsers.ts), a command is a full event envelope and its
+ * recipients live in `payload.recipients`, so parseEnvelope runs first and the
+ * payload is read after it.
+ *
+ * Every failure is a NonRetryableError: the message goes to the DLQ at once
+ * instead of being retried three times, because no redelivery of the same
+ * bytes can become valid. parseEnvelope's own InvalidEnvelopeError is
+ * converted, since the queue consumer only passes a NonRetryableError through
+ * unchanged (anything else it replaces with a retryable code).
+ *
+ * What the messages may say: a field name, a JSON type, the index of a bad
+ * recipient and the event id when it is a plain id. Never a value, because
+ * these messages are logged on every dead-letter and `payload.recipients` holds
+ * email addresses (review #172).
+ *
+ * The envelope checks are the command contract's, which is stricter than
+ * event-envelope.yaml on two points: `correlationId` is required, and
+ * `subject` is not among the allowed properties.
+ */
+
+/** UUIDs and ids like evt-anchor-1729: safe to log, unlike free text or emails. */
+const SAFE_ID = /^[A-Za-z0-9-]{1,64}$/;
+
+const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+const SHA256_HEX = /^[a-f0-9]{64}$/;
+
+/** RFC 3339, the shape every producer's Instant serialises to. */
+const DATE_TIME =
+  /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
+
+/**
+ * An address the contract's `format: email` can accept. Deliberately not
+ * stricter than that format: a recipient the publisher considers valid must
+ * reach SMTP, not the DLQ. The value is never quoted in the error.
+ */
+const EMAIL = /^[^\s@]+@[^\s@]+$/;
+
+/** Properties the command envelope allows; `subject` of event-envelope.yaml is not one. */
+const ENVELOPE_PROPERTIES = [
+  'eventId',
+  'eventType',
+  'eventVersion',
+  'occurredAt',
+  'producer',
+  'aggregateId',
+  'correlationId',
+  'causationId',
+  'payload',
+] as const;
+
+class CommandReader {
+  constructor(
+    private readonly eventType: string,
+    private readonly eventId: string,
+    private readonly payload: Record<string, unknown>,
+  ) {}
+
+  /** Rejects any payload property the command does not declare (additionalProperties: false). */
+  only(fields: readonly string[]): this {
+    for (const key of Object.keys(this.payload)) {
+      if (!fields.includes(key)) {
+        throw this.error(`unknown payload property "${key}"`);
+      }
+    }
+    return this;
+  }
+
+  uuid(field: string): string {
+    const value = this.string(field);
+    if (!UUID.test(value)) throw this.error(`field "${field}" must be a UUID`);
+    return value;
+  }
+
+  hash(field: string): string {
+    const value = this.string(field);
+    if (!SHA256_HEX.test(value)) {
+      throw this.error(`field "${field}" must be 64 lowercase hex characters`);
+    }
+    return value;
+  }
+
+  dateTime(field: string): string {
+    const value = this.string(field);
+    if (!DATE_TIME.test(value)) {
+      throw this.error(`field "${field}" must be an RFC 3339 date-time`);
+    }
+    return value;
+  }
+
+  /** A JSON object of any shape, as `contractTermsSnapshot` is declared. */
+  object(field: string): Record<string, unknown> {
+    const value = this.payload[field];
+    if (!isPlainObject(value)) {
+      throw this.error(
+        `field "${field}" must be a JSON object, got ${describe(value)}`,
+      );
+    }
+    return value;
+  }
+
+  /** `payload.recipients`: at least one, each exactly {userId, email, role}. */
+  recipients(): NotificationRecipient[] {
+    const value = this.payload.recipients;
+    if (!Array.isArray(value) || value.length === 0) {
+      throw this.error(
+        `field "recipients" must be a non-empty array, got ${describe(value)}`,
+      );
+    }
+    return value.map((item, i) => this.recipient(item, i));
+  }
+
+  private recipient(value: unknown, index: number): NotificationRecipient {
+    const at = `recipients[${index}]`;
+    if (!isPlainObject(value)) {
+      throw this.error(`${at} must be a JSON object, got ${describe(value)}`);
+    }
+    for (const key of Object.keys(value)) {
+      if (!['userId', 'email', 'role'].includes(key)) {
+        throw this.error(`unknown property "${key}" in ${at}`);
+      }
+    }
+
+    const userId = value.userId;
+    // Nullable by contract, but absent is not null: the property is required.
+    if (!('userId' in value)) throw this.error(`${at}.userId is missing`);
+    if (userId !== null && !(typeof userId === 'string' && UUID.test(userId))) {
+      throw this.error(`${at}.userId must be a UUID or null`);
+    }
+
+    const email = value.email;
+    if (typeof email !== 'string' || !EMAIL.test(email)) {
+      throw this.error(`${at}.email must be an email address`);
+    }
+
+    const role = value.role;
+    if (
+      typeof role !== 'string' ||
+      !(RECIPIENT_ROLES as readonly string[]).includes(role)
+    ) {
+      throw this.error(
+        `${at}.role must be one of ${RECIPIENT_ROLES.join(', ')}`,
+      );
+    }
+
+    return { userId, email, role: role as RecipientRole };
+  }
+
+  private string(field: string): string {
+    const value = this.payload[field];
+    if (typeof value !== 'string' || value === '') {
+      throw this.error(
+        `field "${field}" must be a non-empty string, got ${describe(value)}`,
+      );
+    }
+    return value;
+  }
+
+  error(reason: string): NonRetryableError {
+    return malformed(this.eventType, this.eventId, reason);
+  }
+}
+
+/** The one error shape of this module: never quotes a payload value. */
+function malformed(
+  eventType: string,
+  eventId: string,
+  reason: string,
+): NonRetryableError {
+  const event = SAFE_ID.test(eventId) ? ` (event ${eventId})` : '';
+  return new NonRetryableError(
+    `Malformed ${eventType} command: ${reason}${event}`,
+  );
+}
+
+/**
+ * Validates the envelope of a command and returns a reader over its payload.
+ * `producer` is checked against the contract's `const`: a command from another
+ * service is not the one this template renders.
+ */
+function readCommand(
+  body: Buffer,
+  eventType: string,
+  producer: string,
+): { envelope: EventEnvelope; payload: CommandReader } {
+  let envelope: EventEnvelope;
+  try {
+    envelope = parseEnvelope(body);
+  } catch (err) {
+    if (err instanceof InvalidEnvelopeError) {
+      throw new NonRetryableError(
+        `Malformed ${eventType} command: ${err.message}`,
+      );
+    }
+    throw err;
+  }
+
+  const fail = (reason: string) =>
+    malformed(eventType, envelope.eventId, reason);
+
+  for (const key of Object.keys(envelope as unknown as object)) {
+    if (!(ENVELOPE_PROPERTIES as readonly string[]).includes(key)) {
+      throw fail(`unknown envelope property "${key}"`);
+    }
+  }
+  // eventType is pattern-checked by the envelope, so quoting it leaks nothing.
+  if (envelope.eventType !== eventType) {
+    throw fail(`eventType "${envelope.eventType}" is not this queue's command`);
+  }
+  if (envelope.producer !== producer) {
+    throw fail(`producer must be "${producer}"`);
+  }
+  if (
+    typeof envelope.correlationId !== 'string' ||
+    !UUID.test(envelope.correlationId)
+  ) {
+    throw fail('correlationId must be a UUID');
+  }
+  if (!isPlainObject(envelope.payload)) {
+    throw fail('payload must be a JSON object');
+  }
+
+  return {
+    envelope,
+    payload: new CommandReader(eventType, envelope.eventId, envelope.payload),
+  };
+}
+
+export const CONTRACT_ANCHOR_REQUESTED =
+  'notification.contract_anchor_requested';
+
+/** Payload properties of `contractAnchorRequested`, all required. */
+export const CONTRACT_ANCHOR_FIELDS = [
+  'contractId',
+  'recipients',
+  'contractTermsSnapshot',
+  'signedContentHash',
+  'signedAt',
+] as const;
+
+export function parseContractAnchorRequested(
+  body: Buffer,
+): ContractAnchorRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    CONTRACT_ANCHOR_REQUESTED,
+    'contract-service',
+  );
+  payload.only(CONTRACT_ANCHOR_FIELDS);
+
+  return {
+    eventId: envelope.eventId,
+    contractId: payload.uuid('contractId'),
+    recipients: payload.recipients(),
+    contractTermsSnapshot: payload.object('contractTermsSnapshot'),
+    signedContentHash: payload.hash('signedContentHash'),
+    signedAt: payload.dateTime('signedAt'),
+  };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** The JSON type of a bad value, never the value itself. */
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'an array';
+  return `a ${typeof value}`;
+}

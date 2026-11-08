@@ -148,6 +148,26 @@ describe('NotificationSender.send (plan §4.3)', () => {
       });
     });
 
+    /*
+     * A Phase 2 command knows the recipient's account (payload.recipients),
+     * the Phase 1 events only the address; the row says which it was.
+     */
+    it('records the recipient platform id when the caller passes one', async () => {
+      await sender.send(
+        'evt-1',
+        KIND,
+        'a@example.test',
+        'S',
+        'B',
+        'f1e2d3c4-b5a6-4978-8a6b-5c4d3e2f1a0b',
+      );
+
+      expect(logs.get(KEY)).toMatchObject({
+        recipientUserId: 'f1e2d3c4-b5a6-4978-8a6b-5c4d3e2f1a0b',
+        recipientEmail: 'a@example.test',
+      });
+    });
+
     it('two recipients of one event: two emails, two records', async () => {
       await sender.send('evt-1', KIND, 'a@example.test', 'S', 'B');
       await sender.send('evt-1', KIND, 'b@example.test', 'S', 'B');
