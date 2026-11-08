@@ -13,4 +13,14 @@ public interface LockCommandPublisher {
      * re-evaluates a request it refused, D39). Must run inside the caller's transaction.
      */
     void resend(DepositLeg leg);
+
+    /**
+     * The return of a locked deposit to its owner (#247): bank.refund_requested (buyer, REFUND_TO_BUYER) or
+     * bank.release_requested (seller, RELEASE_TO_SELLER), eventId = sourceEventId = the leg's returnRequestEventId.
+     * Must run inside the caller's transaction.
+     */
+    void returnRequested(DepositLeg leg, String correlationId, String causationId);
+
+    /** Sends the leg's return command again, same eventId and payload. Must run inside the caller's transaction. */
+    void resendReturn(DepositLeg leg);
 }

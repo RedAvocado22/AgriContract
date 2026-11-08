@@ -4,6 +4,7 @@ import com.agricontract.escrow.application.port.DepositEventPublisher;
 import com.agricontract.escrow.domain.model.ActivationDeposits;
 import com.agricontract.escrow.domain.model.DepositLeg;
 import com.agricontract.escrow.domain.model.DepositLegParty;
+import com.agricontract.escrow.domain.model.DepositLegStatus;
 import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.outbox.OutboxWriter;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +32,7 @@ public class OutboxDepositEventPublisher implements DepositEventPublisher {
     static final String PRODUCER = "escrow-service";
     static final String DEPOSIT_LOCKED = "escrow.deposit_locked";
     static final String DEPOSIT_LOCK_FAILED = "escrow.deposit_lock_failed";
+    static final String ACTIVATION_REFUND_COMPLETED = "escrow.activation_refund_completed";
     static final String LOCKED_STATE = "DEPOSIT_LOCKED";
     static final String LOCK_FAILED_STATE = "LOCK_FAILED";
     /** The contract has no seller deposit (sellerDepositAmount = 0), so there is no seller leg. */
@@ -70,6 +73,34 @@ public class OutboxDepositEventPublisher implements DepositEventPublisher {
                 .collect(Collectors.joining("; ")));
 
         outbox.append(new EventEnvelope(UUID.randomUUID(), DEPOSIT_LOCK_FAILED, 1, clock.instant(), PRODUCER,
+                contractId, correlationId, causationId, null, payload));
+    }
+
+    /**
+     * escrow.activation_refund_completed: written once, when the result that settles the last leg commits.
+     * returnedLegs: one entry per deposit given back, with the bank ledger entry of the return.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void activationRefundCompleted(String contractId, ActivationDeposits deposits, String correlationId,
+                                          String causationId) {
+        List<Map<String, Object>> returned = deposits.legs().stream()
+                .filter(l -> l.getStatus() == DepositLegStatus.RETURNED)
+                .map(l -> {
+                    Map<String, Object> leg = new LinkedHashMap<>();
+                    leg.put("fundType", l.getParty().fundType());
+                    leg.put("userId", l.getUserId());
+                    leg.put("amount", l.getAmount().amount().toPlainString());
+                    leg.put("ledgerEntryId", l.getReturnLedgerEntryId());
+                    return leg;
+                })
+                .toList();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("returnedLegs", returned);
+        payload.put("completedAt", clock.instant().toString());
+
+        outbox.append(new EventEnvelope(UUID.randomUUID(), ACTIVATION_REFUND_COMPLETED, 1, clock.instant(), PRODUCER,
                 contractId, correlationId, causationId, null, payload));
     }
 

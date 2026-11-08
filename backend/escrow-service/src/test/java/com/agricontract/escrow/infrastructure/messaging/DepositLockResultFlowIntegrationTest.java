@@ -52,6 +52,7 @@ class DepositLockResultFlowIntegrationTest {
     static final String LOCK_COMMANDS = "test.result-flow.lock-commands";
     static final String DEPOSIT_EVENTS = "test.result-flow.deposit-locked";
     static final String LOCK_FAILED_EVENTS = "test.result-flow.deposit-lock-failed";
+    static final String REFUND_COMPLETED_EVENTS = "test.result-flow.activation-refund-completed";
     static final String COMPLETED_DLQ = RabbitMQConfig.LOCK_COMPLETED_QUEUE + ".dlq";
     static final ObjectMapper JSON = new ObjectMapper();
 
@@ -93,6 +94,10 @@ class DepositLockResultFlowIntegrationTest {
         admin.declareQueue(lockFailed);
         admin.declareBinding(BindingBuilder.bind(lockFailed).to(escrow).with("escrow.deposit_lock_failed"));
         admin.purgeQueue(LOCK_FAILED_EVENTS, false);
+        Queue refundCompleted = new Queue(REFUND_COMPLETED_EVENTS, false, false, false);
+        admin.declareQueue(refundCompleted);
+        admin.declareBinding(BindingBuilder.bind(refundCompleted).to(escrow).with("escrow.activation_refund_completed"));
+        admin.purgeQueue(REFUND_COMPLETED_EVENTS, false);
         admin.purgeQueue(LOCK_COMMANDS, false);
         admin.purgeQueue(DEPOSIT_EVENTS, false);
         admin.purgeQueue(COMPLETED_DLQ, false);
@@ -299,6 +304,108 @@ class DepositLockResultFlowIntegrationTest {
         assertThat(status(buyer)).isEqualTo("REQUESTED");
     }
 
+    /** #247: buyer locked, seller out of retries, parties cancel → buyer deposit refunded, then completed once. */
+    @Test
+    void cancelAfterAPartialLock_refundsTheLockedBuyerDeposit_thenReportsCompletionOnce() throws Exception {
+        Map<String, JsonNode> commands = sign("20000000.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+        JsonNode seller = commands.get("LOCK_SELLER_DEPOSIT");
+        result(buyer, true);
+        exhaust(seller);
+        receiveOne(LOCK_FAILED_EVENTS);
+        admin.purgeQueue(LOCK_COMMANDS, false);
+
+        refundRequested(buyer, List.of("BUYER", "SELLER"), "BOTH_PARTIES");
+
+        JsonNode refund = receiveOne(LOCK_COMMANDS);
+        FrozenSchemas.assertEvent("bankRefundRequested", refund);
+        assertThat(refund.at("/payload/entryType").asText()).isEqualTo("REFUND_TO_BUYER");
+        assertThat(refund.at("/payload/fundType").asText()).isEqualTo("BUYER_DEPOSIT");
+        assertThat(refund.at("/payload/amount").asText()).isEqualTo(buyer.at("/payload/amount").asText());
+        assertThat(rabbit.receive(LOCK_COMMANDS, 1_500)).as("the seller deposit was never locked").isNull();
+        assertThat(rabbit.receive(REFUND_COMPLETED_EVENTS, 500)).as("refund not confirmed yet").isNull();
+
+        Map<String, Object> refunded = returnResult(refund, true);
+        send(refunded);
+        JsonNode completed = receiveOne(REFUND_COMPLETED_EVENTS);
+        FrozenSchemas.assertEvent("escrowActivationRefundCompleted", completed);
+        assertThat(completed.at("/payload/returnedLegs")).hasSize(1);
+        assertThat(completed.at("/payload/returnedLegs/0/fundType").asText()).isEqualTo("BUYER_DEPOSIT");
+        assertThat(completed.at("/payload/returnedLegs/0/ledgerEntryId").asText())
+                .isEqualTo(((Map<?, ?>) refunded.get("payload")).get("ledgerEntryId"));
+
+        send(returnResult(refund, true));                              // bank replay
+        assertThat(rabbit.receive(REFUND_COMPLETED_EVENTS, 1_500)).isNull();
+        assertThat(outboxRows(commands, "escrow.activation_refund_completed")).isEqualTo(1);
+        assertThat(status(buyer)).isEqualTo("RETURNED");
+        assertThat(status(seller)).isEqualTo("CANCELLED");
+    }
+
+    /** #247: nothing locked → completed at once with no returned leg. */
+    @Test
+    void cancelWithNothingLocked_completesAtOnce() throws Exception {
+        Map<String, JsonNode> commands = sign("20000000.00");
+        exhaust(commands.get("LOCK_BUYER_DEPOSIT"));
+        exhaust(commands.get("LOCK_SELLER_DEPOSIT"));
+        receiveOne(LOCK_FAILED_EVENTS);
+        admin.purgeQueue(LOCK_COMMANDS, false);
+
+        refundRequested(commands.get("LOCK_BUYER_DEPOSIT"), List.of("SELLER"), "ONE_PARTY_AFTER_WINDOW");
+
+        JsonNode completed = receiveOne(REFUND_COMPLETED_EVENTS);
+        FrozenSchemas.assertEvent("escrowActivationRefundCompleted", completed);
+        assertThat(completed.at("/payload/returnedLegs")).isEmpty();
+        assertThat(rabbit.receive(LOCK_COMMANDS, 1_500)).as("no bank command").isNull();
+    }
+
+    /** #247: a lock in flight when the parties cancel: completion waits for its result; a late lock is returned. */
+    @Test
+    void cancelWhileALockIsInFlight_waitsForItsResult_andReturnsALateLock() throws Exception {
+        Map<String, JsonNode> commands = sign("20000000.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+        JsonNode seller = commands.get("LOCK_SELLER_DEPOSIT");
+        admin.purgeQueue(LOCK_COMMANDS, false);
+
+        refundRequested(buyer, List.of("BUYER", "SELLER"), "BOTH_PARTIES");
+        await().atMost(Duration.ofSeconds(10)).until(() -> "CANCEL_PENDING".equals(status(buyer)));
+        assertThat(rabbit.receive(REFUND_COMPLETED_EVENTS, 1_000)).as("locks still in flight").isNull();
+
+        result(seller, false);                                          // in-flight lock refused: cancelled
+        await().atMost(Duration.ofSeconds(10)).until(() -> "CANCELLED".equals(status(seller)));
+        result(buyer, true);                                            // in-flight lock landed: give it back
+        JsonNode refund = receiveOne(LOCK_COMMANDS);
+        FrozenSchemas.assertEvent("bankRefundRequested", refund);
+        assertThat(rabbit.receive(REFUND_COMPLETED_EVENTS, 1_000)).isNull();
+
+        send(returnResult(refund, true));
+        assertThat(receiveOne(REFUND_COMPLETED_EVENTS).at("/payload/returnedLegs")).hasSize(1);
+        assertThat(rabbit.receive(DEPOSIT_EVENTS, 500)).as("never activated").isNull();
+    }
+
+    /** #247: a refused seller release is resent with the same eventId, then confirmed. */
+    @Test
+    void refusedReturn_isResentWithTheSameEventId() throws Exception {
+        Map<String, JsonNode> commands = sign("20000000.00");
+        JsonNode buyer = commands.get("LOCK_BUYER_DEPOSIT");
+        JsonNode seller = commands.get("LOCK_SELLER_DEPOSIT");
+        exhaust(buyer);
+        result(seller, true);
+        receiveOne(LOCK_FAILED_EVENTS);
+        admin.purgeQueue(LOCK_COMMANDS, false);
+
+        refundRequested(seller, List.of("BUYER", "SELLER"), "BOTH_PARTIES");
+        JsonNode release = receiveOne(LOCK_COMMANDS);
+        FrozenSchemas.assertEvent("bankReleaseRequested", release);
+        assertThat(release.at("/payload/entryType").asText()).isEqualTo("RELEASE_TO_SELLER");
+
+        send(returnResult(release, false));
+        assertThat(receiveOne(LOCK_COMMANDS)).as("same command, same eventId").isEqualTo(release);
+        send(returnResult(release, true));
+
+        FrozenSchemas.assertEvent("escrowActivationRefundCompleted", receiveOne(REFUND_COMPLETED_EVENTS));
+        assertThat(status(seller)).isEqualTo("RETURNED");
+    }
+
     @Test
     void resultForARequestEscrowNeverSent_goesToTheDlq() throws Exception {
         Map<String, JsonNode> commands = sign("0.00");
@@ -413,6 +520,35 @@ class DepositLockResultFlowIntegrationTest {
         Message message = MessageBuilder.withBody(JSON.writeValueAsBytes(event))
                 .setContentType(MessageProperties.CONTENT_TYPE_JSON).build();
         rabbit.send(exchange, (String) event.get("eventType"), message);
+    }
+
+    /** What contract-service writes when the parties' cancel conditions hold (contractActivationRefundRequested). */
+    private void refundRequested(JsonNode anyCommandOfTheContract, List<String> requestedBy, String trigger)
+            throws Exception {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", anyCommandOfTheContract.at("/payload/contractId").asText());
+        payload.put("requestedBy", requestedBy);
+        payload.put("trigger", trigger);
+        payload.put("requestedAt", "2026-11-09T02:00:00Z");
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("eventId", UUID.randomUUID().toString());
+        event.put("eventType", "contract.activation_refund_requested");
+        event.put("eventVersion", 1);
+        event.put("occurredAt", "2026-11-09T02:00:00Z");
+        event.put("producer", "contract-service");
+        event.put("aggregateId", payload.get("contractId"));
+        event.put("correlationId", payload.get("contractId"));
+        event.put("causationId", null);
+        event.put("payload", payload);
+        send(event, "agricontract.contracts");
+    }
+
+    /** What bank-service answers to a refund/release command (bankRefundCompleted, bankReleaseFailed, ...). */
+    private static Map<String, Object> returnResult(JsonNode command, boolean returned) {
+        Map<String, Object> result = bankResult(command, returned);
+        String operation = command.get("eventType").asText().replace("_requested", "");
+        result.put("eventType", operation + (returned ? "_completed" : "_failed"));
+        return result;
     }
 
     private void retryRequested(JsonNode anyCommandOfTheContract) throws Exception {

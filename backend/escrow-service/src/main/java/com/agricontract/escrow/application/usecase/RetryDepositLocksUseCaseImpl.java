@@ -37,6 +37,15 @@ public class RetryDepositLocksUseCaseImpl implements RetryDepositLocksUseCase {
         Instant now = clock.instant();
         int resent = 0;
         for (DepositLeg leg : legs.findByContractIdForUpdate(contractId)) {
+            if (leg.isReturnRetryDue(now)) {
+                leg.returnRetryRequested(now);
+                legs.update(leg);
+                lockCommands.resendReturn(leg);
+                resent++;
+                log.info("event=deposit_return_retried contractId={} leg={} failures={} sourceEventId={}",
+                        contractId, leg.getParty(), leg.getFailedAttempts(), leg.getReturnRequestEventId());
+                continue;
+            }
             if (!leg.isRetryDue(now)) {
                 continue;
             }
