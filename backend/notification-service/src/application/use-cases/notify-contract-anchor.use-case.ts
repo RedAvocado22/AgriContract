@@ -1,3 +1,4 @@
+import { canonicalJson } from '../canonical-json';
 import type { ContractAnchorRequestedCommand } from '../commands';
 import { COMMAND_KINDS } from '../notification-command-kinds';
 import type { NotificationSender } from '../notification-sender';
@@ -12,7 +13,9 @@ import type { NotificationSender } from '../notification-sender';
  * The snapshot is rendered whole and never field by field: the command
  * declares it as a plain object with no required property, so a summary line
  * would read a field the contract does not promise, and the hash below is only
- * evidence if the reader can see every byte it covers.
+ * evidence if the reader can see every byte it covers. Those bytes are the
+ * RFC 8785 line, printed on its own; the pretty-printed copy is for reading
+ * and would not hash to `signedContentHash`.
  */
 
 const KIND = COMMAND_KINDS.contractAnchor;
@@ -54,10 +57,16 @@ export function anchorBody(command: ContractAnchorRequestedCommand): string {
     '',
     `Signed content hash (SHA-256): ${command.signedContentHash}`,
     '',
-    'That hash covers the signed terms below, exactly as they are printed here.',
+    'That hash is the SHA-256 of the canonical line below (RFC 8785 JSON',
+    'Canonicalization Scheme, UTF-8), exactly as it is printed: one line, no',
+    'spaces added. The readable layout after it is the same terms, but the hash',
+    'does not cover that layout.',
     'Keep this email: it lets you show later that the terms have not changed.',
     '',
-    'Signed terms:',
+    'Canonical form (this is what the hash covers):',
+    canonicalJson(command.contractTermsSnapshot),
+    '',
+    'Signed terms, laid out for reading:',
     JSON.stringify(command.contractTermsSnapshot, null, 2),
     '',
   ].join('\n');

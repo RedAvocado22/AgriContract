@@ -47,8 +47,11 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
 - The queue, its DLQ and the DLX are already declared by contract-service (`ConsumerQueuesDeclaredAhead`), because
   its outbox publishes with `mandatory=true` and would stall on an event no queue receives. `topology.ts` declares
   them identically, so both declarations are the same and the messages waiting there are consumed.
-- **The body carries the terms snapshot whole**, as the canonical JSON `signedContentHash` covers, plus the hash
-  itself: this is the evidence mail, not the final document (the PDF is
+- **The body carries the terms snapshot whole**, twice: once as the RFC 8785 (JCS) canonical line that
+  `signedContentHash` is the SHA-256 of, so a recipient can hash that line and get the value printed above it,
+  and once pretty-printed for reading, which the hash does not cover. `canonical-json.ts` rebuilds the canonical
+  text from the parsed snapshot; its tests use the RFC's own sample and hashes computed with `org.erdtman.jcs`,
+  the library contract-service signs with. This is the evidence mail, not the final document (the PDF is
   `notification.contract_document_ready_requested`, design §3.3). The command declares the snapshot as a plain
   object with no required field, so no template line reads a field out of it.
 - `recipient_user_id` holds `recipients[].userId`, which the contract allows to be `null` (a contact without an

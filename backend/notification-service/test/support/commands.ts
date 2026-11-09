@@ -29,6 +29,15 @@ export const TERMS_SNAPSHOT: Record<string, unknown> = {
   totalContractValue: '110400000.00',
 };
 
+/**
+ * `signedContentHash` of `TERMS_SNAPSHOT`, computed the way contract-service
+ * does (`JcsTermsCanonicalizer`): `org.erdtman.jcs.JsonCanonicalizer` 1.1, then
+ * SHA-256 of the UTF-8 bytes. Written out rather than computed here, so a test
+ * comparing against it does not reuse the code it checks.
+ */
+export const TERMS_SNAPSHOT_HASH =
+  '67e2e1076c96f3df33106f897bdac5e0bdd60c2c013a63bd5f336d2fa63b493f';
+
 export const ANCHOR_RECIPIENTS: NotificationRecipient[] = [
   {
     userId: 'd2a1f3b4-6c5d-4e7f-8a9b-0c1d2e3f4a5b',
@@ -67,7 +76,7 @@ export function anchorPayload(
     contractId: CONTRACT_ID,
     recipients: ANCHOR_RECIPIENTS.map((r) => ({ ...r })),
     contractTermsSnapshot: { ...TERMS_SNAPSHOT },
-    signedContentHash: 'b'.repeat(64),
+    signedContentHash: TERMS_SNAPSHOT_HASH,
     signedAt: '2026-11-08T09:30:00Z',
     ...overrides,
   };
@@ -84,7 +93,7 @@ export function anchorCommand(): ContractAnchorRequestedCommand {
     contractId: CONTRACT_ID,
     recipients: ANCHOR_RECIPIENTS.map((r) => ({ ...r })),
     contractTermsSnapshot: { ...TERMS_SNAPSHOT },
-    signedContentHash: 'b'.repeat(64),
+    signedContentHash: TERMS_SNAPSHOT_HASH,
     signedAt: '2026-11-08T09:30:00Z',
   };
 }
