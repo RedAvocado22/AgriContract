@@ -57,6 +57,27 @@ describe('SendOtpEmailUseCase', () => {
     expect(JSON.stringify(row())).not.toContain(request.otpCode);
   });
 
+  /*
+   * #388: a sign code and a cancel code to the same person never dedup each
+   * other, even under one requestId (the caller's otpIds differ in practice;
+   * this is the worst case for the key).
+   */
+  it('a signing code and a cancel code to the same address are two emails and two rows', async () => {
+    const cancel = otpRequest({ purpose: 'CANCEL_ACTIVATION' });
+
+    await expect(useCase.execute(request)).resolves.toBe('SENT');
+    await expect(useCase.execute(cancel)).resolves.toBe('SENT');
+
+    expect(email.sent.map((m) => m.subject)).toEqual([
+      OTP_EMAIL_SUBJECT,
+      ACTIVATION_CANCEL_OTP_SUBJECT,
+    ]);
+    expect(row()).toMatchObject({ status: NotificationStatus.SENT });
+    expect(logs.get(otpKey(cancel))).toMatchObject({
+      status: NotificationStatus.SENT,
+    });
+  });
+
   it('sends a CANCEL_ACTIVATION code with its own template and records it under its own type', async () => {
     const cancel = otpRequest({ purpose: 'CANCEL_ACTIVATION' });
 
