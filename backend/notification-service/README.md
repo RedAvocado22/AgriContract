@@ -33,8 +33,18 @@ removed; tag `notification-java-final` is the rollback point (plan §7).
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
-sends the contract-signing OTP synchronously. Service-to-service only: the caller sends `SERVICE_INTERNAL_SECRET` in
+sends an OTP synchronously. Service-to-service only: the caller sends `SERVICE_INTERNAL_SECRET` in
 `X-Internal-Secret`, and the gateway never routes `/internal/**`.
+
+The optional `purpose` (D42) picks the email; each has its own subject, template and `notification_type`, with the
+same dedup and log rules:
+
+| `purpose` | The code confirms | `notification_type` | `template_version` |
+| --- | --- | --- | --- |
+| `SIGN_CONTRACT` (or absent, as contract-service sends a signing code) | signing the contract | `CONTRACT_SIGNING_OTP` | `otp-email/v1` |
+| `CANCEL_ACTIVATION` | a party's request to cancel a signed contract whose deposit lock failed | `ACTIVATION_CANCEL_OTP` | `otp-activation-cancel/v1` |
+
+Any other value, `null` included, is a `400`.
 
 | Response | When |
 | --- | --- |
@@ -57,10 +67,10 @@ Errors use the shared envelope (`timestamp, status, error, code, message, path, 
 - Stricter than the contract, which only says `string`: `requestId` is at most 36 characters of `[A-Za-z0-9._:-]`
   (it is stored in `event_id`, `VARCHAR(36)`, and logged); `recipientUserId` and `contractId` are 1–255 characters.
   `test/contract/otp-email-request.contract.spec.ts` checks the fields and verdicts against the contract file.
-- Since the V2 migration (#115) these rows carry `notification_type = CONTRACT_SIGNING_OTP` and
+- Since the V2 migration (#115) these rows carry the `notification_type` of their purpose (table above) and
   `event_type = notification.otp_email_requested`; OTP rows written before V2 were backfilled like any Phase 1
   row. `recipient_user_id` holds the caller's `recipientUserId` and `template_version` the template that
-  rendered the mail (`otp-email/v1`).
+  rendered the mail.
 
 **Known limitations.** The SMTP inactivity timeout restarts whenever the server answers, so a server that answers
 slowly can take longer than 5s; and a mail the server accepted just as the caller gave up is still delivered. Both

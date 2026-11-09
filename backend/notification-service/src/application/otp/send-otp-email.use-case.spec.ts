@@ -6,6 +6,9 @@ import { otpKey, otpRequest } from '../../../test/support/otp';
 import { NotificationStatus } from '../../domain/notification-log';
 import { CLAIM_LEASE_MS } from '../notification-sender';
 import {
+  ACTIVATION_CANCEL_OTP_KIND,
+  ACTIVATION_CANCEL_OTP_LOG_BODY,
+  ACTIVATION_CANCEL_OTP_SUBJECT,
   OTP_EMAIL_KIND,
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_SUBJECT,
@@ -52,6 +55,30 @@ describe('SendOtpEmailUseCase', () => {
       templateVersion: OTP_EMAIL_TEMPLATE_VERSION,
     });
     expect(JSON.stringify(row())).not.toContain(request.otpCode);
+  });
+
+  it('sends a CANCEL_ACTIVATION code with its own template and records it under its own type', async () => {
+    const cancel = otpRequest({ purpose: 'CANCEL_ACTIVATION' });
+
+    await expect(useCase.execute(cancel)).resolves.toBe('SENT');
+
+    expect(email.sent).toHaveLength(1);
+    expect(email.sent[0].subject).toBe(ACTIVATION_CANCEL_OTP_SUBJECT);
+    expect(email.sent[0].body).toContain(cancel.otpCode);
+    expect(email.sent[0].body).toContain('confirm your request to cancel');
+    expect(logs.get(otpKey(cancel))).toMatchObject({
+      eventId: cancel.requestId,
+      eventType: ACTIVATION_CANCEL_OTP_KIND.eventType,
+      notificationType: 'ACTIVATION_CANCEL_OTP',
+      status: NotificationStatus.SENT,
+      subject: ACTIVATION_CANCEL_OTP_SUBJECT,
+      body: ACTIVATION_CANCEL_OTP_LOG_BODY,
+      templateVersion: 'otp-activation-cancel/v1',
+    });
+    expect(logs.get(otpKey(request))).toBeUndefined();
+    expect(JSON.stringify(logs.get(otpKey(cancel)))).not.toContain(
+      cancel.otpCode,
+    );
   });
 
   it('does not send again for a requestId already SENT', async () => {

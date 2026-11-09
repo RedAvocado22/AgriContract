@@ -16,9 +16,19 @@ export interface OtpEmailRequest {
   signedContentHash: string;
   /** UTC instant, as sent by the caller. */
   expiresAt: string;
+  /**
+   * Which action the code confirms; selects the template (D42). Optional on
+   * the wire, absent meaning SIGN_CONTRACT, so it is always set once parsed.
+   */
+  purpose: OtpPurpose;
 }
 
-export const OTP_EMAIL_REQUEST_FIELDS = [
+export const OTP_PURPOSES = ['SIGN_CONTRACT', 'CANCEL_ACTIVATION'] as const;
+export type OtpPurpose = (typeof OTP_PURPOSES)[number];
+const DEFAULT_PURPOSE: OtpPurpose = 'SIGN_CONTRACT';
+
+/** The fields the contract requires. */
+export const OTP_EMAIL_REQUIRED_FIELDS = [
   'requestId',
   'recipientUserId',
   'recipientEmail',
@@ -26,6 +36,12 @@ export const OTP_EMAIL_REQUEST_FIELDS = [
   'otpCode',
   'signedContentHash',
   'expiresAt',
+] as const satisfies readonly (keyof OtpEmailRequest)[];
+
+/** Every field the contract declares: the required ones, then `purpose`. */
+export const OTP_EMAIL_REQUEST_FIELDS = [
+  ...OTP_EMAIL_REQUIRED_FIELDS,
+  'purpose',
 ] as const satisfies readonly (keyof OtpEmailRequest)[];
 
 /**
@@ -77,7 +93,7 @@ export function parseOtpEmailRequest(body: unknown): OtpEmailRequest {
   }
 
   const check = (
-    field: (typeof OTP_EMAIL_REQUEST_FIELDS)[number],
+    field: (typeof OTP_EMAIL_REQUIRED_FIELDS)[number],
     valid: (text: string) => boolean,
   ) => {
     const raw = value[field];
@@ -93,9 +109,21 @@ export function parseOtpEmailRequest(body: unknown): OtpEmailRequest {
   check('otpCode', (s) => OTP_CODE.test(s));
   check('signedContentHash', (s) => SHA256_HEX.test(s));
   check('expiresAt', (s) => DATE_TIME.test(s) && !Number.isNaN(Date.parse(s)));
+  // Optional: absent is SIGN_CONTRACT; null or any other value is invalid
+  // (the contract's enum has no null).
+  const purpose = value.purpose;
+  if (
+    purpose !== undefined &&
+    !(OTP_PURPOSES as readonly unknown[]).includes(purpose)
+  ) {
+    problems.push('purpose is invalid');
+  }
 
   if (problems.length > 0) throw new OtpEmailRequestInvalidError(problems);
-  return Object.fromEntries(
-    OTP_EMAIL_REQUEST_FIELDS.map((field) => [field, value[field]]),
-  ) as unknown as OtpEmailRequest;
+  return {
+    ...(Object.fromEntries(
+      OTP_EMAIL_REQUIRED_FIELDS.map((field) => [field, value[field]]),
+    ) as Omit<OtpEmailRequest, 'purpose'>),
+    purpose: (purpose as OtpPurpose | undefined) ?? DEFAULT_PURPOSE,
+  };
 }

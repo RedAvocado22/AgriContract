@@ -7,11 +7,7 @@ import { NotificationError, failureCode } from '../notification-errors';
 import { EmailDeliveryError, type EmailPort } from '../ports/email.port';
 import type { NotificationLogRepository } from '../ports/notification-log.repository';
 import type { OtpEmailRequest } from './otp-email-request';
-import {
-  OTP_EMAIL_KIND,
-  OTP_EMAIL_LOG_BODY,
-  renderOtpEmail,
-} from './otp-email-template';
+import { OTP_EMAIL_TEMPLATES, renderOtpEmail } from './otp-email-template';
 
 /*
  * Errors carry the requestId (the caller's otpId) and a failure code only:
@@ -49,14 +45,17 @@ export class OtpEmailLogUnavailableError extends NotificationError {
 export type OtpEmailResult = 'SENT' | 'ALREADY_SENT';
 
 /**
- * Sends the OTP email for contract signing synchronously (design §2.2, §5).
+ * Sends an OTP email synchronously (design §2.2, §5): the signing code, or
+ * the code confirming a cancel request on a contract whose activation failed,
+ * as `purpose` says (D42).
  *
  * A call is claimed in notification_logs by (requestId, recipientEmail,
- * CONTRACT_SIGNING_OTP) before sending, so a repeated call never sends twice.
+ * notification type of the purpose: CONTRACT_SIGNING_OTP or
+ * ACTIVATION_CANCEL_OTP) before sending, so a repeated call never sends twice.
  * Since V2 (#115) the address is in recipient_email (and still in user_id, as
  * in every Phase 1 row and in Java), the caller's platform id is in
  * recipient_user_id, and template_version records which template rendered the
- * mail (otp-email/v1).
+ * mail (otp-email/v1 or otp-activation-cancel/v1).
  * - no row, or the earlier call FAILED: send now (the caller asked again, so
  *   this is not a late background send);
  * - SENT: return ALREADY_SENT without sending;
@@ -76,14 +75,15 @@ export class SendOtpEmailUseCase {
 
   async execute(request: OtpEmailRequest): Promise<OtpEmailResult> {
     const { requestId, recipientUserId, recipientEmail } = request;
+    const template = OTP_EMAIL_TEMPLATES[request.purpose];
     const { subject, body } = renderOtpEmail(request);
     const log = NotificationLog.create(
       requestId,
-      OTP_EMAIL_KIND,
+      template.kind,
       recipientEmail,
       NotificationChannel.EMAIL,
       subject,
-      OTP_EMAIL_LOG_BODY,
+      template.logBody,
       recipientUserId,
     );
 

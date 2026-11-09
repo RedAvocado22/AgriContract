@@ -1,6 +1,9 @@
 import { createTransport } from 'nodemailer';
 import { otpRequest } from '../../../test/support/otp';
+import { OTP_PURPOSES } from './otp-email-request';
 import {
+  ACTIVATION_CANCEL_OTP_LOG_BODY,
+  ACTIVATION_CANCEL_OTP_SUBJECT,
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_SUBJECT,
   renderOtpEmail,
@@ -37,40 +40,106 @@ describe('renderOtpEmail', () => {
     );
   });
 
-  it('keeps every line within 76 characters for a 66-character contract id', () => {
-    const long = renderOtpEmail(
-      otpRequest({
-        contractId: 'c'.repeat(66),
-        expiresAt: '2026-12-31T23:59:59.999Z',
-      }),
-    ).body;
-    for (const line of long.split('\n')) {
-      expect(line.length).toBeLessThanOrEqual(76);
-    }
+  /*
+   * otp-email/v1 is stored in rows already written: adding a purpose must not
+   * change a byte of the signing email.
+   */
+  it('renders the signing email exactly as otp-email/v1 always has', () => {
+    expect(body).toBe(
+      [
+        'Use this one-time code to sign your AgriContract contract:',
+        '',
+        '482913',
+        '',
+        'Contract: ctr-otp-1',
+        'Expires: 2026-11-04 17:15:00 Vietnam time (2026-11-04T10:15:00.000Z UTC)',
+        '',
+        'Before you enter the code, check that the contract fingerprint',
+        '(SHA-256) shown on screen is:',
+        'a'.repeat(64),
+        '',
+        'Do not share this code with anyone. AgriContract staff will never',
+        'ask for it. If you did not ask to sign this contract, ignore this',
+        'email.',
+      ].join('\n'),
+    );
   });
 
-  it('is sent by nodemailer as 7bit, so the raw message holds the code and hash unbroken', async () => {
-    const contractId = 'otp-it-8b6f3c1e-2a4d-4f7b-9c1e-0d2a3b4c5d6e';
-    const mail = renderOtpEmail(otpRequest({ contractId }));
-    const info = await createTransport({
-      streamTransport: true,
-      buffer: true,
-    }).sendMail({
-      from: 'noreply@agricontract.com',
-      to: 'buyer1@test.com',
-      subject: mail.subject,
-      text: mail.body,
+  describe('purpose CANCEL_ACTIVATION', () => {
+    const cancel = otpRequest({ purpose: 'CANCEL_ACTIVATION' });
+    const mail = renderOtpEmail(cancel);
+    const cancelLines = mail.body.split('\n');
+
+    it('has its own subject, without the code', () => {
+      expect(mail.subject).toBe(ACTIVATION_CANCEL_OTP_SUBJECT);
+      expect(mail.subject).not.toBe(OTP_EMAIL_SUBJECT);
+      expect(mail.subject).not.toContain(cancel.otpCode);
     });
-    // Normalized: the stream transport's newline style is not under test.
-    const raw = (info.message as Buffer)
-      .toString('utf8')
-      .replace(/\r\n/g, '\n');
 
-    expect(raw).toContain('Content-Transfer-Encoding: 7bit');
-    expect(raw).toContain(`\n${request.otpCode}\n`);
-    expect(raw).toContain(`\nContract: ${contractId}\n`);
-    expect(raw).toContain(`\n${request.signedContentHash}\n`);
+    it('says the code confirms a cancel request, not a signature', () => {
+      expect(mail.body).toContain('confirm your request to cancel');
+      expect(mail.body).toContain('If you did not ask to cancel');
+      expect(mail.body).not.toContain('to sign');
+    });
+
+    it('carries the code, the contract, the expiry and the full hash', () => {
+      expect(cancelLines).toContain(cancel.otpCode);
+      expect(cancelLines).toContain('Contract: ctr-otp-1');
+      expect(cancelLines).toContain(
+        'Expires: 2026-11-04 17:15:00 Vietnam time (2026-11-04T10:15:00.000Z UTC)',
+      );
+      expect(cancelLines).toContain(cancel.signedContentHash);
+    });
+
+    it('stores its own placeholder body, which holds no code', () => {
+      expect(ACTIVATION_CANCEL_OTP_LOG_BODY).toContain(
+        'otp-activation-cancel/v1',
+      );
+      expect(ACTIVATION_CANCEL_OTP_LOG_BODY).not.toMatch(/\d{6}/);
+    });
   });
+
+  it.each(OTP_PURPOSES)(
+    'keeps every %s line within 76 characters for a 66-character contract id',
+    (purpose) => {
+      const long = renderOtpEmail(
+        otpRequest({
+          purpose,
+          contractId: 'c'.repeat(66),
+          expiresAt: '2026-12-31T23:59:59.999Z',
+        }),
+      ).body;
+      for (const line of long.split('\n')) {
+        expect(line.length).toBeLessThanOrEqual(76);
+      }
+    },
+  );
+
+  it.each(OTP_PURPOSES)(
+    'sends the %s email as 7bit, so the raw message holds the code and hash unbroken',
+    async (purpose) => {
+      const contractId = 'otp-it-8b6f3c1e-2a4d-4f7b-9c1e-0d2a3b4c5d6e';
+      const mail = renderOtpEmail(otpRequest({ contractId, purpose }));
+      const info = await createTransport({
+        streamTransport: true,
+        buffer: true,
+      }).sendMail({
+        from: 'noreply@agricontract.com',
+        to: 'buyer1@test.com',
+        subject: mail.subject,
+        text: mail.body,
+      });
+      // Normalized: the stream transport's newline style is not under test.
+      const raw = (info.message as Buffer)
+        .toString('utf8')
+        .replace(/\r\n/g, '\n');
+
+      expect(raw).toContain('Content-Transfer-Encoding: 7bit');
+      expect(raw).toContain(`\n${request.otpCode}\n`);
+      expect(raw).toContain(`\nContract: ${contractId}\n`);
+      expect(raw).toContain(`\n${request.signedContentHash}\n`);
+    },
+  );
 
   it('stores a placeholder body that holds no code', () => {
     expect(OTP_EMAIL_LOG_BODY).not.toMatch(/\d{6}/);
