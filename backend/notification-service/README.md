@@ -62,6 +62,25 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
 - `test/contract/notification-commands.contract.spec.ts` checks the parser against the contract file in both
   directions: nothing the contract accepts is dead-lettered, and nothing it rejects is mailed.
 
+### Activation cancel requested (Phase 2, D42, `notification.activation_cancel_requested`)
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.activation_cancel_requested` (DLX `notification-svc.contracts.dlx`) |
+| Exchange, routing key | `agricontract.contracts`, `notification.activation_cancel_requested` |
+| Recipients | every entry of `payload.recipients`: today only the party that did not ask |
+| Row per email | `notification_type = ACTIVATION_CANCEL_REQUESTED`, `template_version = activation-cancel-requested/v1` |
+
+- A party asked to cancel a SIGNED contract whose deposit lock failed. The email tells the other party who asked,
+  that nobody breached so nobody is penalised, that asking too starts the refund at once, and from when the single
+  request is enough (`oneSidedCancelAllowedFrom`, in Vietnam time and UTC) unless the requester withdraws it. A
+  recipient who is not the other party (an OPERATOR, if the publisher adds one) gets the facts without the "you can"
+  lines.
+- Queue, DLQ and DLX are declared ahead by contract-service (`CANCEL_REQUESTED_QUEUE`), identically to `topology.ts`.
+- Same claim, dedup, redelivery and dead-letter rules as the signed-contract email; lines stay within 76
+  characters, so the mail goes out as 7bit. `test/contract/activation-cancel-requested.contract.spec.ts` checks the
+  parser against the contract in both directions.
+
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service

@@ -5,7 +5,9 @@ import {
   type EventEnvelope,
 } from '@agricontract/eventing';
 import {
+  CANCEL_REQUESTER_ROLES,
   RECIPIENT_ROLES,
+  type ActivationCancelRequestedCommand,
   type ContractAnchorRequestedCommand,
   type NotificationRecipient,
   type RecipientRole,
@@ -102,6 +104,15 @@ class CommandReader {
       throw this.error(`field "${field}" must be an RFC 3339 date-time`);
     }
     return value;
+  }
+
+  /** One of the contract's enum values; the bad value is not quoted. */
+  enumValue<T extends string>(field: string, values: readonly T[]): T {
+    const value = this.payload[field];
+    if (!(values as readonly unknown[]).includes(value)) {
+      throw this.error(`field "${field}" must be one of ${values.join(', ')}`);
+    }
+    return value as T;
   }
 
   /** A JSON object of any shape, as `contractTermsSnapshot` is declared. */
@@ -271,6 +282,39 @@ export function parseContractAnchorRequested(
     contractTermsSnapshot: payload.object('contractTermsSnapshot'),
     signedContentHash: payload.hash('signedContentHash'),
     signedAt: payload.dateTime('signedAt'),
+  };
+}
+
+export const ACTIVATION_CANCEL_REQUESTED =
+  'notification.activation_cancel_requested';
+
+/** Payload properties of `activationCancelRequested`, all required. */
+export const ACTIVATION_CANCEL_FIELDS = [
+  'contractId',
+  'recipients',
+  'requestedByRole',
+  'oneSidedCancelAllowedFrom',
+] as const;
+
+export function parseActivationCancelRequested(
+  body: Buffer,
+): ActivationCancelRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    ACTIVATION_CANCEL_REQUESTED,
+    'contract-service',
+  );
+  payload.only(ACTIVATION_CANCEL_FIELDS);
+
+  return {
+    eventId: envelope.eventId,
+    contractId: payload.uuid('contractId'),
+    recipients: payload.recipients(),
+    requestedByRole: payload.enumValue(
+      'requestedByRole',
+      CANCEL_REQUESTER_ROLES,
+    ),
+    oneSidedCancelAllowedFrom: payload.dateTime('oneSidedCancelAllowedFrom'),
   };
 }
 
