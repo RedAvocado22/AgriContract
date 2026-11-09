@@ -12,7 +12,13 @@
  */
 import { ConfigService } from '@nestjs/config';
 import { createPool, type Pool, type RowDataPacket } from 'mysql2/promise';
-import { anchorBody, anchorPayload } from '../../../test/support/commands';
+import {
+  anchorBody,
+  anchorPayload,
+  TERMS_SNAPSHOT,
+  TERMS_SNAPSHOT_HASH,
+} from '../../../test/support/commands';
+import { RFC8785_HASH, RFC8785_INPUT, sha256 } from '../../../test/support/jcs';
 import { validate, type AppConfig } from '../../config/env.validation';
 import { NodemailerEmailAdapter } from '../../infrastructure/email/nodemailer-email.adapter';
 import { parseContractAnchorRequested } from '../../infrastructure/messaging/notification-command.parsers';
@@ -29,7 +35,41 @@ const KIND = COMMAND_KINDS.contractAnchor;
 
 interface MailHogMessage {
   ID: string;
-  Content: { Headers: { To: string[]; Subject: string[] }; Body: string };
+  Content: {
+    Headers: {
+      To: string[];
+      Subject: string[];
+      'Content-Transfer-Encoding'?: string[];
+    };
+    Body: string;
+  };
+}
+
+/**
+ * The body as the recipient's mail client shows it: MailHog keeps the
+ * transfer encoding, and nodemailer picks quoted-printable or base64 for a
+ * line as long as the canonical terms.
+ */
+function decodedBody(mail: MailHogMessage): string {
+  const encoding = (
+    mail.Content.Headers['Content-Transfer-Encoding']?.[0] ?? '7bit'
+  ).toLowerCase();
+  const raw = mail.Content.Body;
+  let bytes: Buffer;
+  if (encoding === 'quoted-printable') {
+    const unwrapped = raw.replace(/=\r?\n/g, '');
+    bytes = Buffer.from(
+      unwrapped.replace(/=([0-9A-F]{2})/gi, (_, hex: string) =>
+        String.fromCharCode(parseInt(hex, 16)),
+      ),
+      'latin1',
+    );
+  } else if (encoding === 'base64') {
+    bytes = Buffer.from(raw, 'base64');
+  } else {
+    bytes = Buffer.from(raw, 'utf8');
+  }
+  return bytes.toString('utf8').replace(/\r\n/g, '\n');
 }
 
 async function mailsContaining(text: string): Promise<MailHogMessage[]> {
@@ -162,6 +202,35 @@ describe('contract anchor email on real MySQL and MailHog', () => {
     expect(mails[0].Content.Body).toContain(anchor.signedContentHash);
     expect(mails[0].Content.Body).toContain('110400000.00');
   });
+
+  /*
+   * The check the email invites, on the delivered mail: decode the transfer
+   * encoding, take the canonical line, hash it. The RFC 8785 sample carries a
+   * non-ASCII character and escapes, the cases an encoding would break.
+   */
+  it.each([
+    ['the terms fixture', 'a4', TERMS_SNAPSHOT, TERMS_SNAPSHOT_HASH],
+    ['the RFC 8785 sample', 'a5', JSON.parse(RFC8785_INPUT), RFC8785_HASH],
+  ])(
+    'the delivered canonical line of %s hashes to signedContentHash',
+    async (_name, tag, snapshot, hash) => {
+      const anchor = command(tag);
+      anchor.contractTermsSnapshot = snapshot as Record<string, unknown>;
+      anchor.signedContentHash = hash;
+
+      await useCase.execute(anchor);
+
+      const mails = await mailsContaining(`buyer-${tag}@anchor.int.test`);
+      mailIds.push(...mails.map((m) => m.ID));
+      expect(mails).toHaveLength(1);
+      const lines = decodedBody(mails[0]).split('\n');
+      const canonical =
+        lines[
+          lines.indexOf('Canonical form (this is what the hash covers):') + 1
+        ];
+      expect(sha256(canonical)).toBe(hash);
+    },
+  );
 
   it('a redelivery of the same command sends no second copy', async () => {
     const anchor = command('a2');
