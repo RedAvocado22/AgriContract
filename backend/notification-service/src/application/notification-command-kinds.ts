@@ -23,4 +23,9 @@ export const COMMAND_KINDS = {
     notificationType: 'CONTRACT_ANCHOR',
     templateVersion: 'contract-anchor/v1',
   },
+  activationCancelRequested: {
+    eventType: 'notification.activation_cancel_requested',
+    notificationType: 'ACTIVATION_CANCEL_REQUESTED',
+    templateVersion: 'activation-cancel-requested/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;

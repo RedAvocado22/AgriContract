@@ -7,7 +7,12 @@ import {
 } from '@agricontract/eventing';
 import type { Channel } from 'amqplib';
 import { ClaimWaitAbortedError } from '../../application/notification-errors';
-import { anchorCommand, anchorEnvelope } from '../../../test/support/commands';
+import {
+  anchorCommand,
+  anchorEnvelope,
+  cancelCommand,
+  cancelEnvelope,
+} from '../../../test/support/commands';
 import { commandRoutes, type CommandUseCases } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
 import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
@@ -52,6 +57,7 @@ class FakeChannel {
 
 const HANDLERS = [
   'contractAnchor',
+  'activationCancelRequested',
   'contractSigned',
   'contractCancelled',
   'contractDelivered',
@@ -266,6 +272,48 @@ describe('NotificationEventConsumer', () => {
     }
     expect(channel.acked).toEqual([msg]);
     expect(channel.nacked).toEqual([]);
+  });
+
+  it('runs the activation-cancel use case on its own queue, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.activation_cancel_requested',
+      cancelEnvelope(),
+    );
+    await flush();
+
+    expect(service.activationCancelRequested).toHaveBeenCalledTimes(1);
+    expect(service.activationCancelRequested.mock.calls[0][0]).toEqual(
+      cancelCommand(),
+    );
+    for (const other of HANDLERS.filter(
+      (h) => h !== 'activationCancelRequested',
+    )) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('dead-letters an anchor command delivered to the activation-cancel queue', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    channel.deliver(
+      'notification-svc.notification.activation_cancel_requested',
+      anchorEnvelope(),
+    );
+    await flush();
+
+    expect(service.activationCancelRequested).not.toHaveBeenCalled();
+    expect(service.contractAnchor).not.toHaveBeenCalled();
+    expect(channel.nacked).toHaveLength(1);
   });
 
   it('dead-letters a command whose eventType is not this queue’s, without calling the handler', async () => {

@@ -18,6 +18,7 @@ export const TOPOLOGY = [
       'contract.cancelled',
       'contract.disputed',
       'notification.contract_anchor_requested',
+      'notification.activation_cancel_requested',
     ],
   },
   {
@@ -46,9 +47,14 @@ export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
  * contract-service already writes it to its outbox (#360) and declares this
  * queue, its DLQ and the DLX ahead of us (ConsumerQueuesDeclaredAhead), so
  * the names and options here must stay byte-identical to that class.
+ *
+ * `notification.activation_cancel_requested` (D42) tells the other party a
+ * cancel was requested on a contract whose deposit lock failed. Declared ahead
+ * the same way (CANCEL_REQUESTED_QUEUE), same DLX.
  */
 export const COMMAND_ROUTING_KEYS = [
   'notification.contract_anchor_requested',
+  'notification.activation_cancel_requested',
 ] as const;
 
 export type CommandRoutingKey = (typeof COMMAND_ROUTING_KEYS)[number];

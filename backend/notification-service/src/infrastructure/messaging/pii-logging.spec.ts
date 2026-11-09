@@ -11,6 +11,7 @@ import type { Channel } from 'amqplib';
 import { InMemoryNotificationLogRepository } from '../../../test/support/fakes';
 import { NotificationSender } from '../../application/notification-sender';
 import {
+  NotifyActivationCancelRequestedUseCase,
   NotifyContractAnchorUseCase,
   NotifyContractSignedUseCase,
   NotifyEscrowLockedUseCase,
@@ -18,7 +19,12 @@ import {
 import { validate, type AppConfig } from '../../config/env.validation';
 import { NodemailerEmailAdapter } from '../email/nodemailer-email.adapter';
 import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
-import { anchorEnvelope, anchorPayload } from '../../../test/support/commands';
+import {
+  anchorEnvelope,
+  anchorPayload,
+  cancelEnvelope,
+  cancelPayload,
+} from '../../../test/support/commands';
 import { commandRoutes } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
 import { NotificationEventConsumer } from './notification-event.consumer';
@@ -76,6 +82,9 @@ async function harness(sendMail: jest.Mock) {
 
   const commands = commandRoutes({
     contractAnchor: new NotifyContractAnchorUseCase(sender),
+    activationCancelRequested: new NotifyActivationCancelRequestedUseCase(
+      sender,
+    ),
   });
   const consumer = new NotificationEventConsumer(amqp, routes, commands);
   await consumer.onModuleInit();
@@ -176,6 +185,34 @@ describe('no personal data in the logs', () => {
       'Malformed notification.contract_anchor_requested command',
     );
     expect(log).toContain('recipients[0].role');
+    expect(log).not.toContain(BUYER);
+    expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it('a rejected activation-cancel command: the dead-letter log shows no recipient address', async () => {
+    const lines = captureLogs();
+    const { deliver, nacks } = await harness(jest.fn());
+
+    deliver(
+      'notification-svc.notification.activation_cancel_requested',
+      JSON.stringify(
+        cancelEnvelope({
+          payload: cancelPayload({
+            recipients: [
+              { userId: 'not-a-uuid', email: BUYER, role: 'SELLER' },
+            ],
+          }),
+        }),
+      ),
+    );
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(nacks).toEqual([false]); // dead-lettered at once, no retry
+    const log = lines.join('\n');
+    expect(log).toContain(
+      'Malformed notification.activation_cancel_requested command',
+    );
+    expect(log).toContain('recipients[0].userId');
     expect(log).not.toContain(BUYER);
     expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });

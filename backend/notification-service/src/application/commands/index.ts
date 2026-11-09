@@ -1,5 +1,10 @@
 export type { CategoryApprovedCommand } from './category-approved.command';
 export type { CategoryRejectedCommand } from './category-rejected.command';
+export {
+  CANCEL_REQUESTER_ROLES,
+  type ActivationCancelRequestedCommand,
+  type CancelRequesterRole,
+} from './activation-cancel-requested.command';
 export type { ContractAnchorRequestedCommand } from './contract-anchor-requested.command';
 export type { ContractCancelledCommand } from './contract-cancelled.command';
 export type { ContractDeliveredCommand } from './contract-delivered.command';

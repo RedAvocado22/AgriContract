@@ -4,8 +4,15 @@ import {
   anchorCommand,
   anchorEnvelope,
   anchorPayload,
+  cancelBody,
+  cancelCommand,
+  cancelEnvelope,
+  cancelPayload,
 } from '../../../test/support/commands';
-import { parseContractAnchorRequested } from './notification-command.parsers';
+import {
+  parseActivationCancelRequested,
+  parseContractAnchorRequested,
+} from './notification-command.parsers';
 
 /** Delivers a message built from `overrides` on the envelope. */
 const parse = (overrides: Record<string, unknown> = {}) =>
@@ -171,5 +178,62 @@ describe('parseContractAnchorRequested', () => {
 
       expect(text).not.toContain('<script>');
     });
+  });
+});
+
+describe('parseActivationCancelRequested', () => {
+  const parseCancel = (payload: Record<string, unknown> = {}) =>
+    parseActivationCancelRequested(
+      cancelBody({ payload: cancelPayload(payload) }),
+    );
+
+  it('reads the envelope eventId and every payload field', () => {
+    expect(parseCancel()).toEqual(cancelCommand());
+  });
+
+  it('reads a seller request', () => {
+    expect(parseCancel({ requestedByRole: 'SELLER' }).requestedByRole).toBe(
+      'SELLER',
+    );
+  });
+
+  it.each([
+    ['requestedByRole', 'OPERATOR', 'must be one of BUYER, SELLER'],
+    ['requestedByRole', null, 'must be one of BUYER, SELLER'],
+    ['oneSidedCancelAllowedFrom', '2026-11-14', 'RFC 3339'],
+    ['contractId', 'contract-1', 'must be a UUID'],
+    ['trigger', 'ONE_SIDED', 'unknown payload property "trigger"'],
+  ])(
+    'rejects %s = %p, naming the field and not the value',
+    (field, value, reason) => {
+      const text = message(() => parseCancel({ [field]: value }));
+
+      expect(text).toContain(
+        'Malformed notification.activation_cancel_requested',
+      );
+      expect(text).toContain(reason);
+      if (typeof value === 'string' && field !== 'trigger') {
+        expect(text).not.toContain(`"${value}"`);
+      }
+    },
+  );
+
+  it('rejects a missing requestedByRole', () => {
+    const payload = cancelPayload();
+    delete payload.requestedByRole;
+
+    expect(
+      message(() =>
+        parseActivationCancelRequested(
+          Buffer.from(JSON.stringify(cancelEnvelope({ payload }))),
+        ),
+      ),
+    ).toContain('requestedByRole');
+  });
+
+  it('rejects the anchor command, whose eventType is not this queue’s', () => {
+    expect(
+      message(() => parseActivationCancelRequested(anchorBody())),
+    ).toContain("is not this queue's command");
   });
 });

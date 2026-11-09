@@ -34,6 +34,7 @@ const EXPECTED_QUEUES = [
   'notification-svc.contract.disputed',
   // Phase 2 command, on the publisher's exchange like the events above.
   'notification-svc.notification.contract_anchor_requested',
+  'notification-svc.notification.activation_cancel_requested',
   'notification-svc.escrow.locked',
   'notification-svc.escrow.released',
   'notification-svc.escrow.penalized',
@@ -74,7 +75,7 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, queues } = recordingChannel();
     await declareTopology(channel);
 
-    expect(queues).toHaveLength(20);
+    expect(queues).toHaveLength(22);
 
     for (const q of EXPECTED_QUEUES) {
       // toEqual on the whole options object also fails on any extra option
@@ -104,7 +105,7 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, bindings } = recordingChannel();
     await declareTopology(channel);
 
-    expect(bindings).toHaveLength(20);
+    expect(bindings).toHaveLength(22);
     expect(bindings).toContainEqual([
       'notification-svc.contract.signed',
       'agricontract.contracts',
@@ -121,6 +122,16 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
       'notification-svc.notification.contract_anchor_requested.dlq',
       'notification-svc.contracts.dlx',
       'notification.contract_anchor_requested',
+    ]);
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.activation_cancel_requested',
+      'agricontract.contracts',
+      'notification.activation_cancel_requested',
+    ]);
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.activation_cancel_requested.dlq',
+      'notification-svc.contracts.dlx',
+      'notification.activation_cancel_requested',
     ]);
     expect(bindings).toContainEqual([
       'notification-svc.contract.signed.dlq',

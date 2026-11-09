@@ -1,5 +1,6 @@
 import type { NotificationKind } from '../../domain/notification-log';
 import type { OtpEmailRequest, OtpPurpose } from './otp-email-request';
+import { vietnamTime } from '../vietnam-time';
 
 /** Template identity, stored in notification_logs.template_version (design §3.1). */
 export const OTP_EMAIL_TEMPLATE_VERSION = 'otp-email/v1';
@@ -131,23 +132,4 @@ export function renderOtpEmail(request: OtpEmailRequest): RenderedEmail {
       ...template.outro,
     ].join('\n'),
   };
-}
-
-const VIETNAM_TIME = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Asia/Ho_Chi_Minh',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hourCycle: 'h23',
-});
-
-/** "2026-11-04 17:15:00" in Asia/Ho_Chi_Minh. */
-function vietnamTime(instant: Date): string {
-  const part = Object.fromEntries(
-    VIETNAM_TIME.formatToParts(instant).map((p) => [p.type, p.value]),
-  );
-  return `${part.year}-${part.month}-${part.day} ${part.hour}:${part.minute}:${part.second}`;
 }

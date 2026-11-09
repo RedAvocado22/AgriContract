@@ -1,4 +1,5 @@
 import type {
+  ActivationCancelRequestedCommand,
   ContractAnchorRequestedCommand,
   NotificationRecipient,
 } from '../../src/application/commands';
@@ -95,5 +96,59 @@ export function anchorCommand(): ContractAnchorRequestedCommand {
     contractTermsSnapshot: { ...TERMS_SNAPSHOT },
     signedContentHash: TERMS_SNAPSHOT_HASH,
     signedAt: '2026-11-08T09:30:00Z',
+  };
+}
+
+/*
+ * `notification.activation_cancel_requested`, as contract-service writes it
+ * (OutboxContractEventPublisher.activationCancelRequested): the buyer asked,
+ * so the one recipient is the seller.
+ */
+export const CANCEL_RECIPIENT: NotificationRecipient = {
+  userId: '9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b',
+  email: 'seller@cancel.test',
+  role: 'SELLER',
+};
+
+export function cancelEnvelope(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    eventId: '6c5d4e3f-2a1b-4c0d-9e8f-7a6b5c4d3e2f',
+    eventType: 'notification.activation_cancel_requested',
+    eventVersion: 1,
+    occurredAt: '2026-11-09T03:00:00Z',
+    producer: 'contract-service',
+    aggregateId: CONTRACT_ID,
+    correlationId: CONTRACT_ID,
+    causationId: null,
+    payload: cancelPayload(),
+    ...overrides,
+  };
+}
+
+export function cancelPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    contractId: CONTRACT_ID,
+    recipients: [{ ...CANCEL_RECIPIENT }],
+    requestedByRole: 'BUYER',
+    oneSidedCancelAllowedFrom: '2026-11-14T03:00:00Z',
+    ...overrides,
+  };
+}
+
+export const cancelBody = (overrides: Record<string, unknown> = {}): Buffer =>
+  Buffer.from(JSON.stringify(cancelEnvelope(overrides)));
+
+/** The command the parser is expected to produce from `cancelEnvelope()`. */
+export function cancelCommand(): ActivationCancelRequestedCommand {
+  return {
+    eventId: cancelEnvelope().eventId as string,
+    contractId: CONTRACT_ID,
+    recipients: [{ ...CANCEL_RECIPIENT }],
+    requestedByRole: 'BUYER',
+    oneSidedCancelAllowedFrom: '2026-11-14T03:00:00Z',
   };
 }
