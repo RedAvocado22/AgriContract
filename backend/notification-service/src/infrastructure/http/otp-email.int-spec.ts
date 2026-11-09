@@ -79,7 +79,8 @@ describe('OTP email endpoint on real MySQL and MailHog', () => {
   };
   const rowOf = async (requestId: string) => {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT status, retry_count, subject, body, recipient_user_id, template_version
+      `SELECT status, retry_count, subject, body, recipient_user_id, template_version,
+              notification_type
          FROM notification_logs WHERE event_id = ?`,
       [requestId],
     );
@@ -123,8 +124,11 @@ describe('OTP email endpoint on real MySQL and MailHog', () => {
 
   it('delivers one email to MailHog and records it SENT without the code', async () => {
     const body = newRequest();
+    // As contract-service sends a signing code: no purpose on the wire.
+    const wire: Record<string, unknown> = { ...body };
+    delete wire.purpose;
 
-    await post(app, body).expect(200);
+    await post(app, wire).expect(200);
 
     const mails = await mailsContaining(body.contractId);
     mailIds.push(...mails.map((m) => m.ID));
@@ -145,8 +149,47 @@ describe('OTP email endpoint on real MySQL and MailHog', () => {
       // and the template that rendered the mail.
       recipient_user_id: body.recipientUserId,
       template_version: OTP_EMAIL_TEMPLATE_VERSION,
+      notification_type: 'CONTRACT_SIGNING_OTP',
     });
     expect(JSON.stringify(rows[0])).not.toContain(body.otpCode);
+  });
+
+  /*
+   * D42: contract-service sends purpose CANCEL_ACTIVATION when a party asks to
+   * cancel a contract whose deposit lock failed. Before this was read, the
+   * endpoint answered 400 ("1 unexpected field(s)") and no code was mailed.
+   */
+  it('delivers a CANCEL_ACTIVATION code with its own template and type', async () => {
+    const body = { ...newRequest(), purpose: 'CANCEL_ACTIVATION' as const };
+
+    await post(app, body).expect(200);
+
+    const mails = await mailsContaining(body.contractId);
+    mailIds.push(...mails.map((m) => m.ID));
+    expect(mails).toHaveLength(1);
+    expect(mails[0].Content.Headers.Subject).toEqual([
+      '[AgriContract] Your code to cancel a contract',
+    ]);
+    expect(mails[0].Content.Body).toContain(body.otpCode);
+    expect(mails[0].Content.Body).toContain('confirm your request to cancel');
+
+    const rows = await rowOf(body.requestId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: 'SENT',
+      notification_type: 'ACTIVATION_CANCEL_OTP',
+      template_version: 'otp-activation-cancel/v1',
+    });
+    expect(JSON.stringify(rows[0])).not.toContain(body.otpCode);
+  });
+
+  it('answers 400 to a purpose outside the contract, and mails nothing', async () => {
+    const body = { ...newRequest(), purpose: 'TERMINATE_CONTRACT' };
+
+    await post(app, body).expect(400);
+
+    expect(await mailsContaining(body.contractId)).toHaveLength(0);
+    expect(await rowOf(body.requestId)).toHaveLength(0);
   });
 
   it('answers 200 to a repeated requestId without a second email', async () => {

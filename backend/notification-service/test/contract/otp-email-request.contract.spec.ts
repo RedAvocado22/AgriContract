@@ -11,6 +11,8 @@ import addFormats from 'ajv-formats';
 import { load } from 'js-yaml';
 import {
   OTP_EMAIL_REQUEST_FIELDS,
+  OTP_EMAIL_REQUIRED_FIELDS,
+  OTP_PURPOSES,
   OtpEmailRequestInvalidError,
   parseOtpEmailRequest,
 } from '../../src/application/otp/otp-email-request';
@@ -61,13 +63,21 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
     ]);
   });
 
-  it('declares exactly the fields the code reads, all required', () => {
+  it('declares exactly the fields the code reads, all but purpose required', () => {
     expect(Object.keys(schema.properties).sort()).toEqual(
       [...OTP_EMAIL_REQUEST_FIELDS].sort(),
     );
     expect([...schema.required].sort()).toEqual(
-      [...OTP_EMAIL_REQUEST_FIELDS].sort(),
+      [...OTP_EMAIL_REQUIRED_FIELDS].sort(),
     );
+  });
+
+  it('declares the purposes the code has a template for, SIGN_CONTRACT by default', () => {
+    const purpose = (
+      schema.properties as Record<string, { enum: string[]; default: string }>
+    ).purpose;
+    expect([...purpose.enum].sort()).toEqual([...OTP_PURPOSES].sort());
+    expect(purpose.default).toBe('SIGN_CONTRACT');
   });
 
   const base = otpRequest();
@@ -87,6 +97,14 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
     ['a missing requestId', without('requestId')],
     ['a missing otpCode', without('otpCode')],
     ['a missing expiresAt', without('expiresAt')],
+    [
+      'a missing purpose (a signing code, as contract-service sends it)',
+      without('purpose'),
+    ],
+    ['purpose CANCEL_ACTIVATION', { ...base, purpose: 'CANCEL_ACTIVATION' }],
+    ['an unknown purpose', { ...base, purpose: 'TERMINATE_CONTRACT' }],
+    ['a lower-case purpose', { ...base, purpose: 'cancel_activation' }],
+    ['a null purpose', { ...base, purpose: null }],
     ['an extra field', { ...base, extra: 1 }],
     ['a 5-digit otpCode', { ...base, otpCode: '12345' }],
     ['a numeric otpCode', { ...base, otpCode: 123456 }],

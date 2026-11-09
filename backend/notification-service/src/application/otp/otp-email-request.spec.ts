@@ -64,6 +64,39 @@ describe('parseOtpEmailRequest', () => {
     ]);
   });
 
+  describe('purpose (D42)', () => {
+    const withoutPurpose = (): Record<string, unknown> => {
+      const rest: Record<string, unknown> = { ...otpRequest() };
+      delete rest.purpose;
+      return rest;
+    };
+
+    it('is SIGN_CONTRACT when absent, as contract-service sends a signing code', () => {
+      expect(parseOtpEmailRequest(withoutPurpose()).purpose).toBe(
+        'SIGN_CONTRACT',
+      );
+    });
+
+    it.each(['SIGN_CONTRACT', 'CANCEL_ACTIVATION'])('accepts %s', (purpose) => {
+      expect(
+        parseOtpEmailRequest({ ...withoutPurpose(), purpose }).purpose,
+      ).toBe(purpose);
+    });
+
+    it.each([null, 'cancel_activation', 'TERMINATE_CONTRACT', 1, ''])(
+      'rejects %p',
+      (purpose) => {
+        expect(problemsOf({ ...withoutPurpose(), purpose })).toEqual([
+          'purpose is invalid',
+        ]);
+      },
+    );
+
+    it('is not reported missing', () => {
+      expect(problemsOf(withoutPurpose())).toEqual([]);
+    });
+  });
+
   it('rejects unknown fields without naming them', () => {
     expect(
       problemsOf({ ...otpRequest(), extra: 1, 'buyer2@test.com': 'x' }),
