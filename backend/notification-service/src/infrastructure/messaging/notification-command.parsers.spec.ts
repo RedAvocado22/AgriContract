@@ -1,5 +1,8 @@
 import { NonRetryableError } from '@agricontract/eventing';
 import {
+  activationFailedBody,
+  activationFailedCommand,
+  activationFailedPayload,
   anchorBody,
   anchorCommand,
   anchorEnvelope,
@@ -11,6 +14,8 @@ import {
 } from '../../../test/support/commands';
 import {
   parseActivationCancelRequested,
+  CONTRACT_ACTIVATION_FAILED_FIELDS,
+  parseContractActivationFailedRequested,
   parseContractAnchorRequested,
 } from './notification-command.parsers';
 
@@ -234,6 +239,94 @@ describe('parseActivationCancelRequested', () => {
   it('rejects the anchor command, whose eventType is not this queue’s', () => {
     expect(
       message(() => parseActivationCancelRequested(anchorBody())),
+    ).toContain("is not this queue's command");
+  });
+});
+
+describe('parseContractActivationFailedRequested', () => {
+  const parseFailed = (payload: Record<string, unknown> = {}) =>
+    parseContractActivationFailedRequested(
+      activationFailedBody({ payload: activationFailedPayload(payload) }),
+    );
+
+  it('reads the envelope eventId and every payload field', () => {
+    expect(parseFailed()).toEqual(activationFailedCommand());
+  });
+
+  it.each([
+    ['an empty buyer state', { buyerDepositState: '' }],
+    ['a state it has no words for', { sellerDepositState: 'RETURNED' }],
+    ['no next action', { nextActions: [] }],
+    [
+      'a repeated next action',
+      { nextActions: ['RETRY_DEPOSIT_LOCK', 'RETRY_DEPOSIT_LOCK'] },
+    ],
+    ['failedLeg BOTH', { failedLeg: 'BOTH' }],
+  ])('accepts %s, as the contract does', (_case, patch) => {
+    expect(parseFailed(patch)).toMatchObject(patch);
+  });
+
+  it.each([
+    [
+      'failedLeg',
+      'NONE',
+      'field "failedLeg" must be one of BUYER, SELLER, BOTH',
+    ],
+    ['buyerDepositState', null, 'field "buyerDepositState" must be a string'],
+    ['sellerDepositState', 7, 'field "sellerDepositState" must be a string'],
+    [
+      'nextActions',
+      'RETRY_DEPOSIT_LOCK',
+      'field "nextActions" must be an array',
+    ],
+    [
+      'nextActions',
+      ['RETRY_DEPOSIT_LOCK', 'MARK_FAILED'],
+      'nextActions[1] must be one of RETRY_DEPOSIT_LOCK, REQUEST_ACTIVATION_CANCEL',
+    ],
+    ['oneSidedCancelAllowedFrom', '2026-11-14', 'RFC 3339'],
+    ['contractId', 'contract-1', 'must be a UUID'],
+    [
+      'reason',
+      'BUYER: insufficient funds',
+      'unknown payload property "reason"',
+    ],
+  ])(
+    'rejects %s = %p, naming the field and not the value',
+    (field, value, reason) => {
+      const text = message(() => parseFailed({ [field]: value }));
+
+      expect(text).toContain(
+        'Malformed notification.contract_activation_failed_requested',
+      );
+      expect(text).toContain(reason);
+      if (typeof value === 'string' && field !== 'reason') {
+        expect(text).not.toContain(`"${value}"`);
+      }
+      if (field === 'reason') expect(text).not.toContain('insufficient');
+      if (Array.isArray(value)) expect(text).not.toContain('MARK_FAILED');
+    },
+  );
+
+  it.each(CONTRACT_ACTIVATION_FAILED_FIELDS)(
+    'rejects a missing %s',
+    (field) => {
+      const payload = activationFailedPayload();
+      delete payload[field];
+
+      expect(
+        message(() =>
+          parseContractActivationFailedRequested(
+            activationFailedBody({ payload }),
+          ),
+        ),
+      ).toContain(field);
+    },
+  );
+
+  it('rejects the activation-cancel command, whose eventType is not this queue’s', () => {
+    expect(
+      message(() => parseContractActivationFailedRequested(cancelBody())),
     ).toContain("is not this queue's command");
   });
 });

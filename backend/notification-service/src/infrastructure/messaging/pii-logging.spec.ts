@@ -12,6 +12,7 @@ import { InMemoryNotificationLogRepository } from '../../../test/support/fakes';
 import { NotificationSender } from '../../application/notification-sender';
 import {
   NotifyActivationCancelRequestedUseCase,
+  NotifyContractActivationFailedUseCase,
   NotifyContractAnchorUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowReleasedUseCase,
@@ -22,6 +23,8 @@ import type { AmqpService, ChannelReadyCallback } from './amqp.provider';
 import {
   anchorEnvelope,
   anchorPayload,
+  activationFailedEnvelope,
+  activationFailedPayload,
   cancelEnvelope,
   cancelPayload,
 } from '../../../test/support/commands';
@@ -85,6 +88,7 @@ async function harness(sendMail: jest.Mock) {
     activationCancelRequested: new NotifyActivationCancelRequestedUseCase(
       sender,
     ),
+    contractActivationFailed: new NotifyContractActivationFailedUseCase(sender),
   });
   const consumer = new NotificationEventConsumer(amqp, routes, commands);
   await consumer.onModuleInit();
@@ -214,6 +218,34 @@ describe('no personal data in the logs', () => {
     );
     expect(log).toContain('recipients[0].userId');
     expect(log).not.toContain(BUYER);
+    expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it('a rejected activation-failed command: the dead-letter log quotes no address, even one in a bad enum item', async () => {
+    const lines = captureLogs();
+    const { deliver, nacks } = await harness(jest.fn());
+
+    deliver(
+      'notification-svc.notification.contract_activation_failed_requested',
+      JSON.stringify(
+        activationFailedEnvelope({
+          payload: activationFailedPayload({
+            recipients: [{ userId: null, email: SELLER, role: 'SELLER' }],
+            nextActions: ['RETRY_DEPOSIT_LOCK', BUYER],
+          }),
+        }),
+      ),
+    );
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(nacks).toEqual([false]); // dead-lettered at once, no retry
+    const log = lines.join('\n');
+    expect(log).toContain(
+      'Malformed notification.contract_activation_failed_requested command',
+    );
+    expect(log).toContain('nextActions[1]');
+    expect(log).not.toContain(BUYER);
+    expect(log).not.toContain(SELLER);
     expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });
 

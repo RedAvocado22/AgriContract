@@ -5,6 +5,13 @@ export {
   type ActivationCancelRequestedCommand,
   type CancelRequesterRole,
 } from './activation-cancel-requested.command';
+export {
+  ACTIVATION_NEXT_ACTIONS,
+  FAILED_LEGS,
+  type ActivationNextAction,
+  type ContractActivationFailedRequestedCommand,
+  type FailedLeg,
+} from './contract-activation-failed-requested.command';
 export type { ContractAnchorRequestedCommand } from './contract-anchor-requested.command';
 export type { EscrowLockedCommand } from './escrow-locked.command';
 export type { EscrowPenalizedCommand } from './escrow-penalized.command';

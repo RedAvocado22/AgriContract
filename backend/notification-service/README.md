@@ -85,6 +85,29 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
   characters, so the mail goes out as 7bit. `test/contract/activation-cancel-requested.contract.spec.ts` checks the
   parser against the contract in both directions.
 
+### Deposits not locked (Phase 2, D42, `notification.contract_activation_failed_requested`)
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.contract_activation_failed_requested` (DLX `notification-svc.contracts.dlx`) |
+| Exchange, routing key | `agricontract.contracts`, `notification.contract_activation_failed_requested` |
+| Recipients | every entry of `payload.recipients`: today the buyer and the seller |
+| Row per email | `notification_type = CONTRACT_ACTIVATION_FAILED`, `template_version = contract-activation-failed/v1` |
+
+- escrow-service ran out of lock retries for a SIGNED contract (`escrow.deposit_lock_failed`), so it stays SIGNED.
+  The email says which deposit failed and the state of each (`DEPOSIT_LOCKED`, `LOCK_FAILED`, `NOT_REQUIRED` in
+  words; another code as sent; anything else as "not reported"), that nobody breached so nobody is penalised, and
+  only the next steps `nextActions` lists: an Operator may retry the lock (the contract then becomes active and
+  every cancel request lapses), and each party may request the cancel, with the instant from which one request is
+  enough (`oneSidedCancelAllowedFrom`, in Vietnam time and UTC). A recipient who is not a party reads "each party
+  can" instead of "you can".
+- Every report is a new command (new `eventId`), so a retry cycle that fails again mails the parties again.
+- Queue, DLQ and DLX are declared ahead by contract-service (`ACTIVATION_FAILED_QUEUE`), identically to
+  `topology.ts`, so commands written before this consumer existed are delivered when it starts.
+- Same claim, dedup, redelivery and dead-letter rules as the signed-contract email; lines stay within 76
+  characters, so the mail goes out as 7bit. `test/contract/contract-activation-failed-requested.contract.spec.ts`
+  checks the parser against the contract in both directions.
+
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
