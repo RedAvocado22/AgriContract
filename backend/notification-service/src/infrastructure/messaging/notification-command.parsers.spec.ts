@@ -11,12 +11,18 @@ import {
   cancelCommand,
   cancelEnvelope,
   cancelPayload,
+  BREACH_TERMINATION,
+  terminatedBody,
+  terminatedCommand,
+  terminatedPayload,
 } from '../../../test/support/commands';
 import {
   parseActivationCancelRequested,
   CONTRACT_ACTIVATION_FAILED_FIELDS,
   parseContractActivationFailedRequested,
+  CONTRACT_TERMINATED_FIELDS,
   parseContractAnchorRequested,
+  parseContractTerminatedRequested,
 } from './notification-command.parsers';
 
 /** Delivers a message built from `overrides` on the envelope. */
@@ -327,6 +333,118 @@ describe('parseContractActivationFailedRequested', () => {
   it('rejects the activation-cancel command, whose eventType is not this queue’s', () => {
     expect(
       message(() => parseContractActivationFailedRequested(cancelBody())),
+    ).toContain("is not this queue's command");
+  });
+});
+
+describe('parseContractTerminatedRequested', () => {
+  const parseTerminated = (payload: Record<string, unknown> = {}) =>
+    parseContractTerminatedRequested(
+      terminatedBody({ payload: terminatedPayload(payload) }),
+    );
+
+  it('reads the envelope eventId and every payload field of a withdrawn offer', () => {
+    expect(parseTerminated()).toEqual(terminatedCommand());
+  });
+
+  it('reads every field of a breach termination too: all types parse', () => {
+    expect(parseTerminated(BREACH_TERMINATION)).toMatchObject(
+      BREACH_TERMINATION,
+    );
+  });
+
+  it.each([
+    ['terminationType', 'CANCELLED', 'must be one of WITHDRAW_OFFER,'],
+    ['requestedBy', 'OPERATOR', 'must be one of BUYER, SELLER, SYSTEM'],
+    ['finalBreachingRole', 'SYSTEM', 'must be one of BUYER, SELLER'],
+    ['breachReasonCode', 'LATE', 'field "breachReasonCode" must be one of'],
+    [
+      'remedyDecisionId',
+      'decision-1',
+      'field "remedyDecisionId" must be a UUID',
+    ],
+    [
+      'replacesContractId',
+      7,
+      'field "replacesContractId" must be a non-empty string',
+    ],
+    [
+      'affectedMilestoneIds',
+      null,
+      'field "affectedMilestoneIds" must be an array',
+    ],
+    ['affectedMilestoneIds', ['m-1'], 'affectedMilestoneIds[0] must be a UUID'],
+    [
+      'affectedMilestoneIds',
+      [
+        '2c3d4e5f-6a7b-4c8d-8e9f-1a2b3c4d5e6f',
+        '2c3d4e5f-6a7b-4c8d-8e9f-1a2b3c4d5e6f',
+      ],
+      'affectedMilestoneIds[1] repeats an earlier item',
+    ],
+    ['remedyLegs', {}, 'field "remedyLegs" must be an array'],
+    ['reason', 'changed my mind', 'unknown payload property "reason"'],
+  ])(
+    'rejects %s = %p, naming the field and not the value',
+    (field, value, reason) => {
+      const text = message(() => parseTerminated({ [field]: value }));
+
+      expect(text).toContain(
+        'Malformed notification.contract_terminated_requested',
+      );
+      expect(text).toContain(reason);
+      if (typeof value === 'string' && field !== 'reason') {
+        expect(text).not.toContain(`"${value}"`);
+      }
+      expect(text).not.toContain('changed my mind');
+    },
+  );
+
+  it.each(CONTRACT_TERMINATED_FIELDS)(
+    'rejects a missing %s, nullable or not',
+    (field) => {
+      const payload = terminatedPayload();
+      delete payload[field];
+
+      expect(
+        message(() =>
+          parseContractTerminatedRequested(terminatedBody({ payload })),
+        ),
+      ).toContain(field);
+    },
+  );
+
+  describe('remedyLegs', () => {
+    const leg = (BREACH_TERMINATION.remedyLegs as Record<string, unknown>[])[0];
+    const withLeg = (patch: Record<string, unknown>) =>
+      parseTerminated({
+        ...BREACH_TERMINATION,
+        remedyLegs: [{ ...leg, ...patch }],
+      });
+
+    it.each([
+      ['remedyLegId', 'leg-1', 'remedyLegs[0].remedyLegId must be a UUID'],
+      ['remedyType', 'FINE', 'remedyLegs[0].remedyType must be one of'],
+      ['fundType', 'ESCROW', 'remedyLegs[0].fundType must be one of'],
+      ['role', 'SYSTEM', 'remedyLegs[0].role must be one of BUYER, SELLER'],
+      ['amount', '7126425', 'remedyLegs[0].amount must be a decimal string'],
+      ['amount', 7126425, 'remedyLegs[0].amount must be a decimal string'],
+      ['amount', '-1.00', 'remedyLegs[0].amount must be a decimal string'],
+      ['amount', `${'9'.repeat(17)}.00`, 'at most 19 characters'],
+      ['note', 'x', 'unknown property "note" in remedyLegs[0]'],
+    ])('rejects %s = %p', (field, value, reason) => {
+      expect(message(() => withLeg({ [field]: value }))).toContain(reason);
+    });
+
+    it('accepts the largest amount the contract allows', () => {
+      const amount = `${'9'.repeat(16)}.99`;
+      expect(withLeg({ amount }).remedyLegs[0].amount).toBe(amount);
+    });
+  });
+
+  it('rejects the activation-cancel command, whose eventType is not this queue’s', () => {
+    expect(
+      message(() => parseContractTerminatedRequested(cancelBody())),
     ).toContain("is not this queue's command");
   });
 });

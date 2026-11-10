@@ -2,6 +2,7 @@ import type {
   ActivationCancelRequestedCommand,
   ContractActivationFailedRequestedCommand,
   ContractAnchorRequestedCommand,
+  ContractTerminatedRequestedCommand,
   NotificationRecipient,
 } from '../../src/application/commands';
 
@@ -222,3 +223,100 @@ export function activationFailedCommand(): ContractActivationFailedRequestedComm
     oneSidedCancelAllowedFrom: '2026-11-13T17:00:00Z',
   };
 }
+
+/*
+ * `notification.contract_terminated_requested` for WITHDRAW_OFFER, as
+ * contract-service writes it (OutboxContractEventPublisher
+ * .offerWithdrawnNoticeRequested): the buyer withdrew, so the one recipient is
+ * the seller; every breach, remedy and supersede field is null or empty.
+ */
+export const WITHDRAW_RECIPIENT: NotificationRecipient = {
+  userId: '9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b',
+  email: 'seller@withdraw.test',
+  role: 'SELLER',
+};
+
+export function terminatedEnvelope(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    eventId: '5e4d3c2b-1a0f-4e9d-8c7b-6a5f4e3d2c1b',
+    eventType: 'notification.contract_terminated_requested',
+    eventVersion: 1,
+    occurredAt: '2026-11-10T04:30:00.123456Z',
+    producer: 'contract-service',
+    aggregateId: CONTRACT_ID,
+    correlationId: CONTRACT_ID,
+    causationId: null,
+    payload: terminatedPayload(),
+    ...overrides,
+  };
+}
+
+export function terminatedPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    contractId: CONTRACT_ID,
+    recipients: [{ ...WITHDRAW_RECIPIENT }],
+    terminationType: 'WITHDRAW_OFFER',
+    requestedBy: 'BUYER',
+    finalBreachingRole: null,
+    breachReasonCode: null,
+    remedyDecisionId: null,
+    breachCaseId: null,
+    affectedMilestoneIds: [],
+    supersededByContractId: null,
+    replacesContractId: null,
+    remedyLegs: [],
+    ...overrides,
+  };
+}
+
+export const terminatedBody = (
+  overrides: Record<string, unknown> = {},
+): Buffer => Buffer.from(JSON.stringify(terminatedEnvelope(overrides)));
+
+/** The command the parser is expected to produce from `terminatedEnvelope()`. */
+export function terminatedCommand(): ContractTerminatedRequestedCommand {
+  return {
+    eventId: terminatedEnvelope().eventId as string,
+    contractId: CONTRACT_ID,
+    recipients: [{ ...WITHDRAW_RECIPIENT }],
+    terminationType: 'WITHDRAW_OFFER',
+    requestedBy: 'BUYER',
+    finalBreachingRole: null,
+    breachReasonCode: null,
+    remedyDecisionId: null,
+    breachCaseId: null,
+    affectedMilestoneIds: [],
+    supersededByContractId: null,
+    replacesContractId: null,
+    remedyLegs: [],
+  };
+}
+
+/** A breach termination with every field filled, to show the parser reads them all. */
+export const BREACH_TERMINATION: Record<string, unknown> = {
+  terminationType: 'TERMINATION_FOR_BREACH',
+  requestedBy: 'SYSTEM',
+  finalBreachingRole: 'SELLER',
+  breachReasonCode: 'NON_DELIVERY',
+  remedyDecisionId: '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d',
+  breachCaseId: '1b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e',
+  affectedMilestoneIds: [
+    '2c3d4e5f-6a7b-4c8d-8e9f-1a2b3c4d5e6f',
+    '3d4e5f6a-7b8c-4d9e-9f0a-2b3c4d5e6f7a',
+  ],
+  supersededByContractId: null,
+  replacesContractId: null,
+  remedyLegs: [
+    {
+      remedyLegId: '4e5f6a7b-8c9d-4e0f-8a1b-3c4d5e6f7a8b',
+      remedyType: 'DEPOSIT_FORFEITURE',
+      fundType: 'SELLER_DEPOSIT',
+      role: 'SELLER',
+      amount: '7126425.00',
+    },
+  ],
+};
