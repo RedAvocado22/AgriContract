@@ -120,6 +120,73 @@ class OutboxContractEventPublisherTest {
         verify(outbox, never()).append(any());
     }
 
+    private static final Instant WITHDRAWN_AT = Instant.parse("2026-11-10T12:00:00.654321Z");
+
+    @Test
+    void withdrawn_matchesTheFrozenSchema_withTheReservedQuantity() throws Exception {
+        Contract contract = contract(ContractStatus.WITHDRAWN, UUID.randomUUID().toString(), BUYER);
+
+        publisher.contractWithdrawn(contract, WITHDRAWN_AT);
+
+        EventEnvelope envelope = appended();
+        JsonNode json = new ObjectMapper().readTree(new EventEnvelopeCodec().toJson(envelope));
+        FrozenSchemas.assertEvent("contractWithdrawn", json);
+        assertThat(envelope.eventType()).isEqualTo("contract.withdrawn");
+        assertThat(envelope.correlationId()).isEqualTo(contract.getContractId().value());
+        assertThat(json.at("/payload/listingId").asText()).isEqualTo(contract.getListingId());
+        assertThat(json.at("/payload/reservedQuantity").decimalValue()).isEqualByComparingTo("2500.5");
+        assertThat(json.at("/payload/withdrawnAt").asText()).isEqualTo("2026-11-10T12:00:00.654321Z");
+    }
+
+    @Test
+    void terminated_withdrawOffer_matchesTheFrozenSchema_withNoBreachNoRemedy() throws Exception {
+        Contract contract = contract(ContractStatus.WITHDRAWN, UUID.randomUUID().toString(), BUYER);
+
+        publisher.offerWithdrawnTerminated(contract, SignerRole.SELLER, WITHDRAWN_AT);
+
+        JsonNode json = new ObjectMapper().readTree(new EventEnvelopeCodec().toJson(appended()));
+        FrozenSchemas.assertEvent("contractTerminated", json);
+        assertThat(json.at("/eventType").asText()).isEqualTo("contract.terminated");
+        assertThat(json.at("/payload/terminationType").asText()).isEqualTo("WITHDRAW_OFFER");
+        assertThat(json.at("/payload/requestedBy").asText()).isEqualTo("SELLER");
+        for (String field : new String[] {"finalBreachingRole", "breachReasonCode", "remedyDecisionId",
+                "breachCaseId", "supersededByContractId", "replacesContractId"}) {
+            assertThat(json.at("/payload").has(field)).as(field + " on the wire").isTrue();
+            assertThat(json.at("/payload/" + field).isNull()).as(field).isTrue();
+        }
+        assertThat(json.at("/payload/affectedMilestoneIds")).isEmpty();
+    }
+
+    @Test
+    void withdrawNotice_goesToTheOtherPartyOnly_andMatchesTheFrozenSchema() throws Exception {
+        Contract contract = contract(ContractStatus.WITHDRAWN, UUID.randomUUID().toString(), BUYER);
+
+        publisher.offerWithdrawnNoticeRequested(contract, SignerRole.BUYER, WITHDRAWN_AT);
+
+        JsonNode json = new ObjectMapper().readTree(new EventEnvelopeCodec().toJson(appended()));
+        FrozenSchemas.assertCommand("contractTerminatedRequested", json);
+        assertThat(json.at("/eventType").asText()).isEqualTo("notification.contract_terminated_requested");
+        assertThat(json.at("/payload/recipients")).hasSize(1);
+        assertThat(json.at("/payload/recipients/0/role").asText()).isEqualTo("SELLER");
+        assertThat(json.at("/payload/recipients/0/email").asText()).isEqualTo("seller@example.com");
+        assertThat(json.at("/payload/requestedBy").asText()).isEqualTo("BUYER");
+        assertThat(json.at("/payload/terminationType").asText()).isEqualTo("WITHDRAW_OFFER");
+        assertThat(json.at("/payload/remedyLegs")).isEmpty();
+    }
+
+    @Test
+    void withdrawEvents_forAContractNotWithdrawn_areRefused() {
+        Contract contract = contract(ContractStatus.NEGOTIATING, UUID.randomUUID().toString(), BUYER);
+
+        assertThatThrownBy(() -> publisher.contractWithdrawn(contract, WITHDRAWN_AT))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> publisher.offerWithdrawnTerminated(contract, SignerRole.BUYER, WITHDRAWN_AT))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> publisher.offerWithdrawnNoticeRequested(contract, SignerRole.BUYER, WITHDRAWN_AT))
+                .isInstanceOf(IllegalStateException.class);
+        verify(outbox, never()).append(any());
+    }
+
     private EventEnvelope appended() {
         ArgumentCaptor<EventEnvelope> captor = ArgumentCaptor.forClass(EventEnvelope.class);
         verify(outbox).append(captor.capture());

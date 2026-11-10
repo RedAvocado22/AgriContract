@@ -43,6 +43,10 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
     static final String ACTIVATION_REFUND_REQUESTED = "contract.activation_refund_requested";
     static final String ACTIVATION_CANCEL_REQUESTED = "notification.activation_cancel_requested";
     static final String ACTIVATION_FAILED = "contract.activation_failed";
+    static final String CONTRACT_WITHDRAWN = "contract.withdrawn";
+    static final String CONTRACT_TERMINATED = "contract.terminated";
+    static final String CONTRACT_TERMINATED_REQUESTED = "notification.contract_terminated_requested";
+    static final String WITHDRAW_OFFER = "WITHDRAW_OFFER";
 
     private static final Pattern UUID_TEXT =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -221,9 +225,79 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
                 correlationId, causationId, null, payload));
     }
 
+    /**
+     * golden-flow-events.yaml contractWithdrawn. reservedQuantity is the terms' total until #232 stores the reserved
+     * quantity (as for contract.signed): PATCH cannot change the total, so the two are equal.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void contractWithdrawn(Contract contract, Instant withdrawnAt) {
+        requireWithdrawn(contract, CONTRACT_WITHDRAWN);
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("listingId", uuid(contract.getListingId(), "listingId"));
+        payload.put("reservedQuantity", contract.getCoffeeTerms().snapshot().totalQuantity());
+        payload.put("withdrawnAt", withdrawnAt.toString());
+        outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_WITHDRAWN, 1, withdrawnAt, PRODUCER, contractId,
+                contractId, null, null, payload));
+    }
+
+    /** golden-flow-events.yaml contractTerminated, WITHDRAW_OFFER: every breach/remedy/supersede field is null. */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void offerWithdrawnTerminated(Contract contract, SignerRole requestedBy, Instant withdrawnAt) {
+        requireWithdrawn(contract, CONTRACT_TERMINATED);
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_TERMINATED, 1, withdrawnAt, PRODUCER, contractId,
+                contractId, null, null, withdrawOfferTermination(contractId, requestedBy)));
+    }
+
+    /** notification-commands.yaml contractTerminatedRequested, WITHDRAW_OFFER: to the other party only, no legs. */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void offerWithdrawnNoticeRequested(Contract contract, SignerRole requestedBy, Instant withdrawnAt) {
+        requireWithdrawn(contract, CONTRACT_TERMINATED_REQUESTED);
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> termination = withdrawOfferTermination(contractId, requestedBy);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("recipients", List.of(requestedBy == SignerRole.BUYER
+                ? recipient(contract.getSellerId(), contract.getSellerEmail(), "SELLER")
+                : recipient(contract.getBuyerId(), contract.getBuyerEmail(), "BUYER")));
+        termination.remove("contractId");
+        payload.putAll(termination);
+        payload.put("remedyLegs", List.of());
+        outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_TERMINATED_REQUESTED, 1, withdrawnAt, PRODUCER,
+                contractId, contractId, null, null, payload));
+    }
+
+    private static Map<String, Object> withdrawOfferTermination(String contractId, SignerRole requestedBy) {
+        // Nullable fields are still on the wire (milestone-escrow design §7.2).
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("terminationType", WITHDRAW_OFFER);
+        payload.put("requestedBy", requestedBy.name());
+        payload.put("finalBreachingRole", null);
+        payload.put("breachReasonCode", null);
+        payload.put("remedyDecisionId", null);
+        payload.put("breachCaseId", null);
+        payload.put("affectedMilestoneIds", List.of());
+        payload.put("supersededByContractId", null);
+        payload.put("replacesContractId", null);
+        return payload;
+    }
+
+    private static void requireWithdrawn(Contract contract, String eventType) {
+        if (contract.getStatus() != ContractStatus.WITHDRAWN || contract.getCoffeeTerms() == null) {
+            throw new IllegalStateException(eventType + " for contract " + contract.getContractId().value()
+                    + " in status " + contract.getStatus());
+        }
+    }
+
     private static Map<String, Object> recipient(String userId, String email, String role) {
         if (email == null || email.isBlank()) {
-            throw new IllegalStateException("contract_anchor_requested needs the " + role + " email");
+            throw new IllegalStateException("a notification command needs the " + role + " email");
         }
         Map<String, Object> recipient = new LinkedHashMap<>();
         recipient.put("userId", uuid(userId, role.toLowerCase() + "Id"));

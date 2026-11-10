@@ -62,6 +62,31 @@ class ConsumerQueuesDeclaredAheadTest {
                 "escrow-svc.contract.activation_refund_requested.dlq", "contract.activation_refund_requested");
     }
 
+    @Test
+    void withdrawQueuesAreDeclaredLikeTheirOwnersDo() {
+        assertDurableWithDlx(config.withdrawnQueue(), "product-svc.contract.withdrawn", "agricontract.product.dlx");
+        assertBinding(config.withdrawnBinding(), "agricontract.contracts", "product-svc.contract.withdrawn",
+                "contract.withdrawn");
+        assertBinding(config.withdrawnDlqBinding(), "agricontract.product.dlx", "product-svc.contract.withdrawn.dlq",
+                "contract.withdrawn");
+        assertDurableWithDlx(config.terminatedRequestedQueue(),
+                "notification-svc.notification.contract_terminated_requested", "notification-svc.contracts.dlx");
+        assertBinding(config.terminatedRequestedBinding(), "agricontract.contracts",
+                "notification-svc.notification.contract_terminated_requested",
+                "notification.contract_terminated_requested");
+        assertBinding(config.terminatedRequestedDlqBinding(), "notification-svc.contracts.dlx",
+                "notification-svc.notification.contract_terminated_requested.dlq",
+                "notification.contract_terminated_requested");
+        // analytics topology.ts: queue analytics-svc.<eventType>, DLX agricontract.analytics.dlx (direct).
+        assertDurableWithDlx(config.terminatedQueue(), "analytics-svc.contract.terminated",
+                "agricontract.analytics.dlx");
+        assertThat(config.analyticsDlx().getType()).isEqualTo("direct");
+        assertBinding(config.terminatedBinding(), "agricontract.contracts", "analytics-svc.contract.terminated",
+                "contract.terminated");
+        assertBinding(config.terminatedDlqBinding(), "agricontract.analytics.dlx",
+                "analytics-svc.contract.terminated.dlq", "contract.terminated");
+    }
+
     private static void assertDurableWithDlx(Queue queue, String name, String dlx) {
         assertThat(queue.getName()).isEqualTo(name);
         assertThat(queue.isDurable()).isTrue();

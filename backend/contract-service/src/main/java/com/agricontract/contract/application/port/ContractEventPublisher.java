@@ -50,4 +50,17 @@ public interface ContractEventPublisher {
 
     /** contract.activation_failed: terminal ACTIVATION_FAILED, product-service releases the reservation. */
     void contractActivationFailed(Contract contract, Instant failedAt, String correlationId, String causationId);
+
+    /** contract.withdrawn (#233): product-service releases the reservation of an offer withdrawn before signing. */
+    void contractWithdrawn(Contract contract, Instant withdrawnAt);
+
+    /**
+     * contract.terminated with terminationType WITHDRAW_OFFER (#233): lifecycle for audit and analytics only, never
+     * money. Published at once, unlike other terminations: nothing is locked before SIGNED, so lock = 0 by
+     * construction.
+     */
+    void offerWithdrawnTerminated(Contract contract, SignerRole requestedBy, Instant withdrawnAt);
+
+    /** notification.contract_terminated_requested, WITHDRAW_OFFER (#233): emails the other party. */
+    void offerWithdrawnNoticeRequested(Contract contract, SignerRole requestedBy, Instant withdrawnAt);
 }
