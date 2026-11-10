@@ -8,7 +8,7 @@ import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.*;
 import com.agricontract.product.domain.repository.CategoryRepository;
 import com.agricontract.product.domain.repository.ListingRepository;
-import com.agricontract.product.infrastructure.contract.FrozenApiSchemas;
+import com.agricontract.product.infrastructure.contract.FrozenSchemas;
 import com.agricontract.product.testsupport.GoodsFixtures;
 import com.agricontract.product.testsupport.PlotFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -85,9 +85,9 @@ class GetListingContractSnapshotUseCaseImplTest {
         assertThat(first.verificationLevel()).isEqualTo(VerificationLevel.SELF_DECLARED);
 
         JsonNode body = objectMapper.valueToTree(snapshot);
-        FrozenApiSchemas.assertValid(FrozenApiSchemas.SUPPLEMENTARY_API, "ListingContractSnapshot", body);
+        FrozenSchemas.assertApiSchema(FrozenSchemas.SUPPLEMENTARY_API, "ListingContractSnapshot", body);
         // contract-service stores the body unchanged as goodsTerms
-        FrozenApiSchemas.assertValid(FrozenApiSchemas.GOLDEN_FLOW_API, "GoodsTermsSnapshot", body);
+        FrozenSchemas.assertApiSchema(FrozenSchemas.GOLDEN_FLOW_API, "GoodsTermsSnapshot", body);
     }
 
     @Test
@@ -99,7 +99,7 @@ class GetListingContractSnapshotUseCaseImplTest {
         assertThat(body.has("cropYear")).isTrue();
         assertThat(body.get("cropYear").isNull()).isTrue();
         assertThat(body.has("harvestSeason")).isTrue();
-        FrozenApiSchemas.assertValid(FrozenApiSchemas.GOLDEN_FLOW_API, "GoodsTermsSnapshot", body);
+        FrozenSchemas.assertApiSchema(FrozenSchemas.GOLDEN_FLOW_API, "GoodsTermsSnapshot", body);
     }
 
     @Test
