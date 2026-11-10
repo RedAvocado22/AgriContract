@@ -3,6 +3,10 @@ export { NotifyCategoryRejectedUseCase } from './notify-category-rejected.use-ca
 export { NotifyActivationCancelRequestedUseCase } from './notify-activation-cancel-requested.use-case';
 export { NotifyContractActivationFailedUseCase } from './notify-contract-activation-failed.use-case';
 export { NotifyContractAnchorUseCase } from './notify-contract-anchor.use-case';
+export {
+  NotifyContractTerminatedUseCase,
+  unsupportedTermination,
+} from './notify-contract-terminated.use-case';
 export { NotifyEscrowLockedUseCase } from './notify-escrow-locked.use-case';
 export { NotifyEscrowPenalizedUseCase } from './notify-escrow-penalized.use-case';
 export { NotifyEscrowReleasedUseCase } from './notify-escrow-released.use-case';

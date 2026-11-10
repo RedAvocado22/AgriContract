@@ -38,6 +38,7 @@ const EXPECTED_QUEUES = [
   'notification-svc.notification.contract_anchor_requested',
   'notification-svc.notification.activation_cancel_requested',
   'notification-svc.notification.contract_activation_failed_requested',
+  'notification-svc.notification.contract_terminated_requested',
   'notification-svc.escrow.locked',
   'notification-svc.escrow.released',
   'notification-svc.escrow.penalized',
@@ -54,7 +55,7 @@ const dlxOf = (queue: string): string => {
 };
 
 describe('topology (must match the Java RabbitMQConfig)', () => {
-  it('names the 8 queues and 8 DLQs', () => {
+  it('names the 9 queues and 9 DLQs', () => {
     expect(queueNames()).toEqual(EXPECTED_QUEUES);
     expect(dlqNames()).toEqual(EXPECTED_QUEUES.map((q) => `${q}.dlq`));
   });
@@ -74,11 +75,11 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     ]);
   });
 
-  it('declares 16 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
+  it('declares 18 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
     const { channel, queues } = recordingChannel();
     await declareTopology(channel);
 
-    expect(queues).toHaveLength(16);
+    expect(queues).toHaveLength(18);
 
     for (const q of EXPECTED_QUEUES) {
       // toEqual on the whole options object also fails on any extra option
@@ -108,7 +109,7 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, bindings } = recordingChannel();
     await declareTopology(channel);
 
-    expect(bindings).toHaveLength(16);
+    expect(bindings).toHaveLength(18);
     // Exactly the queue, DLX and binding contract-service declares ahead of us
     // (ConsumerQueuesDeclaredAhead), so its declaration and ours are the same.
     expect(bindings).toContainEqual([
@@ -130,6 +131,16 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
       'notification-svc.notification.activation_cancel_requested.dlq',
       'notification-svc.contracts.dlx',
       'notification.activation_cancel_requested',
+    ]);
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.contract_terminated_requested',
+      'agricontract.contracts',
+      'notification.contract_terminated_requested',
+    ]);
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.contract_terminated_requested.dlq',
+      'notification-svc.contracts.dlx',
+      'notification.contract_terminated_requested',
     ]);
     expect(bindings).toContainEqual([
       'notification-svc.notification.contract_activation_failed_requested',

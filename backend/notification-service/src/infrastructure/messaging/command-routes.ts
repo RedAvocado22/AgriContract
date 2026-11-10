@@ -1,12 +1,17 @@
-import type {
-  NotifyActivationCancelRequestedUseCase,
-  NotifyContractActivationFailedUseCase,
-  NotifyContractAnchorUseCase,
+import {
+  unsupportedTermination,
+  type NotifyActivationCancelRequestedUseCase,
+  type NotifyContractActivationFailedUseCase,
+  type NotifyContractAnchorUseCase,
+  type NotifyContractTerminatedUseCase,
 } from '../../application/use-cases';
 import {
+  CONTRACT_TERMINATED_REQUESTED,
   parseActivationCancelRequested,
   parseContractActivationFailedRequested,
   parseContractAnchorRequested,
+  parseContractTerminatedRequested,
+  unsupportedCommand,
 } from './notification-command.parsers';
 import type { CommandRoutingKey } from './topology';
 
@@ -22,6 +27,7 @@ export interface CommandUseCases {
   contractAnchor: NotifyContractAnchorUseCase;
   activationCancelRequested: NotifyActivationCancelRequestedUseCase;
   contractActivationFailed: NotifyContractActivationFailedUseCase;
+  contractTerminated: NotifyContractTerminatedUseCase;
 }
 
 /**
@@ -40,5 +46,17 @@ export function commandRoutes(u: CommandUseCases): CommandRoutes {
       u.contractActivationFailed.execute(
         parseContractActivationFailedRequested(b),
       ),
+    'notification.contract_terminated_requested': async (b) => {
+      const command = parseContractTerminatedRequested(b);
+      const reason = unsupportedTermination(command);
+      if (reason !== null) {
+        throw unsupportedCommand(
+          CONTRACT_TERMINATED_REQUESTED,
+          command.eventId,
+          reason,
+        );
+      }
+      await u.contractTerminated.execute(command);
+    },
   };
 }

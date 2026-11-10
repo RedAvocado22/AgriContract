@@ -352,6 +352,23 @@ function malformed(
 }
 
 /**
+ * A well-formed command this service cannot mail yet (a termination type
+ * without a template): dead-lettered at once, like a malformed one, so it
+ * waits in the DLQ for the template instead of being acked unsent. `reason`
+ * must quote enum values only.
+ */
+export function unsupportedCommand(
+  eventType: string,
+  eventId: string,
+  reason: string,
+): NonRetryableError {
+  const event = SAFE_ID.test(eventId) ? ` (event ${eventId})` : '';
+  return new NonRetryableError(
+    `Unsupported ${eventType} command: ${reason}${event}`,
+  );
+}
+
+/**
  * Validates the envelope of a command and returns a reader over its payload.
  * `producer` is checked against the contract's `const`: a command from another
  * service is not the one this template renders.

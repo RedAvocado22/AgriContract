@@ -13,6 +13,7 @@ import { NotificationSender } from '../../application/notification-sender';
 import {
   NotifyActivationCancelRequestedUseCase,
   NotifyContractActivationFailedUseCase,
+  NotifyContractTerminatedUseCase,
   NotifyContractAnchorUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowReleasedUseCase,
@@ -89,6 +90,7 @@ async function harness(sendMail: jest.Mock) {
       sender,
     ),
     contractActivationFailed: new NotifyContractActivationFailedUseCase(sender),
+    contractTerminated: new NotifyContractTerminatedUseCase(sender),
   });
   const consumer = new NotificationEventConsumer(amqp, routes, commands);
   await consumer.onModuleInit();

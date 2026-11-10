@@ -16,6 +16,7 @@ export const TOPOLOGY = [
       'notification.contract_anchor_requested',
       'notification.activation_cancel_requested',
       'notification.contract_activation_failed_requested',
+      'notification.contract_terminated_requested',
     ],
   },
   {
@@ -51,11 +52,16 @@ export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
  * `notification.contract_activation_failed_requested` (D42) tells both
  * parties the deposits of a signed contract could not be locked. Declared
  * ahead the same way (ACTIVATION_FAILED_QUEUE), same DLX.
+ *
+ * `notification.contract_terminated_requested` (D43) tells the other party an
+ * offer was withdrawn; the other termination types come with #278. Declared
+ * ahead the same way (TERMINATED_REQUESTED_QUEUE), same DLX.
  */
 export const COMMAND_ROUTING_KEYS = [
   'notification.contract_anchor_requested',
   'notification.activation_cancel_requested',
   'notification.contract_activation_failed_requested',
+  'notification.contract_terminated_requested',
 ] as const;
 
 export type CommandRoutingKey = (typeof COMMAND_ROUTING_KEYS)[number];
