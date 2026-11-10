@@ -15,6 +15,7 @@ Every edge is drawn exactly through the points given (orthogonal segments), neve
 from __future__ import annotations
 
 import html
+import math
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -171,6 +172,37 @@ class Diagram:
         self.nodes[id] = n
         return n
 
+    def entity(self, id, cx, top, name, pk=(), fk=(), ghost=False):
+        """Crow's foot entity: name, primary key compartment (bold, underlined), foreign key compartment (italic).
+        A primary key line may end in " (FK)" (associative entity); only the name part is bold and underlined.
+        ghost=True: an entity drawn in another part, a dashed grey box with its name only."""
+        if ghost:
+            n = Node(id, "ghost", cx, top + 13, text_w(name) + 24, 26, name)
+        else:
+            tw = max([text_w(name)] + [text_w(l, bold=True) for l in pk] + [text_w(l, italic=True) for l in fk])
+            h = LINE_H + 10 + compartment_h(pk) + (compartment_h(fk) if fk else 0)
+            n = Node(id, "entity", cx, top + h / 2, tw + 22, h, name)
+            n.pk, n.fk = list(pk), list(fk)
+        self.nodes[id] = n
+        return n
+
+    def er(self, src, s_side, dst, d_side, *via, s="one", d="zero_many", label="", s_off=0, d_off=0,
+           seg=0, side="on"):
+        """Relationship line, cardinality s at src and d at dst: one | zero_one | many | zero_many.
+        The label (verb read from src to dst) sits on segment seg: on the line, or beside it (t | b | l | r)."""
+        a = self.nodes[src].port(s_side, s_off)
+        b = self.nodes[dst].port(d_side, d_off)
+        pts = [a, *via, b]
+        e = Edge(src, dst, pts, label, None, False, False, "er")
+        e.cards, e.label_seg = (s, d), seg
+        if label:
+            w, h = text_size(label, 11)
+            w += 4
+            mx, my = (pts[seg][0] + pts[seg + 1][0]) / 2, (pts[seg][1] + pts[seg + 1][1]) / 2
+            e.label_at = {"on": (mx - w / 2, my - h / 2), "t": (mx - w / 2, my - 10 - h), "b": (mx - w / 2, my + 10),
+                          "l": (mx - 10 - w, my - h / 2), "r": (mx + 10, my - h / 2)}[side]
+        self.edges.append(e)
+
     def package(self, id, x0, y0, w, h, name):
         """UML package frame (tab with the name); class boxes may sit inside it."""
         n = Node(id, "package", x0 + w / 2, y0 + h / 2, w, h, name)
@@ -239,10 +271,24 @@ class Diagram:
             for i, p, q in segs:
                 if self.edges[i] is e:
                     own += 1
-                    if own == 1:  # the label belongs to the edge's first segment
+                    if own == getattr(e, "label_seg", 0) + 1:  # the segment the label belongs to
                         continue
                 if seg_hits_box(p, q, lb):
                     problems.append(f"label {e.label!r} touches edge {self.edges[i].src}->{self.edges[i].dst}")
+        for e in self.edges:
+            if e.kind == "er" and e.label:
+                lb = self.label_box(e)
+                for p, q in ((e.points[0], e.points[1]), (e.points[-1], e.points[-2])):
+                    ln = math.hypot(q[0] - p[0], q[1] - p[1])
+                    ex, ey = p[0] + (q[0] - p[0]) / ln * 25, p[1] + (q[1] - p[1]) / ln * 25
+                    px, py = (8, 2) if p[0] == ex else (2, 8)  # 8 across the line, 2 along it
+                    zone = (min(p[0], ex) - px, min(p[1], ey) - py, max(p[0], ex) + px, max(p[1], ey) + py)
+                    if boxes_overlap(lb, zone):
+                        problems.append(f"label {e.label!r} covers a cardinality symbol")
+            if e.kind == "er":
+                for p, q in ((e.points[0], e.points[1]), (e.points[-1], e.points[-2])):
+                    if abs(p[0] - q[0]) + abs(p[1] - q[1]) < 28:
+                        problems.append(f"edge {e.src}->{e.dst}: end segment too short for its symbol")
         for e in self.edges:
             if e.label:
                 x0, _, x1, _ = self.label_box(e)
@@ -317,6 +363,9 @@ class Diagram:
             mark = f' marker-end="url(#{end})"' if e.arrow else ""
             start = ' marker-start="url(#dia)"' if e.kind == "composition" else ""
             o.append(f'<path d="{d}" fill="none" stroke="black" stroke-width="1.1"{dash}{mark}{start}/>')
+            if e.kind == "er":
+                o.append(er_mark(e.points[0], e.points[1], e.cards[0]))
+                o.append(er_mark(e.points[-1], e.points[-2], e.cards[1]))
             if e.label:
                 x0, y0, x1, y1 = self.label_box(e)
                 o.append(f'<rect x="{x0}" y="{y0}" width="{x1 - x0}" height="{y1 - y0}" fill="white"/>')
@@ -351,6 +400,32 @@ class Diagram:
                 o.append(f'<rect x="{x0}" y="{y0 - 20}" width="{tw}" height="20" fill="white" stroke="black"/>')
                 o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="none" stroke="black"/>')
                 o.append(svg_text(x0 + 8, y0 - 10, n.text, bold=True, anchor="start"))
+            elif n.kind == "ghost":
+                o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="#808080" '
+                         f'stroke-width="1.2" stroke-dasharray="5,3"/>')
+                o.append(svg_text(n.cx, n.cy, n.text).replace("<text ", '<text fill="#606060" ', 1))
+            elif n.kind == "entity":
+                o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="black" '
+                         f'stroke-width="1.2"/>')
+                o.append(svg_text(n.cx, y0 + 5 + LINE_H / 2, n.text))
+                y = y0 + LINE_H + 10
+                for block, italic in ((n.pk, False), (n.fk, True)):
+                    if not block:
+                        continue
+                    o.append(f'<line x1="{x0}" y1="{y}" x2="{x1}" y2="{y}" stroke="black"/>')
+                    for i, line in enumerate(block):
+                        ty = y + 4 + LINE_H / 2 + i * LINE_H
+                        if italic:
+                            o.append(svg_text(x0 + 8, ty, line, anchor="start", italic=True))
+                            continue
+                        key, _, rest = line.partition(" (")
+                        o.append(svg_text(x0 + 8, ty, key, anchor="start", bold=True))
+                        o.append(f'<line x1="{x0 + 8}" y1="{ty + 6.5}" x2="{x0 + 8 + text_w(key, bold=True)}" '
+                                 f'y2="{ty + 6.5}" stroke="black" stroke-width="0.9"/>')
+                        if rest:
+                            o.append(svg_text(x0 + 8 + text_w(key + " ", bold=True), ty, "(" + rest,
+                                              anchor="start"))
+                    y += compartment_h(block)
             elif n.kind == "class":
                 o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="black" '
                          f'stroke-width="1.2"/>')
@@ -429,7 +504,37 @@ class Diagram:
                                  f'strokeColor=none;fillColor=none;whiteSpace=nowrap;" vertex="1" parent="{n.id}">'
                                  f'<mxGeometry y="{y}" width="{n.w}" height="{hgt}" as="geometry"/></mxCell>')
                     y += hgt
-        for n in sorted([n for n in self.nodes.values() if n.kind != "class"], key=lambda n: n.kind != "package"):
+        for n in [n for n in self.nodes.values() if n.kind in ("entity", "ghost")]:
+            x0, y0, _, _ = n.box()
+            if n.kind == "ghost":
+                cells.append(f'<mxCell id="{n.id}" value={q(html.escape(n.text))} style="rounded=0;dashed=1;'
+                             f'strokeColor=#808080;fontColor=#606060;fillColor=#FFFFFF;fontFamily={FONT};'
+                             f'fontSize={FONT_SIZE};html=1;" vertex="1" parent="1"><mxGeometry x="{x0}" y="{y0}" '
+                             f'width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
+                continue
+            cells.append(f'<mxCell id="{n.id}" value={q(html.escape(n.text))} style="swimlane;fontStyle=0;html=1;'
+                         f'whiteSpace=wrap;startSize={LINE_H + 10};fillColor=#FFFFFF;strokeColor=#000000;'
+                         f'fontFamily={FONT};fontSize={FONT_SIZE};childLayout=stackLayout;horizontal=1;'
+                         f'horizontalStack=0;resizeParent=1;collapsible=0;marginBottom=0;" vertex="1" parent="1">'
+                         f'<mxGeometry x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
+            y = LINE_H + 10
+            for k, (block, italic) in enumerate(((n.pk, False), (n.fk, True))):
+                if not block:
+                    continue
+                if italic:
+                    val = "<br>".join("<i>" + html.escape(l) + "</i>" for l in block)
+                else:
+                    val = "<br>".join("<b><u>" + html.escape(l.partition(" (")[0]) + "</u></b>"
+                                      + (" (" + html.escape(l.partition(" (")[2]) if " (" in l else "") for l in block)
+                hgt = compartment_h(block)
+                border = "top=1;bottom=0;left=0;right=0;strokeColor=#000000;shape=partialRectangle;"
+                cells.append(f'<mxCell id="{n.id}_c{k}" value={q(val)} style="text;html=1;align=left;'
+                             f'verticalAlign=top;spacingLeft=6;spacingTop=2;fontFamily={FONT};fontSize={FONT_SIZE};'
+                             f'{border}fillColor=none;whiteSpace=nowrap;" vertex="1" parent="{n.id}">'
+                             f'<mxGeometry y="{y}" width="{n.w}" height="{hgt}" as="geometry"/></mxCell>')
+                y += hgt
+        for n in sorted([n for n in self.nodes.values() if n.kind not in ("class", "entity", "ghost")],
+                        key=lambda n: n.kind != "package"):
             x0, y0, _, _ = n.box()
             # html=1 cells hold HTML; the attribute escapes it once more.
             value = q(html.escape(n.text, quote=False).replace("\n", "<br>"))
@@ -443,6 +548,9 @@ class Diagram:
             nx, ny = rel(t, e.points[-1])
             end = "block;endFill=0" if e.kind == "realization" else ("open" if e.arrow else "none")
             start = "startArrow=diamondThin;startFill=1;startSize=14;" if e.kind == "composition" else ""
+            if e.kind == "er":
+                end = ER_DRAWIO[e.cards[1]] + ";endFill=0"
+                start = f"startArrow={ER_DRAWIO[e.cards[0]]};startFill=0;startSize=12;"
             jump = "jumpStyle=arc;jumpSize=8;" if self.allow_crossings else ""
             style = (f"edgeStyle=none;rounded=0;html=1;endArrow={end};endSize=10;{start}{jump}"
                      f"strokeColor=#000000;fontFamily={FONT};fontSize=11;exitX={ex};exitY={ey};exitDx=0;exitDy=0;"
@@ -460,6 +568,30 @@ class Diagram:
         return (f'<mxfile host="vpdiagram.py"><diagram name={q(self.name)} id={q(self.name)}><mxGraphModel '
                 f'grid="1" gridSize="10" page="1" pageWidth="{int(self.width)}" pageHeight="{int(self.height)}">'
                 f'<root>{"".join(cells)}</root></mxGraphModel></diagram></mxfile>\n')
+
+
+ER_DRAWIO = {"one": "ERmandOne", "zero_one": "ERzeroToOne", "many": "ERoneToMany", "zero_many": "ERzeroToMany"}
+
+
+def er_mark(p, nxt, card) -> str:
+    """Crow's foot symbol at end point p (on the entity border) of a line going on to nxt."""
+    dx, dy = nxt[0] - p[0], nxt[1] - p[1]
+    ln = math.hypot(dx, dy)
+    ux, uy = dx / ln, dy / ln
+    vx, vy = -uy, ux
+    at = lambda d, s=0.0: (p[0] + ux * d + vx * s, p[1] + uy * d + vy * s)
+    def tick(d):
+        (x1, y1), (x2, y2) = at(d, -6), at(d, 6)
+        return f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="black" stroke-width="1.2"/>'
+    def circle(d):
+        x, y = at(d)
+        return f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="white" stroke="black" stroke-width="1.2"/>'
+    def foot():
+        (hx, hy) = at(11)
+        return "".join(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{x:.1f}" y2="{y:.1f}" stroke="black" '
+                       f'stroke-width="1.2"/>' for x, y in (at(0, -7), at(0, 7)))
+    return {"one": tick(7) + tick(12), "zero_one": tick(8) + circle(17),
+            "many": foot() + tick(15), "zero_many": foot() + circle(19)}[card]
 
 
 def q(s: str) -> str:
