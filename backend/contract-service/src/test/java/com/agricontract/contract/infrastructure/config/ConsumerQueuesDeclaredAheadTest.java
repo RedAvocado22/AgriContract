@@ -87,6 +87,21 @@ class ConsumerQueuesDeclaredAheadTest {
                 "analytics-svc.contract.terminated.dlq", "contract.terminated");
     }
 
+    @Test
+    void auditQueuesAreDeclaredForTheEventsAuditWillChain() {
+        assertDurableWithDlx(config.auditSignedQueue(), "audit-svc.contract.signed", "agricontract.audit.dlx");
+        assertBinding(config.auditSignedBinding(), "agricontract.contracts", "audit-svc.contract.signed",
+                "contract.signed");
+        assertBinding(config.auditSignedDlqBinding(), "agricontract.audit.dlx", "audit-svc.contract.signed.dlq",
+                "contract.signed");
+        assertDurableWithDlx(config.auditTerminatedQueue(), "audit-svc.contract.terminated", "agricontract.audit.dlx");
+        assertBinding(config.auditTerminatedBinding(), "agricontract.contracts", "audit-svc.contract.terminated",
+                "contract.terminated");
+        assertBinding(config.auditTerminatedDlqBinding(), "agricontract.audit.dlx",
+                "audit-svc.contract.terminated.dlq", "contract.terminated");
+        assertThat(config.auditDlx().getType()).isEqualTo("direct");
+    }
+
     private static void assertDurableWithDlx(Queue queue, String name, String dlx) {
         assertThat(queue.getName()).isEqualTo(name);
         assertThat(queue.isDurable()).isTrue();
