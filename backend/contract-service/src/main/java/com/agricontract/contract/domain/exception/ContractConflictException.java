@@ -20,6 +20,8 @@ public class ContractConflictException extends RuntimeException {
     public static final String CANCEL_ALREADY_REQUESTED = "CANCEL_ALREADY_REQUESTED";
     /** D42: withdraw without a standing request of the caller. */
     public static final String NO_CANCEL_REQUEST = "NO_CANCEL_REQUEST";
+    /** #233: withdraw after the second signature (SIGNED or later) or on an already ended offer. */
+    public static final String NOT_WITHDRAWABLE = "CONTRACT_NOT_WITHDRAWABLE";
 
     private final String code;
 
