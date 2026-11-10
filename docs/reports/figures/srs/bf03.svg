@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="1440" viewBox="0 0 1100 1440" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker></defs>
+<rect x="0" y="0" width="1100" height="1440" fill="white"/>
+<rect x="0.5" y=".5" width="260" height="1439" fill="white" stroke="black"/>
+<line x1="0" y1="32" x2="260" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="130.0" y="16.0">Buyer</tspan></text>
+<rect x="260.5" y=".5" width="260" height="1439" fill="white" stroke="black"/>
+<line x1="260" y1="32" x2="520" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="390.0" y="16.0">Seller</tspan></text>
+<rect x="520.5" y=".5" width="360" height="1439" fill="white" stroke="black"/>
+<line x1="520" y1="32" x2="880" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="700.0" y="16.0">System</tspan></text>
+<rect x="880.5" y=".5" width="220" height="1439" fill="white" stroke="black"/>
+<line x1="880" y1="32" x2="1100" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="990.0" y="16.0">Operator</tspan></text>
+<polyline points="130.0,82.0 130.0,116.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="225.0,140 590.0,140" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="700.0,164.0 700.0,230 485.0,230" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="390.0,254.0 390.0,295.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="390.0,325.0 390.0,368.5" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="396.0" y="333" width="64.5" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="398.0" y="339.875">[withdraw]</tspan></text>
+<polyline points="485.0,400 590.0,400" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="700.0,431.5 700.0,467.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="375.0,310 130.0,310 130.0,517.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="138.0" y="292" width="88.69999999999999" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="140.0" y="298.875">[terms agreed]</tspan></text>
+<polyline points="130.0,523.0 130.0,576.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="390.0,523.0 390.0,576.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="600.0,600 485.0,600" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4"/>
+<polyline points="130.0,624.0 130.0,677.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="390.0,624.0 390.0,677.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="300,683.0 300,760 590.0,760" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="700.0,784.0 700.0,826.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="700.0,874.0 700.0,915.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="700.0,945.0 700.0,986.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="706.0" y="952" width="82.64999999999998" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="708.0" y="958.875">[both locked]</tspan></text>
+<polyline points="700.0,1034.0 700.0,1067.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="715.0,930 850.0,930 850.0,1120 700.0,1120 700.0,1146.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="722.0" y="912" width="94.75" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="724.0" y="918.875">[a lock failed]</tspan></text>
+<polyline points="700.0,1194.0 700.0,1235.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="715.0,1250 900.0,1250" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="722.0" y="1232" width="112.89999999999998" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="724.0" y="1238.875">[Operator retries]</tspan></text>
+<polyline points="990.0,1226.0 990.0,850 810.0,850" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="685.0,1250 500.0,1250" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="540.0" y="1232" width="100.79999999999995" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="542.0" y="1238.875">[parties cancel]</tspan></text>
+<polyline points="390.0,1281.5 390.0,1340 590.0,1340" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="700.0,1371.5 700.0,1397.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<circle cx="130.0" cy="70" r="12.0" fill="black"/>
+<rect x="35.0" y="116.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="130.0" y="132.5">1. Choose a listing and</tspan><tspan x="130.0" y="147.5">create an offer</tspan></text>
+<rect x="590.0" y="116.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700.0" y="132.5">2. Validate the terms and</tspan><tspan x="700.0" y="147.5">reserve the listing quantity</tspan></text>
+<rect x="295.0" y="206.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="390.0" y="222.5">3. Review and revise</tspan><tspan x="390.0" y="237.5">the terms (either party)</tspan></text>
+<polygon points="390.0,295.0 405.0,310 390.0,325.0 375.0,310" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="295.0" y="368.5" width="190" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="390.0" y="385.0">4. Withdraw the offer</tspan><tspan x="390.0" y="400.0">(either party, before</tspan><tspan x="390.0" y="415.0">the second signature)</tspan></text>
+<rect x="590.0" y="368.5" width="220" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700.0" y="385.0">5. Mark WITHDRAWN, release</tspan><tspan x="700.0" y="400.0">the quantity, notify</tspan><tspan x="700.0" y="415.0">the other party</tspan></text>
+<circle cx="700.0" cy="480" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="700.0" cy="480" r="8.0" fill="black"/>
+<rect x="45.0" y="517.0" width="420" height="6" fill="black"/>
+<rect x="35.0" y="576.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="130.0" y="592.5">6. Sign the terms</tspan><tspan x="130.0" y="607.5">with an e-mail OTP</tspan></text>
+<rect x="295.0" y="576.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="390.0" y="592.5">7. Sign the same terms</tspan><tspan x="390.0" y="607.5">with an e-mail OTP</tspan></text>
+<path d="M600.0,562.0 L790.0,562.0 L800.0,572.0 L800.0,638.0 L600.0,638.0 Z" fill="white" stroke="black"/><path d="M790.0,562.0 L790.0,572.0 L800.0,572.0" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="610.0" y="577.5">Either party may sign</tspan><tspan x="610.0" y="592.5">first; both signatures</tspan><tspan x="610.0" y="607.5">must be on the same</tspan><tspan x="610.0" y="622.5">terms fingerprint</tspan></text>
+<rect x="45.0" y="677.0" width="420" height="6" fill="black"/>
+<rect x="590.0" y="736.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700.0" y="752.5">8. Check both signatures</tspan><tspan x="700.0" y="767.5">match the terms (SIGNED)</tspan></text>
+<rect x="590.0" y="826.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700.0" y="842.5">9. Ask the bank to lock both</tspan><tspan x="700.0" y="857.5">deposits (automatic retries)</tspan></text>
+<polygon points="700.0,915.0 715.0,930 700.0,945.0 685.0,930" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="600.0" y="986.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700.0" y="1002.5">10. Activate the contract</tspan><tspan x="700.0" y="1017.5">(ACTIVE)</tspan></text>
+<circle cx="700.0" cy="1080" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="700.0" cy="1080" r="8.0" fill="black"/>
+<rect x="600.0" y="1146.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700.0" y="1162.5">11. Notify both parties</tspan><tspan x="700.0" y="1177.5">and Operator</tspan></text>
+<polygon points="700.0,1235.0 715.0,1250 700.0,1265.0 685.0,1250" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="900.0" y="1226.0" width="180" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="990.0" y="1242.5">12. Fix the cause and</tspan><tspan x="990.0" y="1257.5">retry the deposit lock</tspan></text>
+<rect x="280.0" y="1218.5" width="220" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="390.0" y="1235.0">13. Request the cancel with</tspan><tspan x="390.0" y="1250.0">an e-mail OTP (both parties,</tspan><tspan x="390.0" y="1265.0">or one after 5 business days)</tspan></text>
+<rect x="590.0" y="1308.5" width="220" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700.0" y="1325.0">14. Return the locked deposits,</tspan><tspan x="700.0" y="1340.0">release the quantity</tspan><tspan x="700.0" y="1355.0">(ACTIVATION_FAILED)</tspan></text>
+<circle cx="700.0" cy="1410" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="700.0" cy="1410" r="8.0" fill="black"/>
+</svg>

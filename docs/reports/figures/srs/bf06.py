@@ -1,0 +1,63 @@
+"""BF-06 Mutual Termination & Replacement (activity diagram, UML / Visual Paradigm notation)."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from vpdiagram import Diagram  # noqa: E402
+
+d = Diagram("bf06", width=960, height=1520)
+for name, w in (("Proposing party", 300), ("Other party", 300), ("System", 360)):
+    d.lane(name, w)
+P, O, Y = d.center("Proposing party"), d.center("Other party"), d.center("System")
+
+d.initial("start", P, 65)
+d.action("a1", P, 130, "1. Choose termination\nor replacement", w=190)
+d.decision("d1", P, 210)
+d.action("a2", P, 290, "2. Propose a mutual\ntermination", w=190)
+d.decision("d2", O, 370)
+d.final_named("f1", O, 450, "Contract stays active", side="b")
+d.action("a3", Y, 370, "3. Settle the entitlements\nwithout a penalty", w=200)
+d.action("a4", Y, 450, "4. Refund the remaining\nlocked funds", w=200)
+d.final_named("f2", Y, 520, "Contract terminated", side="l")
+d.action("a5", Y, 640, "5. Check there is no open\ndelivery, dispute or claim", w=220)
+d.decision("d3", Y, 720)
+d.action("a6", Y, 800, "6. Reject the proposal\nwith a reason", w=190)
+d.final_named("f3", Y, 870, "Contract stays active", side="l")
+d.action("a7", P, 720, "7. Propose the\nreplacement terms", w=190)
+d.action("a8", O, 800, "8. Review and agree\non the terms", w=190)
+d.action("a9", P, 900, "9. Sign the replacement\nwith an e-mail OTP", w=200)
+d.action("a10", O, 990, "10. Sign the replacement\nwith an e-mail OTP", w=200)
+d.action("a11", Y, 990, "11. Re-check eligibility", w=190)
+d.decision("d4", Y, 1070)
+d.final_named("f4", 910, 1120, "Replacement\ncancelled", side="b")
+d.action("a12", Y, 1240, "12. Freeze the old contract\nand refund its funds", w=220)
+d.action("a13", Y, 1320, "13. Mark the old contract\nSUPERSEDED", w=220)
+d.action("a14", Y, 1400, "14. Activate the replacement\nas in BF-03", w=220)
+d.final_named("f5", Y, 1470, "Replacement activated", side="l")
+
+d.flow("start", "b", "a1", "t")
+d.flow("a1", "b", "d1", "t")
+d.flow("d1", "b", "a2", "t", label="[terminate]", label_at=(P + 6, 228))
+d.flow("a2", "b", "d2", "l", (P, 370))
+d.flow("d2", "b", "f1", "t", label="[refuses]", label_at=(O + 6, 388))
+d.flow("d2", "r", "a3", "l", label="[agrees]", label_at=(O + 22, 352))
+d.flow("a3", "b", "a4", "t")
+d.flow("a4", "b", "f2", "t")
+d.flow("d1", "r", "a5", "t", (900, 210), (900, 600), (Y, 600), label="[replace]", label_at=(P + 22, 192))
+d.flow("a5", "b", "d3", "t")
+d.flow("d3", "b", "a6", "t", label="[not eligible]", label_at=(Y + 6, 738))
+d.flow("a6", "b", "f3", "t")
+d.flow("d3", "l", "a7", "r", label="[eligible]", label_at=(Y - 90, 702))
+d.flow("a7", "b", "a8", "l", (P, 800))
+d.flow("a8", "b", "a9", "r", (O, 900))
+d.flow("a9", "b", "a10", "l", (P, 990))
+d.flow("a10", "r", "a11", "l")
+d.flow("a11", "b", "d4", "t")
+d.flow("d4", "r", "f4", "t", (910, 1070), label="[not eligible]", label_at=(Y + 20, 1050))
+d.flow("d4", "b", "a12", "t", label="[still eligible]", label_at=(Y + 6, 1088))
+d.flow("a12", "b", "a13", "t")
+d.flow("a13", "b", "a14", "t")
+d.flow("a14", "b", "f5", "t")
+
+if __name__ == "__main__":
+    d.write(Path(__file__).resolve().parent)

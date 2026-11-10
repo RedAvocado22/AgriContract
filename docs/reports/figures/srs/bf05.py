@@ -1,0 +1,63 @@
+"""BF-05 Breach & Force Majeure Resolution (activity diagram, UML / Visual Paradigm notation)."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from vpdiagram import Diagram  # noqa: E402
+
+d = Diagram("bf05", width=1140, height=1430)
+for name, w in (("Buyer / Seller", 300), ("Arbitrator", 260), ("Inspector", 240), ("System", 340)):
+    d.lane(name, w)
+P, A, I, Y = (d.center(n) for n in ("Buyer / Seller", "Arbitrator", "Inspector", "System"))
+
+d.initial("start", P, 70)
+d.action("a1", P, 140, "1. Report a breach or\nclaim force majeure", w=200)
+d.note("n1", P, 235, "Or the System detects a missed\nobligation, e.g. funding not cured", w=250)
+d.action("a2", Y, 140, "2. Record the case and\nnotify the other party", w=220)
+d.note("n2", 1020, 235, "No penalty on\nan allegation", w=140)
+d.action("a3", A, 320, "3. Review the evidence\nagainst the signed terms", w=210)
+d.decision("d1", A, 400)
+d.action("a4", A, 480, "4. Request an inspection\nper the signed terms", w=190)
+d.action("a5", I, 480, "5. Inspect and\nsubmit a report", w=180)
+d.decision("m1", A, 580)
+d.action("a6", A, 660, "6. Record the breaching party\nand the evidence used", w=230)
+d.action("a7", Y, 660, "7. Notify the parties and open\nthe 2-business-day contest\nwindow", w=250)
+d.note("n3", I, 750, "Penalty, forfeiture and\nlock wait; no-fault\nrefunds run at once", w=200)
+d.decision("d2", Y, 840)
+d.action("a8", P, 840, "8. Submit a contest\nwith evidence", w=200)
+d.action("a9", I, 930, "9. Level 1.5 reviews the\ncase; the decision is final", w=220)
+d.note("n4", I, 1015, "Not available if the decision\nalready rests on an inspection", w=220)
+d.decision("m2", Y, 1020)
+d.action("a10", Y, 1100, "10. Finalize the decision\nand execute the remedy", w=220)
+d.decision("d3", Y, 1180)
+d.action("a11", Y, 1290, "11. Settle the remaining scope\nand close the contract", w=230)
+d.final_named("f1", Y, 1360, "Contract terminated", side="b")
+d.final_named("f2", Y + 110, 1180, "Contract stays\nactive", side="b")
+
+d.flow("start", "b", "a1", "t")
+d.edge("n1", "a1", d.nodes["n1"].port("t"), d.nodes["a1"].port("b"), dashed=True, arrow=False)
+d.flow("a1", "r", "a2", "l")
+d.edge("n2", "a2", d.nodes["n2"].port("t", 0), (1020, 165), dashed=True, arrow=False)
+d.flow("a2", "b", "a3", "r", (Y - 60, 320), s_off=-60)
+d.flow("a3", "b", "d1", "t")
+d.flow("d1", "b", "a4", "t", label="[inspection needed]", label_at=(A + 6, 418))
+d.flow("d1", "l", "m1", "l", (318, 400), (318, 580), label="[no]", label_at=(322, 382))
+d.flow("a4", "r", "a5", "l")
+d.flow("a5", "b", "m1", "r", (I, 580))
+d.flow("m1", "b", "a6", "t")
+d.flow("a6", "r", "a7", "l")
+d.flow("a7", "b", "d2", "t")
+d.edge("n3", "a7", d.nodes["n3"].port("r"), (Y - 100, 750), d.nodes["a7"].port("b", -100), dashed=True, arrow=False)
+d.flow("d2", "l", "a8", "r", label="[the party at fault contests\nwithin the window]", label_at=(A - 100, 846))
+d.flow("a8", "b", "a9", "l", (P, 930))
+d.edge("n4", "a9", d.nodes["n4"].port("t"), d.nodes["a9"].port("b"), dashed=True, arrow=False)
+d.flow("a9", "r", "m2", "l", (Y - 55, 930), (Y - 55, 1020))
+d.flow("d2", "b", "m2", "t", label="[no contest]", label_at=(Y + 6, 858))
+d.flow("m2", "b", "a10", "t")
+d.flow("a10", "b", "d3", "t")
+d.flow("d3", "b", "a11", "t", label="[material breach and\ntermination requested]", label_at=(Y - 150, 1198))
+d.flow("a11", "b", "f1", "t")
+d.flow("d3", "r", "f2", "l", label="[otherwise]", label_at=(Y + 20, 1160))
+
+if __name__ == "__main__":
+    d.write(Path(__file__).resolve().parent)
