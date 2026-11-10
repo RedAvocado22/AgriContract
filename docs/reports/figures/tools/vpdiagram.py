@@ -201,6 +201,14 @@ class Diagram:
         self.nodes[id] = n
         return n
 
+    def leaf(self, id, x0, y0, name, w=None, h=None):
+        """A package drawn as the UML package icon (small tab, name in the body), for packages shown without
+        their contents. The box includes the tab."""
+        n = Node(id, "leafpkg", 0, 0, w or text_w(name) + 24, h or 38, name)
+        n.cx, n.cy = x0 + n.w / 2, y0 + n.h / 2
+        self.nodes[id] = n
+        return n
+
     def legend(self, id, x0, y0, text):
         """A line of plain text, left-aligned at (x0, y0)."""
         w, h = text_size(text, 11)
@@ -487,6 +495,11 @@ class Diagram:
                 for l in lines:
                     o.append(svg_text(n.cx, y, l))
                     y += LINE_H
+            elif n.kind == "leafpkg":
+                o.append(f'<rect x="{x0}" y="{y0}" width="{min(30, n.w / 2)}" height="8" fill="white" stroke="black"/>'
+                         f'<rect x="{x0}" y="{y0 + 8}" width="{n.w}" height="{n.h - 8}" fill="white" stroke="black" '
+                         f'stroke-width="1.2"/>')
+                o.append(svg_text(n.cx, n.cy + 4, n.text))
             elif n.kind == "legend":
                 o.append(svg_text(x0 + 2, n.cy, n.text, size=11, anchor="start"))
             elif n.kind == "entity":
@@ -559,6 +572,7 @@ class Diagram:
             "bar": "shape=line;strokeWidth=6;strokeColor=#000000;html=1;",
             "note": "shape=note;size=10;align=left;spacingLeft=8;" + base,
             "text": "text;strokeColor=none;fillColor=none;align=center;" + base,
+            "leafpkg": "shape=folder;tabWidth=30;tabHeight=8;tabPosition=left;" + base,
             "legend": "text;strokeColor=none;fillColor=none;align=left;fontSize=11;" + base.replace(f"fontSize={FONT_SIZE};", ""),
             "package": "shape=folder;tabWidth={tw};tabHeight=20;tabPosition=left;fontStyle=1;align=left;"
                        "verticalAlign=top;spacingLeft=8;spacingTop=-20;fillColor=none;strokeColor=#000000;html=1;"
