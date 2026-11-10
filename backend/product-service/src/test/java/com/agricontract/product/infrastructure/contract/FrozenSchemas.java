@@ -21,7 +21,19 @@ public final class FrozenSchemas {
     private static final SchemaValidatorsConfig CONFIG =
             SchemaValidatorsConfig.builder().formatAssertionsEnabled(true).build();
 
+    public static final String GOLDEN_FLOW_API = "openapi/golden-flow-api.yaml";
+    public static final String SUPPLEMENTARY_API = "events/supplementary-services-api.yaml";
+
     private FrozenSchemas() {
+    }
+
+    /** Validates a body against {@code components.schemas.<definition>} of a frozen OpenAPI file. */
+    public static void assertApiSchema(String apiFile, String definition, JsonNode instance) throws IOException {
+        ObjectNode api = read(apiFile);
+        ObjectNode schema = YAML.createObjectNode();
+        schema.set("components", api.get("components"));
+        schema.put("$ref", "#/components/schemas/" + definition);
+        assertThat(FACTORY.getSchema(schema, CONFIG).validate(instance)).as(apiFile + " " + definition).isEmpty();
     }
 
     public static void assertEvent(String definition, JsonNode instance) throws IOException {
