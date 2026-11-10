@@ -105,6 +105,9 @@ describe('activationCancelBody (activation-cancel-requested/v1)', () => {
         'Unless the buyer withdraws the request by then, the contract is',
         'then cancelled and the deposits returned without anything more from you.',
         '',
+        'If the deposits are locked before then, the contract becomes active as',
+        'signed and every cancel request lapses.',
+        '',
       ].join('\n'),
     );
   });
@@ -137,6 +140,7 @@ describe('activationCancelBody (activation-cancel-requested/v1)', () => {
     expect(body).toContain(
       '2026-11-14 10:00:00 Vietnam time (2026-11-14T03:00:00.000Z UTC)',
     );
+    expect(body).toContain('every cancel request lapses.');
   });
 
   it('converts an instant sent with an offset', () => {

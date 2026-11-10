@@ -16,6 +16,9 @@ import { vietnamTime } from '../vietnam-time';
  *   `oneSidedCancelAllowedFrom`, and contract-service then cancels on its own
  *   unless the requester withdraws first (DELETE .../activation/cancel).
  * Nobody breached, so nobody is penalised (D42: no deposit is forfeited).
+ * If the deposits get locked first (an Operator retry), the contract becomes
+ * ACTIVE and every cancel request lapses: the email says so, not promising
+ * the cancel.
  *
  * A recipient who is not the other party (an OPERATOR, should the publisher
  * add one) gets the same facts without the "you can" lines.
@@ -90,6 +93,13 @@ export function activationCancelBody(
       fromLine,
     );
   }
-  lines.push('');
+  // D42: an Operator retry that locks the deposits first makes the contract
+  // ACTIVE and every cancel request lapses, so the cancel is not promised.
+  lines.push(
+    '',
+    'If the deposits are locked before then, the contract becomes active as',
+    'signed and every cancel request lapses.',
+    '',
+  );
   return lines.join('\n');
 }
