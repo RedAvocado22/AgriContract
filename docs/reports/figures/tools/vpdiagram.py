@@ -249,6 +249,12 @@ class Diagram:
                 for lane in self.lanes[1:]:
                     if x0 < lane.x < x1:
                         problems.append(f"label {e.label!r} straddles the border of lane {lane.name}")
+        for e in self.edges:
+            if e.label and self.label_box(e)[2] > self.width - 2:
+                problems.append(f"label {e.label!r} runs past the right edge")
+        for n in self.nodes.values():
+            if n.box()[2] > self.width - 1 or n.box()[3] > self.height - 1:
+                problems.append(f"node {n.id} runs past the edge of the drawing")
         ids = list(self.nodes.values())
         # A final's own name sits right next to it on purpose.
         def paired(a, b):
