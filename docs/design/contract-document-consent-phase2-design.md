@@ -72,6 +72,7 @@ ConsentEvidence:
 |---|---|---|
 | Ký/cam kết rủi ro cao | ký hợp đồng, xác nhận mutual replacement, mutual termination, yêu cầu huỷ hợp đồng khoá cọc thất bại (`CANCEL_ACTIVATION`, D42) | Checkbox bắt buộc + session step-up còn hạn + OTP bind subject/action/content hash |
 | Xác nhận vận hành có hệ quả | khai cân giao, xác nhận nhận hàng sạch, flag hàng, chấp nhận giá trong band | Checkbox bắt buộc + authenticated session + ownership/role check |
+| Dừng thương lượng không hệ quả | rút offer trước chữ ký thứ hai (`WITHDRAW_OFFER`, D43) | Authenticated session + là buyer/seller của hợp đồng; không checkbox, không OTP — không đụng tiền, không tạo nghĩa vụ. UI hộp xác nhận chống bấm nhầm |
 | Quyết định quản trị | resolve breach/force majeure | Statement xác nhận quyết định + authenticated privileged session + maker-checker nếu owner design yêu cầu |
 
 Statement phải đặc thù theo hành vi, không dùng một câu “Tôi đồng ý” chung. Ví dụ xác nhận nhận hàng phải nói rõ số lượng/evidence đang xác nhận và ghi rõ việc nhận hàng không mặc nhiên từ bỏ quyền kiểm tra chất lượng, khiếu nại hoặc inspection còn hiệu lực theo hợp đồng.

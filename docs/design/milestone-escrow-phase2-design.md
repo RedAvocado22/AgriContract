@@ -530,6 +530,15 @@ Mọi termination phải phân biệt:
 
 `WITHDRAW_OFFER` is the canonical action label but its persisted terminal state is `WITHDRAWN`; it maps to lifecycle `contract.terminated.terminationType = WITHDRAW_OFFER` only for observation. It is outside breach attribution and outside money consequences.
 
+**`WITHDRAW_OFFER` chi tiết (D43, 10/11/2026, #233):**
+
+- **Ai, tới khi nào:** buyer hoặc seller của hợp đồng, **kể cả bên đã ký trước** — một chữ ký chưa ràng buộc ai, hợp đồng chỉ thành lập khi đủ 2 chữ ký trên cùng `signedContentHash`. Rút được khi `OFFERED`/`NEGOTIATING`; `SIGNED` trở đi → `409 CONTRACT_NOT_WITHDRAWABLE`. Hợp đồng Phase 1 không có coffee terms → `409`. OPERATOR/ARBITRATOR/ADMIN → `403` (gateway + contract-service).
+- **Đua với chữ ký thứ hai:** rút và verify chữ ký đều khoá dòng contract (`SELECT … FOR UPDATE`) rồi mới kiểm trạng thái, nên chỉ một bên thắng; bên sau nhận `409`. Bên đã ký trước mà yêu cầu rút tới sau chữ ký thứ hai thì hợp đồng đã thành — muốn ra phải đi `MUTUAL_TERMINATION` hoặc nhánh vi phạm. FE nên báo sau chữ ký thứ nhất: "bên kia ký là hợp đồng có hiệu lực ngay".
+- **Cùng transaction:** commit `WITHDRAWN`; giết mọi OTP challenge còn dùng được của hợp đồng (dọn — chặn chính vẫn là khoá dòng + kiểm trạng thái); ghi outbox `contract.withdrawn` (product-service release reservation), `contract.terminated` (`WITHDRAW_OFFER`, `requestedBy`, mọi field attribution/remedy/supersede `null` — publish ngay vì lock = 0 theo cấu trúc) và `notification.contract_terminated_requested` gửi **bên kia** (`remedyLegs: []`).
+- **Idempotency:** cùng `Idempotency-Key` → `204`, không ghi lại; key mới trên hợp đồng đã `WITHDRAWN` → `409`.
+- **Mức bằng chứng:** chỉ authenticated session + là bên của hợp đồng; không checkbox, không OTP (contract-document-consent §4).
+- **Known Limitation:** buyer có thể giữ hàng của listing bằng một offer treo rồi rút; seller tự gỡ được bằng cách rút offer đó. Chưa có hết hạn tự động hay giới hạn số offer đang mở của một buyer.
+
 **Pro-rata (áp cho mọi nhánh có tác động milestone):** chỉ đụng milestone **chưa `SETTLED`**. Milestone đã xong giữ nguyên, không truy thu. Penalty (nếu có) tính trên `batchAmount` phần bị vi phạm — **là "phần nghĩa vụ bị vi phạm" theo LTM Điều 301** (§2.1b), không phải `totalAmount`.
 
 ### 6.2 Ranh giới tự-thực-thi: Rổ A (seize ngay) vs Rổ B (chờ attribution)
