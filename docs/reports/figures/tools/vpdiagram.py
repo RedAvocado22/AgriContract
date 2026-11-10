@@ -172,17 +172,28 @@ class Diagram:
         self.nodes[id] = n
         return n
 
-    def entity(self, id, cx, top, name, pk=(), fk=(), ghost=False):
-        """Crow's foot entity: name, primary key compartment (bold, underlined), foreign key compartment (italic).
-        A primary key line may end in " (FK)" (associative entity); only the name part is bold and underlined.
-        ghost=True: an entity drawn in another part, a dashed grey box with its name only."""
+    def entity(self, id, cx, top, name, pk=(), fk=(), ghost=False, cols=(), planned=False):
+        """Crow's foot entity: name, primary key compartment (bold, underlined), then foreign keys (italic) and
+        other columns (plain) in one compartment. A key line may end in " (FK)" / " (UQ)"; that tag is not bold.
+        ghost=True: an entity drawn in another part, a dashed grey box with its name only.
+        planned=True: a table not created yet, dashed border and «planned» above the name."""
         if ghost:
             n = Node(id, "ghost", cx, top + 13, text_w(name) + 24, 26, name)
         else:
-            tw = max([text_w(name)] + [text_w(l, bold=True) for l in pk] + [text_w(l, italic=True) for l in fk])
-            h = LINE_H + 10 + compartment_h(pk) + (compartment_h(fk) if fk else 0)
+            tw = max([text_w(name)] + [text_w(l, bold=True) for l in pk] + [text_w(l, italic=True) for l in fk]
+                     + [text_w(l) for l in cols])
+            head = LINE_H + 10 + (LINE_H if planned else 0)
+            rest = [*fk, *cols]
+            h = head + compartment_h(pk) + (compartment_h(rest) if rest else 0)
             n = Node(id, "entity", cx, top + h / 2, tw + 22, h, name)
-            n.pk, n.fk = list(pk), list(fk)
+            n.pk, n.fk, n.cols, n.planned, n.head = list(pk), list(fk), list(cols), planned, head
+        self.nodes[id] = n
+        return n
+
+    def legend(self, id, x0, y0, text):
+        """A line of plain text, left-aligned at (x0, y0)."""
+        w, h = text_size(text, 11)
+        n = Node(id, "legend", x0 + (w + 4) / 2, y0 + h / 2, w + 4, h, text)
         self.nodes[id] = n
         return n
 
@@ -190,8 +201,26 @@ class Diagram:
            seg=0, side="on"):
         """Relationship line, cardinality s at src and d at dst: one | zero_one | many | zero_many.
         The label (verb read from src to dst) sits on segment seg: on the line, or beside it (t | b | l | r)."""
-        a = self.nodes[src].port(s_side, s_off)
-        b = self.nodes[dst].port(d_side, d_off)
+        sn, dn = self.nodes[src], self.nodes[dst]
+        a, b = sn.port(s_side, s_off), dn.port(d_side, d_off)
+        # Without an offset a port lines up with its neighbouring corner, or, for a straight line, with the middle
+        # of the span the two boxes share.
+        def align(p, side, q):
+            return (p[0], q[1]) if side in "lr" else (q[0], p[1])
+        if via:
+            if s_off == 0:
+                a = align(a, s_side, via[0])
+            if d_off == 0:
+                b = align(b, d_side, via[-1])
+        elif s_off == 0 and d_off == 0:
+            sx0, sy0, sx1, sy1 = sn.box()
+            dx0, dy0, dx1, dy1 = dn.box()
+            if s_side in "lr":
+                y = (max(sy0, dy0) + min(sy1, dy1)) / 2
+                a, b = (a[0], y), (b[0], y)
+            else:
+                x = (max(sx0, dx0) + min(sx1, dx1)) / 2
+                a, b = (x, a[1]), (x, b[1])
         pts = [a, *via, b]
         e = Edge(src, dst, pts, label, None, False, False, "er")
         e.cards, e.label_seg = (s, d), seg
@@ -265,6 +294,10 @@ class Diagram:
                 continue
             lb = self.label_box(e)
             for n in self.nodes.values():
+                if n.kind == "package":
+                    x0, y0, x1, y1 = n.box()
+                    if x0 < lb[0] and lb[2] < x1 and y0 < lb[1] and lb[3] < y1:
+                        continue
                 if boxes_overlap(lb, n.box(1)):
                     problems.append(f"label {e.label!r} touches node {n.id}")
             own = 0
@@ -404,19 +437,24 @@ class Diagram:
                 o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="#808080" '
                          f'stroke-width="1.2" stroke-dasharray="5,3"/>')
                 o.append(svg_text(n.cx, n.cy, n.text).replace("<text ", '<text fill="#606060" ', 1))
+            elif n.kind == "legend":
+                o.append(svg_text(x0 + 2, n.cy, n.text, size=11, anchor="start"))
             elif n.kind == "entity":
+                dash = ' stroke-dasharray="6,3"' if n.planned else ""
                 o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="black" '
-                         f'stroke-width="1.2"/>')
-                o.append(svg_text(n.cx, y0 + 5 + LINE_H / 2, n.text))
-                y = y0 + LINE_H + 10
-                for block, italic in ((n.pk, False), (n.fk, True)):
+                         f'stroke-width="1.2"{dash}/>')
+                if n.planned:
+                    o.append(svg_text(n.cx, y0 + 4 + LINE_H / 2, "\u00abplanned\u00bb", size=11, italic=True))
+                o.append(svg_text(n.cx, y0 + n.head - 5 - LINE_H / 2, n.text))
+                y = y0 + n.head
+                for block, kind in ((n.pk, "pk"), (n.fk + n.cols, "rest")):
                     if not block:
                         continue
-                    o.append(f'<line x1="{x0}" y1="{y}" x2="{x1}" y2="{y}" stroke="black"/>')
+                    o.append(f'<line x1="{x0}" y1="{y}" x2="{x1}" y2="{y}" stroke="black"{dash}/>')
                     for i, line in enumerate(block):
                         ty = y + 4 + LINE_H / 2 + i * LINE_H
-                        if italic:
-                            o.append(svg_text(x0 + 8, ty, line, anchor="start", italic=True))
+                        if kind == "rest":
+                            o.append(svg_text(x0 + 8, ty, line, anchor="start", italic=line in n.fk))
                             continue
                         key, _, rest = line.partition(" (")
                         o.append(svg_text(x0 + 8, ty, key, anchor="start", bold=True))
@@ -471,6 +509,7 @@ class Diagram:
             "bar": "shape=line;strokeWidth=6;strokeColor=#000000;html=1;",
             "note": "shape=note;size=10;align=left;spacingLeft=8;" + base,
             "text": "text;strokeColor=none;fillColor=none;align=center;" + base,
+            "legend": "text;strokeColor=none;fillColor=none;align=left;fontSize=11;" + base.replace(f"fontSize={FONT_SIZE};", ""),
             "package": "shape=folder;tabWidth={tw};tabHeight=20;tabPosition=left;fontStyle=1;align=left;"
                        "verticalAlign=top;spacingLeft=8;spacingTop=-20;fillColor=none;strokeColor=#000000;html=1;"
                        f"fontFamily={FONT};fontSize={FONT_SIZE};",
@@ -512,22 +551,25 @@ class Diagram:
                              f'fontSize={FONT_SIZE};html=1;" vertex="1" parent="1"><mxGeometry x="{x0}" y="{y0}" '
                              f'width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
                 continue
-            cells.append(f'<mxCell id="{n.id}" value={q(html.escape(n.text))} style="swimlane;fontStyle=0;html=1;'
-                         f'whiteSpace=wrap;startSize={LINE_H + 10};fillColor=#FFFFFF;strokeColor=#000000;'
+            head = ("<i>&laquo;planned&raquo;</i><br>" if n.planned else "") + html.escape(n.text)
+            dashed = "dashed=1;" if n.planned else ""
+            cells.append(f'<mxCell id="{n.id}" value={q(head)} style="swimlane;fontStyle=0;html=1;{dashed}'
+                         f'whiteSpace=wrap;startSize={n.head};fillColor=#FFFFFF;strokeColor=#000000;'
                          f'fontFamily={FONT};fontSize={FONT_SIZE};childLayout=stackLayout;horizontal=1;'
                          f'horizontalStack=0;resizeParent=1;collapsible=0;marginBottom=0;" vertex="1" parent="1">'
                          f'<mxGeometry x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
-            y = LINE_H + 10
-            for k, (block, italic) in enumerate(((n.pk, False), (n.fk, True))):
+            y = n.head
+            for k, (block, kind) in enumerate(((n.pk, "pk"), (n.fk + n.cols, "rest"))):
                 if not block:
                     continue
-                if italic:
-                    val = "<br>".join("<i>" + html.escape(l) + "</i>" for l in block)
+                if kind == "rest":
+                    val = "<br>".join(("<i>" + html.escape(l) + "</i>") if l in n.fk else html.escape(l)
+                                      for l in block)
                 else:
                     val = "<br>".join("<b><u>" + html.escape(l.partition(" (")[0]) + "</u></b>"
                                       + (" (" + html.escape(l.partition(" (")[2]) if " (" in l else "") for l in block)
                 hgt = compartment_h(block)
-                border = "top=1;bottom=0;left=0;right=0;strokeColor=#000000;shape=partialRectangle;"
+                border = f"top=1;bottom=0;left=0;right=0;strokeColor=#000000;shape=partialRectangle;{dashed}"
                 cells.append(f'<mxCell id="{n.id}_c{k}" value={q(val)} style="text;html=1;align=left;'
                              f'verticalAlign=top;spacingLeft=6;spacingTop=2;fontFamily={FONT};fontSize={FONT_SIZE};'
                              f'{border}fillColor=none;whiteSpace=nowrap;" vertex="1" parent="{n.id}">'
