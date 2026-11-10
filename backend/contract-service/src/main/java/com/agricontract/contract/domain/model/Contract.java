@@ -326,6 +326,31 @@ public class Contract {
                 verified.consentId(), authTime, signedAt, hash, ipAddress);
     }
 
+    /**
+     * WITHDRAW_OFFER (#233, milestone-escrow design §6.1): either party ends the offer before the second signature,
+     * the party that already signed included (one signature binds no one). OFFERED/NEGOTIATING → WITHDRAWN,
+     * terminal. No money moves: nothing is locked before SIGNED. Returns the party that withdrew; the caller writes
+     * contract.withdrawn and contract.terminated(WITHDRAW_OFFER) in the same transaction, under the row lock that
+     * also serialises it with a concurrent second signature.
+     */
+    public SignerRole withdraw(String userId) {
+        //Guard
+        SignerRole role = roleOf(userId).orElseThrow(() ->
+                new UnauthorizedContractAccessException("This user is not a party of this contract."));
+        if (this.coffeeTerms == null) {
+            throw new ContractConflictException(ContractConflictException.LEGACY_TERMS,
+                    "This contract has no coffee terms and cannot be withdrawn this way.");
+        }
+        if (this.status != ContractStatus.OFFERED && this.status != ContractStatus.NEGOTIATING) {
+            throw new ContractConflictException(ContractConflictException.NOT_WITHDRAWABLE,
+                    "Only an offer not yet signed by both parties can be withdrawn; this contract is "
+                            + this.status + ".");
+        }
+        //Mutate
+        this.status = ContractStatus.WITHDRAWN;
+        return role;
+    }
+
     /** Parties that have signed, BUYER and/or SELLER. */
     public Set<SignerRole> getSignedRoles() {
         return Set.copyOf(signedHashes.keySet());
