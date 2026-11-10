@@ -2,10 +2,6 @@ import { NonRetryableError } from '@agricontract/eventing';
 import type {
   CategoryApprovedCommand,
   CategoryRejectedCommand,
-  ContractCancelledCommand,
-  ContractDeliveredCommand,
-  ContractDisputedCommand,
-  ContractSignedCommand,
   EscrowLockedCommand,
   EscrowPenalizedCommand,
   EscrowReleasedCommand,
@@ -23,19 +19,13 @@ import type {
  * converted. Optional fields may be absent or null, but if present must be
  * strings.
  *
- *   contract.signed     eventId contractId buyerEmail sellerEmail
- *   contract.cancelled  eventId contractId buyerEmail sellerEmail   [reason]
- *   contract.delivered  eventId contractId sellerEmail
- *   contract.disputed   eventId contractId buyerEmail sellerEmail   [reason]
  *   escrow.locked       eventId escrowId sellerEmail
  *   escrow.released     eventId escrowId buyerEmail sellerEmail
  *   escrow.penalized    eventId escrowId penalizedParty + buyerEmail (BUYER) or sellerEmail (otherwise)
  *   category.approved   eventId name proposedByEmail                 [categoryId]
  *   category.rejected   eventId name proposedByEmail rejectionReason [categoryId]
  *
- * reason is optional because contract-service accepts a cancel or dispute
- * without one; the body then reads "Reason: null", as in Java. categoryId is
- * optional because no template uses it. rejectionReason is required:
+ * categoryId is optional because no template uses it. rejectionReason is required:
  * product-service refuses a blank one.
  */
 
@@ -112,55 +102,6 @@ function describe(value: unknown): string {
   if (Array.isArray(value)) return 'an array';
   if (value === '') return 'an empty string';
   return typeof value;
-}
-
-export function parseContractSigned(
-  body: Buffer | string,
-): ContractSignedCommand {
-  const p = read('contract.signed', body);
-  return {
-    eventId: p.required('eventId'),
-    contractId: p.required('contractId'),
-    buyerEmail: p.required('buyerEmail'),
-    sellerEmail: p.required('sellerEmail'),
-  };
-}
-
-export function parseContractCancelled(
-  body: Buffer | string,
-): ContractCancelledCommand {
-  const p = read('contract.cancelled', body);
-  return {
-    eventId: p.required('eventId'),
-    contractId: p.required('contractId'),
-    buyerEmail: p.required('buyerEmail'),
-    sellerEmail: p.required('sellerEmail'),
-    reason: p.optional('reason'),
-  };
-}
-
-export function parseContractDelivered(
-  body: Buffer | string,
-): ContractDeliveredCommand {
-  const p = read('contract.delivered', body);
-  return {
-    eventId: p.required('eventId'),
-    contractId: p.required('contractId'),
-    sellerEmail: p.required('sellerEmail'),
-  };
-}
-
-export function parseContractDisputed(
-  body: Buffer | string,
-): ContractDisputedCommand {
-  const p = read('contract.disputed', body);
-  return {
-    eventId: p.required('eventId'),
-    contractId: p.required('contractId'),
-    buyerEmail: p.required('buyerEmail'),
-    sellerEmail: p.required('sellerEmail'),
-    reason: p.optional('reason'),
-  };
 }
 
 export function parseEscrowLocked(body: Buffer | string): EscrowLockedCommand {

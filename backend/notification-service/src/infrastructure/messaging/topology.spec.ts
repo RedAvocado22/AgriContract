@@ -1,4 +1,5 @@
 import {
+  RETIRED_QUEUES,
   declareTopology,
   dlqNames,
   queueNames,
@@ -10,6 +11,7 @@ function recordingChannel() {
   const exchanges: unknown[][] = [];
   const queues: unknown[][] = [];
   const bindings: unknown[][] = [];
+  const deleted: string[] = [];
   const channel = {
     assertExchange: (...args: unknown[]) => {
       exchanges.push(args);
@@ -23,16 +25,16 @@ function recordingChannel() {
       bindings.push(args);
       return Promise.resolve({});
     },
+    deleteQueue: (queue: string) => {
+      deleted.push(queue);
+      return Promise.resolve({ messageCount: 0 });
+    },
   } as unknown as TopologyChannel;
-  return { channel, exchanges, queues, bindings };
+  return { channel, exchanges, queues, bindings, deleted };
 }
 
 const EXPECTED_QUEUES = [
-  'notification-svc.contract.signed',
-  'notification-svc.contract.delivered',
-  'notification-svc.contract.cancelled',
-  'notification-svc.contract.disputed',
-  // Phase 2 command, on the publisher's exchange like the events above.
+  // Phase 2 commands, on the publisher's exchange.
   'notification-svc.notification.contract_anchor_requested',
   'notification-svc.notification.activation_cancel_requested',
   'notification-svc.escrow.locked',
@@ -51,7 +53,7 @@ const dlxOf = (queue: string): string => {
 };
 
 describe('topology (must match the Java RabbitMQConfig)', () => {
-  it('names the 10 queues and 10 DLQs', () => {
+  it('names the 7 queues and 7 DLQs', () => {
     expect(queueNames()).toEqual(EXPECTED_QUEUES);
     expect(dlqNames()).toEqual(EXPECTED_QUEUES.map((q) => `${q}.dlq`));
   });
@@ -71,11 +73,11 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     ]);
   });
 
-  it('declares 20 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
+  it('declares 14 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
     const { channel, queues } = recordingChannel();
     await declareTopology(channel);
 
-    expect(queues).toHaveLength(22);
+    expect(queues).toHaveLength(14);
 
     for (const q of EXPECTED_QUEUES) {
       // toEqual on the whole options object also fails on any extra option
@@ -105,12 +107,7 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, bindings } = recordingChannel();
     await declareTopology(channel);
 
-    expect(bindings).toHaveLength(22);
-    expect(bindings).toContainEqual([
-      'notification-svc.contract.signed',
-      'agricontract.contracts',
-      'contract.signed',
-    ]);
+    expect(bindings).toHaveLength(14);
     // Exactly the queue, DLX and binding contract-service declares ahead of us
     // (ConsumerQueuesDeclaredAhead), so its declaration and ours are the same.
     expect(bindings).toContainEqual([
@@ -132,11 +129,6 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
       'notification-svc.notification.activation_cancel_requested.dlq',
       'notification-svc.contracts.dlx',
       'notification.activation_cancel_requested',
-    ]);
-    expect(bindings).toContainEqual([
-      'notification-svc.contract.signed.dlq',
-      'notification-svc.contracts.dlx',
-      'contract.signed',
     ]);
     expect(bindings).toContainEqual([
       'notification-svc.escrow.penalized',
@@ -161,5 +153,80 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     for (const [queue, , key] of bindings as string[][]) {
       expect(queue.replace(/\.dlq$/, '')).toBe(`notification-svc.${key}`);
     }
+  });
+
+  /*
+   * #398: the Phase 1 contract events are no longer consumed. A broker that
+   * already has their queues keeps them bound and filling until they are
+   * deleted, so every start deletes them, after the current topology.
+   */
+  describe('retired Phase 1 contract queues', () => {
+    const RETIRED = ['signed', 'delivered', 'cancelled', 'disputed'].flatMap(
+      (event) => [
+        `notification-svc.contract.${event}`,
+        `notification-svc.contract.${event}.dlq`,
+      ],
+    );
+
+    it('are exactly the four contract queues and their DLQs', () => {
+      expect([...RETIRED_QUEUES].sort()).toEqual([...RETIRED].sort());
+    });
+
+    it('are deleted on every declaration, after the current queues are declared', async () => {
+      const order: string[] = [];
+      const { channel, deleted } = recordingChannel();
+      const traced = {
+        ...channel,
+        assertQueue: (...args: Parameters<TopologyChannel['assertQueue']>) => {
+          order.push('assert');
+          return channel.assertQueue(...args);
+        },
+        deleteQueue: (...args: Parameters<TopologyChannel['deleteQueue']>) => {
+          order.push('delete');
+          return channel.deleteQueue(...args);
+        },
+      };
+
+      await declareTopology(traced);
+      await declareTopology(traced);
+
+      expect(deleted).toEqual([...RETIRED_QUEUES, ...RETIRED_QUEUES]);
+      expect(order.slice(0, 14).every((step) => step === 'assert')).toBe(true);
+      expect(order.slice(14, 22).every((step) => step === 'delete')).toBe(true);
+    });
+
+    it('are never declared, bound, consumed or watched', async () => {
+      const { channel, queues, bindings } = recordingChannel();
+      await declareTopology(channel);
+
+      const touched = [
+        ...queues.map(([q]) => q),
+        ...bindings.map(([q]) => q),
+        ...queueNames(),
+        ...dlqNames(),
+      ];
+      for (const queue of RETIRED) expect(touched).not.toContain(queue);
+    });
+
+    it('reports a deleted queue that still held messages, and only that one', async () => {
+      const { channel } = recordingChannel();
+      const warn = jest.fn();
+      const counting = {
+        ...channel,
+        deleteQueue: (queue: string) =>
+          Promise.resolve({
+            messageCount:
+              queue === 'notification-svc.contract.signed.dlq' ? 3 : 0,
+          }),
+      };
+
+      await declareTopology(counting, { warn });
+
+      expect(warn.mock.calls).toEqual([
+        [
+          'Deleted retired queue notification-svc.contract.signed.dlq with 3 message(s) (#398)',
+        ],
+      ]);
+    });
   });
 });

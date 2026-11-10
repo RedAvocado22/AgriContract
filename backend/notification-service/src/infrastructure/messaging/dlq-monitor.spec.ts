@@ -42,7 +42,7 @@ describe('DlqMonitor', () => {
     expect(options.timeout).toBe(300_000);
   });
 
-  it('checks all 9 DLQs and stays quiet when they are empty', async () => {
+  it('checks every DLQ and stays quiet when they are empty', async () => {
     const { monitor, checkQueue } = monitorWith({});
 
     await monitor.checkDlqDepth();
@@ -53,14 +53,14 @@ describe('DlqMonitor', () => {
 
   it('warns for each DLQ that holds messages', async () => {
     const { monitor } = monitorWith({
-      'notification-svc.contract.signed.dlq': 2,
+      'notification-svc.notification.contract_anchor_requested.dlq': 2,
       'notification-svc.escrow.penalized.dlq': 1,
     });
 
     await monitor.checkDlqDepth();
 
     expect(warn.mock.calls.map(([m]) => m as string)).toEqual([
-      'DLQ notification-svc.contract.signed.dlq has 2 message(s) — need manual fix',
+      'DLQ notification-svc.notification.contract_anchor_requested.dlq has 2 message(s) — need manual fix',
       'DLQ notification-svc.escrow.penalized.dlq has 1 message(s) — need manual fix',
     ]);
   });
@@ -79,14 +79,16 @@ describe('DlqMonitor', () => {
   it('logs a failed check and stops this round instead of throwing', async () => {
     const { monitor, checkQueue } = monitorWith(
       {},
-      { failOn: 'notification-svc.contract.delivered.dlq' },
+      {
+        failOn: 'notification-svc.notification.activation_cancel_requested.dlq',
+      },
     );
 
     await expect(monitor.checkDlqDepth()).resolves.toBeUndefined();
 
     expect(checkQueue).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledWith(
-      'DLQ check of notification-svc.contract.delivered.dlq failed: NOT_FOUND - no queue',
+      'DLQ check of notification-svc.notification.activation_cancel_requested.dlq failed: NOT_FOUND - no queue',
     );
   });
 });

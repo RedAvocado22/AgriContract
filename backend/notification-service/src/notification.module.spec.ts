@@ -2,10 +2,9 @@ import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { validate } from './config/env.validation';
 import { NotificationSender } from './application/notification-sender';
-import { NOTIFICATION_SETTINGS } from './application/notification-settings';
 import {
   NotifyContractAnchorUseCase,
-  NotifyContractDisputedUseCase,
+  NotifyEscrowLockedUseCase,
 } from './application/use-cases';
 import { MYSQL_POOL } from './infrastructure/persistence/mysql.provider';
 import { AMQP_CONNECT } from './infrastructure/messaging/amqp.provider';
@@ -28,7 +27,7 @@ describe('NotificationModule wiring', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validate: () => validate({ ADMIN_EMAIL: 'ops@example.test' }),
+          validate: () => validate({}),
         }),
         NotificationModule,
       ],
@@ -42,12 +41,9 @@ describe('NotificationModule wiring', () => {
     expect(moduleRef.get(NotificationSender)).toBeInstanceOf(
       NotificationSender,
     );
-    expect(moduleRef.get(NotifyContractDisputedUseCase)).toBeInstanceOf(
-      NotifyContractDisputedUseCase,
+    expect(moduleRef.get(NotifyEscrowLockedUseCase)).toBeInstanceOf(
+      NotifyEscrowLockedUseCase,
     );
-    expect(moduleRef.get(NOTIFICATION_SETTINGS)).toEqual({
-      adminEmail: 'ops@example.test',
-    });
     expect(moduleRef.get(NotifyContractAnchorUseCase)).toBeInstanceOf(
       NotifyContractAnchorUseCase,
     );

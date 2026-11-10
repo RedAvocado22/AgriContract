@@ -58,10 +58,6 @@ class FakeChannel {
 const HANDLERS = [
   'contractAnchor',
   'activationCancelRequested',
-  'contractSigned',
-  'contractCancelled',
-  'contractDelivered',
-  'contractDisputed',
   'escrowLocked',
   'escrowReleased',
   'escrowPenalized',
@@ -114,38 +110,6 @@ const PAYLOADS: Record<
   string,
   { handler: (typeof HANDLERS)[number]; payload: Record<string, unknown> }
 > = {
-  'notification-svc.contract.signed': {
-    handler: 'contractSigned',
-    payload: {
-      eventId: 'e1',
-      contractId: 'c',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-    },
-  },
-  'notification-svc.contract.cancelled': {
-    handler: 'contractCancelled',
-    payload: {
-      eventId: 'e2',
-      contractId: 'c',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-      reason: 'r',
-    },
-  },
-  'notification-svc.contract.delivered': {
-    handler: 'contractDelivered',
-    payload: { eventId: 'e3', contractId: 'c', sellerEmail: 's@x.test' },
-  },
-  'notification-svc.contract.disputed': {
-    handler: 'contractDisputed',
-    payload: {
-      eventId: 'e4',
-      contractId: 'c',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-    },
-  },
   'notification-svc.escrow.locked': {
     handler: 'escrowLocked',
     payload: { eventId: 'e5', escrowId: 'x', sellerEmail: 's@x.test' },
@@ -341,10 +305,10 @@ describe('NotificationEventConsumer', () => {
     const channel = new FakeChannel();
     await open(channel);
 
-    const msg = channel.deliver('notification-svc.contract.signed', '{oops');
+    const msg = channel.deliver('notification-svc.escrow.released', '{oops');
     await flush();
 
-    expect(service.contractSigned).not.toHaveBeenCalled();
+    expect(service.escrowReleased).not.toHaveBeenCalled();
     expect(channel.nacked).toEqual([{ msg, requeue: false }]);
     expect(channel.acked).toEqual([]);
   });
@@ -473,7 +437,7 @@ describe('NotificationEventConsumer', () => {
 });
 
 describe('NotificationEventConsumer at shutdown: no new attempt starts (fake timers)', () => {
-  const QUEUE = 'notification-svc.contract.signed';
+  const QUEUE = 'notification-svc.escrow.released';
   const PAYLOAD = PAYLOADS[QUEUE].payload;
   let log: jest.SpyInstance;
 
@@ -506,7 +470,7 @@ describe('NotificationEventConsumer at shutdown: no new attempt starts (fake tim
     return {
       consumer,
       channel,
-      handler: service.contractSigned,
+      handler: service.escrowReleased,
       shutdown,
       shutdownSignal,
       drained: () => drained,

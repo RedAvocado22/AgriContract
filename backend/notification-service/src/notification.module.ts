@@ -1,10 +1,5 @@
 import { Logger, Module, type Provider } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { NotificationSender } from './application/notification-sender';
-import {
-  NOTIFICATION_SETTINGS,
-  type NotificationSettings,
-} from './application/notification-settings';
 import { EMAIL_PORT, type EmailPort } from './application/ports/email.port';
 import {
   NOTIFICATION_LOG_REPOSITORY,
@@ -15,15 +10,10 @@ import {
   NotifyCategoryRejectedUseCase,
   NotifyActivationCancelRequestedUseCase,
   NotifyContractAnchorUseCase,
-  NotifyContractCancelledUseCase,
-  NotifyContractDeliveredUseCase,
-  NotifyContractDisputedUseCase,
-  NotifyContractSignedUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
   NotifyEscrowReleasedUseCase,
 } from './application/use-cases';
-import type { AppConfig } from './config/env.validation';
 import {
   NodemailerEmailAdapter,
   mailTransportFactory,
@@ -60,10 +50,6 @@ const useCaseOf = (useCase: SenderUseCase): Provider => ({
 });
 
 const USE_CASES = {
-  contractSigned: NotifyContractSignedUseCase,
-  contractDelivered: NotifyContractDeliveredUseCase,
-  contractCancelled: NotifyContractCancelledUseCase,
-  contractDisputed: NotifyContractDisputedUseCase,
   escrowLocked: NotifyEscrowLockedUseCase,
   escrowReleased: NotifyEscrowReleasedUseCase,
   escrowPenalized: NotifyEscrowPenalizedUseCase,
@@ -72,7 +58,7 @@ const USE_CASES = {
 } as const;
 
 /**
- * Phase 1 notifications (9 flat events) and the Phase 2 notification commands:
+ * Phase 1 notifications (5 flat events) and the Phase 2 notification commands:
  * one RabbitMQ consumer per queue -> use case -> email + notification_logs.
  */
 @Module({
@@ -84,14 +70,6 @@ const USE_CASES = {
     },
     { provide: EMAIL_PORT, useClass: NodemailerEmailAdapter },
     mailTransportFactory,
-    {
-      provide: NOTIFICATION_SETTINGS,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService<AppConfig, true>) =>
-        ({
-          adminEmail: config.get('adminEmail', { infer: true }),
-        }) satisfies NotificationSettings,
-    },
     { provide: SHUTDOWN_CONTROLLER, useFactory: () => new AbortController() },
     {
       provide: NotificationSender,
@@ -105,17 +83,6 @@ const USE_CASES = {
           logger: new Logger(NotificationSender.name),
           shutdown: shutdown.signal,
         }),
-    },
-    useCaseOf(NotifyContractSignedUseCase),
-    useCaseOf(NotifyContractDeliveredUseCase),
-    useCaseOf(NotifyContractCancelledUseCase),
-    {
-      provide: NotifyContractDisputedUseCase,
-      inject: [NotificationSender, NOTIFICATION_SETTINGS],
-      useFactory: (
-        sender: NotificationSender,
-        settings: NotificationSettings,
-      ) => new NotifyContractDisputedUseCase(sender, settings),
     },
     useCaseOf(NotifyEscrowLockedUseCase),
     useCaseOf(NotifyEscrowReleasedUseCase),

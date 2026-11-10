@@ -13,26 +13,6 @@ import type { NotificationKind } from '../domain/notification-log';
  * These values are stored in notification_logs: do not rename them.
  */
 export const PHASE1_KINDS = {
-  contractSigned: {
-    eventType: 'contract.signed',
-    notificationType: 'CONTRACT_SIGNED',
-    templateVersion: 'contract-signed/p1',
-  },
-  contractDelivered: {
-    eventType: 'contract.delivered',
-    notificationType: 'CONTRACT_DELIVERED',
-    templateVersion: 'contract-delivered/p1',
-  },
-  contractCancelled: {
-    eventType: 'contract.cancelled',
-    notificationType: 'CONTRACT_CANCELLED',
-    templateVersion: 'contract-cancelled/p1',
-  },
-  contractDisputed: {
-    eventType: 'contract.disputed',
-    notificationType: 'CONTRACT_DISPUTED',
-    templateVersion: 'contract-disputed/p1',
-  },
   escrowLocked: {
     eventType: 'escrow.locked',
     notificationType: 'ESCROW_LOCKED',

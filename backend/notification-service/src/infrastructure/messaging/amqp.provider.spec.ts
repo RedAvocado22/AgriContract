@@ -4,13 +4,16 @@ import { ConfigService } from '@nestjs/config';
 import type { Channel, ChannelModel } from 'amqplib';
 import { validate, type AppConfig } from '../../config/env.validation';
 import { AmqpService, PREFETCH, type AmqpConnect } from './amqp.provider';
-import { queueNames } from './topology';
+import { RETIRED_QUEUES, queueNames } from './topology';
 
 class FakeChannel extends EventEmitter {
   prefetch = jest.fn(() => Promise.resolve());
   assertExchange = jest.fn(() => Promise.resolve({}));
   assertQueue = jest.fn(() => Promise.resolve({}));
   bindQueue = jest.fn(() => Promise.resolve({}));
+  deleteQueue = jest.fn<Promise<{ messageCount: number }>, [string]>(() =>
+    Promise.resolve({ messageCount: 0 }),
+  );
   close = jest.fn(() => Promise.resolve());
 }
 
@@ -112,6 +115,9 @@ describe('AmqpService', () => {
     expect(first.channel.assertQueue).toHaveBeenCalledTimes(
       queueNames().length * 2,
     );
+    expect(first.channel.deleteQueue.mock.calls.map(([q]) => q)).toEqual(
+      RETIRED_QUEUES,
+    );
     expect(ready).toHaveBeenCalledWith(first.channel);
 
     first.channel.emit('error', new Error('PRECONDITION_FAILED'));
@@ -130,6 +136,26 @@ describe('AmqpService', () => {
     expect(ready).toHaveBeenLastCalledWith(second.channel);
     expect(first.close).toHaveBeenCalled(); // the old connection is not leaked
 
+    await service.onApplicationShutdown();
+  });
+
+  it('warns when a retired queue it deletes still held messages', async () => {
+    const conn = new FakeConnection();
+    conn.channel.deleteQueue.mockImplementation((queue: string) =>
+      Promise.resolve({
+        messageCount: queue === 'notification-svc.contract.signed.dlq' ? 7 : 0,
+      }),
+    );
+    const service = new AmqpService(config, fakeConnect(conn));
+
+    service.onModuleInit();
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(service.isHealthy()).toBe(true);
+    expect(logs.warn).toHaveBeenCalledTimes(1);
+    expect(logs.warn).toHaveBeenCalledWith(
+      'Deleted retired queue notification-svc.contract.signed.dlq with 7 message(s) (#398)',
+    );
     await service.onApplicationShutdown();
   });
 

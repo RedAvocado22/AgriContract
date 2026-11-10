@@ -17,7 +17,6 @@ describe('validate (env)', () => {
         password: 'guest',
       },
       mail: { host: 'localhost', port: 1025, from: 'noreply@agricontract.com' },
-      adminEmail: 'admin@agricontract.com',
       serverPort: 8085,
       serviceInternalSecret: 'changeme-internal',
     });
@@ -40,7 +39,6 @@ describe('validate (env)', () => {
       RABBITMQ_PORT: ' 5673 ',
       MAIL_PORT: '2525',
       SERVER_PORT: '18085',
-      ADMIN_EMAIL: 'ops@example.test',
     });
 
     expect(config.db.host).toBe('notification-db');
@@ -48,7 +46,6 @@ describe('validate (env)', () => {
     expect(config.rabbitmq).toMatchObject({ host: 'rabbitmq', port: 5673 });
     expect(config.mail.port).toBe(2525);
     expect(config.serverPort).toBe(18085);
-    expect(config.adminEmail).toBe('ops@example.test');
   });
 
   it.each(['abc', '0', '65536', '-1', '80.5', '', ' '])(

@@ -1,10 +1,6 @@
 import type {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
-  NotifyContractCancelledUseCase,
-  NotifyContractDeliveredUseCase,
-  NotifyContractDisputedUseCase,
-  NotifyContractSignedUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
   NotifyEscrowReleasedUseCase,
@@ -12,10 +8,6 @@ import type {
 import {
   parseCategoryApproved,
   parseCategoryRejected,
-  parseContractCancelled,
-  parseContractDelivered,
-  parseContractDisputed,
-  parseContractSigned,
   parseEscrowLocked,
   parseEscrowPenalized,
   parseEscrowReleased,
@@ -31,10 +23,6 @@ export type LegacyRoutes = Record<
 >;
 
 export interface NotificationUseCases {
-  contractSigned: NotifyContractSignedUseCase;
-  contractDelivered: NotifyContractDeliveredUseCase;
-  contractCancelled: NotifyContractCancelledUseCase;
-  contractDisputed: NotifyContractDisputedUseCase;
   escrowLocked: NotifyEscrowLockedUseCase;
   escrowReleased: NotifyEscrowReleasedUseCase;
   escrowPenalized: NotifyEscrowPenalizedUseCase;
@@ -49,13 +37,6 @@ export interface NotificationUseCases {
  */
 export function legacyRoutes(u: NotificationUseCases): LegacyRoutes {
   return {
-    'contract.signed': (b) => u.contractSigned.execute(parseContractSigned(b)),
-    'contract.delivered': (b) =>
-      u.contractDelivered.execute(parseContractDelivered(b)),
-    'contract.cancelled': (b) =>
-      u.contractCancelled.execute(parseContractCancelled(b)),
-    'contract.disputed': (b) =>
-      u.contractDisputed.execute(parseContractDisputed(b)),
     'escrow.locked': (b) => u.escrowLocked.execute(parseEscrowLocked(b)),
     'escrow.released': (b) => u.escrowReleased.execute(parseEscrowReleased(b)),
     'escrow.penalized': (b) =>

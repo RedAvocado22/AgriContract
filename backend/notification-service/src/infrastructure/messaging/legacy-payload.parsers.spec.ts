@@ -2,10 +2,6 @@ import { NonRetryableError, isNonRetryable } from '@agricontract/eventing';
 import {
   parseCategoryApproved,
   parseCategoryRejected,
-  parseContractCancelled,
-  parseContractDelivered,
-  parseContractDisputed,
-  parseContractSigned,
   parseEscrowLocked,
   parseEscrowPenalized,
   parseEscrowReleased,
@@ -24,83 +20,6 @@ interface Case {
 const BASE = { eventType: 'x.y', occurredAt: '2026-10-17T00:00:00Z' };
 
 const CASES: Record<string, Case> = {
-  'contract.signed': {
-    parse: parseContractSigned,
-    payload: {
-      ...BASE,
-      eventId: 'evt-1',
-      contractId: 'ctr-1',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-      buyerId: 'u-b',
-      terms: { quantity: { value: 1000, unit: 'kg' } },
-    },
-    expected: {
-      eventId: 'evt-1',
-      contractId: 'ctr-1',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-    },
-    required: ['eventId', 'contractId', 'buyerEmail', 'sellerEmail'],
-  },
-  'contract.cancelled': {
-    parse: parseContractCancelled,
-    payload: {
-      ...BASE,
-      eventId: 'evt-2',
-      contractId: 'ctr-2',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-      reason: 'late',
-      cancelledBy: 'BUYER',
-      buyerPenaltyRate: 0.05,
-    },
-    expected: {
-      eventId: 'evt-2',
-      contractId: 'ctr-2',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-      reason: 'late',
-    },
-    required: ['eventId', 'contractId', 'buyerEmail', 'sellerEmail'],
-  },
-  'contract.delivered': {
-    parse: parseContractDelivered,
-    payload: {
-      ...BASE,
-      eventId: 'evt-3',
-      contractId: 'ctr-3',
-      sellerEmail: 's@x.test',
-      buyerEmail: 'b@x.test',
-      confirmedBy: 'u-b',
-    },
-    expected: {
-      eventId: 'evt-3',
-      contractId: 'ctr-3',
-      sellerEmail: 's@x.test',
-    },
-    required: ['eventId', 'contractId', 'sellerEmail'],
-  },
-  'contract.disputed': {
-    parse: parseContractDisputed,
-    payload: {
-      ...BASE,
-      eventId: 'evt-4',
-      contractId: 'ctr-4',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-      reason: 'wet beans',
-      disputedBy: 'u-b',
-    },
-    expected: {
-      eventId: 'evt-4',
-      contractId: 'ctr-4',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-      reason: 'wet beans',
-    },
-    required: ['eventId', 'contractId', 'buyerEmail', 'sellerEmail'],
-  },
   'escrow.locked': {
     parse: parseEscrowLocked,
     payload: {
@@ -254,32 +173,27 @@ describe.each(Object.entries(CASES))('%s parser', (eventType, c) => {
 });
 
 describe('optional fields', () => {
-  it.each([
-    ['contract.cancelled', parseContractCancelled],
-    ['contract.disputed', parseContractDisputed],
-  ] as const)('%s: a missing or null reason becomes null', (type, parse) => {
-    const { reason: _ignored, ...withoutReason } = CASES[type].payload;
-    void _ignored;
-    expect(parse(json(withoutReason)).reason).toBeNull();
-    expect(parse(json({ ...withoutReason, reason: null })).reason).toBeNull();
-    expect(parse(json({ ...withoutReason, reason: '' })).reason).toBe('');
-  });
-
-  it('a reason of the wrong type is dead-lettered, as Java rejected a wrong type', () => {
-    expectDeadLetter(
-      () =>
-        parseContractCancelled(
-          json({ ...CASES['contract.cancelled'].payload, reason: 7 }),
-        ),
-      /field "reason" must be a string when present/,
-    );
-  });
-
-  it('categoryId is optional', () => {
+  it('a missing or null categoryId becomes null; an empty one is kept', () => {
     const { categoryId: _ignored, ...payload } =
       CASES['category.approved'].payload;
     void _ignored;
     expect(parseCategoryApproved(json(payload)).categoryId).toBeNull();
+    expect(
+      parseCategoryApproved(json({ ...payload, categoryId: null })).categoryId,
+    ).toBeNull();
+    expect(
+      parseCategoryApproved(json({ ...payload, categoryId: '' })).categoryId,
+    ).toBe('');
+  });
+
+  it('a categoryId of the wrong type is dead-lettered, as Java rejected a wrong type', () => {
+    expectDeadLetter(
+      () =>
+        parseCategoryApproved(
+          json({ ...CASES['category.approved'].payload, categoryId: 7 }),
+        ),
+      /field "categoryId" must be a string when present/,
+    );
   });
 });
 
@@ -325,10 +239,10 @@ describe('escrow.penalized recipient (Java: BUYER ? buyerEmail : sellerEmail)', 
 it('error messages name the field type, never the value', () => {
   expectDeadLetter(
     () =>
-      parseContractSigned(
-        json({ ...CASES['contract.signed'].payload, buyerEmail: 99 }),
+      parseEscrowReleased(
+        json({ ...CASES['escrow.released'].payload, buyerEmail: 99 }),
       ),
-    /field "buyerEmail" must be a non-empty string, got number \(event evt-1\)$/,
+    /field "buyerEmail" must be a non-empty string, got number \(event evt-6\)$/,
   );
 });
 
@@ -338,7 +252,7 @@ describe('error messages never carry payload text (review #172)', () => {
   function messageOf(body: string): string {
     let error: unknown;
     try {
-      parseContractSigned(body);
+      parseEscrowReleased(body);
     } catch (err) {
       error = err;
     }
@@ -351,21 +265,21 @@ describe('error messages never carry payload text (review #172)', () => {
       `{"buyerEmail":"${PII[0]}","buyerName":"${PII[1]}","phone":"${PII[2]}",`,
     );
 
-    expect(message).toBe('Malformed contract.signed payload: not valid JSON');
+    expect(message).toBe('Malformed escrow.released payload: not valid JSON');
   });
 
   it('a missing field names the field and the event id, not other values', () => {
     const message = messageOf(
       JSON.stringify({
         eventId: 'evt-42',
-        contractId: 'c',
+        escrowId: 'e',
         buyerEmail: PII[0],
         buyerName: PII[1],
       }),
     );
 
     expect(message).toBe(
-      'Malformed contract.signed payload: field "sellerEmail" must be a non-empty string, got undefined (event evt-42)',
+      'Malformed escrow.released payload: field "sellerEmail" must be a non-empty string, got undefined (event evt-42)',
     );
     for (const value of PII) expect(message).not.toContain(value);
   });

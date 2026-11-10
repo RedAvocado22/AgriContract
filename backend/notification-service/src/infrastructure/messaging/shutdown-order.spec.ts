@@ -26,6 +26,7 @@ class FakeChannel extends EventEmitter {
   assertExchange = jest.fn(() => Promise.resolve({}));
   assertQueue = jest.fn(() => Promise.resolve({}));
   bindQueue = jest.fn(() => Promise.resolve({}));
+  deleteQueue = jest.fn(() => Promise.resolve({ messageCount: 0 }));
   consume = jest.fn((queue: string, onMessage: OnMessage) => {
     this.consumers.set(queue, onMessage);
     return Promise.resolve({ consumerTag: `tag:${queue}` });
@@ -88,7 +89,7 @@ async function startApp(handler: () => Promise<void>) {
   await jest.advanceTimersByTimeAsync(0); // AmqpService connects in the background
 
   const deliver = () => {
-    const onMessage = channel.consumers.get('notification-svc.contract.signed');
+    const onMessage = channel.consumers.get('notification-svc.escrow.released');
     if (!onMessage) throw new Error('consumer not attached');
     onMessage({ content: Buffer.from('{}'), fields: {} });
   };

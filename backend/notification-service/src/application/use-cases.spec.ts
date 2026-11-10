@@ -12,16 +12,11 @@ import { PHASE1_KINDS } from './phase1-notification-kinds';
 import {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
-  NotifyContractCancelledUseCase,
-  NotifyContractDeliveredUseCase,
-  NotifyContractDisputedUseCase,
-  NotifyContractSignedUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
   NotifyEscrowReleasedUseCase,
 } from './use-cases';
 
-const ADMIN = 'ops-admin@example.test';
 const fixture = readFixture();
 
 interface UseCase {
@@ -31,12 +26,6 @@ interface UseCase {
 /** The use case for each Java handler method of ProcessNotificationUseCaseImpl. */
 function useCasesBy(sender: NotificationSender): Record<string, UseCase> {
   return {
-    handleContractSigned: new NotifyContractSignedUseCase(sender),
-    handleContractCancelled: new NotifyContractCancelledUseCase(sender),
-    handleContractDelivered: new NotifyContractDeliveredUseCase(sender),
-    handleContractDisputed: new NotifyContractDisputedUseCase(sender, {
-      adminEmail: ADMIN,
-    }),
     handleEscrowLocked: new NotifyEscrowLockedUseCase(sender),
     handleEscrowReleased: new NotifyEscrowReleasedUseCase(sender),
     handleEscrowPenalized: new NotifyEscrowPenalizedUseCase(sender),
@@ -47,10 +36,6 @@ function useCasesBy(sender: NotificationSender): Record<string, UseCase> {
 
 /** The email kind each handler sends. */
 const KINDS: Record<string, { eventType: string; notificationType: string }> = {
-  handleContractSigned: PHASE1_KINDS.contractSigned,
-  handleContractCancelled: PHASE1_KINDS.contractCancelled,
-  handleContractDelivered: PHASE1_KINDS.contractDelivered,
-  handleContractDisputed: PHASE1_KINDS.contractDisputed,
   handleEscrowLocked: PHASE1_KINDS.escrowLocked,
   handleEscrowReleased: PHASE1_KINDS.escrowReleased,
   handleEscrowPenalized: PHASE1_KINDS.escrowPenalized,
@@ -60,31 +45,6 @@ const KINDS: Record<string, { eventType: string; notificationType: string }> = {
 
 /** One sample command per handler; every field has a distinct value. */
 const SAMPLES: Record<string, Record<string, string | null>> = {
-  handleContractSigned: {
-    eventId: 'evt-signed',
-    contractId: 'ctr-1',
-    buyerEmail: 'buyer@example.test',
-    sellerEmail: 'seller@example.test',
-  },
-  handleContractCancelled: {
-    eventId: 'evt-cancelled',
-    contractId: 'ctr-2',
-    buyerEmail: 'buyer@example.test',
-    sellerEmail: 'seller@example.test',
-    reason: 'Buyer không thu xếp được vốn đúng hạn',
-  },
-  handleContractDelivered: {
-    eventId: 'evt-delivered',
-    contractId: 'ctr-3',
-    sellerEmail: 'seller@example.test',
-  },
-  handleContractDisputed: {
-    eventId: 'evt-disputed',
-    contractId: 'ctr-4',
-    buyerEmail: 'buyer@example.test',
-    sellerEmail: 'seller@example.test',
-    reason: 'Cà phê ẩm vượt ngưỡng thoả thuận',
-  },
   handleEscrowLocked: {
     eventId: 'evt-locked',
     escrowId: 'esc-1',
@@ -130,9 +90,7 @@ function recipientsOf(
   template: JavaTemplate,
   command: Record<string, string | null>,
 ): string[] {
-  return template.recipients.map((r) =>
-    r === 'adminEmail' ? ADMIN : String(command[r]),
-  );
+  return template.recipients.map((r) => String(command[r]));
 }
 
 describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => {
@@ -148,7 +106,7 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
     useCases = useCasesBy(new NotificationSender(logs, email));
   });
 
-  it('covers the 9 Java handlers with one use case each', () => {
+  it('covers the 5 remaining Java handlers with one use case each', () => {
     expect(Object.keys(fixture).sort()).toEqual(Object.keys(SAMPLES).sort());
     expect(Object.keys(useCases).sort()).toEqual(Object.keys(fixture).sort());
     expect(Object.keys(KINDS).sort()).toEqual(Object.keys(fixture).sort());
@@ -184,52 +142,24 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
     },
   );
 
-  it.each(['handleContractCancelled', 'handleContractDisputed'])(
-    '%s renders a missing reason as "null", like Java',
-    async (name) => {
-      await run(name, { ...SAMPLES[name], reason: null });
-
-      expect(email.sent[0].body).toMatch(/ Reason: null$/);
-      expect(email.sent[0].body).toBe(
-        render(fixture[name], { ...SAMPLES[name], reason: null }),
-      );
-    },
-  );
-
-  it('contract.disputed mails admin, seller, then buyer', async () => {
-    await run('handleContractDisputed', {
-      eventId: 'evt-d',
-      contractId: 'ctr',
-      buyerEmail: 'buyer@example.test',
-      sellerEmail: 'seller@example.test',
-      reason: 'r',
-    });
-
-    expect(email.sent.map((m) => m.to)).toEqual([
-      ADMIN,
-      'seller@example.test',
-      'buyer@example.test',
-    ]);
-  });
-
   it('a retry after the second recipient failed does not mail the first one again', async () => {
     const command = {
       eventId: 'evt-retry',
-      contractId: 'ctr',
+      escrowId: 'esc',
       buyerEmail: 'buyer@example.test',
       sellerEmail: 'seller@example.test',
     };
-    email.failFor.add('seller@example.test');
+    email.failFor.add('buyer@example.test');
 
-    await expect(run('handleContractSigned', command)).rejects.toThrow(
+    await expect(run('handleEscrowReleased', command)).rejects.toThrow(
       'Event evt-retry: email delivery failed (EENVELOPE/550)',
     );
-    expect(email.sent.map((m) => m.to)).toEqual(['buyer@example.test']);
+    expect(email.sent.map((m) => m.to)).toEqual(['seller@example.test']);
     expect(
       logs.get({
         eventId: 'evt-retry',
-        recipientEmail: 'seller@example.test',
-        notificationType: 'CONTRACT_SIGNED',
+        recipientEmail: 'buyer@example.test',
+        notificationType: 'ESCROW_RELEASED',
       }),
     ).toMatchObject({
       status: NotificationStatus.FAILED,
@@ -237,11 +167,11 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
     });
 
     email.failFor.clear();
-    await run('handleContractSigned', command); // redelivery of the same event
+    await run('handleEscrowReleased', command); // redelivery of the same event
 
     expect(email.sent.map((m) => m.to)).toEqual([
-      'buyer@example.test',
       'seller@example.test',
+      'buyer@example.test',
     ]);
   });
 
@@ -254,12 +184,12 @@ describe('Notify*UseCase (golden fixtures frozen from the Java service)', () => 
   });
 
   it('an event redelivered across the V2 deploy mails only the recipients not SENT before V2', async () => {
-    const command = SAMPLES.handleContractSigned;
+    const command = SAMPLES.handleEscrowReleased;
     const eventId = command.eventId as string;
     logs.seedLegacy(eventId, 'buyer@example.test', NotificationStatus.SENT);
     logs.seedLegacy(eventId, 'seller@example.test', NotificationStatus.FAILED);
 
-    await run('handleContractSigned', command);
+    await run('handleEscrowReleased', command);
 
     expect(email.sent.map((m) => m.to)).toEqual(['seller@example.test']);
   });
