@@ -17,7 +17,10 @@ import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
+
+import static com.agricontract.product.infrastructure.messaging.ContractEventPayloads.quantity;
+import static com.agricontract.product.infrastructure.messaging.ContractEventPayloads.text;
+import static com.agricontract.product.infrastructure.messaging.ContractEventPayloads.uuidText;
 
 /**
  * Consumes contract.created (contracts/events/golden-flow-events.yaml#contractCreated). The envelope is validated by
@@ -70,32 +73,5 @@ public class ContractCreatedConsumer {
             log.error("event=contract_created_rejected alert=OPERATOR reason={}", e.getMessage());
             throw new InvalidEventPayloadException("Invalid contract.created event", e);
         }
-    }
-
-    // The codec reads decimals as Double. Going through toString keeps the shortest decimal form, which is exact for
-    // every value reserved_quantity DECIMAL(15,3) can hold; new BigDecimal(double) would not be.
-    private static BigDecimal quantity(Object value) {
-        if (!(value instanceof Number number)) {
-            throw new IllegalArgumentException("reservedQuantity must be a positive number");
-        }
-        BigDecimal quantity = new BigDecimal(number.toString());
-        if (quantity.signum() <= 0) {
-            throw new IllegalArgumentException("reservedQuantity must be a positive number");
-        }
-        return quantity;
-    }
-
-    private static String text(Map<String, Object> payload, String field) {
-        if (!(payload.get(field) instanceof String value) || value.isBlank()) {
-            throw new IllegalArgumentException("Missing " + field);
-        }
-        return value;
-    }
-
-    // validated as a UUID but kept verbatim, so it matches the id the reserve command stored
-    private static String uuidText(Map<String, Object> payload, String field) {
-        String value = text(payload, field);
-        UUID.fromString(value);
-        return value;
     }
 }
