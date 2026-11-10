@@ -14,6 +14,9 @@ import {
   activationFailedCommand,
   activationFailedEnvelope,
   cancelEnvelope,
+  terminatedCommand,
+  terminatedEnvelope,
+  terminatedPayload,
 } from '../../../test/support/commands';
 import { commandRoutes, type CommandUseCases } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
@@ -61,6 +64,7 @@ const HANDLERS = [
   'contractAnchor',
   'activationCancelRequested',
   'contractActivationFailed',
+  'contractTerminated',
   'escrowLocked',
   'escrowReleased',
   'escrowPenalized',
@@ -324,6 +328,55 @@ describe('NotificationEventConsumer', () => {
     expect(service.activationCancelRequested).not.toHaveBeenCalled();
     expect(channel.nacked).toHaveLength(1);
   });
+
+  it('runs the contract-terminated use case for a withdrawn offer, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.contract_terminated_requested',
+      terminatedEnvelope(),
+    );
+    await flush();
+
+    expect(service.contractTerminated).toHaveBeenCalledTimes(1);
+    expect(service.contractTerminated.mock.calls[0][0]).toEqual(
+      terminatedCommand(),
+    );
+    for (const other of HANDLERS.filter((h) => h !== 'contractTerminated')) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it.each([
+    [
+      'a termination type without a template yet',
+      { terminationType: 'TERMINATION_FOR_BREACH' },
+    ],
+    ['a withdrawal requested by SYSTEM', { requestedBy: 'SYSTEM' }],
+  ])(
+    'dead-letters %s at once, unsent, instead of acking it',
+    async (_case, patch) => {
+      const { consumer, service, open } = setup();
+      await consumer.onModuleInit();
+      const channel = new FakeChannel();
+      await open(channel);
+
+      const msg = channel.deliver(
+        'notification-svc.notification.contract_terminated_requested',
+        terminatedEnvelope({ payload: terminatedPayload(patch) }),
+      );
+      await flush();
+
+      expect(service.contractTerminated).not.toHaveBeenCalled();
+      expect(channel.nacked).toEqual([{ msg, requeue: false }]);
+      expect(channel.acked).toEqual([]);
+    },
+  );
 
   it('dead-letters a command whose eventType is not this queue’s, without calling the handler', async () => {
     const { consumer, service, open } = setup();

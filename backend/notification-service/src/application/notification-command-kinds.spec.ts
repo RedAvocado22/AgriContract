@@ -5,8 +5,10 @@ import { COMMAND_KINDS } from './notification-command-kinds';
 describe('COMMAND_KINDS', () => {
   const kinds = Object.values(COMMAND_KINDS);
 
-  it('gives each consumed command exactly one kind', () => {
-    expect(kinds.map((k) => k.eventType).sort()).toEqual(
+  // One command may send several templates (one per terminationType or
+  // statusType), each its own kind, so this compares the set of commands.
+  it('gives every consumed command a kind, and no kind to another event', () => {
+    expect([...new Set(kinds.map((k) => k.eventType))].sort()).toEqual(
       [...COMMAND_ROUTING_KEYS].sort(),
     );
   });

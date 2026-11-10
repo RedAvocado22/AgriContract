@@ -20,6 +20,7 @@ import {
   NotifyCategoryRejectedUseCase,
   NotifyActivationCancelRequestedUseCase,
   NotifyContractActivationFailedUseCase,
+  NotifyContractTerminatedUseCase,
   NotifyContractAnchorUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
@@ -116,6 +117,7 @@ describe('shutdown park on real MySQL', () => {
       contractActivationFailed: new NotifyContractActivationFailedUseCase(
         sender,
       ),
+      contractTerminated: new NotifyContractTerminatedUseCase(sender),
     });
     const consumer = new NotificationEventConsumer(amqp, routes, commands);
     await consumer.onModuleInit();

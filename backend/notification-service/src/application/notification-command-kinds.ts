@@ -33,4 +33,11 @@ export const COMMAND_KINDS = {
     notificationType: 'CONTRACT_ACTIVATION_FAILED',
     templateVersion: 'contract-activation-failed/v1',
   },
+  // notification.contract_terminated_requested, terminationType WITHDRAW_OFFER
+  // (D43). The other termination types of this command get their own kinds.
+  offerWithdrawn: {
+    eventType: 'notification.contract_terminated_requested',
+    notificationType: 'OFFER_WITHDRAWN',
+    templateVersion: 'offer-withdrawn/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;
