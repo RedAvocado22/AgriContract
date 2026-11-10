@@ -9,9 +9,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * RESERVED -> RELEASED plus the counter restore, shared by compensation release and the orphan reaper.
- * Must run inside the caller's transaction so status and counter commit together and the quantity is
- * restored exactly once. Seller-closed and PAUSED listings only get the counter back (see releaseAvailable).
+ * -> RELEASED plus the counter restore, shared by compensation release, the orphan reaper and the withdrawn /
+ * activation_failed consumers. Must run inside the caller's transaction so status and counter commit together and
+ * the quantity is restored exactly once. Seller-closed and PAUSED listings only get the counter back (see
+ * releaseAvailable).
  */
 @Component
 @RequiredArgsConstructor
@@ -22,8 +23,19 @@ class ReservationReleaser {
 
     /** @return false if the reservation was no longer RESERVED (another release or a transition won) */
     boolean releaseReserved(Reservation reservation) {
-        if (!reservationRepository.transition(reservation.getContractId(),
-                ReservationStatus.RESERVED, ReservationStatus.RELEASED)) {
+        return release(reservation, ReservationStatus.RESERVED);
+    }
+
+    /**
+     * RESERVED or SIGNED_RELEASABLE -> RELEASED; never from COMMITTED.
+     *
+     * @return false if the reservation was no longer in {@code from} (another release or a transition won)
+     */
+    boolean release(Reservation reservation, ReservationStatus from) {
+        if (!from.canTransitionTo(ReservationStatus.RELEASED)) {
+            throw new IllegalArgumentException("A " + from + " reservation cannot be released");
+        }
+        if (!reservationRepository.transition(reservation.getContractId(), from, ReservationStatus.RELEASED)) {
             return false;
         }
         if (!listingRepository.releaseAvailable(reservation.getListingId(), reservation.getReservedQuantity())) {
