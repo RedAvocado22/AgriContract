@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="912" viewBox="0 0 700 912" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
+<rect x="0" y="0" width="700" height="912" fill="white"/>
+<path d="M120,113.0 L300,113.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="95.25" width="128.71875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="102.125">registration, listing search</tspan></text>
+<path d="M300,131.0 L120,131.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="135.0" width="122.6015625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="141.875">listings, reference prices</tspan></text>
+<path d="M120,217.0 L300,217.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="185.5" width="138.69140625" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="192.375">offer, terms, OTP signature,</tspan><tspan x="128" y="206.125">receipt, flag, cancel request</tspan></text>
+<path d="M300,235.0 L120,235.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="239.0" width="118.73046875" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="245.875">contract status,</tspan><tspan x="128" y="259.625">e-mails and OTP codes</tspan></text>
+<path d="M120,321.0 L300,321.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="289.5" width="165.81640625" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="296.375">plots, listings, terms,</tspan><tspan x="128" y="310.125">OTP signature, weighing, contest</tspan></text>
+<path d="M300,339.0 L120,339.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="343.0" width="118.73046875" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="349.875">contract status,</tspan><tspan x="128" y="363.625">e-mails and OTP codes</tspan></text>
+<path d="M120,425.0 L300,425.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="407.25" width="85.3203125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="414.125">inspection report</tspan></text>
+<path d="M300,443.0 L120,443.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="447.0" width="110.390625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="453.875">assignment, evidence</tspan></text>
+<path d="M120,529.0 L300,529.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="497.5" width="122.99609375" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="504.375">KYC decision, lock retry,</tspan><tspan x="128" y="518.125">price entry, moderation</tspan></text>
+<path d="M300,547.0 L120,547.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="551.0" width="107.9375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="557.875">review queues, alerts</tspan></text>
+<path d="M120,633.0 L300,633.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="601.5" width="129.34375" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="608.375">breach and force majeure</tspan><tspan x="128" y="622.125">decisions</tspan></text>
+<path d="M300,651.0 L120,651.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="655.0" width="74.3203125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="661.875">case evidence</tspan></text>
+<path d="M120,737.0 L300,737.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="719.25" width="110.3671875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="726.125">system administration</tspan></text>
+<path d="M300,755.0 L120,755.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="759.0" width="90.2109375" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="765.875">audit and security</tspan><tspan x="128" y="779.625">reports</tspan></text>
+<path d="M120,841.0 L300,841.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="126" y="823.25" width="124.4296875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="830.125">signed LOCK / UNLOCK</tspan></text>
+<path d="M300,859.0 L120,859.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="126" y="863.0" width="66.375" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="128" y="869.875">lock status,</tspan><tspan x="128" y="883.625">audit hashes</tspan></text>
+<path d="M400,130.33333333333331 L580,130.33333333333331" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="406" y="98.83333333333331" width="92.0390625" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="105.70833333333331">lock, release and</tspan><tspan x="408" y="119.45833333333331">refund commands</tspan></text>
+<path d="M580,148.33333333333331 L400,148.33333333333331" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="406" y="152.33333333333331" width="70.03125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="159.20833333333331">ledger results</tspan></text>
+<path d="M400,269.0 L580,269.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="406" y="251.25" width="114.65625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="258.125">inspection commission</tspan></text>
+<path d="M580,287.0 L400,287.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="406" y="291.0" width="74.921875" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="297.875">external report</tspan><tspan x="408" y="311.625">(by e-mail)</tspan></text>
+<path d="M400,407.66666666666663 L580,407.66666666666663" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="406" y="389.91666666666663" width="84.7109375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="396.79166666666663">outgoing e-mails</tspan></text>
+<path d="M580,425.66666666666663 L400,425.66666666666663" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="406" y="429.66666666666663" width="71.859375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="436.54166666666663">intake e-mails</tspan></text>
+<path d="M400,546.3333333333334 L580,546.3333333333334" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="406" y="528.5833333333334" width="73.703125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="535.4583333333334">record hashes</tspan></text>
+<path d="M580,564.3333333333334 L400,564.3333333333334" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="406" y="568.3333333333334" width="88.359375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="575.2083333333334">timestamp proofs</tspan></text>
+<path d="M580,703.0 L400,703.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="406" y="707.0" width="82.8671875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="713.875">reference prices</tspan></text>
+<path d="M580,841.6666666666666 L400,841.6666666666666" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="406" y="845.6666666666666" width="95.71875" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="408" y="852.5416666666666">province polygons,</tspan><tspan x="408" y="866.2916666666666">forest 2020 map</tspan></text>
+<rect x="300.0" y="60.0" width="100" height="842" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="350.0" y="443.5">0</tspan><tspan x="350.0" y="458.5">AgriContract</tspan><tspan x="350.0" y="473.5">B2B</tspan><tspan x="350.0" y="488.5">Agricultural</tspan><tspan x="350.0" y="503.5">Contract</tspan><tspan x="350.0" y="518.5">Platform</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="30.0">Users</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="635" y="30.0">External Systems</tspan></text>
+<rect x="10.0" y="100.0" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="122.0">Guest</tspan></text>
+<rect x="10.0" y="204.0" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="226.0">Buyer</tspan></text>
+<rect x="10.0" y="308.0" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="330.0">Seller</tspan></text>
+<rect x="10.0" y="411.0" width="110" height="46.0" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="426.5">Inspector</tspan><tspan x="65" y="441.5">(Level 1.5)</tspan></text>
+<rect x="10.0" y="516.0" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="538.0">Operator</tspan></text>
+<rect x="10.0" y="620.0" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="642.0">Arbitrator</tspan></text>
+<rect x="10.0" y="724.0" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="746.0">Admin</tspan></text>
+<rect x="10.0" y="827.0" width="110" height="46.0" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="65" y="842.5">External</tspan><tspan x="65" y="857.5">Verifier</tspan></text>
+<rect x="580.0" y="108.83333333333331" width="110" height="61.0" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="635" y="124.33333333333331">Custodian Bank</tspan><tspan x="635" y="139.33333333333331">(mock</tspan><tspan x="635" y="154.33333333333331">bank-service)</tspan></text>
+<rect x="580.0" y="255.0" width="110" height="46.0" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="635" y="270.5">Level 2</tspan><tspan x="635" y="285.5">Inspection Org</tspan></text>
+<rect x="580.0" y="386.16666666666663" width="110" height="61.0" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="635" y="401.66666666666663">Email Service</tspan><tspan x="635" y="416.66666666666663">(SMTP / intake</tspan><tspan x="635" y="431.66666666666663">mailbox)</tspan></text>
+<rect x="580.0" y="533.3333333333334" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="635" y="555.3333333333334">OpenTimestamps</tspan></text>
+<rect x="580.0" y="671.0" width="110" height="46.0" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="635" y="686.5">VNSAT Price</tspan><tspan x="635" y="701.5">Source</tspan></text>
+<rect x="580.0" y="810.6666666666666" width="110" height="44" rx="0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="635" y="832.6666666666666">Geo Datasets</tspan></text>
+</svg>
