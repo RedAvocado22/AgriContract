@@ -1,53 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900" font-family="Arial" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="820" viewBox="0 0 700 820" font-family="Arial" font-size="12">
 <defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
-<rect x="0" y="0" width="900" height="900" fill="white"/>
-<rect x="0.5" y=".5" width="300" height="899" fill="white" stroke="black"/>
-<line x1="0" y1="32" x2="300" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="150.0" y="16.0">Guest / User</tspan></text>
-<rect x="300.5" y=".5" width="280" height="899" fill="white" stroke="black"/>
-<line x1="300" y1="32" x2="580" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="440.0" y="16.0">Operator</tspan></text>
-<rect x="580.5" y=".5" width="320" height="899" fill="white" stroke="black"/>
-<line x1="580" y1="32" x2="900" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="740.0" y="16.0">System</tspan></text>
-<path d="M150.0,82.0 L150.0,116.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M260.0,140 L640.0,140" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M740.0,164.0 L740.0,240 L260.0,240" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M150.0,264.0 L150.0,330 L640.0,330" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M740.0,354.0 L740.0,420 L550.0,420" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M440.0,444.0 L440.0,485.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M440.0,515.0 L440.0,556.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="446.0" y="518" width="32.734375" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="448.0" y="524.875">[valid]</tspan></text>
-<path d="M545.0,580 L640.0,580" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M740.0,604.0 L740.0,647.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M425.0,500 L320,500 L320,760 L350.0,760" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="326" y="482" width="41.296875" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="328" y="488.875">[invalid]</tspan></text>
-<path d="M530.0,760 L640.0,760" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M740.0,784.0 L740.0,827.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<circle cx="150.0" cy="70" r="12.0" fill="black"/>
-<rect x="40.0" y="116.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="132.5">1. Register an account as</tspan><tspan x="150.0" y="147.5">Buyer, Seller or Inspector</tspan></text>
-<rect x="640.0" y="116.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="740.0" y="132.5">2. Create the account</tspan><tspan x="740.0" y="147.5">awaiting KYC</tspan></text>
-<rect x="40.0" y="216.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="232.5">3. Submit organization and</tspan><tspan x="150.0" y="247.5">representative documents</tspan></text>
-<rect x="640.0" y="306.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="740.0" y="322.5">4. Add the profile to the</tspan><tspan x="740.0" y="337.5">KYC review queue</tspan></text>
-<rect x="330.0" y="396.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="440.0" y="412.5">5. Check the documents and</tspan><tspan x="440.0" y="427.5">the authority to represent</tspan></text>
-<polygon points="440.0,485.0 455.0,500 440.0,515.0 425.0,500" fill="white" stroke="black" stroke-width="1.2"/>
-<rect x="335.0" y="556.0" width="210" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="440.0" y="572.5">6. Verify KYC and enter</tspan><tspan x="440.0" y="587.5">the authorization expiry</tspan></text>
-<rect x="640.0" y="556.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="740.0" y="572.5">7. Enable trading and</tspan><tspan x="740.0" y="587.5">e-mail the result</tspan></text>
-<circle cx="740.0" cy="660" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="740.0" cy="660" r="8.0" fill="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="803.69921875" y="660.0">Account verified</tspan></text>
-<rect x="350.0" y="740.0" width="180" height="40" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="440.0" y="760.0">8. Reject with a reason</tspan></text>
-<rect x="640.0" y="736.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="740.0" y="752.5">9. E-mail the</tspan><tspan x="740.0" y="767.5">rejection reason</tspan></text>
-<circle cx="740.0" cy="840" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="740.0" cy="840" r="8.0" fill="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="666.2890625" y="840.0">Account not verified</tspan></text>
+<rect x="0" y="0" width="700" height="820" fill="white"/>
+<rect x="0.5" y=".5" width="240" height="819" fill="white" stroke="black"/>
+<line x1="0" y1="32" x2="240" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="120.0" y="16.0">Guest / User</tspan></text>
+<rect x="240.5" y=".5" width="230" height="819" fill="white" stroke="black"/>
+<line x1="240" y1="32" x2="470" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="355.0" y="16.0">Operator</tspan></text>
+<rect x="470.5" y=".5" width="230" height="819" fill="white" stroke="black"/>
+<line x1="470" y1="32" x2="700" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="585.0" y="16.0">System</tspan></text>
+<path d="M120.0,72.0 L120.0,93.5" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M220.0,125 L490.0,125" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M585.0,149.0 L585.0,220 L220.0,220" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M120.0,251.5 L120.0,300 L490.0,300" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M585.0,324.0 L585.0,385 L455.0,385" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M355.0,416.5 L355.0,445.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M355.0,475.0 L355.0,503.5" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="361.0" y="477" width="32.734375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="363.0" y="483.875">[valid]</tspan></text>
+<path d="M450.0,535 L490.0,535" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M585.0,559.0 L585.0,592.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M340.0,460 L252,460 L252,690 L275.0,690" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="258" y="442" width="41.296875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="260" y="448.875">[invalid]</tspan></text>
+<path d="M435.0,690 L490.0,690" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M585.0,714.0 L585.0,747.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<circle cx="120.0" cy="60" r="12.0" fill="black"/>
+<rect x="20.0" y="93.5" width="200" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="120.0" y="110.0">1. Register an account</tspan><tspan x="120.0" y="125.0">as Buyer, Seller</tspan><tspan x="120.0" y="140.0">or Inspector</tspan></text>
+<rect x="490.0" y="101.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="585.0" y="117.5">2. Create the account</tspan><tspan x="585.0" y="132.5">awaiting KYC</tspan></text>
+<rect x="20.0" y="188.5" width="200" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="120.0" y="205.0">3. Submit organization</tspan><tspan x="120.0" y="220.0">and representative</tspan><tspan x="120.0" y="235.0">documents</tspan></text>
+<rect x="490.0" y="276.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="585.0" y="292.5">4. Add the profile to</tspan><tspan x="585.0" y="307.5">the KYC review queue</tspan></text>
+<rect x="255.0" y="353.5" width="200" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="355.0" y="370.0">5. Check the documents</tspan><tspan x="355.0" y="385.0">and the authority</tspan><tspan x="355.0" y="400.0">to represent</tspan></text>
+<polygon points="355.0,445.0 370.0,460 355.0,475.0 340.0,460" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="260.0" y="503.5" width="190" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="355.0" y="520.0">6. Verify KYC and enter</tspan><tspan x="355.0" y="535.0">the authorization</tspan><tspan x="355.0" y="550.0">expiry</tspan></text>
+<rect x="490.0" y="511.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="585.0" y="527.5">7. Enable trading and</tspan><tspan x="585.0" y="542.5">e-mail the result</tspan></text>
+<circle cx="585.0" cy="605" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="585.0" cy="605" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="585.0" y="631.5">Account verified</tspan></text>
+<rect x="275.0" y="666.0" width="160" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="355.0" y="682.5">8. Reject with</tspan><tspan x="355.0" y="697.5">a reason</tspan></text>
+<rect x="490.0" y="666.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="585.0" y="682.5">9. E-mail the</tspan><tspan x="585.0" y="697.5">rejection reason</tspan></text>
+<circle cx="585.0" cy="760" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="585.0" cy="760" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="585.0" y="786.5">Account not verified</tspan></text>
 </svg>

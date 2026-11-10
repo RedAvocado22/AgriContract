@@ -1,93 +1,93 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1380" height="1280" viewBox="0 0 1380 1280" font-family="Arial" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1070" viewBox="0 0 800 1070" font-family="Arial" font-size="12">
 <defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
-<rect x="0" y="0" width="1380" height="1280" fill="white"/>
-<rect x="0.5" y=".5" width="400" height="1279" fill="white" stroke="black"/>
-<line x1="0" y1="32" x2="400" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="200.0" y="16.0">Buyer</tspan></text>
-<rect x="400.5" y=".5" width="240" height="1279" fill="white" stroke="black"/>
-<line x1="400" y1="32" x2="640" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="520.0" y="16.0">Seller</tspan></text>
-<rect x="640.5" y=".5" width="220" height="1279" fill="white" stroke="black"/>
-<line x1="640" y1="32" x2="860" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="750.0" y="16.0">Arbitrator</tspan></text>
-<rect x="860.5" y=".5" width="220" height="1279" fill="white" stroke="black"/>
-<line x1="860" y1="32" x2="1080" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="970.0" y="16.0">Inspector</tspan></text>
-<rect x="1080.5" y=".5" width="300" height="1279" fill="white" stroke="black"/>
-<line x1="1080" y1="32" x2="1380" y2="32" stroke="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="1230.0" y="16.0">System</tspan></text>
-<path d="M1230.0,77.0 L1230.0,105.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M1230.0,135.0 L1230.0,171.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M1230.0,219.0 L1230.0,260.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M1230.0,290.0 L1230.0,331.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="1236.0" y="293" width="60.25" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="1238.0" y="299.875">[not locked]</tspan></text>
-<path d="M1230.0,379.0 L1230.0,412.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M1215.0,275 L630.0,275" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="1155.0" y="257" width="41.90625" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="1157.0" y="263.875">[locked]</tspan></text>
-<path d="M520.0,299.0 L520.0,365 L305.0,365" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M200.0,389.0 L200.0,430.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M185.0,445 L100.0,445 L100.0,508.5" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="40.0" y="427" width="48.015625" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="42.0" y="433.875">[accepts]</tspan></text>
-<path d="M215.0,445 L300.0,445 L300.0,516.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="306.0" y="427" width="51.078125" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="308.0" y="433.875">[disputes]</tspan></text>
-<path d="M385.0,540 L520.0,540 L520.0,605.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M520.0,635.0 L520.0,680.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="526.0" y="638" width="51.0703125" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="528.0" y="644.875">[contests]</tspan></text>
-<path d="M605.0,700 L655.0,700" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M845.0,700 L875.0,700" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M970.0,724.0 L970.0,820 L850.0,820" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M750.0,844.0 L750.0,860 L1230.0,860 L1230.0,885.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M535.0,620 L1320,620 L1320,900 L1245.0,900" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="655.0" y="602" width="123.4765625" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="657.0" y="608.875">[accepts Buyer&#x27;s figures]</tspan></text>
-<path d="M100.0,571.5 L100.0,900 L1215.0,900" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M1230.0,915.0 L1230.0,956.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M1230.0,1004.0 L1230.0,1045.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<path d="M1245.0,1060 L1370,1060 L1370,120 L1245.0,120" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="1252.0" y="1066" width="90.8046875" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="1254.0" y="1072.875">[more milestones]</tspan></text>
-<path d="M1230.0,1075.0 L1230.0,1120.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="1236.0" y="1078" width="77.359375" height="13.75" fill="white"/>
-<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="1238.0" y="1084.875">[last milestone]</tspan></text>
-<path d="M1230.0,1160.0 L1230.0,1197.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<circle cx="1230.0" cy="65" r="12.0" fill="black"/>
-<polygon points="1230.0,105.0 1245.0,120 1230.0,135.0 1215.0,120" fill="white" stroke="black" stroke-width="1.2"/>
-<rect x="1120.0" y="171.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="1230.0" y="187.5">1. Ask the bank to lock the</tspan><tspan x="1230.0" y="202.5">Buyer&#x27;s milestone payment</tspan></text>
-<polygon points="1230.0,260.0 1245.0,275 1230.0,290.0 1215.0,275" fill="white" stroke="black" stroke-width="1.2"/>
-<rect x="1130.0" y="331.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="1230.0" y="347.5">2. Notify the parties of</tspan><tspan x="1230.0" y="362.5">the funding failure</tspan></text>
-<circle cx="1230.0" cy="425" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="1230.0" cy="425" r="8.0" fill="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="1230.0" y="451.5">Continues in BF-05</tspan></text>
-<rect x="410.0" y="251.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="520.0" y="267.5">3. Deliver the goods and</tspan><tspan x="520.0" y="282.5">record the weighed quantity</tspan></text>
-<rect x="95.0" y="341.0" width="210" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="200.0" y="357.5">4. Record the received</tspan><tspan x="200.0" y="372.5">quantity with evidence</tspan></text>
-<polygon points="200.0,430.0 215.0,445 200.0,460.0 185.0,445" fill="white" stroke="black" stroke-width="1.2"/>
-<rect x="10.0" y="508.5" width="180" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="100.0" y="525.0">5. Confirm the delivery</tspan><tspan x="100.0" y="540.0">(no answer within the</tspan><tspan x="100.0" y="555.0">window = confirmed)</tspan></text>
-<rect x="215.0" y="516.0" width="170" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="300.0" y="532.5">6. Flag a quantity</tspan><tspan x="300.0" y="547.5">or quality issue</tspan></text>
-<polygon points="520.0,605.0 535.0,620 520.0,635.0 505.0,620" fill="white" stroke="black" stroke-width="1.2"/>
-<rect x="435.0" y="680.0" width="170" height="40" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="520.0" y="700.0">7. Contest the flag</tspan></text>
-<rect x="655.0" y="676.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="750.0" y="692.5">8. Request an inspection</tspan><tspan x="750.0" y="707.5">of the goods</tspan></text>
-<rect x="875.0" y="676.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="970.0" y="692.5">9. Inspect the goods</tspan><tspan x="970.0" y="707.5">and submit a report</tspan></text>
-<rect x="650.0" y="796.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="750.0" y="812.5">10. Decide the amounts from</tspan><tspan x="750.0" y="827.5">the inspection result</tspan></text>
-<polygon points="1230.0,885.0 1245.0,900 1230.0,915.0 1215.0,900" fill="white" stroke="black" stroke-width="1.2"/>
-<rect x="1120.0" y="956.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="1230.0" y="972.5">11. Release the payment and</tspan><tspan x="1230.0" y="987.5">refund the difference</tspan></text>
-<polygon points="1230.0,1045.0 1245.0,1060 1230.0,1075.0 1215.0,1060" fill="white" stroke="black" stroke-width="1.2"/>
-<rect x="1130.0" y="1120.0" width="200" height="40" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="1230.0" y="1140.0">12. Return both deposits</tspan></text>
-<circle cx="1230.0" cy="1210" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="1230.0" cy="1210" r="8.0" fill="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="1230.0" y="1236.5">Contract settled</tspan></text>
+<rect x="0" y="0" width="800" height="1070" fill="white"/>
+<rect x="0.5" y=".5" width="160" height="1069" fill="white" stroke="black"/>
+<line x1="0" y1="32" x2="160" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="80.0" y="16.0">Buyer</tspan></text>
+<rect x="160.5" y=".5" width="150" height="1069" fill="white" stroke="black"/>
+<line x1="160" y1="32" x2="310" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="235.0" y="16.0">Seller</tspan></text>
+<rect x="310.5" y=".5" width="140" height="1069" fill="white" stroke="black"/>
+<line x1="310" y1="32" x2="450" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="380.0" y="16.0">Arbitrator</tspan></text>
+<rect x="450.5" y=".5" width="140" height="1069" fill="white" stroke="black"/>
+<line x1="450" y1="32" x2="590" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="520.0" y="16.0">Inspector</tspan></text>
+<rect x="590.5" y=".5" width="210" height="1069" fill="white" stroke="black"/>
+<line x1="590" y1="32" x2="800" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="695.0" y="16.0">System</tspan></text>
+<path d="M695.0,62.0 L695.0,73.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M695.0,103.0 L695.0,115.5" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M695.0,178.5 L695.0,192.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M695.0,222.0 L695.0,244.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="701.0" y="226" width="60.25" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="703.0" y="232.875">[not locked]</tspan></text>
+<path d="M695.0,292.0 L695.0,305.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M680.0,207 L303.0,207" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="633.0" y="189" width="41.90625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="635.0" y="195.875">[locked]</tspan></text>
+<path d="M235.0,238.5 L235.0,280 L145.0,280" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M80.0,311.5 L80.0,330.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M80.0,360.0 L80.0,384.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="86.0" y="361" width="51.078125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="88.0" y="367.875">[disputes]</tspan></text>
+<path d="M65.0,345 L8,345 L8,500 L15.0,500" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="12" y="327" width="48.015625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="14" y="333.875">[accepts]</tspan></text>
+<path d="M145.0,408 L235.0,408 L235.0,545.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M235.0,575.0 L235.0,595.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="241.0" y="576" width="51.0703125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="243.0" y="582.875">[contests]</tspan></text>
+<path d="M300.0,615 L318.0,615" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M442.0,615 L458.0,615" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M520.0,646.5 L520.0,700 L442.0,700" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M380.0,731.5 L380.0,752 L695.0,752 L695.0,765.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M250.0,560 L780,560 L780,780 L710.0,780" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="455.0" y="542" width="123.4765625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="457.0" y="548.875">[accepts Buyer&#x27;s figures]</tspan></text>
+<path d="M80.0,531.5 L80.0,780 L680.0,780" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M695.0,795.0 L695.0,808.5" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M695.0,871.5 L695.0,890.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M710.0,905 L792,905 L792,88 L710.0,88" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="715.0" y="887" width="35.171875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="717.0" y="893.875">[more]</tspan></text>
+<path d="M695.0,920.0 L695.0,938.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="701.0" y="921" width="77.359375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="703.0" y="927.875">[last milestone]</tspan></text>
+<path d="M695.0,986.0 L695.0,1004.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<circle cx="695.0" cy="50" r="12.0" fill="black"/>
+<polygon points="695.0,73.0 710.0,88 695.0,103.0 680.0,88" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="620.0" y="115.5" width="150" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="695.0" y="132.0">1. Ask the bank to lock</tspan><tspan x="695.0" y="147.0">the Buyer&#x27;s milestone</tspan><tspan x="695.0" y="162.0">payment</tspan></text>
+<polygon points="695.0,192.0 710.0,207 695.0,222.0 680.0,207" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="620.0" y="244.0" width="150" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="695.0" y="260.5">2. Notify the parties</tspan><tspan x="695.0" y="275.5">of the funding failure</tspan></text>
+<circle cx="695.0" cy="318" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="695.0" cy="318" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="695.0" y="344.5">Continues in BF-05</tspan></text>
+<rect x="167.0" y="175.5" width="136" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="235.0" y="192.0">3. Deliver the goods</tspan><tspan x="235.0" y="207.0">and record the</tspan><tspan x="235.0" y="222.0">weighed quantity</tspan></text>
+<rect x="15.0" y="248.5" width="130" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="80.0" y="265.0">4. Record the</tspan><tspan x="80.0" y="280.0">received quantity</tspan><tspan x="80.0" y="295.0">with evidence</tspan></text>
+<polygon points="80.0,330.0 95.0,345 80.0,360.0 65.0,345" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="15.0" y="384.0" width="130" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="80.0" y="400.5">6. Flag a quantity</tspan><tspan x="80.0" y="415.5">or quality issue</tspan></text>
+<rect x="15.0" y="468.5" width="130" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="80.0" y="485.0">5. Confirm delivery</tspan><tspan x="80.0" y="500.0">(silence in the</tspan><tspan x="80.0" y="515.0">window = confirmed)</tspan></text>
+<polygon points="235.0,545.0 250.0,560 235.0,575.0 220.0,560" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="170.0" y="595.0" width="130" height="40" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="235.0" y="615.0">7. Contest the flag</tspan></text>
+<rect x="318.0" y="583.5" width="124" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="380.0" y="600.0">8. Request an</tspan><tspan x="380.0" y="615.0">inspection of</tspan><tspan x="380.0" y="630.0">the goods</tspan></text>
+<rect x="458.0" y="583.5" width="124" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="520.0" y="600.0">9. Inspect the</tspan><tspan x="520.0" y="615.0">goods and submit</tspan><tspan x="520.0" y="630.0">a report</tspan></text>
+<rect x="318.0" y="668.5" width="124" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="380.0" y="685.0">10. Decide the</tspan><tspan x="380.0" y="700.0">amounts from the</tspan><tspan x="380.0" y="715.0">inspection result</tspan></text>
+<polygon points="695.0,765.0 710.0,780 695.0,795.0 680.0,780" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="620.0" y="808.5" width="150" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="695.0" y="825.0">11. Release the payment</tspan><tspan x="695.0" y="840.0">and refund the</tspan><tspan x="695.0" y="855.0">difference</tspan></text>
+<polygon points="695.0,890.0 710.0,905 695.0,920.0 680.0,905" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="620.0" y="938.0" width="150" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="695.0" y="954.5">12. Return both</tspan><tspan x="695.0" y="969.5">deposits</tspan></text>
+<circle cx="695.0" cy="1017" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="695.0" cy="1017" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="695.0" y="1043.5">Contract settled</tspan></text>
 </svg>

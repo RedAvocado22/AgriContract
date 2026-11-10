@@ -100,7 +100,7 @@ def png_size(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", head[16:24])
 
 
-def replace_image(doc, p, png: Path, max_w_cm: float = 15.9, max_h_cm: float = 23.0):
+def replace_image(doc, p, png: Path, max_w_cm: float = 15.9, max_h_cm: float = 23.0, full_width: bool = False):
     """Points the first picture of paragraph p at png; keeps the frame width, follows the png aspect ratio."""
     blip = next(p.iter(qn("a:blip")))
     rid, _ = doc.part.get_or_add_image(str(png))
@@ -108,7 +108,7 @@ def replace_image(doc, p, png: Path, max_w_cm: float = 15.9, max_h_cm: float = 2
     extent = next(p.iter(qn("wp:extent")))
     cx = int(extent.get("cx"))
     w, h = png_size(png)
-    cx = min(cx, int(max_w_cm * EMU_PER_CM))
+    cx = int(max_w_cm * EMU_PER_CM) if full_width else min(cx, int(max_w_cm * EMU_PER_CM))
     cy = int(cx * h / w)
     if cy > max_h_cm * EMU_PER_CM:
         cy = int(max_h_cm * EMU_PER_CM)
@@ -146,3 +146,12 @@ def fill_change_log(tbl, values: list[str]):
                 set_par_text(p, v)
             return
     raise ValueError("no empty change log row left")
+
+
+def append_row(tbl, values: list[str]):
+    """Adds a row after the last one, as a copy of it (same borders, shading and run formatting)."""
+    last = tbl.findall(qn("w:tr"))[-1]
+    tr = copy.deepcopy(last)
+    for tc, v in zip(tr.findall(qn("w:tc")), values):
+        set_cell_text(tc, v)
+    last.addnext(tr)
