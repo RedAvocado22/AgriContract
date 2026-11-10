@@ -156,16 +156,18 @@ class Diagram:
 
     def klass(self, id, cx, top, name, stereotype="", attrs=(), ops=(), w=None, collapsed=False):
         """UML class / interface box. Long lines are wrapped by the caller (continuation lines start with spaces)."""
-        tw = max([text_w(l) for l in (*attrs, *ops) if l]
+        tw = max([text_w(l.lstrip("_")) for l in (*attrs, *(ops or ())) if l]
                  + [text_w("\u00ab" + stereotype + "\u00bb", 11) if stereotype else 0,
                     text_w(name, bold=True, italic=stereotype == "interface")])
         head = (LINE_H if stereotype else 0) + LINE_H + 10
-        h = head if collapsed else head + compartment_h(attrs) + compartment_h(ops)
+        # ops=None: no operations compartment (an enumeration shows its literals only)
+        h = head if collapsed else head + compartment_h(attrs) + (compartment_h(ops) if ops is not None else 0)
         if w and w < tw + 16:
             raise SystemExit(f"class {id}: width {w} is too narrow for its text ({tw + 16:.0f} needed)")
         width = w or tw + 20
         n = Node(id, "class", cx, top + h / 2, width, h, name)
-        n.stereotype, n.attrs, n.ops, n.head, n.collapsed = stereotype, list(attrs), list(ops), head, collapsed
+        n.stereotype, n.attrs, n.head, n.collapsed = stereotype, list(attrs), head, collapsed
+        n.ops = None if ops is None else list(ops)
         self.nodes[id] = n
         return n
 
@@ -353,11 +355,18 @@ class Diagram:
                 o.append(svg_text(n.cx, y, n.text, bold=True, italic=n.stereotype == "interface"))
                 if not n.collapsed:
                     y = y0 + n.head
-                    for block in (n.attrs, n.ops):
+                    for block in [b for b in (n.attrs, n.ops) if b is not None]:
                         o.append(f'<line x1="{x0}" y1="{y}" x2="{x1}" y2="{y}" stroke="black"/>')
                         for i, line in enumerate(block):
-                            o.append(svg_text(x0 + 8, y + 4 + LINE_H / 2 + i * LINE_H, line, anchor="start",
-                                              keep_space=True))
+                            static = line.startswith("__")  # UML: static members are underlined
+                            ty = y + 4 + LINE_H / 2 + i * LINE_H
+                            o.append(svg_text(x0 + 8, ty, line.lstrip("_"), anchor="start", keep_space=True))
+                            if static:  # drawn as a line: librsvg ignores text-decoration
+                                text = line.lstrip("_")
+                                lead = text_w(text[:len(text) - len(text.lstrip())])
+                                o.append(f'<line x1="{x0 + 8 + lead}" y1="{ty + 6.5}" '
+                                         f'x2="{x0 + 8 + text_w(text)}" y2="{ty + 6.5}" stroke="black" '
+                                         f'stroke-width="0.8"/>')
                         y += compartment_h(block)
         o.append("</svg>")
         return "\n".join(o)
@@ -399,7 +408,7 @@ class Diagram:
                          f'<mxGeometry x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
             if not n.collapsed:
                 y = n.head
-                for k, block in enumerate((n.attrs, n.ops)):
+                for k, block in enumerate([b for b in (n.attrs, n.ops) if b is not None]):
                     if k == 1:
                         cells.append(f'<mxCell id="{n.id}_sep" style="line;strokeWidth=1;fillColor=none;align=left;'
                                      f'verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;'
@@ -407,7 +416,8 @@ class Diagram:
                                      f'vertex="1" parent="{n.id}"><mxGeometry y="{y}" width="{n.w}" height="1" '
                                      f'as="geometry"/></mxCell>')
                     hgt = compartment_h(block)
-                    val = "<br>".join(html.escape(l).replace("  ", "&nbsp;&nbsp;") for l in block)
+                    val = "<br>".join(("<u>" + html.escape(l[2:]) + "</u>") if l.startswith("__")
+                                      else html.escape(l).replace("  ", "&nbsp;&nbsp;") for l in block)
                     cells.append(f'<mxCell id="{n.id}_c{k}" value={q(val)} style="text;html=1;align=left;'
                                  f'verticalAlign=top;spacingLeft=6;spacingTop=2;fontFamily={FONT};fontSize={FONT_SIZE};'
                                  f'strokeColor=none;fillColor=none;whiteSpace=nowrap;" vertex="1" parent="{n.id}">'
@@ -455,12 +465,13 @@ def rel(n: Node, p) -> tuple[float, float]:
     return round((p[0] - x0) / n.w, 4) if n.w else 0.5, round((p[1] - y0) / n.h, 4) if n.h else 0.5
 
 
-def svg_text(x, y, text, bold=False, size=FONT_SIZE, anchor="middle", italic=False, keep_space=False) -> str:
+def svg_text(x, y, text, bold=False, size=FONT_SIZE, anchor="middle", italic=False, keep_space=False,
+             underline=False) -> str:
     lines = text.split("\n")
     lh = LINE_H * size / FONT_SIZE
     top = y - lh * (len(lines) - 1) / 2
     weight = (' font-weight="bold"' if bold else "") + (' font-style="italic"' if italic else "") + \
-        (' xml:space="preserve"' if keep_space else "")
+        (' xml:space="preserve"' if keep_space else "") + (' text-decoration="underline"' if underline else "")
     spans = "".join(f'<tspan x="{x}" y="{top + i * lh}">{html.escape(line)}</tspan>' for i, line in enumerate(lines))
     return (f'<text text-anchor="{anchor}" dominant-baseline="central" font-size="{size}"{weight}>{spans}</text>')
 
