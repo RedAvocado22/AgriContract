@@ -248,8 +248,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
     }
 
     /**
-     * golden-flow-events.yaml contractWithdrawn. reservedQuantity is the terms' total until #232 stores the reserved
-     * quantity (as for contract.signed): PATCH cannot change the total, so the two are equal.
+     * golden-flow-events.yaml contractWithdrawn: product-service releases the quantity it reserved for this contract.
      */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -259,7 +258,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contractId", contractId);
         payload.put("listingId", uuid(contract.getListingId(), "listingId"));
-        payload.put("reservedQuantity", contract.getCoffeeTerms().snapshot().totalQuantity());
+        payload.put("reservedQuantity", contract.getReservedQuantity());
         payload.put("withdrawnAt", withdrawnAt.toString());
         outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_WITHDRAWN, 1, withdrawnAt, PRODUCER, contractId,
                 contractId, null, null, payload));

@@ -139,6 +139,21 @@ class OutboxContractEventPublisherTest {
     }
 
     @Test
+    void withdrawn_carriesTheStoredReservedQuantity_notTheTermsTotal() throws Exception {
+        String id = UUID.randomUUID().toString();
+        Contract contract = Contract.reconstitute(new ContractId(id), goods().listingId().toString(), BUYER, SELLER,
+                "Cà phê", "HTX Mua", "HTX Bán", "buyer@example.com", "seller@example.com", null,
+                CanonicalTerms.of(snapshot(), canonicalizer), ContractStatus.WITHDRAWN, Map.of(), 0L,
+                new java.math.BigDecimal("1200.000"));
+
+        publisher.contractWithdrawn(contract, WITHDRAWN_AT);
+
+        JsonNode json = new ObjectMapper().readTree(new EventEnvelopeCodec().toJson(appended()));
+        FrozenSchemas.assertEvent("contractWithdrawn", json);
+        assertThat(json.at("/payload/reservedQuantity").decimalValue()).isEqualByComparingTo("1200");
+    }
+
+    @Test
     void terminated_withdrawOffer_matchesTheFrozenSchema_withNoBreachNoRemedy() throws Exception {
         Contract contract = contract(ContractStatus.WITHDRAWN, UUID.randomUUID().toString(), BUYER);
 
