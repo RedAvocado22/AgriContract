@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="1080" viewBox="0 0 880 1080" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker></defs>
+<rect x="0" y="0" width="880" height="1080" fill="white"/>
+<rect x="0.5" y=".5" width="300" height="1079" fill="white" stroke="black"/>
+<line x1="0" y1="32" x2="300" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="150.0" y="16.0">External Verifier</tspan></text>
+<rect x="300.5" y=".5" width="260" height="1079" fill="white" stroke="black"/>
+<line x1="300" y1="32" x2="560" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="430.0" y="16.0">Admin</tspan></text>
+<rect x="560.5" y=".5" width="320" height="1079" fill="white" stroke="black"/>
+<line x1="560" y1="32" x2="880" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="720.0" y="16.0">System</tspan></text>
+<polyline points="150.0,77.0 150.0,106.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="150.0,154.0 150.0,186.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="245.0,210 610.0,210" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="720.0,234.0 720.0,275.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="720.0,305.0 720.0,346.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="726.0" y="308" width="58.450000000000045" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="728.0" y="314.875">[invalid]</tspan></text>
+<polyline points="720.0,394.0 720.0,427.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="735.0,290 850,290 850,500 720.0,500 720.0,526.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="740.0" y="272" width="46.35000000000002" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="742.0" y="278.875">[valid]</tspan></text>
+<polyline points="720.0,574.0 720.0,606.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="720.0,654.0 720.0,710 530.0,710" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="430.0,784.5 430.0,734.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4"/>
+<polyline points="330.0,710 150.0,710 150.0,766.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="150.0,814.0 150.0,880 610.0,880" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="720.0,904.0 720.0,936.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="720.0,984.0 720.0,1017.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<circle cx="150.0" cy="65" r="12.0" fill="black"/>
+<rect x="55.0" y="106.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="122.5">1. Detect a suspected</tspan><tspan x="150.0" y="137.5">incident</tspan></text>
+<rect x="55.0" y="186.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="202.5">2. Send a signed</tspan><tspan x="150.0" y="217.5">LOCK request</tspan></text>
+<rect x="610.0" y="186.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="720.0" y="202.5">3. Verify the key, signature,</tspan><tspan x="720.0" y="217.5">time and nonce</tspan></text>
+<polygon points="720.0,275.0 735.0,290 720.0,305.0 705.0,290" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="620.0" y="346.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="720.0" y="362.5">4. Reject the request</tspan><tspan x="720.0" y="377.5">with an error code</tspan></text>
+<circle cx="720.0" cy="440" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="720.0" cy="440" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="646.2" y="440.0">Lock not applied</tspan></text>
+<rect x="620.0" y="526.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="720.0" y="542.5">5. Stop all money</tspan><tspan x="720.0" y="557.5">commands</tspan></text>
+<rect x="610.0" y="606.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="720.0" y="622.5">6. Record the lock, notify</tspan><tspan x="720.0" y="637.5">Admin and the verifier</tspan></text>
+<rect x="330.0" y="686.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="430.0" y="702.5">7. Investigate and report</tspan><tspan x="430.0" y="717.5">to the verifier</tspan></text>
+<path d="M355.0,784.5 L495.0,784.5 L505.0,794.5 L505.0,815.5 L355.0,815.5 Z" fill="white" stroke="black"/><path d="M495.0,784.5 L495.0,794.5 L505.0,794.5" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="365.0" y="800.0">Admin cannot unlock</tspan></text>
+<rect x="55.0" y="766.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="782.5">8. Send a signed</tspan><tspan x="150.0" y="797.5">UNLOCK request</tspan></text>
+<rect x="610.0" y="856.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="720.0" y="872.5">9. Verify the request and</tspan><tspan x="720.0" y="887.5">resume money commands</tspan></text>
+<rect x="620.0" y="936.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="720.0" y="952.5">10. Record the unlock</tspan><tspan x="720.0" y="967.5">and notify</tspan></text>
+<circle cx="720.0" cy="1030" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="720.0" cy="1030" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="639.6" y="1030.0">Money flow resumed</tspan></text>
+</svg>

@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="1430" viewBox="0 0 1140 1430" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker></defs>
+<rect x="0" y="0" width="1140" height="1430" fill="white"/>
+<rect x="0.5" y=".5" width="300" height="1429" fill="white" stroke="black"/>
+<line x1="0" y1="32" x2="300" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="150.0" y="16.0">Buyer / Seller</tspan></text>
+<rect x="300.5" y=".5" width="260" height="1429" fill="white" stroke="black"/>
+<line x1="300" y1="32" x2="560" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="430.0" y="16.0">Arbitrator</tspan></text>
+<rect x="560.5" y=".5" width="240" height="1429" fill="white" stroke="black"/>
+<line x1="560" y1="32" x2="800" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="680.0" y="16.0">Inspector</tspan></text>
+<rect x="800.5" y=".5" width="340" height="1429" fill="white" stroke="black"/>
+<line x1="800" y1="32" x2="1140" y2="32" stroke="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="970.0" y="16.0">System</tspan></text>
+<polyline points="150.0,82.0 150.0,116.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="150.0,212.0 150.0,164.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4"/>
+<polyline points="250.0,140 860.0,140" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="1020,212.0 1020,165" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4"/>
+<polyline points="910.0,164.0 910.0,320 535.0,320" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="430.0,344.0 430.0,385.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="430.0,415.0 430.0,456.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="436.0" y="418" width="118.95000000000005" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="438.0" y="424.875">[inspection needed]</tspan></text>
+<polyline points="415.0,400 318,400 318,580 415.0,580" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="322" y="382" width="28.19999999999999" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="324" y="388.875">[no]</tspan></text>
+<polyline points="525.0,480 590.0,480" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="680.0,504.0 680.0,580 445.0,580" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="430.0,595.0 430.0,636.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="545.0,660 845.0,660" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="970.0,691.5 970.0,825.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="780.0,750 870.0,750 870.0,691.5" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4"/>
+<polyline points="955.0,840 250.0,840" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="330.0" y="846" width="173.39999999999998" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="332.0" y="852.875">[the party at fault contests</tspan><tspan x="332.0" y="866.625">within the window]</tspan></text>
+<polyline points="150.0,864.0 150.0,930 570.0,930" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="680.0,992.0 680.0,954.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4"/>
+<polyline points="790.0,930 915.0,930 915.0,1020 955.0,1020" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="970.0,855.0 970.0,1005.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="976.0" y="858" width="76.59999999999991" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="978.0" y="864.875">[no contest]</tspan></text>
+<polyline points="970.0,1035.0 970.0,1076.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="970.0,1124.0 970.0,1165.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="970.0,1195.0 970.0,1266.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="820.0" y="1198" width="137.10000000000002" height="27.5" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="822.0" y="1204.875">[material breach and</tspan><tspan x="822.0" y="1218.625">termination requested]</tspan></text>
+<polyline points="970.0,1314.0 970.0,1347.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<polyline points="985.0,1180 1067.0,1180" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="990.0" y="1160" width="70.54999999999995" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="992.0" y="1166.875">[otherwise]</tspan></text>
+<circle cx="150.0" cy="70" r="12.0" fill="black"/>
+<rect x="50.0" y="116.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="132.5">1. Report a breach or</tspan><tspan x="150.0" y="147.5">claim force majeure</tspan></text>
+<path d="M25.0,212.0 L265.0,212.0 L275.0,222.0 L275.0,258.0 L25.0,258.0 Z" fill="white" stroke="black"/><path d="M265.0,212.0 L265.0,222.0 L275.0,222.0" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="35.0" y="227.5">Or the System detects a missed</tspan><tspan x="35.0" y="242.5">obligation, e.g. funding not cured</tspan></text>
+<rect x="860.0" y="116.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="970.0" y="132.5">2. Record the case and</tspan><tspan x="970.0" y="147.5">notify the other party</tspan></text>
+<path d="M950.0,212.0 L1080.0,212.0 L1090.0,222.0 L1090.0,258.0 L950.0,258.0 Z" fill="white" stroke="black"/><path d="M1080.0,212.0 L1080.0,222.0 L1090.0,222.0" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="960.0" y="227.5">No penalty on</tspan><tspan x="960.0" y="242.5">an allegation</tspan></text>
+<rect x="325.0" y="296.0" width="210" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="430.0" y="312.5">3. Review the evidence</tspan><tspan x="430.0" y="327.5">against the signed terms</tspan></text>
+<polygon points="430.0,385.0 445.0,400 430.0,415.0 415.0,400" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="335.0" y="456.0" width="190" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="430.0" y="472.5">4. Request an inspection</tspan><tspan x="430.0" y="487.5">per the signed terms</tspan></text>
+<rect x="590.0" y="456.0" width="180" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="680.0" y="472.5">5. Inspect and</tspan><tspan x="680.0" y="487.5">submit a report</tspan></text>
+<polygon points="430.0,565.0 445.0,580 430.0,595.0 415.0,580" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="315.0" y="636.0" width="230" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="430.0" y="652.5">6. Record the breaching party</tspan><tspan x="430.0" y="667.5">and the evidence used</tspan></text>
+<rect x="845.0" y="628.5" width="250" height="63.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="970.0" y="645.0">7. Notify the parties and open</tspan><tspan x="970.0" y="660.0">the 2-business-day contest</tspan><tspan x="970.0" y="675.0">window</tspan></text>
+<path d="M580.0,719.5 L770.0,719.5 L780.0,729.5 L780.0,780.5 L580.0,780.5 Z" fill="white" stroke="black"/><path d="M770.0,719.5 L770.0,729.5 L780.0,729.5" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="590.0" y="735.0">Penalty, forfeiture and</tspan><tspan x="590.0" y="750.0">lock wait; no-fault</tspan><tspan x="590.0" y="765.0">refunds run at once</tspan></text>
+<polygon points="970.0,825.0 985.0,840 970.0,855.0 955.0,840" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="50.0" y="816.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="832.5">8. Submit a contest</tspan><tspan x="150.0" y="847.5">with evidence</tspan></text>
+<rect x="570.0" y="906.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="680.0" y="922.5">9. Level 1.5 reviews the</tspan><tspan x="680.0" y="937.5">case; the decision is final</tspan></text>
+<path d="M570.0,992.0 L780.0,992.0 L790.0,1002.0 L790.0,1038.0 L570.0,1038.0 Z" fill="white" stroke="black"/><path d="M780.0,992.0 L780.0,1002.0 L790.0,1002.0" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="580.0" y="1007.5">Not available if the decision</tspan><tspan x="580.0" y="1022.5">already rests on an inspection</tspan></text>
+<polygon points="970.0,1005.0 985.0,1020 970.0,1035.0 955.0,1020" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="860.0" y="1076.0" width="220" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="970.0" y="1092.5">10. Finalize the decision</tspan><tspan x="970.0" y="1107.5">and execute the remedy</tspan></text>
+<polygon points="970.0,1165.0 985.0,1180 970.0,1195.0 955.0,1180" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="855.0" y="1266.0" width="230" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="970.0" y="1282.5">11. Settle the remaining scope</tspan><tspan x="970.0" y="1297.5">and close the contract</tspan></text>
+<circle cx="970.0" cy="1360" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="970.0" cy="1360" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="970.0" y="1386.5">Contract terminated</tspan></text>
+<circle cx="1080.0" cy="1180" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="1080.0" cy="1180" r="8.0" fill="black"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="1080.0" y="1206.5">Contract stays</tspan><tspan x="1080.0" y="1221.5">active</tspan></text>
+</svg>
