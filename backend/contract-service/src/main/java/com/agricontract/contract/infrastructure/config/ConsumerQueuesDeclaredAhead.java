@@ -23,6 +23,9 @@ import org.springframework.context.annotation.Configuration;
  *   <li>product-service: {@code product-svc.<routingKey>}, DLX {@code agricontract.product.dlx} (RabbitMQConfig);</li>
  *   <li>analytics-service (not in compose yet): {@code analytics-svc.<eventType>}, DLX {@code agricontract.analytics.dlx}
  *       (topology.ts), for {@code contract.terminated};</li>
+ *   <li>audit-service (#104, not built yet): {@code audit-svc.<routingKey>}, DLX {@code agricontract.audit.dlx}, for
+ *       {@code contract.signed} and {@code contract.terminated} (#399), so contracts signed or ended before audit
+ *       exists still reach the audit chain;</li>
  *   <li>escrow-service, until #385 merges: {@code escrow-svc.contract.activation_refund_requested}, DLX
  *       {@code agricontract.contracts.dlx} (its RabbitMQConfig).</li>
  * </ul>
@@ -58,6 +61,10 @@ public class ConsumerQueuesDeclaredAhead {
     static final String TERMINATED_KEY = "contract.terminated";
     static final String TERMINATED_QUEUE = "analytics-svc." + TERMINATED_KEY;
     static final String ANALYTICS_DLX = "agricontract.analytics.dlx";
+    static final String SIGNED_KEY = "contract.signed";
+    static final String AUDIT_SIGNED_QUEUE = "audit-svc." + SIGNED_KEY;
+    static final String AUDIT_TERMINATED_QUEUE = "audit-svc." + TERMINATED_KEY;
+    static final String AUDIT_DLX = "agricontract.audit.dlx";
 
     private static final TopicExchange CONTRACTS = new TopicExchange("agricontract.contracts", true, false);
 
@@ -264,5 +271,53 @@ public class ConsumerQueuesDeclaredAhead {
     @Bean
     Binding terminatedDlqBinding() {
         return BindingBuilder.bind(terminatedDlq()).to(analyticsDlx()).with(TERMINATED_KEY);
+    }
+
+    // #399: audit-service (#104) is the only writer of the audit chain and is not built yet. Without these queues
+    // every contract.signed / contract.terminated published before it exists would never reach the chain.
+
+    @Bean
+    DirectExchange auditDlx() {
+        return new DirectExchange(AUDIT_DLX, true, false);
+    }
+
+    @Bean
+    Queue auditSignedQueue() {
+        return QueueBuilder.durable(AUDIT_SIGNED_QUEUE).deadLetterExchange(AUDIT_DLX).build();
+    }
+
+    @Bean
+    Queue auditSignedDlq() {
+        return QueueBuilder.durable(AUDIT_SIGNED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding auditSignedBinding() {
+        return BindingBuilder.bind(auditSignedQueue()).to(CONTRACTS).with(SIGNED_KEY);
+    }
+
+    @Bean
+    Binding auditSignedDlqBinding() {
+        return BindingBuilder.bind(auditSignedDlq()).to(auditDlx()).with(SIGNED_KEY);
+    }
+
+    @Bean
+    Queue auditTerminatedQueue() {
+        return QueueBuilder.durable(AUDIT_TERMINATED_QUEUE).deadLetterExchange(AUDIT_DLX).build();
+    }
+
+    @Bean
+    Queue auditTerminatedDlq() {
+        return QueueBuilder.durable(AUDIT_TERMINATED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding auditTerminatedBinding() {
+        return BindingBuilder.bind(auditTerminatedQueue()).to(CONTRACTS).with(TERMINATED_KEY);
+    }
+
+    @Bean
+    Binding auditTerminatedDlqBinding() {
+        return BindingBuilder.bind(auditTerminatedDlq()).to(auditDlx()).with(TERMINATED_KEY);
     }
 }
