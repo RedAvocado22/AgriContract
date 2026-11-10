@@ -45,7 +45,7 @@ class CreateContractEndpointTest {
     void setUp() {
         ContractController controller = new ContractController(useCase, mock(NegotiateContractUseCase.class),
                 mock(GetContractUseCase.class), mock(ListContractsUseCase.class),
-                mock(UpdateContractTermsUseCase.class), canonicalizer);
+                mock(UpdateContractTermsUseCase.class), mock(WithdrawOfferUseCase.class), canonicalizer);
         mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new GlobalExceptionHandler()).build();
         terms = canonicalizer.canonicalInputJson(input());
         when(useCase.execute(any())).thenReturn(new CreateContractUseCase.Result(new CoffeeContractView(
