@@ -12,6 +12,7 @@ import com.agricontract.contract.application.port.IdempotencyStore;
 import com.agricontract.contract.application.port.ListingPort;
 import com.agricontract.contract.application.port.UserPort;
 import com.agricontract.contract.application.service.ReservationCompensation;
+import com.agricontract.contract.application.service.SignerEligibility;
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
@@ -39,6 +40,8 @@ import java.util.UUID;
  * POST /api/v1/contracts (createContract, milestone-escrow design §2.1d). In this order:
  * <ol>
  *   <li>validate the negotiated terms and derive requestedQuantity = Σ milestoneSchedule[].committedQuantity;</li>
+ *   <li>the buyer must be allowed to contract (user-service design §3: verified, authorization not ended, not locked;
+ *       fail-closed), a replay included;</li>
  *   <li>read the listing (seller, listingVersionToken), refuse a token other than the buyer's, then both profiles and
  *       the goods snapshot at that version (no write yet);</li>
  *   <li>reserve the quantity at product-service under a newly generated contractId;</li>
@@ -63,6 +66,7 @@ public class CreateContractUseCase {
     private final ListingPort listingPort;
     private final UserPort userPort;
     private final ReservationCompensation compensation;
+    private final SignerEligibility eligibility;
     private final ContractEventPublisher events;
     private final TermsCanonicalizer canonicalizer;
     private final ContractTermsRules rules;
@@ -76,6 +80,10 @@ public class CreateContractUseCase {
         BigDecimal requestedQuantity = requestedQuantity(command);
         String requestHash = CanonicalTerms.sha256(command.listingId() + "\n" + command.listingVersionToken() + "\n"
                 + canonicalizer.canonicalInputJson(command.terms()));
+
+        // The buyer must be allowed to contract before anything else, a replay included (user-service design §3).
+        UserInfo buyer = profile(command.buyerId(), "BUYER");
+        eligibility.requireMayOffer(buyer);
 
         // Fast path for a retry; a concurrent first request is caught by the claim in step 4.
         Optional<IdempotencyStore.Outcome> seen = tx.execute(status -> idempotencyStore.lookup(command.buyerId(),
@@ -94,7 +102,6 @@ public class CreateContractUseCase {
             throw new ContractConflictException(LISTING_VERSION_MISMATCH,
                     "The listing has changed since it was loaded; reload it and make the offer again.");
         }
-        UserInfo buyer = profile(command.buyerId(), "BUYER");
         UserInfo seller = profile(listing.sellerId(), "SELLER");
         CoffeeGoodsTerms goods = listingPort.contractSnapshot(command.listingId(), command.listingVersionToken());
         if (goods == null || goods.listingId() == null || !goods.listingId().toString().equals(command.listingId())) {

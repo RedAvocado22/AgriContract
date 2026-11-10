@@ -14,7 +14,7 @@ import java.time.Instant;
 /**
  * Who may start signing (signature design §6 InitiateSign steps 1-2, user-service design §5): a fresh password
  * entry, a verified profile, an authorization that has not ended, no reputation lock, and an email on file to send
- * the code to. user-service is asked directly; if it cannot answer the caller gets an error, never a pass.
+ * the code to. Making an offer takes the same profile conditions (user-service design §3, #232). user-service is asked directly; if it cannot answer the caller gets an error, never a pass.
  */
 @Service
 @Slf4j
@@ -86,12 +86,40 @@ public class SignerEligibility {
         }
     }
 
+    /**
+     * Who may make an offer (user-service design §3, "Tạo offer"): the same conditions as signing, checked on the
+     * profile the create already read: verified, authorization not ended, no reputation lock. Fail-closed like
+     * signing: the caller reads the profile through user-service, which throws when it cannot answer. Checked before
+     * the reservation, so a buyer who may not contract never holds a listing's quantity.
+     */
+    public void requireMayOffer(UserInfo buyer) {
+        Instant now = clock.instant();
+        if (!VERIFIED.equals(buyer.verificationStatus())) {
+            throw refuseOffer(buyer, SignerNotEligibleException.NOT_VERIFIED,
+                    "Your profile has not been verified yet, so you cannot make an offer.");
+        }
+        if (authorizationEnded(buyer, now)) {
+            throw refuseOffer(buyer, SignerNotEligibleException.AUTHORIZATION_EXPIRED,
+                    "Your authorization to contract for the organization ended on "
+                            + buyer.authorizationExpiresAt() + ".");
+        }
+        if (locked(buyer, now)) {
+            throw refuseOffer(buyer, SignerNotEligibleException.LOCKED,
+                    "Your account is locked from new contracts until " + buyer.lockedUntil() + ".");
+        }
+    }
+
     private static boolean authorizationEnded(UserInfo user, Instant now) {
         return user.authorizationExpiresAt() != null && !now.isBefore(user.authorizationExpiresAt());
     }
 
     private static boolean locked(UserInfo user, Instant now) {
         return user.lockedUntil() != null && now.isBefore(user.lockedUntil());
+    }
+
+    private static SignerNotEligibleException refuseOffer(UserInfo buyer, String code, String message) {
+        log.warn("Offer refused for {}: {}", buyer.userId(), code);
+        return new SignerNotEligibleException(code, message);
     }
 
     private static SignerNotEligibleException refuse(String userId, String code, String message) {
