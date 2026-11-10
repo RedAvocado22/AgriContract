@@ -13,5 +13,7 @@ public record ListingResponse(
         BigDecimal priceFloor,
         String currency,
         LocalDate deliveryDeadline,
-        String status
+        String status,
+        /** Opaque version the buyer must have seen; compared with the one the offer echoes (#232). */
+        String listingVersionToken
 ) {}

@@ -39,7 +39,8 @@ import java.util.UUID;
  * POST /api/v1/contracts (createContract, milestone-escrow design §2.1d). In this order:
  * <ol>
  *   <li>validate the negotiated terms and derive requestedQuantity = Σ milestoneSchedule[].committedQuantity;</li>
- *   <li>read the seller, both profiles and the goods snapshot at the buyer's listing version (no write yet);</li>
+ *   <li>read the listing (seller, listingVersionToken), refuse a token other than the buyer's, then both profiles and
+ *       the goods snapshot at that version (no write yet);</li>
  *   <li>reserve the quantity at product-service under a newly generated contractId;</li>
  *   <li>in one local transaction: claim the Idempotency-Key, persist OFFERED with reservedQuantity and append
  *       contract.created to the outbox;</li>
@@ -52,6 +53,8 @@ import java.util.UUID;
 @Slf4j
 public class CreateContractUseCase {
     static final String OPERATION = "CREATE_CONTRACT";
+    /** Same code product-service answers for a stale token (golden-flow-api createContract 409). */
+    static final String LISTING_VERSION_MISMATCH = "LISTING_VERSION_MISMATCH";
     /** Same scale as reserved_quantity here and listing_reservations.reserved_quantity at product-service. */
     private static final int MAX_QUANTITY_SCALE = 3;
 
@@ -85,6 +88,11 @@ public class CreateContractUseCase {
         ListingResponse listing = listingPort.getListing(command.listingId());
         if (command.buyerId().equals(listing.sellerId())) {
             throw new UnauthorizedContractActionException("A seller cannot make an offer on their own listing.");
+        }
+        // The buyer offers on the version it saw; product-service compares the token again at snapshot and reserve.
+        if (!command.listingVersionToken().equals(listing.listingVersionToken())) {
+            throw new ContractConflictException(LISTING_VERSION_MISMATCH,
+                    "The listing has changed since it was loaded; reload it and make the offer again.");
         }
         UserInfo buyer = profile(command.buyerId(), "BUYER");
         UserInfo seller = profile(listing.sellerId(), "SELLER");
