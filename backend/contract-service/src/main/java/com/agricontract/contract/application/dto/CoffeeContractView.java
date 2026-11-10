@@ -31,7 +31,7 @@ public record CoffeeContractView(
     public static CoffeeContractView from(Contract contract) {
         var terms = contract.getCoffeeTerms();
         return new CoffeeContractView(contract.getContractId().value(), contract.getListingId(),
-                terms.snapshot().totalQuantity(), contract.getBuyerId(), contract.getSellerId(), contract.getStatus(),
+                contract.getReservedQuantity(), contract.getBuyerId(), contract.getSellerId(), contract.getStatus(),
                 terms.canonicalJson(), terms.signedContentHash());
     }
 }

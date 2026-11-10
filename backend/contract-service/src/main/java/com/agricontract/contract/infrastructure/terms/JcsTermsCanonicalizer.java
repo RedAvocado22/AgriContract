@@ -81,8 +81,13 @@ public class JcsTermsCanonicalizer implements TermsCanonicalizer {
      * goodsTerms and totalContractValue if a client tries to send them.
      */
     public ContractTermsInput readInput(String json) {
+        return readStrict(json, ContractTermsInput.class);
+    }
+
+    /** The same strict reading for a request body that carries ContractTermsInput (createContract). */
+    public <T> T readStrict(String json, Class<T> type) {
         try {
-            return mapper.readValue(json, ContractTermsInput.class);
+            return mapper.readValue(json, type);
         } catch (JsonProcessingException e) {
             throw new InvalidContractTermsException("Invalid contract terms: " + e.getOriginalMessage());
         }

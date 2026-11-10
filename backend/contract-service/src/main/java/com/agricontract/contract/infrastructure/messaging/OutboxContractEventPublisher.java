@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class OutboxContractEventPublisher implements ContractEventPublisher {
     static final String PRODUCER = "contract-service";
+    static final String CONTRACT_CREATED = "contract.created";
     static final String CONTRACT_SIGNED = "contract.signed";
     static final String CONTRACT_ANCHOR_REQUESTED = "notification.contract_anchor_requested";
     static final String CONTRACT_ACTIVATED = "contract.activated";
@@ -54,6 +55,29 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
     private final OutboxWriter outbox;
     private final ObjectMapper objectMapper;
 
+    /**
+     * contract.created (golden-flow-events.yaml contractCreated, design §2.1d): product-service learns that the
+     * reservation it took for this contractId belongs to a persisted OFFERED contract. It never decrements again.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void contractCreated(Contract contract, Instant createdAt) {
+        if (contract.getStatus() != ContractStatus.OFFERED || contract.getCoffeeTerms() == null) {
+            throw new IllegalStateException("contract.created for contract " + contract.getContractId().value()
+                    + " in status " + contract.getStatus());
+        }
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("listingId", uuid(contract.getListingId(), "listingId"));
+        payload.put("reservedQuantity", contract.getReservedQuantity());
+        payload.put("createdAt", createdAt.toString());
+
+        // Root of the contract's event chain: correlationId = contractId, no causationId.
+        outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_CREATED, 1, createdAt, PRODUCER, contractId,
+                contractId, null, null, payload));
+    }
+
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void contractSigned(Contract contract, Instant signedAt) {
@@ -67,9 +91,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contractId", contractId);
         payload.put("listingId", uuid(contract.getListingId(), "listingId"));
-        // Not stored apart from the terms yet: equal to Σ committedQuantity by F18 at PATCH (#93). #232 stores the
-        // quantity product-service reserved and this reads it (D37).
-        payload.put("reservedQuantity", terms.totalQuantity());
+        payload.put("reservedQuantity", contract.getReservedQuantity());
         payload.put("commodity", "COFFEE");
         payload.put("buyerId", uuid(contract.getBuyerId(), "buyerId"));
         payload.put("sellerId", uuid(contract.getSellerId(), "sellerId"));
@@ -114,7 +136,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
 
     /**
      * contract.activated (golden-flow-events.yaml contractActivated): product-service moves the reservation from
-     * SIGNED_RELEASABLE to COMMITTED. reservedQuantity is the terms' total until #232 (as for contract.signed).
+     * SIGNED_RELEASABLE to COMMITTED.
      */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -128,7 +150,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contractId", contractId);
         payload.put("listingId", uuid(contract.getListingId(), "listingId"));
-        payload.put("reservedQuantity", contract.getCoffeeTerms().snapshot().totalQuantity());
+        payload.put("reservedQuantity", contract.getReservedQuantity());
         payload.put("activatedAt", activatedAt.toString());
 
         outbox.append(new EventEnvelope(UUID.randomUUID(), CONTRACT_ACTIVATED, 1, activatedAt, PRODUCER, contractId,
@@ -219,7 +241,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contractId", contractId);
         payload.put("listingId", uuid(contract.getListingId(), "listingId"));
-        payload.put("reservedQuantity", contract.getCoffeeTerms().snapshot().totalQuantity());
+        payload.put("reservedQuantity", contract.getReservedQuantity());
         payload.put("activationFailedAt", failedAt.toString());
         outbox.append(new EventEnvelope(UUID.randomUUID(), ACTIVATION_FAILED, 1, failedAt, PRODUCER, contractId,
                 correlationId, causationId, null, payload));

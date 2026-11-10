@@ -13,6 +13,9 @@ import java.util.List;
  */
 public interface ContractEventPublisher {
 
+    /** contract.created, once, by the create that persisted the OFFERED contract after its reservation (#232). */
+    void contractCreated(Contract contract, Instant createdAt);
+
     /** contract.signed, once, by the verify that made the contract SIGNED; signedAt is the second signature. */
     void contractSigned(Contract contract, Instant signedAt);
 
