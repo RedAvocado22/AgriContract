@@ -180,6 +180,17 @@ class Seq:
                 tag = (f.x0, f.y0, f.x0 + text_w(f.op, MSG_FONT, bold=True) + 22, f.y0 + 16)
                 if m.text and boxes_overlap(lb, tag):
                     problems.append(f"message {m.text!r} hides the {f.op} tag")
+        for f in self.fragments:
+            need = text_w(f.op, MSG_FONT, bold=True) + 30 + text_w("[" + f.guard + "]", MSG_FONT)
+            if need > f.x1 - f.x0:
+                problems.append(f"guard [{f.guard}] does not fit its {f.op} frame")
+        heads = [(l.id, (lambda x, y, w, h: (x, y, x + w, y + h))(*self._head_box(l)))
+                 for l in self.lines.values() if not l.actor]
+        for i in range(len(heads)):
+            for j in range(i + 1, len(heads)):
+                a, b = heads[i][1], heads[j][1]
+                if boxes_overlap((a[0] - 4, a[1], a[2] + 4, a[3]), b):
+                    problems.append(f"heads of {heads[i][0]} and {heads[j][0]} touch")
         for id, stack in self._open.items():
             if stack:
                 problems.append(f"lifeline {id} has an activation never closed")
