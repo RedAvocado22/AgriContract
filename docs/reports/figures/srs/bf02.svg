@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="880" height="1180" viewBox="0 0 880 1180" font-family="Arial" font-size="12">
-<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker></defs>
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
 <rect x="0" y="0" width="880" height="1180" fill="white"/>
 <rect x="0.5" y=".5" width="300" height="1179" fill="white" stroke="black"/>
 <line x1="0" y1="32" x2="300" y2="32" stroke="black"/>
@@ -10,37 +10,37 @@
 <rect x="620.5" y=".5" width="260" height="1179" fill="white" stroke="black"/>
 <line x1="620" y1="32" x2="880" y2="32" stroke="black"/>
 <text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="750.0" y="16.0">Operator</tspan></text>
-<polyline points="150.0,82.0 150.0,116.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="250.0,140 360.0,140" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="460.0,164.0 460.0,205.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="460.0,235.0 460.0,276.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="466.0" y="238" width="58.450000000000045" height="13.75" fill="white"/>
+<path d="M150.0,82.0 L150.0,116.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M250.0,140 L360.0,140" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M460.0,164.0 L460.0,205.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M460.0,235.0 L460.0,276.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="466.0" y="238" width="41.296875" height="13.75" fill="white"/>
 <text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="468.0" y="244.875">[invalid]</tspan></text>
-<polyline points="370.0,300 250.0,300" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="150.0,276.0 150.0,164.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="475.0,220 590,220 590,350 460.0,350 460.0,376.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="482.0" y="202" width="46.35000000000002" height="13.75" fill="white"/>
+<path d="M370.0,300 L250.0,300" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M150.0,276.0 L150.0,164.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M475.0,220 L590,220 L590,350 L460.0,350 L460.0,376.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="482.0" y="202" width="32.734375" height="13.75" fill="white"/>
 <text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="484.0" y="208.875">[valid]</tspan></text>
-<polyline points="460.0,424.0 460.0,465.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="475.0,480 660.0,480" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="482.0" y="462" width="88.70000000000005" height="13.75" fill="white"/>
+<path d="M460.0,424.0 L460.0,465.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M475.0,480 L660.0,480" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="482.0" y="462" width="66.359375" height="13.75" fill="white"/>
 <text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="484.0" y="468.875">[risk flagged]</tspan></text>
-<polyline points="460.0,495.0 460.0,545.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="466.0" y="500" width="58.450000000000045" height="13.75" fill="white"/>
+<path d="M460.0,495.0 L460.0,545.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="466.0" y="500" width="43.1328125" height="13.75" fill="white"/>
 <text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="468.0" y="506.875">[no flag]</tspan></text>
-<polyline points="750.0,504.0 750.0,560 475.0,560" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="445.0,560 150.0,560 150.0,616.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="150.0,664.0 150.0,706.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="255.0,730 350.0,730" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="460.0,754.0 460.0,795.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="460.0,825.0 460.0,866.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="466.0" y="828" width="64.5" height="13.75" fill="white"/>
+<path d="M750.0,504.0 L750.0,560 L475.0,560" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M445.0,560 L150.0,560 L150.0,616.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M150.0,664.0 L150.0,706.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M255.0,730 L350.0,730" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M460.0,754.0 L460.0,795.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M460.0,825.0 L460.0,866.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="466.0" y="828" width="44.359375" height="13.75" fill="white"/>
 <text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="468.0" y="834.875">[eligible]</tspan></text>
-<polyline points="460.0,914.0 460.0,947.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<polyline points="475.0,810 600,810 600,1010 460.0,1010 460.0,1036.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
-<rect x="482.0" y="792" width="88.70000000000005" height="13.75" fill="white"/>
+<path d="M460.0,914.0 L460.0,947.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M475.0,810 L600,810 L600,1010 L460.0,1010 L460.0,1036.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="482.0" y="792" width="62.703125" height="13.75" fill="white"/>
 <text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="484.0" y="798.875">[not eligible]</tspan></text>
-<polyline points="460.0,1084.0 460.0,1117.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<path d="M460.0,1084.0 L460.0,1117.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
 <circle cx="150.0" cy="70" r="12.0" fill="black"/>
 <rect x="50.0" y="116.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
 <text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="150.0" y="132.5">1. Import plots from KML</tspan><tspan x="150.0" y="147.5">or a GPS pin</tspan></text>
@@ -67,9 +67,9 @@
 <rect x="355.0" y="866.0" width="210" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
 <text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="460.0" y="882.5">10. Publish the listing</tspan><tspan x="460.0" y="897.5">on the marketplace</tspan></text>
 <circle cx="460.0" cy="960" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="460.0" cy="960" r="8.0" fill="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="382.9" y="960.0">Listing available</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="396.291015625" y="960.0">Listing available</tspan></text>
 <rect x="360.0" y="1036.0" width="200" height="48.0" rx="10" fill="white" stroke="black" stroke-width="1.2"/>
 <text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="460.0" y="1052.5">11. Reject the listing</tspan><tspan x="460.0" y="1067.5">with a reason</tspan></text>
 <circle cx="460.0" cy="1130" r="13.0" fill="white" stroke="black" stroke-width="1.2"/><circle cx="460.0" cy="1130" r="8.0" fill="black"/>
-<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="369.7" y="1130.0">Listing not published</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="384.275390625" y="1130.0">Listing not published</tspan></text>
 </svg>

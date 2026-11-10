@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="1020" viewBox="0 0 700 1020" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
+<rect x="0" y="0" width="700" height="1020" fill="white"/>
+<path d="M175,181.0 L175,210.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M525,181.0 L525,210.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M525,326.0 L525,375.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M525,506.0 L525.0,548.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M175,371.0 L175,430.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M175,746.0 L175.0,780.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M330,282.45 L350,282.45 L350,440.5 L370,440.5" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M330,282.45 L350,282.45 L350,614.0 L370,614.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M330,282.45 L350,282.45 L350,673.0 L330,673.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M330,282.45 L350,282.45 L350,822.8 L330,822.8" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M680,268.0 L690,268.0 L690,746.0 L680,746.0" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M680,268.0 L690,268.0 L690,908.4 L330,908.4" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M330,547.9 L345.0,547.9 A5.0,5.0 0 0 1 355.0,547.9 L370,547.9" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<path d="M20,495.5 L10,495.5 L10,961.9 L20,961.9" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="130.0" y="20.0" width="440" height="161" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="350" y="32.5">«control»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="350" y="47.5">ContractSigningController</tspan></text>
+<line x1="130.0" y1="60.0" x2="570.0" y2="60.0" stroke="black"/>
+<line x1="130.0" y1="83.0" x2="570.0" y2="83.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="138.0" y="94.5">+ initiate(contractId : UUID, idempotencyKey : UUID,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="138.0" y="109.5">      body : String, auth : Authentication)</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="138.0" y="124.5">      : ResponseEntity&lt;InitiateSignResponse&gt;</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="138.0" y="139.5">+ verify(contractId : UUID, idempotencyKey : UUID,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="138.0" y="154.5">      body : String, httpRequest : HttpServletRequest,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="138.0" y="169.5">      auth : Authentication) : ResponseEntity&lt;Void&gt;</tspan></text>
+<rect x="20.0" y="210.0" width="310" height="161" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="175" y="222.5">«control»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="175" y="237.5">InitiateSignUseCase</tspan></text>
+<line x1="20.0" y1="250.0" x2="330.0" y2="250.0" stroke="black"/>
+<line x1="20.0" y1="273.0" x2="330.0" y2="273.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="284.5">+ execute(command : InitiateSignCommand)</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="299.5">      : SignChallengeView</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="314.5">- issueOrReplay(command : InitiateSignCommand)</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="329.5">      : Issued</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="344.5">- replayed(command : InitiateSignCommand)</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="359.5">      : SignChallengeView</tspan></text>
+<rect x="370.0" y="210.0" width="310" height="116" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="525" y="222.5">«control»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="525" y="237.5">VerifyOtpAndSignUseCase</tspan></text>
+<line x1="370.0" y1="250.0" x2="680.0" y2="250.0" stroke="black"/>
+<line x1="370.0" y1="273.0" x2="680.0" y2="273.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="378.0" y="284.5">+ execute(command : VerifySignCommand) : void</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="378.0" y="299.5">- verifyAndSign(command : VerifySignCommand,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="378.0" y="314.5">      role : SignerRole) : RuntimeException</tspan></text>
+<rect x="370.0" y="375.0" width="310" height="131" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="525" y="387.5">«control»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="525" y="402.5">SignerEligibility</tspan></text>
+<line x1="370.0" y1="415.0" x2="680.0" y2="415.0" stroke="black"/>
+<line x1="370.0" y1="438.0" x2="680.0" y2="438.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="378.0" y="449.5">+ requireFreshLogin(authTime : Instant) : void</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="378.0" y="464.5">+ requireEligible(userId : String) : UserInfo</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="378.0" y="479.5">+ requireCounterpartyEligible(</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="378.0" y="494.5">      counterpartyId : String) : void</tspan></text>
+<rect x="20.0" y="430.0" width="310" height="131" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="175" y="442.5">«control»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="175" y="457.5">OtpChallengeIssuer</tspan></text>
+<line x1="20.0" y1="470.0" x2="330.0" y2="470.0" stroke="black"/>
+<line x1="20.0" y1="493.0" x2="330.0" y2="493.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="504.5">+ issue(contract : Contract,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="519.5">      consent : ConsentEvidence,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="534.5">      authTime : Instant) : IssuedOtp</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="549.5">+ expire(otpId : UUID) : void</tspan></text>
+<rect x="20.0" y="600.0" width="310" height="146" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="175" y="612.5">«control»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="175" y="627.5">SigningConsentRecorder</tspan></text>
+<line x1="20.0" y1="640.0" x2="330.0" y2="640.0" stroke="black"/>
+<line x1="20.0" y1="663.0" x2="330.0" y2="663.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="674.5">+ record(contract : Contract, actorId : String,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="689.5">      signerRole : SignerRole,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="704.5">      statementVersion : String,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="719.5">      presentedContentHash : String,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="734.5">      correlationId : String) : ConsentEvidence</tspan></text>
+<rect x="370.0" y="528.0" width="121.6" height="20" fill="white" stroke="black"/>
+<rect x="370.0" y="548.0" width="310" height="264" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="378.0" y="538.0">application.port</tspan></text>
+<rect x="420.0" y="560.0" width="210" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="525" y="572.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="525" y="587.5">UserPort</tspan></text>
+<rect x="420.0" y="610.0" width="210" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="525" y="622.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="525" y="637.5">OtpEmailPort</tspan></text>
+<rect x="420.0" y="660.0" width="210" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="525" y="672.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="525" y="687.5">OtpCodes</tspan></text>
+<rect x="420.0" y="710.0" width="210" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="525" y="722.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="525" y="737.5">ContractEventPublisher</tspan></text>
+<rect x="420.0" y="760.0" width="210" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="525" y="772.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="525" y="787.5">IdempotencyStore</tspan></text>
+<rect x="20.0" y="760.0" width="128.2" height="20" fill="white" stroke="black"/>
+<rect x="20.0" y="780.0" width="310" height="214" fill="none" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="28.0" y="770.0">domain.repository</tspan></text>
+<rect x="60.0" y="792.0" width="230" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="175" y="804.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="175" y="819.5">ContractRepository</tspan></text>
+<rect x="60.0" y="842.0" width="230" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="175" y="854.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="175" y="869.5">OtpChallengeRepository</tspan></text>
+<rect x="60.0" y="892.0" width="230" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="175" y="904.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="175" y="919.5">SignatureRepository</tspan></text>
+<rect x="60.0" y="942.0" width="230" height="40" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="175" y="954.5">«interface»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-style="italic"><tspan x="175" y="969.5">ConsentEvidenceRepository</tspan></text>
+</svg>

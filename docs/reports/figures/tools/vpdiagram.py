@@ -25,9 +25,30 @@ LINE_H = 15
 CHAR_W = 6.6  # average Arial 12 width, for label boxes
 
 
+_FONT_DIR = Path("/usr/share/fonts/liberation-sans-fonts")
+_FONTS: dict = {}
+
+
+def text_w(text: str, size: int = FONT_SIZE, bold=False, italic=False) -> float:
+    """Rendered width with the metric-compatible Arial (Liberation Sans) the SVG is drawn with."""
+    style = "BoldItalic" if bold and italic else "Bold" if bold else "Italic" if italic else "Regular"
+    try:
+        from PIL import ImageFont
+        key = (style, size)
+        if key not in _FONTS:
+            _FONTS[key] = ImageFont.truetype(str(_FONT_DIR / f"LiberationSans-{style}.ttf"), size * 4)
+        return _FONTS[key].getlength(text) / 4
+    except (ImportError, OSError):
+        return len(text) * CHAR_W * size / FONT_SIZE * (1.1 if bold else 1)
+
+
+def compartment_h(lines) -> float:
+    return max(len(lines), 1) * LINE_H + 8
+
+
 def text_size(text: str, size: int = FONT_SIZE) -> tuple[float, float]:
     lines = text.split("\n")
-    w = max(len(line) for line in lines) * CHAR_W * size / FONT_SIZE
+    w = max(text_w(line, size) for line in lines)
     return w, len(lines) * LINE_H * size / FONT_SIZE
 
 
@@ -67,6 +88,7 @@ class Edge:
     label_at: tuple[float, float] | None = None  # top-left of the label box
     dashed: bool = False
     arrow: bool = True
+    kind: str = "flow"  # flow | dependency | association | composition | realization | anchor
 
 
 @dataclass
@@ -83,6 +105,7 @@ class Diagram:
     height: float
     lanes: list[Lane] = field(default_factory=list)
     header_h: float = 32
+    allow_crossings: bool = False  # class diagrams: perpendicular crossings drawn with a line jump
     nodes: dict[str, Node] = field(default_factory=dict)
     edges: list[Edge] = field(default_factory=list)
 
@@ -131,6 +154,27 @@ class Diagram:
         self.nodes[id] = Node(id, "bar", cx, cy, w, 6)
         return self.nodes[id]
 
+    def klass(self, id, cx, top, name, stereotype="", attrs=(), ops=(), w=None, collapsed=False):
+        """UML class / interface box. Long lines are wrapped by the caller (continuation lines start with spaces)."""
+        tw = max([text_w(l) for l in (*attrs, *ops) if l]
+                 + [text_w("\u00ab" + stereotype + "\u00bb", 11) if stereotype else 0,
+                    text_w(name, bold=True, italic=stereotype == "interface")])
+        head = (LINE_H if stereotype else 0) + LINE_H + 10
+        h = head if collapsed else head + compartment_h(attrs) + compartment_h(ops)
+        if w and w < tw + 16:
+            raise SystemExit(f"class {id}: width {w} is too narrow for its text ({tw + 16:.0f} needed)")
+        width = w or tw + 20
+        n = Node(id, "class", cx, top + h / 2, width, h, name)
+        n.stereotype, n.attrs, n.ops, n.head, n.collapsed = stereotype, list(attrs), list(ops), head, collapsed
+        self.nodes[id] = n
+        return n
+
+    def package(self, id, x0, y0, w, h, name):
+        """UML package frame (tab with the name); class boxes may sit inside it."""
+        n = Node(id, "package", x0 + w / 2, y0 + h / 2, w, h, name)
+        self.nodes[id] = n
+        return n
+
     def note(self, id, cx, cy, text, w=None):
         tw, th = text_size(text)
         self.nodes[id] = Node(id, "note", cx, cy, w or tw + 24, th + 16, text)
@@ -138,6 +182,14 @@ class Diagram:
 
     def edge(self, src, dst, *points, label="", label_at=None, dashed=False, arrow=True):
         self.edges.append(Edge(src, dst, list(points), label, label_at, dashed, arrow))
+
+    def rel(self, kind, src, s_side, dst, d_side, *via, label="", label_at=None, s_off=0, d_off=0):
+        """A class relationship: dependency (dashed, open arrow), association (solid, open arrow),
+        composition (filled diamond at src), realization (dashed, hollow triangle)."""
+        a = self.nodes[src].port(s_side, s_off)
+        b = self.nodes[dst].port(d_side, d_off)
+        self.edges.append(Edge(src, dst, [a, *via, b], label, label_at, kind in ("dependency", "realization"),
+                               True, kind))
 
     def flow(self, src, s_side, dst, d_side, *via, label="", label_at=None, s_off=0, d_off=0):
         """Control flow from a side of src to a side of dst through the given corner points."""
@@ -159,6 +211,9 @@ class Diagram:
             for n in self.nodes.values():
                 if n.id in (e.src, e.dst):
                     continue
+                if n.kind == "package":
+                    if any(m.id in (e.src, e.dst) for m in self.nodes.values() if inside(m, n)):
+                        continue
                 if seg_hits_box(p, q, n.box(2)):
                     problems.append(f"edge {e.src}->{e.dst} crosses node {n.id}")
         for a in range(len(segs)):
@@ -167,7 +222,8 @@ class Diagram:
                 j, r, s = segs[b]
                 if i == j:
                     continue
-                if segs_cross(p, q, r, s, self.edges[i], self.edges[j]):
+                if segs_cross(p, q, r, s, self.edges[i], self.edges[j]) and not (
+                        self.allow_crossings and (p[1] == q[1]) != (r[1] == s[1])):
                     problems.append(f"edges {self.edges[i].src}->{self.edges[i].dst} and "
                                     f"{self.edges[j].src}->{self.edges[j].dst} cross at {p}-{q} / {r}-{s}")
         for e in self.edges:
@@ -197,7 +253,9 @@ class Diagram:
             return a.id + "_name" == b.id or b.id + "_name" == a.id
         for a in range(len(ids)):
             for b in range(a + 1, len(ids)):
-                if not paired(ids[a], ids[b]) and boxes_overlap(ids[a].box(4), ids[b].box(4)):
+                if paired(ids[a], ids[b]) or inside(ids[a], ids[b]) or inside(ids[b], ids[a]):
+                    continue
+                if boxes_overlap(ids[a].box(4), ids[b].box(4)):
                     problems.append(f"nodes {ids[a].id} and {ids[b].id} overlap")
         for n in self.nodes.values():
             x0, y0, x1, y1 = n.box()
@@ -231,7 +289,11 @@ class Diagram:
              f'viewBox="0 0 {self.width} {self.height}" font-family="{FONT}" font-size="{FONT_SIZE}">',
              '<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" '
              'markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" '
-             'stroke-width="1.2"/></marker></defs>',
+             'stroke-width="1.2"/></marker>'
+             '<marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" '
+             'markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/>'
+             '</marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" '
+             'markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>',
              f'<rect x="0" y="0" width="{self.width}" height="{self.height}" fill="white"/>']
         for lane in self.lanes:
             o.append(f'<rect x="{lane.x + .5}" y=".5" width="{lane.w}" height="{self.height - 1}" fill="white" '
@@ -239,11 +301,14 @@ class Diagram:
             o.append(f'<line x1="{lane.x}" y1="{self.header_h}" x2="{lane.x + lane.w}" y2="{self.header_h}" '
                      f'stroke="black"/>')
             o.append(svg_text(lane.x + lane.w / 2, self.header_h / 2, lane.name, bold=True))
+        verticals = [(p, q) for e in self.edges for p, q in zip(e.points, e.points[1:]) if p[0] == q[0]]
         for e in self.edges:
-            pts = " ".join(f"{x},{y}" for x, y in e.points)
+            d = path_with_jumps(e.points, verticals if self.allow_crossings else [])
             dash = ' stroke-dasharray="5,4"' if e.dashed else ""
-            mark = ' marker-end="url(#open)"' if e.arrow else ""
-            o.append(f'<polyline points="{pts}" fill="none" stroke="black" stroke-width="1.1"{dash}{mark}/>')
+            end = {"realization": "tri"}.get(e.kind, "open")
+            mark = f' marker-end="url(#{end})"' if e.arrow else ""
+            start = ' marker-start="url(#dia)"' if e.kind == "composition" else ""
+            o.append(f'<path d="{d}" fill="none" stroke="black" stroke-width="1.1"{dash}{mark}{start}/>')
             if e.label:
                 x0, y0, x1, y1 = self.label_box(e)
                 o.append(f'<rect x="{x0}" y="{y0}" width="{x1 - x0}" height="{y1 - y0}" fill="white"/>')
@@ -273,6 +338,27 @@ class Diagram:
                 o.append(svg_text(x0 + 10, n.cy, n.text, anchor="start"))
             elif n.kind == "text":
                 o.append(svg_text(n.cx, n.cy, n.text))
+            elif n.kind == "package":
+                tw = len(n.text) * CHAR_W + 16
+                o.append(f'<rect x="{x0}" y="{y0 - 20}" width="{tw}" height="20" fill="white" stroke="black"/>')
+                o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="none" stroke="black"/>')
+                o.append(svg_text(x0 + 8, y0 - 10, n.text, bold=True, anchor="start"))
+            elif n.kind == "class":
+                o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="black" '
+                         f'stroke-width="1.2"/>')
+                y = y0 + 5 + LINE_H / 2
+                if n.stereotype:
+                    o.append(svg_text(n.cx, y, "\u00ab" + n.stereotype + "\u00bb", size=11))
+                    y += LINE_H
+                o.append(svg_text(n.cx, y, n.text, bold=True, italic=n.stereotype == "interface"))
+                if not n.collapsed:
+                    y = y0 + n.head
+                    for block in (n.attrs, n.ops):
+                        o.append(f'<line x1="{x0}" y1="{y}" x2="{x1}" y2="{y}" stroke="black"/>')
+                        for i, line in enumerate(block):
+                            o.append(svg_text(x0 + 8, y + 4 + LINE_H / 2 + i * LINE_H, line, anchor="start",
+                                              keep_space=True))
+                        y += compartment_h(block)
         o.append("</svg>")
         return "\n".join(o)
 
@@ -295,18 +381,54 @@ class Diagram:
             "bar": "shape=line;strokeWidth=6;strokeColor=#000000;html=1;",
             "note": "shape=note;size=10;align=left;spacingLeft=8;" + base,
             "text": "text;strokeColor=none;fillColor=none;align=center;" + base,
+            "package": "shape=folder;tabWidth={tw};tabHeight=20;tabPosition=left;fontStyle=1;align=left;"
+                       "verticalAlign=top;spacingLeft=8;spacingTop=-20;fillColor=none;strokeColor=#000000;html=1;"
+                       f"fontFamily={FONT};fontSize={FONT_SIZE};",
         }
-        for n in self.nodes.values():
+        for n in [n for n in self.nodes.values() if n.kind == "package"]:
+            pass
+        for n in [n for n in self.nodes.values() if n.kind == "class"]:
+            x0, y0, _, _ = n.box()
+            head = ("&laquo;" + html.escape(n.stereotype) + "&raquo;<br>" if n.stereotype else "") + \
+                ("<i><b>" if n.stereotype == "interface" else "<b>") + html.escape(n.text) + \
+                ("</b></i>" if n.stereotype == "interface" else "</b>")
+            cells.append(f'<mxCell id="{n.id}" value={q(head)} style="swimlane;fontStyle=0;html=1;whiteSpace=wrap;'
+                         f'startSize={n.head};fillColor=#FFFFFF;strokeColor=#000000;fontFamily={FONT};'
+                         f'fontSize={FONT_SIZE};childLayout=stackLayout;horizontal=1;horizontalStack=0;'
+                         f'resizeParent=1;collapsible=0;marginBottom=0;" vertex="1" parent="1">'
+                         f'<mxGeometry x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
+            if not n.collapsed:
+                y = n.head
+                for k, block in enumerate((n.attrs, n.ops)):
+                    if k == 1:
+                        cells.append(f'<mxCell id="{n.id}_sep" style="line;strokeWidth=1;fillColor=none;align=left;'
+                                     f'verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;'
+                                     f'labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#000000;" '
+                                     f'vertex="1" parent="{n.id}"><mxGeometry y="{y}" width="{n.w}" height="1" '
+                                     f'as="geometry"/></mxCell>')
+                    hgt = compartment_h(block)
+                    val = "<br>".join(html.escape(l).replace("  ", "&nbsp;&nbsp;") for l in block)
+                    cells.append(f'<mxCell id="{n.id}_c{k}" value={q(val)} style="text;html=1;align=left;'
+                                 f'verticalAlign=top;spacingLeft=6;spacingTop=2;fontFamily={FONT};fontSize={FONT_SIZE};'
+                                 f'strokeColor=none;fillColor=none;whiteSpace=nowrap;" vertex="1" parent="{n.id}">'
+                                 f'<mxGeometry y="{y}" width="{n.w}" height="{hgt}" as="geometry"/></mxCell>')
+                    y += hgt
+        for n in sorted([n for n in self.nodes.values() if n.kind != "class"], key=lambda n: n.kind != "package"):
             x0, y0, _, _ = n.box()
             # html=1 cells hold HTML; the attribute escapes it once more.
             value = q(html.escape(n.text, quote=False).replace("\n", "<br>"))
-            cells.append(f'<mxCell id="{n.id}" value={value} style="{styles[n.kind]}" vertex="1" parent="1">'
-                         f'<mxGeometry x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
+            style = styles[n.kind].replace("{tw}", str(int(len(n.text) * CHAR_W + 16)))
+            gy, gh = (y0 - 20, n.h + 20) if n.kind == "package" else (y0, n.h)
+            cells.append(f'<mxCell id="{n.id}" value={value} style="{style}" vertex="1" parent="1">'
+                         f'<mxGeometry x="{x0}" y="{gy}" width="{n.w}" height="{gh}" as="geometry"/></mxCell>')
         for i, e in enumerate(self.edges):
             s, t = self.nodes[e.src], self.nodes[e.dst]
             ex, ey = rel(s, e.points[0])
             nx, ny = rel(t, e.points[-1])
-            style = (f"edgeStyle=none;rounded=0;html=1;endArrow={'open' if e.arrow else 'none'};endSize=10;"
+            end = "block;endFill=0" if e.kind == "realization" else ("open" if e.arrow else "none")
+            start = "startArrow=diamondThin;startFill=1;startSize=14;" if e.kind == "composition" else ""
+            jump = "jumpStyle=arc;jumpSize=8;" if self.allow_crossings else ""
+            style = (f"edgeStyle=none;rounded=0;html=1;endArrow={end};endSize=10;{start}{jump}"
                      f"strokeColor=#000000;fontFamily={FONT};fontSize=11;exitX={ex};exitY={ey};exitDx=0;exitDy=0;"
                      f"entryX={nx};entryY={ny};entryDx=0;entryDy=0;" + ("dashed=1;" if e.dashed else ""))
             pts = "".join(f'<mxPoint x="{x}" y="{y}"/>' for x, y in e.points[1:-1])
@@ -333,11 +455,12 @@ def rel(n: Node, p) -> tuple[float, float]:
     return round((p[0] - x0) / n.w, 4) if n.w else 0.5, round((p[1] - y0) / n.h, 4) if n.h else 0.5
 
 
-def svg_text(x, y, text, bold=False, size=FONT_SIZE, anchor="middle") -> str:
+def svg_text(x, y, text, bold=False, size=FONT_SIZE, anchor="middle", italic=False, keep_space=False) -> str:
     lines = text.split("\n")
     lh = LINE_H * size / FONT_SIZE
     top = y - lh * (len(lines) - 1) / 2
-    weight = ' font-weight="bold"' if bold else ""
+    weight = (' font-weight="bold"' if bold else "") + (' font-style="italic"' if italic else "") + \
+        (' xml:space="preserve"' if keep_space else "")
     spans = "".join(f'<tspan x="{x}" y="{top + i * lh}">{html.escape(line)}</tspan>' for i, line in enumerate(lines))
     return (f'<text text-anchor="{anchor}" dominant-baseline="central" font-size="{size}"{weight}>{spans}</text>')
 
@@ -377,3 +500,29 @@ def overlap_1d(a, b, c, d) -> bool:
 
 def shared(e1: Edge, e2: Edge) -> bool:
     return e1.src == e2.src or e1.dst == e2.dst
+
+
+def path_with_jumps(points, verticals, r=5.0) -> str:
+    """SVG path through the points; a horizontal segment hops over every vertical segment it crosses."""
+    d = f"M{points[0][0]},{points[0][1]}"
+    for p, q in zip(points, points[1:]):
+        if p[1] == q[1] and verticals:
+            y = p[1]
+            lo, hi = sorted((p[0], q[0]))
+            xs = sorted({v[0][0] for v in verticals
+                         if lo + r < v[0][0] < hi - r and min(v[0][1], v[1][1]) < y < max(v[0][1], v[1][1])},
+                        reverse=q[0] < p[0])
+            step = r if q[0] > p[0] else -r
+            for x in xs:
+                d += f" L{x - step},{y} A{r},{r} 0 0 {1 if step > 0 else 0} {x + step},{y}"
+        d += f" L{q[0]},{q[1]}"
+    return d
+
+
+def inside(a: Node, b: Node) -> bool:
+    """a lies inside package b."""
+    if b.kind != "package":
+        return False
+    ax0, ay0, ax1, ay1 = a.box()
+    bx0, by0, bx1, by1 = b.box()
+    return bx0 <= ax0 and by0 <= ay0 and ax1 <= bx1 and ay1 <= by1
