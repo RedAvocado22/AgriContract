@@ -222,11 +222,12 @@ write_block("[Separate test milestones", [
 set_table_rows(next_table(find(d, "Test milestones follow the delivery phases")), [
     ["Test plan and strategy (this document, section I)", "10/11/2026", "12/11/2026"],
     ["Unit test round 1: modules merged by 31/10 (Report-5.1)", "27/10/2026", "31/10/2026"],
+    ["Unit test round 2: re-run of every round 1 module (Report-5.1)", "07/11/2026", "07/11/2026"],
+    ["Unit test round 1 of modules merged after 31/10, on their merge date (Report-5.1)", "01/11/2026", "30/11/2026"],
     ["Unit and integration tests per pull request (CI or local run before merge)", "21/10/2026", "30/11/2026"],
     ["System test BF-03 Contract Signing & Activation on the full stack", "08/11/2026", "14/11/2026"],
     ["System test BF-01, BF-02", "12/11/2026", "17/11/2026"],
     ["System test BF-04 Milestone Delivery & Settlement", "18/11/2026", "22/11/2026"],
-    ["Unit test round 2: modules merged after 31/10", "18/11/2026", "22/11/2026"],
     ["System test BF-05, BF-06, BF-07 (implemented scope)", "22/11/2026", "25/11/2026"],
     ["Performance test on the demo machine", "24/11/2026", "27/11/2026"],
     ["Acceptance test with the mentor (demo of each flow)", "27/11/2026", "30/11/2026"],
