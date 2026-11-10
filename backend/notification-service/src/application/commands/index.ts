@@ -13,6 +13,22 @@ export {
   type FailedLeg,
 } from './contract-activation-failed-requested.command';
 export type { ContractAnchorRequestedCommand } from './contract-anchor-requested.command';
+export {
+  BREACH_REASON_CODES,
+  FUND_TYPES,
+  PARTY_ROLES,
+  REMEDY_TYPES,
+  TERMINATION_REQUESTERS,
+  TERMINATION_TYPES,
+  type BreachReasonCode,
+  type ContractTerminatedRequestedCommand,
+  type FundType,
+  type PartyRole,
+  type RemedyLeg,
+  type RemedyType,
+  type TerminationRequester,
+  type TerminationType,
+} from './contract-terminated-requested.command';
 export type { EscrowLockedCommand } from './escrow-locked.command';
 export type { EscrowPenalizedCommand } from './escrow-penalized.command';
 export type { EscrowReleasedCommand } from './escrow-released.command';

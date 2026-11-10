@@ -6,11 +6,19 @@ import {
 } from '@agricontract/eventing';
 import {
   ACTIVATION_NEXT_ACTIONS,
+  BREACH_REASON_CODES,
   CANCEL_REQUESTER_ROLES,
   FAILED_LEGS,
+  FUND_TYPES,
+  PARTY_ROLES,
   RECIPIENT_ROLES,
+  REMEDY_TYPES,
+  TERMINATION_REQUESTERS,
+  TERMINATION_TYPES,
   type ActivationCancelRequestedCommand,
   type ContractActivationFailedRequestedCommand,
+  type ContractTerminatedRequestedCommand,
+  type RemedyLeg,
   type ContractAnchorRequestedCommand,
   type NotificationRecipient,
   type RecipientRole,
@@ -45,6 +53,18 @@ const SAFE_ID = /^[A-Za-z0-9-]{1,64}$/;
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 const SHA256_HEX = /^[a-f0-9]{64}$/;
+
+/** The contract's `money`: non-negative VND with two decimals, at most 19 characters. */
+const MONEY = /^[0-9]+\.[0-9]{2}$/;
+const MONEY_MAX_LENGTH = 19;
+
+const REMEDY_LEG_FIELDS = [
+  'remedyLegId',
+  'remedyType',
+  'fundType',
+  'role',
+  'amount',
+] as const;
 
 /** RFC 3339, the shape every producer's Instant serialises to. */
 const DATE_TIME =
@@ -150,6 +170,100 @@ class CommandReader {
       }
     });
     return (value as unknown[]).slice() as T[];
+  }
+
+  /** A UUID or null; the property itself is required (absent is not null). */
+  nullableUuid(field: string): string | null {
+    this.present(field);
+    return this.payload[field] === null ? null : this.uuid(field);
+  }
+
+  /** One of the enum values or null; the property itself is required. */
+  nullableEnum<T extends string>(
+    field: string,
+    values: readonly T[],
+  ): T | null {
+    this.present(field);
+    return this.payload[field] === null ? null : this.enumValue(field, values);
+  }
+
+  /** An array of distinct UUIDs (uniqueItems), possibly empty; bad items by index only. */
+  uuidSet(field: string): string[] {
+    const value = this.payload[field];
+    if (!Array.isArray(value)) {
+      throw this.error(
+        `field "${field}" must be an array, got ${describe(value)}`,
+      );
+    }
+    value.forEach((item, i) => {
+      if (typeof item !== 'string' || !UUID.test(item)) {
+        throw this.error(`${field}[${i}] must be a UUID`);
+      }
+      if (value.indexOf(item) !== i) {
+        throw this.error(`${field}[${i}] repeats an earlier item`);
+      }
+    });
+    return (value as string[]).slice();
+  }
+
+  /** `remedyLegs`: possibly empty, each exactly the contract's `remedyLeg`. */
+  remedyLegs(): RemedyLeg[] {
+    const value = this.payload.remedyLegs;
+    if (!Array.isArray(value)) {
+      throw this.error(
+        `field "remedyLegs" must be an array, got ${describe(value)}`,
+      );
+    }
+    return value.map((item, i) => this.remedyLeg(item, i));
+  }
+
+  private remedyLeg(value: unknown, index: number): RemedyLeg {
+    const at = `remedyLegs[${index}]`;
+    if (!isPlainObject(value)) {
+      throw this.error(`${at} must be a JSON object, got ${describe(value)}`);
+    }
+    for (const key of Object.keys(value)) {
+      if (!(REMEDY_LEG_FIELDS as readonly string[]).includes(key)) {
+        throw this.error(`unknown property "${key}" in ${at}`);
+      }
+    }
+    const oneOf = <T extends string>(
+      field: string,
+      values: readonly T[],
+    ): T => {
+      if (!(values as readonly unknown[]).includes(value[field])) {
+        throw this.error(`${at}.${field} must be one of ${values.join(', ')}`);
+      }
+      return value[field] as T;
+    };
+
+    const id = value.remedyLegId;
+    if (typeof id !== 'string' || !UUID.test(id)) {
+      throw this.error(`${at}.remedyLegId must be a UUID`);
+    }
+    const amount = value.amount;
+    if (
+      typeof amount !== 'string' ||
+      amount.length > MONEY_MAX_LENGTH ||
+      !MONEY.test(amount)
+    ) {
+      throw this.error(
+        `${at}.amount must be a decimal string with two decimals, at most ${MONEY_MAX_LENGTH} characters`,
+      );
+    }
+    return {
+      remedyLegId: id,
+      remedyType: oneOf('remedyType', REMEDY_TYPES),
+      fundType: oneOf('fundType', FUND_TYPES),
+      role: oneOf('role', PARTY_ROLES),
+      amount,
+    };
+  }
+
+  /** A required property that may hold null. */
+  private present(field: string): void {
+    if (!(field in this.payload))
+      throw this.error(`field "${field}" is missing`);
   }
 
   /** A JSON object of any shape, as `contractTermsSnapshot` is declared. */
@@ -388,6 +502,59 @@ export function parseContractActivationFailedRequested(
     sellerDepositState: payload.text('sellerDepositState'),
     nextActions: payload.enumArray('nextActions', ACTIVATION_NEXT_ACTIONS),
     oneSidedCancelAllowedFrom: payload.dateTime('oneSidedCancelAllowedFrom'),
+  };
+}
+
+export const CONTRACT_TERMINATED_REQUESTED =
+  'notification.contract_terminated_requested';
+
+/** Payload properties of `contractTerminatedRequested`, all required. */
+export const CONTRACT_TERMINATED_FIELDS = [
+  'contractId',
+  'recipients',
+  'terminationType',
+  'requestedBy',
+  'finalBreachingRole',
+  'breachReasonCode',
+  'remedyDecisionId',
+  'breachCaseId',
+  'affectedMilestoneIds',
+  'supersededByContractId',
+  'replacesContractId',
+  'remedyLegs',
+] as const;
+
+/**
+ * Every termination type parses, so the whole contract is checked here; which
+ * types have an email is decided after parsing (command-routes.ts).
+ */
+export function parseContractTerminatedRequested(
+  body: Buffer,
+): ContractTerminatedRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    CONTRACT_TERMINATED_REQUESTED,
+    'contract-service',
+  );
+  payload.only(CONTRACT_TERMINATED_FIELDS);
+
+  return {
+    eventId: envelope.eventId,
+    contractId: payload.uuid('contractId'),
+    recipients: payload.recipients(),
+    terminationType: payload.enumValue('terminationType', TERMINATION_TYPES),
+    requestedBy: payload.enumValue('requestedBy', TERMINATION_REQUESTERS),
+    finalBreachingRole: payload.nullableEnum('finalBreachingRole', PARTY_ROLES),
+    breachReasonCode: payload.nullableEnum(
+      'breachReasonCode',
+      BREACH_REASON_CODES,
+    ),
+    remedyDecisionId: payload.nullableUuid('remedyDecisionId'),
+    breachCaseId: payload.nullableUuid('breachCaseId'),
+    affectedMilestoneIds: payload.uuidSet('affectedMilestoneIds'),
+    supersededByContractId: payload.nullableUuid('supersededByContractId'),
+    replacesContractId: payload.nullableUuid('replacesContractId'),
+    remedyLegs: payload.remedyLegs(),
   };
 }
 
