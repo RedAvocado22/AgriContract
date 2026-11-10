@@ -204,7 +204,7 @@
 <tr>
 <td><code>notification.contract_terminated_requested</code> / contract-service</td>
 <td>Buyer + Seller</td>
-<td>Canonical lifecycle fields (<code>contractId</code>, <code>terminationType</code>, <code>requestedBy</code>, nullable attribution/reason/decision/case fields, affected milestones and replacement pointers) plus <code>remedyLegs</code> and <code>payload.recipients</code>. Template PHẢI phân biệt: mutual/replacement/FM/technical (không ai vi phạm — giọng trung tính) vs breach (nêu bên vi phạm theo attribution). KHÔNG dùng chữ "huỷ do X" khi X chỉ là requestedBy</td>
+<td>Canonical lifecycle fields (<code>contractId</code>, <code>terminationType</code>, <code>requestedBy</code>, nullable attribution/reason/decision/case fields, affected milestones and replacement pointers) plus <code>remedyLegs</code> and <code>payload.recipients</code>. Template PHẢI phân biệt: mutual/replacement/FM/technical (không ai vi phạm — giọng trung tính) vs breach (nêu bên vi phạm theo attribution). KHÔNG dùng chữ "huỷ do X" khi X chỉ là requestedBy. <strong><code>WITHDRAW_OFFER</code> (D43, 10/11/2026):</strong> chỉ gửi <strong>bên kia</strong> (bên rút không nhận), <code>remedyLegs</code> rỗng; nội dung: ai rút, không ai bị phạt, lượng hàng đã giữ trả về listing, hợp đồng không ký được nữa</td>
 </tr>
 <tr>
 <td><code>notification.breach_notice_requested</code> / contract-service</td>
