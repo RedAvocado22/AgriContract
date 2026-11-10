@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Resets the state the notification-service parity run (Bruno 00-19, plan M4)
-# depends on, so a Java run and a Nest run start from the same point:
+# Resets the state the notification-service Bruno run (10-25) depends on. The
+# M4 parity run also had 00-09, the Phase 1 contract events; their queues are
+# retired (#398) and those requests removed. The reset:
 #   - DELETE FROM notification_logs (table and flyway_schema_history kept)
-#   - purge the 9 notification-svc.* queues and their 9 DLQs (queues kept)
+#   - purge the 5 Phase 1 notification-svc.* queues and their DLQs (queues kept)
 #   - delete every message in MailHog
 # then prints the resulting state and fails if a consumer is still attached.
 # Nothing else is touched: no other database, no volume.
@@ -24,7 +25,6 @@ RABBIT_PASS="${RABBITMQ_PASSWORD:-guest}"
 MAILHOG="${MAILHOG_URL:-http://localhost:8025}"
 
 QUEUES=(
-  contract.signed contract.delivered contract.cancelled contract.disputed
   escrow.locked escrow.released escrow.penalized
   category.approved category.rejected
 )

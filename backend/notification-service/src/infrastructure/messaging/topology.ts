@@ -13,10 +13,6 @@ export const TOPOLOGY = [
     exchange: 'agricontract.contracts',
     dlx: 'notification-svc.contracts.dlx',
     routingKeys: [
-      'contract.signed',
-      'contract.delivered',
-      'contract.cancelled',
-      'contract.disputed',
       'notification.contract_anchor_requested',
       'notification.activation_cancel_requested',
     ],
@@ -39,9 +35,8 @@ export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
  * Phase 2 notification commands: a full event envelope whose
  * `payload.recipients` carries the addresses (notification-commands.yaml),
  * not a flat Phase 1 event. They ride their publisher's exchange and are
- * routed by their eventType (design §2.1), so a command of
- * agricontract.contracts sits in the same TOPOLOGY row as contract.signed and
- * dead-letters to the same DLX.
+ * routed by their eventType (design §2.1), so the commands of
+ * agricontract.contracts share one TOPOLOGY row and one DLX.
  *
  * `notification.contract_anchor_requested` is the signed-contract email.
  * contract-service already writes it to its outbox (#360) and declares this
@@ -86,13 +81,73 @@ export const queueNames = (): string[] => routingKeys().map(queueName);
 
 export const dlqNames = (): string[] => routingKeys().map(dlqName);
 
+/**
+ * Queues of the Phase 1 contract events this service no longer consumes
+ * (#398), each with its DLQ. contract-service stopped publishing
+ * contract.delivered, contract.cancelled and contract.disputed (V5), and
+ * publishes contract.signed as a Phase 2 golden-flow event (D38) that the flat
+ * Phase 1 parser rejected, so every signature dead-lettered one message here.
+ * The signed-contract email comes from notification.contract_anchor_requested.
+ *
+ * Leaving TOPOLOGY does not remove a queue from a broker that already has it:
+ * it stays bound and keeps filling with nobody consuming it. So
+ * declareTopology deletes these on every start. Deleting a queue removes its
+ * bindings, and RabbitMQ answers delete-ok for a queue that does not exist, so
+ * it is a no-op once done. contract.signed still has other queues
+ * (escrow-svc, audit-svc), so contract-service's mandatory publish still
+ * routes.
+ */
+export const RETIRED_QUEUES = [
+  'notification-svc.contract.signed',
+  'notification-svc.contract.delivered',
+  'notification-svc.contract.cancelled',
+  'notification-svc.contract.disputed',
+].flatMap((queue) => [queue, `${queue}.dlq`]);
+
 export type TopologyChannel = Pick<
   Channel,
-  'assertExchange' | 'assertQueue' | 'bindQueue'
+  'assertExchange' | 'assertQueue' | 'bindQueue' | 'deleteQueue'
 >;
 
-/** Declares exchanges, queues, DLQs and bindings exactly as the Java service does. */
-export async function declareTopology(channel: TopologyChannel): Promise<void> {
+/** What declareTopology reports; a logger in production. */
+export interface TopologyLog {
+  warn(message: string): void;
+}
+
+/**
+ * Declares exchanges, queues, DLQs and bindings exactly as the Java service
+ * does, then deletes RETIRED_QUEUES.
+ */
+export async function declareTopology(
+  channel: TopologyChannel,
+  log?: TopologyLog,
+): Promise<void> {
+  await declareCurrent(channel);
+  await retire(channel, log);
+}
+
+/**
+ * Deletes each retired queue, its messages included: they are Phase 2
+ * contract.signed events the flat parser could never read, or Phase 1 events
+ * nobody publishes any more. Not `ifEmpty`: a non-empty queue would make
+ * RabbitMQ close the channel, and the topology step would then fail on every
+ * reconnect. The count dropped is logged instead.
+ */
+async function retire(
+  channel: TopologyChannel,
+  log: TopologyLog | undefined,
+): Promise<void> {
+  for (const queue of RETIRED_QUEUES) {
+    const { messageCount } = await channel.deleteQueue(queue);
+    if (messageCount > 0) {
+      log?.warn(
+        `Deleted retired queue ${queue} with ${messageCount} message(s) (#398)`,
+      );
+    }
+  }
+}
+
+async function declareCurrent(channel: TopologyChannel): Promise<void> {
   for (const row of TOPOLOGY) {
     await channel.assertExchange(row.exchange, 'topic', {
       durable: true,

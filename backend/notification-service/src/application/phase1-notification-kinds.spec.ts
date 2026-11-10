@@ -28,12 +28,10 @@ describe('PHASE1_KINDS', () => {
     expect(versions.every((v) => v.length > 0 && v.length <= 50)).toBe(true);
   });
 
+  // CONTRACT_SIGNED, _DELIVERED, _CANCELLED and _DISPUTED went with their
+  // queues (#398); rows already stored keep those values.
   it('keeps the stored types: renaming one breaks dedup of events in flight at deploy', () => {
     expect(Object.values(PHASE1_KINDS).map((k) => k.notificationType)).toEqual([
-      'CONTRACT_SIGNED',
-      'CONTRACT_DELIVERED',
-      'CONTRACT_CANCELLED',
-      'CONTRACT_DISPUTED',
       'ESCROW_LOCKED',
       'ESCROW_RELEASED',
       'ESCROW_PENALIZED',

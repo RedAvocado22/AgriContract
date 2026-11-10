@@ -12,7 +12,7 @@ export type TemplatePart = { text: string } | { field: string };
 export interface JavaTemplate {
   subject: string;
   body: TemplatePart[];
-  /** In send order: a command field name, or "adminEmail" for the configured admin. */
+  /** In send order: the command field holding each address. */
   recipients: string[];
 }
 

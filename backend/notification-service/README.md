@@ -3,21 +3,24 @@
 Migrated from the Spring Boot `notification-service`; see `docs/notification-service-nestjs-migration.md`
 (done, M5).
 
-**Status: M5 (cutover done), Phase 2 in progress.** The service consumes the 9 Phase 1 queues, sends the same emails as the Java service
-did and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient deduplication.
+**Status: M5 (cutover done), Phase 2 in progress.** The service consumes the 5 remaining Phase 1 queues, sends the same emails as the Java
+service did and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient deduplication.
 Parity with Java was signed off in M4 (`docs/notification-service-parity-m4.md`). The Java service is
 removed; tag `notification-java-final` is the rollback point (plan §7).
 
 | Queue (`notification-svc.<key>`) | Recipients, in order |
 | --- | --- |
-| `contract.signed`, `contract.cancelled` | buyer, seller |
-| `contract.delivered` | seller |
-| `contract.disputed` | `ADMIN_EMAIL`, seller, buyer |
 | `escrow.locked` | seller |
 | `escrow.released` | seller, buyer |
 | `escrow.penalized` | buyer if `penalizedParty` is `BUYER`, otherwise seller |
 | `category.approved`, `category.rejected` | proposer |
 
+- The four Phase 1 contract queues (`contract.signed`, `.delivered`, `.cancelled`, `.disputed`) are retired
+  (#398): contract-service no longer publishes the last three (V5), and publishes `contract.signed` as a Phase 2
+  event (D38) the flat parser rejected, so each signature dead-lettered one message. The signed-contract email now
+  comes from `notification.contract_anchor_requested`. Every start deletes those queues and their DLQs
+  (`RETIRED_QUEUES` in `topology.ts`; a no-op once they are gone) and logs a warning naming any that still held
+  messages. `ADMIN_EMAIL`, read only by the `contract.disputed` email, is gone with it.
 - A payload that is not JSON, or misses a required field, goes to the DLQ at once (see
   `src/infrastructure/messaging/legacy-payload.parsers.ts` for the required fields).
 - Each email (event + recipient + notification type) is claimed atomically in `notification_logs` before sending,
@@ -33,7 +36,7 @@ removed; tag `notification-java-final` is the rollback point (plan §7).
 ### Signed-contract email (Phase 2, `notification.contract_anchor_requested`)
 
 The first Phase 2 **notification command** (`contracts/events/notification-commands.yaml`
-`contractAnchorRequested`, design §2.1 and §4). Unlike the 9 Phase 1 events, a command is a full event envelope
+`contractAnchorRequested`, design §2.1 and §4). Unlike the Phase 1 events, a command is a full event envelope
 and its addresses sit in `payload.recipients`, so the publisher — contract-service, in the verify-sign transaction
 (#360) — decides who is written to and this service only validates, renders, sends and deduplicates.
 
@@ -169,7 +172,6 @@ startup with a list of every invalid variable. `.env` files are not read.
 | `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | `guest` / `guest` |
 | `MAIL_HOST` / `MAIL_PORT` | `localhost` / `1025` |
 | `MAIL_FROM` | `noreply@agricontract.com` |
-| `ADMIN_EMAIL` | `admin@agricontract.com` |
 | `SERVER_PORT` | `8085` |
 | `SERVICE_INTERNAL_SECRET` | `changeme-internal` (same default as contract-service; compose requires it in `.env`) |
 

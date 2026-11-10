@@ -33,7 +33,7 @@ import {
 
 /**
  * What a consumer calls itself in the eventing logs. A Phase 1 routing key is
- * prefixed, as it has been since M1 (`notification.contract.signed`); a Phase 2
+ * prefixed, as it has been since M1 (`notification.escrow.locked`); a Phase 2
  * command already starts with `notification.`, so it is used as it is.
  */
 const consumerName = (key: RoutingKey): string =>

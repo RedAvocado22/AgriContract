@@ -20,10 +20,6 @@ import {
   NotifyCategoryRejectedUseCase,
   NotifyActivationCancelRequestedUseCase,
   NotifyContractAnchorUseCase,
-  NotifyContractCancelledUseCase,
-  NotifyContractDeliveredUseCase,
-  NotifyContractDisputedUseCase,
-  NotifyContractSignedUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
   NotifyEscrowReleasedUseCase,
@@ -87,12 +83,6 @@ describe('shutdown park on real MySQL', () => {
       { logger: { error: () => undefined } },
     );
     const routes = legacyRoutes({
-      contractSigned: new NotifyContractSignedUseCase(sender),
-      contractDelivered: new NotifyContractDeliveredUseCase(sender),
-      contractCancelled: new NotifyContractCancelledUseCase(sender),
-      contractDisputed: new NotifyContractDisputedUseCase(sender, {
-        adminEmail: 'admin@it.test',
-      }),
       escrowLocked: new NotifyEscrowLockedUseCase(sender),
       escrowReleased: new NotifyEscrowReleasedUseCase(sender),
       escrowPenalized: new NotifyEscrowPenalizedUseCase(sender),
@@ -127,18 +117,18 @@ describe('shutdown park on real MySQL', () => {
     await consumer.onModuleInit();
     await ready(channel as unknown as Channel);
 
-    consumers.get('notification-svc.contract.signed')?.({
+    consumers.get('notification-svc.escrow.released')?.({
       content: Buffer.from(
         JSON.stringify({
           eventId,
-          contractId: 'c-it',
+          escrowId: 'e-it',
           buyerEmail: 'buyer@it.test',
           sellerEmail: 'seller@it.test',
         }),
       ),
-      fields: { routingKey: 'contract.signed' },
+      fields: { routingKey: 'escrow.released' },
     });
-    // Attempt 1: buyer claimed, send fails, FAILED recorded, 1s backoff starts.
+    // Attempt 1: seller claimed, send fails, FAILED recorded, 1s backoff starts.
     for (let i = 0; i < 50 && sendAttempts.length === 0; i++) {
       await new Promise((r) => setTimeout(r, 20));
     }
@@ -147,7 +137,7 @@ describe('shutdown park on real MySQL', () => {
     await consumer.beforeApplicationShutdown();
     const drainMs = Date.now() - started;
 
-    expect(sendAttempts).toEqual(['buyer@it.test']);
+    expect(sendAttempts).toEqual(['seller@it.test']);
     expect(consumer.parkedCount).toBe(1);
     expect(consumer.inFlightCount).toBe(1);
     expect(settled).toEqual([]); // neither acked nor nacked
@@ -157,7 +147,7 @@ describe('shutdown park on real MySQL', () => {
       [eventId],
     );
     expect(rows).toEqual([
-      { user_id: 'buyer@it.test', status: 'FAILED', retry_count: 1 },
+      { user_id: 'seller@it.test', status: 'FAILED', retry_count: 1 },
     ]);
   }, 20_000);
 });

@@ -13,8 +13,8 @@ import { NotificationSender } from '../../application/notification-sender';
 import {
   NotifyActivationCancelRequestedUseCase,
   NotifyContractAnchorUseCase,
-  NotifyContractSignedUseCase,
   NotifyEscrowLockedUseCase,
+  NotifyEscrowReleasedUseCase,
 } from '../../application/use-cases';
 import { validate, type AppConfig } from '../../config/env.validation';
 import { NodemailerEmailAdapter } from '../email/nodemailer-email.adapter';
@@ -56,7 +56,7 @@ async function harness(sendMail: jest.Mock) {
     email,
   );
   const routes = legacyRoutes({
-    contractSigned: new NotifyContractSignedUseCase(sender),
+    escrowReleased: new NotifyEscrowReleasedUseCase(sender),
     escrowLocked: new NotifyEscrowLockedUseCase(sender),
   } as unknown as NotificationUseCases);
 
@@ -117,10 +117,10 @@ describe('no personal data in the logs', () => {
     const { deliver, nacks } = await harness(sendMail);
 
     deliver(
-      'notification-svc.contract.signed',
+      'notification-svc.escrow.released',
       JSON.stringify({
         eventId: 'evt-smtp-1',
-        contractId: 'ctr-1',
+        escrowId: 'esc-1',
         buyerEmail: BUYER,
         sellerEmail: SELLER,
         buyerName: NAME,
@@ -229,10 +229,10 @@ describe('no personal data in the logs', () => {
       );
 
     deliver(
-      'notification-svc.contract.signed',
+      'notification-svc.escrow.released',
       JSON.stringify({
         eventId: 'evt-bug-1',
-        contractId: 'c',
+        escrowId: 'e',
         buyerEmail: BUYER,
         sellerEmail: SELLER,
       }),

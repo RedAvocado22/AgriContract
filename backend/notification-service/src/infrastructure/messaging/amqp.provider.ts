@@ -129,7 +129,7 @@ export class AmqpService
 
       step = 'topology';
       await ch.prefetch(PREFETCH);
-      await declareTopology(ch);
+      await declareTopology(ch, this.logger);
       for (const callback of this.readyCallbacks) await callback(ch);
 
       if (this.stopped) {

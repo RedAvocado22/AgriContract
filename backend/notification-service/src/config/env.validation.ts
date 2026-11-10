@@ -19,7 +19,6 @@ export interface AppConfig {
     password: string;
   };
   mail: { host: string; port: number; from: string };
-  adminEmail: string;
   serverPort: number;
   /**
    * X-Internal-Secret of service-to-service calls (golden-flow-api.yaml
@@ -78,7 +77,6 @@ export function validate(env: Record<string, unknown>): AppConfig {
       port: port('MAIL_PORT', 1025),
       from: text('MAIL_FROM', 'noreply@agricontract.com'),
     },
-    adminEmail: text('ADMIN_EMAIL', 'admin@agricontract.com'),
     serverPort: port('SERVER_PORT', 8085),
     // Same default as contract-service and user-service, so a local run
     // without .env still authenticates; compose requires it in .env.
