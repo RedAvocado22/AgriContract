@@ -37,7 +37,7 @@ class GetContractEndpointTest {
     void setUp() {
         ContractController controller = new ContractController(mock(CreateContractUseCase.class),
                 mock(NegotiateContractUseCase.class), useCase, mock(ListContractsUseCase.class),
-                mock(UpdateContractTermsUseCase.class), new JcsTermsCanonicalizer());
+                mock(UpdateContractTermsUseCase.class), mock(WithdrawOfferUseCase.class), new JcsTermsCanonicalizer());
         mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 

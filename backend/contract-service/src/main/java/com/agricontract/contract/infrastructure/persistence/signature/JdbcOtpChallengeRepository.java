@@ -92,6 +92,14 @@ public class JdbcOtpChallengeRepository implements OtpChallengeRepository {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int expireAllUsable(String contractId, Instant now) {
+        Timestamp at = Timestamp.from(now);
+        return jdbc.update("UPDATE signature_otp SET expires_at = ? WHERE contract_id = ? AND verified_at IS NULL"
+                + " AND expires_at > ?", at, contractId, at);
+    }
+
+    @Override
     public Optional<OtpChallenge> findById(UUID otpId) {
         return jdbc.query("SELECT * FROM signature_otp WHERE otp_id = ?", ROW, otpId.toString()).stream().findFirst();
     }

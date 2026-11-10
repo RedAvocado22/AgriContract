@@ -29,6 +29,7 @@ public class ContractController {
     private final GetContractUseCase getContractUseCase;
     private final ListContractsUseCase listContractsUseCase;
     private final UpdateContractTermsUseCase updateContractTermsUseCase;
+    private final WithdrawOfferUseCase withdrawOfferUseCase;
     private final JcsTermsCanonicalizer termsReader;
 
     /** Revise coffee terms before the first signature (#93). Body is ContractTermsInput, read strictly. */
@@ -48,6 +49,26 @@ public class ContractController {
         CoffeeContractView view = updateContractTermsUseCase.execute(new UpdateContractTermsCommand(
                 contractId.toString(), auth.getName(), idempotencyKey, termsReader.readInput(body)));
         return ResponseEntity.ok(CoffeeContractResponse.from(view));
+    }
+
+    /**
+     * WITHDRAW_OFFER (#233): either party ends the offer before the second signature. Empty body, 204; a replay of
+     * the same Idempotency-Key is 204 again, after the second signature (or once ended) 409.
+     */
+    @PostMapping("/{contractId}/withdraw")
+    @Operation(summary = "Party: withdraw an offer before the second signature")
+    public ResponseEntity<Void> withdrawOffer(
+            @PathVariable UUID contractId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            Authentication auth) {
+        boolean buyerOrSeller = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_BUYER") || role.equals("ROLE_SELLER"));
+        if (!buyerOrSeller) {
+            throw new UnauthorizedContractActionException("Only BUYER or SELLER can withdraw an offer.");
+        }
+        withdrawOfferUseCase.execute(new WithdrawOfferCommand(contractId.toString(), auth.getName(), idempotencyKey));
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping
