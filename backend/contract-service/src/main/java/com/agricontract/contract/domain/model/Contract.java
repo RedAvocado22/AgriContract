@@ -23,6 +23,7 @@ import com.agricontract.contract.domain.model.terms.MilestoneTerm;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -51,6 +52,12 @@ public class Contract {
     private ContractTerms terms;
     /** Phase 2 coffee terms + signedContentHash; null only for Phase 1 rows created before #92. */
     private CanonicalTerms coffeeTerms;
+    /**
+     * Quantity product-service reserved for this contract at create (design §2.1d); null for rows created before
+     * #232. Read through {@link #getReservedQuantity()}.
+     */
+    @Getter(AccessLevel.NONE)
+    private BigDecimal reservedQuantity;
     private ContractStatus status;
     /** Optimistic-lock version as loaded; null for a contract not stored yet. */
     private Long version;
@@ -72,9 +79,22 @@ public class Contract {
             String buyerEmail, String sellerEmail,
             ContractTerms terms, CanonicalTerms coffeeTerms, ContractStatus status,
             Map<SignerRole, String> signedHashes, Long version) {
+        return reconstitute(contractId, listingId, buyerId, sellerId, productName, buyerOrgName, sellerOrgName,
+                buyerEmail, sellerEmail, terms, coffeeTerms, status, signedHashes, version, null);
+    }
+
+    /** reservedQuantity: as stored at create (#232); null for rows created before it. */
+    public static Contract reconstitute(
+            ContractId contractId, String listingId,
+            String buyerId, String sellerId,
+            String productName, String buyerOrgName, String sellerOrgName,
+            String buyerEmail, String sellerEmail,
+            ContractTerms terms, CanonicalTerms coffeeTerms, ContractStatus status,
+            Map<SignerRole, String> signedHashes, Long version, BigDecimal reservedQuantity) {
         Contract contract = new Contract();
         contract.coffeeTerms = coffeeTerms;
         contract.version = version;
+        contract.reservedQuantity = reservedQuantity;
 
         contract.contractId = contractId;
         contract.listingId = listingId;
@@ -129,7 +149,25 @@ public class Contract {
                 snapshot.goodsTerms().productName(), buyerOrgName, sellerOrgName, buyerEmail, sellerEmail,
                 legacyProjection(snapshot));
         contract.coffeeTerms = coffeeTerms;
+        // The caller reserved exactly Σ committedQuantity at product-service before this offer (design §2.1d).
+        contract.reservedQuantity = snapshot.totalQuantity();
         return contract;
+    }
+
+    /**
+     * kg reserved at product-service for this contract. A coffee row created before #232 has no stored value; its
+     * reservation equals the terms' total, which PATCH keeps unchanged (F18). Null for a Phase 1 row.
+     */
+    public BigDecimal getReservedQuantity() {
+        if (reservedQuantity != null) {
+            return reservedQuantity;
+        }
+        return coffeeTerms == null ? null : coffeeTerms.snapshot().totalQuantity();
+    }
+
+    /** As persisted: null until #232 stored it, so an old row is never back-filled by a save. */
+    public BigDecimal getStoredReservedQuantity() {
+        return reservedQuantity;
     }
 
     /**

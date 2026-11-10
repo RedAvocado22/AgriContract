@@ -187,6 +187,38 @@ class OutboxContractEventPublisherTest {
         verify(outbox, never()).append(any());
     }
 
+    @Test
+    void createdContract_matchesTheFrozenSchema_withTheStoredReservedQuantity() throws Exception {
+        String id = UUID.randomUUID().toString();
+        Contract contract = Contract.reconstitute(new ContractId(id), goods().listingId().toString(), BUYER, SELLER,
+                "Cà phê", "HTX Mua", "HTX Bán", "buyer@example.com", "seller@example.com", null,
+                CanonicalTerms.of(snapshot(), canonicalizer), ContractStatus.OFFERED, Map.of(), 0L,
+                new java.math.BigDecimal("2500.500"));
+
+        publisher.contractCreated(contract, SIGNED_AT);
+
+        EventEnvelope envelope = appended();
+        JsonNode json = new ObjectMapper().readTree(new EventEnvelopeCodec().toJson(envelope));
+        FrozenSchemas.assertEvent("contractCreated", json);
+        assertThat(envelope.eventType()).isEqualTo("contract.created");
+        assertThat(envelope.aggregateId()).isEqualTo(id);
+        assertThat(envelope.correlationId()).isEqualTo(id);
+        assertThat(envelope.causationId()).isNull();
+        assertThat(json.at("/payload/contractId").asText()).isEqualTo(id);
+        assertThat(json.at("/payload/listingId").asText()).isEqualTo(goods().listingId().toString());
+        assertThat(json.at("/payload/reservedQuantity").decimalValue()).isEqualByComparingTo("2500.5");
+        assertThat(json.at("/payload/createdAt").asText()).isEqualTo("2026-11-08T10:00:00.123456Z");
+    }
+
+    @Test
+    void createdEvent_forAContractNoLongerOffered_isRefused() {
+        Contract contract = contract(ContractStatus.SIGNED, UUID.randomUUID().toString(), BUYER);
+
+        assertThatThrownBy(() -> publisher.contractCreated(contract, SIGNED_AT))
+                .isInstanceOf(IllegalStateException.class);
+        verify(outbox, never()).append(any());
+    }
+
     private EventEnvelope appended() {
         ArgumentCaptor<EventEnvelope> captor = ArgumentCaptor.forClass(EventEnvelope.class);
         verify(outbox).append(captor.capture());

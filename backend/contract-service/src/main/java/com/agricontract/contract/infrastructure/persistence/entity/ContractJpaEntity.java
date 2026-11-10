@@ -83,6 +83,10 @@ public class ContractJpaEntity {
     @Column(name = "signed_content_hash", columnDefinition = "CHAR(64)")
     private String signedContentHash;
 
+    /** Quantity product-service reserved at create (#232); NULL for rows created before it. */
+    @Column(name = "reserved_quantity", precision = 15, scale = 3)
+    private BigDecimal reservedQuantity;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ContractStatus status;

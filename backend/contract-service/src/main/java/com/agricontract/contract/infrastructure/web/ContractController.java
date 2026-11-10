@@ -71,15 +71,29 @@ public class ContractController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<ContractResponse>> offerContract(
-            @Valid @RequestBody CreateContractRequest request,
+    /**
+     * createContract (#232): a BUYER offers on an approved coffee listing. The listing quantity is reserved at
+     * product-service before the OFFERED contract is stored; a retry with the same Idempotency-Key returns the same
+     * contract. Body is CreateContractRequest, read strictly; the response is the unwrapped ContractResponse (D32).
+     */
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Offer a coffee contract on a listing, reserving its quantity first")
+    public ResponseEntity<CoffeeContractResponse> offerContract(
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestBody String body,
             Authentication auth) {
-        String buyerId = auth.getName();
-        ContractResponse response = createContractUseCase.execute(new CreateContractCommand(
-                request.contractId(), buyerId, request.listingId(), request.terms()
-        ));
-        return ResponseEntity.status(201).body(ApiResponse.ok(response));
+        boolean buyer = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_BUYER"::equals);
+        if (!buyer) {
+            throw new UnauthorizedContractActionException("Only a BUYER can offer a contract.");
+        }
+        CreateContractRequest request = termsReader.readStrict(body, CreateContractRequest.class).requireComplete();
+        CreateContractUseCase.Result result = createContractUseCase.execute(new CreateContractCommand(
+                auth.getName(), idempotencyKey, request.listingId().toString(), request.listingVersionToken(),
+                request.terms()));
+        // A replay answers like the first call, so a client that lost the 201 sees the same response.
+        return ResponseEntity.status(201).body(CoffeeContractResponse.from(result.contract()));
     }
 
     @PutMapping("/{contractId}/negotiate")

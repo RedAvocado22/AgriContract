@@ -1,5 +1,7 @@
 package com.agricontract.contract.infrastructure.web;
 
+import com.agricontract.contract.application.exception.ListingNotFoundException;
+import com.agricontract.contract.application.exception.ListingServiceUnavailableException;
 import com.agricontract.contract.application.exception.OtpEmailNotSentException;
 import com.agricontract.contract.application.exception.SignerNotEligibleException;
 import com.agricontract.contract.application.exception.UserServiceUnavailableException;
@@ -56,6 +58,20 @@ public class GlobalExceptionHandler {
         log.warn("503 USER_SERVICE_UNAVAILABLE {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error(
                 "USER_SERVICE_UNAVAILABLE: your profile could not be checked right now; try again shortly."));
+    }
+
+    /** Fail closed (#232): without product-service no reservation can be taken, so no offer is stored. */
+    @ExceptionHandler(ListingServiceUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleListingServiceUnavailable(ListingServiceUnavailableException ex) {
+        log.warn("503 PRODUCT_SERVICE_UNAVAILABLE {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error(
+                "PRODUCT_SERVICE_UNAVAILABLE: the listing could not be reserved right now; try again shortly."));
+    }
+
+    @ExceptionHandler(ListingNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleListingNotFound(ListingNotFoundException ex) {
+        log.warn("404 {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("LISTING_NOT_FOUND: " + ex.getMessage()));
     }
 
     /** The code was not confirmed as sent and has already been made unusable; the user asks for a new one. */

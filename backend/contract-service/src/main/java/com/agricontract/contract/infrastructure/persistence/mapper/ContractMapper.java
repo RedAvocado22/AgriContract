@@ -40,6 +40,7 @@ public class ContractMapper {
                 .qualitySpec(terms.qualitySpec())
                 .termsSnapshot(coffeeTerms == null ? null : coffeeTerms.canonicalJson())
                 .signedContentHash(coffeeTerms == null ? null : coffeeTerms.signedContentHash())
+                .reservedQuantity(contract.getStoredReservedQuantity())
                 .status(contract.getStatus())
                 .build();
     }
@@ -69,7 +70,8 @@ public class ContractMapper {
                         : CanonicalTerms.restore(e.getTermsSnapshot(), e.getSignedContentHash(), termsCanonicalizer),
                 e.getStatus(),
                 signedHashes,
-                e.getVersion()
+                e.getVersion(),
+                e.getReservedQuantity()
         );
     }
 }
