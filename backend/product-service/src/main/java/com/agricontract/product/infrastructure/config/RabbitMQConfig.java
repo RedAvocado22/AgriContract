@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.Declarable;
 import org.springframework.amqp.core.Declarables;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
@@ -26,21 +27,31 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * product-service publishes category.approved/category.rejected to agricontract.events and consumes
- * contract.created from agricontract.contracts. Processing failures are retried 3 times (1s/2s/4s); a rejected
+ * product-service publishes category.approved/category.rejected to agricontract.events and consumes contract.created,
+ * contract.signed, contract.activated, contract.activation_failed and contract.withdrawn from agricontract.contracts,
+ * one queue each (product-svc.&lt;routingKey&gt;; contract-service declares some ahead with the same arguments).
+ * Processing failures are retried 3 times (1s/2s/4s); a rejected
  * (malformed) delivery is not retried. Exhausted or rejected deliveries go to the DLQ through the service-owned DLX,
  * bound with the original routing key, and DlqMonitor warns while a DLQ is non-empty (same as reputation-service).
  */
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String CONTRACT_CREATED_QUEUE = "product-svc.contract.created";
-    public static final List<String> DLQS = List.of(CONTRACT_CREATED_QUEUE + ".dlq");
-    private static final String CONTRACT_CREATED_KEY = "contract.created";
+    private static final String QUEUE_PREFIX = "product-svc.";
+    public static final String CONTRACT_CREATED_QUEUE = QUEUE_PREFIX + "contract.created";
+    public static final String CONTRACT_SIGNED_QUEUE = QUEUE_PREFIX + "contract.signed";
+    public static final String CONTRACT_ACTIVATED_QUEUE = QUEUE_PREFIX + "contract.activated";
+    public static final String CONTRACT_ACTIVATION_FAILED_QUEUE = QUEUE_PREFIX + "contract.activation_failed";
+    public static final String CONTRACT_WITHDRAWN_QUEUE = QUEUE_PREFIX + "contract.withdrawn";
+    /** The routing key is the queue name without the prefix. */
+    static final List<String> CONTRACT_QUEUES = List.of(CONTRACT_CREATED_QUEUE, CONTRACT_SIGNED_QUEUE,
+            CONTRACT_ACTIVATED_QUEUE, CONTRACT_ACTIVATION_FAILED_QUEUE, CONTRACT_WITHDRAWN_QUEUE);
+    public static final List<String> DLQS = CONTRACT_QUEUES.stream().map(queue -> queue + ".dlq").toList();
     private static final String DLX = "agricontract.product.dlx";
 
     @Bean
@@ -53,11 +64,16 @@ public class RabbitMQConfig {
     public Declarables contractEventDeclarables() {
         TopicExchange contracts = new TopicExchange("agricontract.contracts", true, false);
         DirectExchange dlx = new DirectExchange(DLX, true, false);
-        Queue queue = QueueBuilder.durable(CONTRACT_CREATED_QUEUE).deadLetterExchange(DLX).build();
-        Queue dlq = QueueBuilder.durable(CONTRACT_CREATED_QUEUE + ".dlq").build();
-        return new Declarables(List.of(contracts, dlx, queue, dlq,
-                BindingBuilder.bind(queue).to(contracts).with(CONTRACT_CREATED_KEY),
-                BindingBuilder.bind(dlq).to(dlx).with(CONTRACT_CREATED_KEY)));
+        List<Declarable> declarables = new ArrayList<>(List.of(contracts, dlx));
+        for (String queueName : CONTRACT_QUEUES) {
+            String routingKey = queueName.substring(QUEUE_PREFIX.length());
+            Queue queue = QueueBuilder.durable(queueName).deadLetterExchange(DLX).build();
+            Queue dlq = QueueBuilder.durable(queueName + ".dlq").build();
+            declarables.addAll(List.of(queue, dlq,
+                    BindingBuilder.bind(queue).to(contracts).with(routingKey),
+                    BindingBuilder.bind(dlq).to(dlx).with(routingKey)));
+        }
+        return new Declarables(declarables);
     }
 
     @Bean
@@ -82,7 +98,7 @@ public class RabbitMQConfig {
                 .backOffOptions(initialIntervalMillis, 2, initialIntervalMillis * 4)
                 .recoverer((message, cause) -> {
                     // The default recoverer logs Message.toString(), which includes the payload.
-                    throw new AmqpRejectAndDontRequeueException("contract.created delivery rejected; inspect the DLQ");
+                    throw new AmqpRejectAndDontRequeueException("contract event delivery rejected; inspect the DLQ");
                 })
                 .build();
     }

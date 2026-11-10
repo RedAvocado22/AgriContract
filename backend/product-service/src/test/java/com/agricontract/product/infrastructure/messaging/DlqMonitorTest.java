@@ -3,6 +3,7 @@ package com.agricontract.product.infrastructure.messaging;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.agricontract.product.infrastructure.config.RabbitMQConfig;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -61,32 +62,40 @@ class DlqMonitorTest {
             assertThat(event.getFormattedMessage())
                     .isEqualTo("event=product_dlq_nonempty queue=" + DLQ + " messageCount=2");
         });
-        verify(connection).abort(1000);
+        // one probe connection per DLQ, each aborted
+        verify(connection, times(RabbitMQConfig.DLQS.size())).abort(1000);
     }
 
     @Test
-    void emptyDlq_logsNothing() throws Exception {
+    void everyDlqIsProbed_andEmptyOnesLogNothing() throws Exception {
         monitor.checkDlqDepth();
 
         assertThat(logs.list).isEmpty();
-        verify(channel).queueDeclarePassive(DLQ);
+        assertThat(RabbitMQConfig.DLQS).containsExactly(
+                "product-svc.contract.created.dlq", "product-svc.contract.signed.dlq",
+                "product-svc.contract.activated.dlq", "product-svc.contract.activation_failed.dlq",
+                "product-svc.contract.withdrawn.dlq");
+        for (String dlq : RabbitMQConfig.DLQS) {
+            verify(channel).queueDeclarePassive(dlq);
+        }
         verifyNoMoreInteractions(channel);
     }
 
     @Test
     void failedProbe_logsQueueOnlyAndDoesNotThrow() throws Exception {
         when(channel.queueDeclarePassive(DLQ)).thenThrow(new IOException("password=secret payload=private"));
-        when(probe.newConnection("product-dlq-monitor"))
-                .thenReturn(connection)
-                .thenThrow(new TimeoutException("private"));
 
         assertThatCode(monitor::checkDlqDepth).doesNotThrowAnyException();
+        when(probe.newConnection("product-dlq-monitor")).thenThrow(new TimeoutException("private"));
         assertThatCode(monitor::checkDlqDepth).doesNotThrowAnyException();
 
-        assertThat(logs.list).hasSize(2).allSatisfy(event -> {
-            assertThat(event.getFormattedMessage()).isEqualTo("event=product_dlq_probe_failed queue=" + DLQ);
+        // first run: only the failing DLQ; second run: no connection at all, so every DLQ, still without details
+        assertThat(logs.list).hasSize(1 + RabbitMQConfig.DLQS.size()).allSatisfy(event -> {
+            assertThat(event.getFormattedMessage()).startsWith("event=product_dlq_probe_failed queue=");
+            assertThat(event.getFormattedMessage()).doesNotContain("secret", "private");
             assertThat(event.getThrowableProxy()).isNull();
         });
+        assertThat(logs.list.get(0).getFormattedMessage()).isEqualTo("event=product_dlq_probe_failed queue=" + DLQ);
     }
 
     @Test
