@@ -21,6 +21,8 @@ import org.springframework.context.annotation.Configuration;
  *   <li>notification-service (#278, and #234 for {@code notification.contract_activation_failed_requested}):
  *       {@code notification-svc.<routingKey>}, DLX {@code notification-svc.contracts.dlx} (topology.ts);</li>
  *   <li>product-service: {@code product-svc.<routingKey>}, DLX {@code agricontract.product.dlx} (RabbitMQConfig);</li>
+ *   <li>analytics-service (not in compose yet): {@code analytics-svc.<eventType>}, DLX {@code agricontract.analytics.dlx}
+ *       (topology.ts), for {@code contract.terminated};</li>
  *   <li>escrow-service, until #385 merges: {@code escrow-svc.contract.activation_refund_requested}, DLX
  *       {@code agricontract.contracts.dlx} (its RabbitMQConfig).</li>
  * </ul>
@@ -48,6 +50,14 @@ public class ConsumerQueuesDeclaredAhead {
     static final String REFUND_REQUESTED_KEY = "contract.activation_refund_requested";
     static final String REFUND_REQUESTED_QUEUE = "escrow-svc." + REFUND_REQUESTED_KEY;
     static final String ESCROW_DLX = "agricontract.contracts.dlx";
+
+    static final String WITHDRAWN_KEY = "contract.withdrawn";
+    static final String WITHDRAWN_QUEUE = "product-svc." + WITHDRAWN_KEY;
+    static final String TERMINATED_REQUESTED_KEY = "notification.contract_terminated_requested";
+    static final String TERMINATED_REQUESTED_QUEUE = "notification-svc." + TERMINATED_REQUESTED_KEY;
+    static final String TERMINATED_KEY = "contract.terminated";
+    static final String TERMINATED_QUEUE = "analytics-svc." + TERMINATED_KEY;
+    static final String ANALYTICS_DLX = "agricontract.analytics.dlx";
 
     private static final TopicExchange CONTRACTS = new TopicExchange("agricontract.contracts", true, false);
 
@@ -185,5 +195,74 @@ public class ConsumerQueuesDeclaredAhead {
     @Bean
     Binding refundRequestedDlqBinding() {
         return BindingBuilder.bind(refundRequestedDlq()).to(escrowContractsDlx()).with(REFUND_REQUESTED_KEY);
+    }
+
+    // #233 withdraw: product-service (#126) releases the reservation, notification-service (#278) emails the other
+    // party, analytics-service records the termination.
+
+    @Bean
+    Queue withdrawnQueue() {
+        return QueueBuilder.durable(WITHDRAWN_QUEUE).deadLetterExchange(PRODUCT_DLX).build();
+    }
+
+    @Bean
+    Queue withdrawnDlq() {
+        return QueueBuilder.durable(WITHDRAWN_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding withdrawnBinding() {
+        return BindingBuilder.bind(withdrawnQueue()).to(CONTRACTS).with(WITHDRAWN_KEY);
+    }
+
+    @Bean
+    Binding withdrawnDlqBinding() {
+        return BindingBuilder.bind(withdrawnDlq()).to(productDlx()).with(WITHDRAWN_KEY);
+    }
+
+    @Bean
+    Queue terminatedRequestedQueue() {
+        return QueueBuilder.durable(TERMINATED_REQUESTED_QUEUE).deadLetterExchange(NOTIFICATION_DLX).build();
+    }
+
+    @Bean
+    Queue terminatedRequestedDlq() {
+        return QueueBuilder.durable(TERMINATED_REQUESTED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding terminatedRequestedBinding() {
+        return BindingBuilder.bind(terminatedRequestedQueue()).to(CONTRACTS).with(TERMINATED_REQUESTED_KEY);
+    }
+
+    @Bean
+    Binding terminatedRequestedDlqBinding() {
+        return BindingBuilder.bind(terminatedRequestedDlq()).to(notificationContractsDlx())
+                .with(TERMINATED_REQUESTED_KEY);
+    }
+
+    @Bean
+    DirectExchange analyticsDlx() {
+        return new DirectExchange(ANALYTICS_DLX, true, false);
+    }
+
+    @Bean
+    Queue terminatedQueue() {
+        return QueueBuilder.durable(TERMINATED_QUEUE).deadLetterExchange(ANALYTICS_DLX).build();
+    }
+
+    @Bean
+    Queue terminatedDlq() {
+        return QueueBuilder.durable(TERMINATED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding terminatedBinding() {
+        return BindingBuilder.bind(terminatedQueue()).to(CONTRACTS).with(TERMINATED_KEY);
+    }
+
+    @Bean
+    Binding terminatedDlqBinding() {
+        return BindingBuilder.bind(terminatedDlq()).to(analyticsDlx()).with(TERMINATED_KEY);
     }
 }
