@@ -107,6 +107,9 @@ class UseCaseDiagram:
         or right (lines then stay out of the column of ellipses), else the outline toward other's centre."""
         if el.kind == "actor":
             x0, _, x1, _ = other.box()
+            if x0 < el.cx < x1:  # straight above or below: leave from the head or under the name
+                top, bottom = el.box()[1], el.box()[3] + 2
+                return el.cx, top if other.cy < el.cy else bottom
             return el.border_toward(x0 if x0 > el.cx else x1, other.cy)
         x0, y0, x1, y1 = el.box()
         ox0, _, ox1, _ = other.box()
