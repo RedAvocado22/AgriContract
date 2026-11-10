@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="722" height="1030" viewBox="0 0 722 1030" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
+<rect x="0" y="0" width="722" height="1030" fill="white"/>
+<path d="M170,451.0 L170,520.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)" marker-start="url(#dia)"/>
+<rect x="178" y="465.0" width="85.10546875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="180" y="471.875">coffeeTerms 0..1</tspan></text>
+<path d="M320.0,108.4 L380.0,108.4" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="326" y="90.4" width="46.8046875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="328" y="97.275">«create»</tspan></text>
+<path d="M320.0,377.85 L380.0,377.85" fill="none" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="326" y="359.85" width="46.8046875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="328" y="366.725">«create»</tspan></text>
+<path d="M535,241.0 L535,290.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="541" y="249.0" width="51.6953125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="543" y="255.875">consentId</tspan></text>
+<path d="M535,600.0 L535,541.0" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="541" y="574.0" width="51.6953125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="543" y="580.875">consentId</tspan></text>
+<path d="M690.0,130.5 L706,130.5 L706,629.68 L690.0,629.68" fill="none" stroke="black" stroke-width="1.1" marker-end="url(#open)"/>
+<rect x="691" y="113.5" width="28.4609375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="693" y="120.375">otpId</tspan></text>
+<rect x="20.0" y="20.0" width="300" height="431" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="170" y="32.5">«entity»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="170" y="47.5">Contract</tspan></text>
+<line x1="20.0" y1="60.0" x2="320.0" y2="60.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="71.5">- contractId : ContractId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="86.5">- listingId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="101.5">- buyerId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="116.5">- sellerId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="131.5">- coffeeTerms : CanonicalTerms</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="146.5">- status : ContractStatus</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="161.5">- version : Long</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="176.5">- signedHashes : Map&lt;SignerRole, String&gt;</tspan></text>
+<line x1="20.0" y1="188.0" x2="320.0" y2="188.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="199.5">+ reviseCoffeeTerms(userId : String,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="214.5">      revised : CanonicalTerms) : void</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="229.5">+ consentToSign(userId : String,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="244.5">      claimedRole : SignerRole,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="259.5">      presentedStatementVersion : String,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="274.5">      presentedContentHash : String,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="289.5">      statements : ConsentStatements,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="304.5">      consentId : UUID, consentedAt : Instant,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="319.5">      correlationId : String) : ConsentEvidence</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="334.5">+ sign(userId : String, verified : OtpChallenge,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="349.5">      authTime : Instant, signedAt : Instant,</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="364.5">      ipAddress : String, signatureId : UUID)</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="379.5">      : Signature</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="394.5">+ roleOf(userId : String) : Optional&lt;SignerRole&gt;</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="409.5">+ getSignedRoles() : Set&lt;SignerRole&gt;</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="424.5">+ withdraw(userId : String) : SignerRole</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="439.5">+ activate() : void</tspan></text>
+<rect x="20.0" y="520.0" width="300" height="206" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="170" y="532.5">«value object»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="170" y="547.5">CanonicalTerms</tspan></text>
+<line x1="20.0" y1="560.0" x2="320.0" y2="560.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="571.5">+ snapshot : ContractTermsSnapshot</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="586.5">+ canonicalJson : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="601.5">+ signedContentHash : String</tspan></text>
+<line x1="20.0" y1="613.0" x2="320.0" y2="613.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="624.5">+ of(snapshot : ContractTermsSnapshot,</tspan></text>
+<line x1="28.0" y1="631.0" x2="243.1640625" y2="631.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="639.5">      canonicalizer : TermsCanonicalizer)</tspan></text>
+<line x1="48.015625" y1="646.0" x2="237.25390625" y2="646.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="654.5">      : CanonicalTerms</tspan></text>
+<line x1="48.015625" y1="661.0" x2="140.7421875" y2="661.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="669.5">+ restore(storedJson : String, storedHash : String,</tspan></text>
+<line x1="28.0" y1="676.0" x2="292.51953125" y2="676.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="684.5">      canonicalizer : TermsCanonicalizer)</tspan></text>
+<line x1="48.015625" y1="691.0" x2="237.25390625" y2="691.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="699.5">      : CanonicalTerms</tspan></text>
+<line x1="48.015625" y1="706.0" x2="140.7421875" y2="706.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="714.5">+ sha256(canonicalJson : String) : String</tspan></text>
+<line x1="28.0" y1="721.0" x2="244.5078125" y2="721.0" stroke="black" stroke-width="0.8"/>
+<rect x="20.0" y="760.0" width="300" height="168" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="170" y="772.5">«enumeration»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="170" y="787.5">ContractStatus</tspan></text>
+<line x1="20.0" y1="800.0" x2="320.0" y2="800.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="811.5">OFFERED</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="826.5">NEGOTIATING</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="841.5">SIGNED</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="856.5">ACTIVE</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="871.5">SETTLED</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="886.5">ACTIVATION_REFUND_PENDING</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="901.5">ACTIVATION_FAILED</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="916.5">WITHDRAWN</tspan></text>
+<rect x="20.0" y="940.0" width="130" height="78" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="85" y="952.5">«enumeration»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="85" y="967.5">SignerRole</tspan></text>
+<line x1="20.0" y1="980.0" x2="150.0" y2="980.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="991.5">BUYER</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="28.0" y="1006.5">SELLER</tspan></text>
+<rect x="160.0" y="940.0" width="160" height="78" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="240" y="952.5">«enumeration»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="240" y="967.5">ConsentActionType</tspan></text>
+<line x1="160.0" y1="980.0" x2="320.0" y2="980.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="168.0" y="991.5">SIGN_CONTRACT</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="168.0" y="1006.5">CANCEL_ACTIVATION</tspan></text>
+<rect x="380.0" y="20.0" width="310" height="221" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="535" y="32.5">«entity»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="535" y="47.5">Signature</tspan></text>
+<line x1="380.0" y1="60.0" x2="690.0" y2="60.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="71.5">+ signatureId : UUID</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="86.5">+ contractId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="101.5">+ signerRole : SignerRole</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="116.5">+ signerUserId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="131.5">+ otpId : UUID</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="146.5">+ consentId : UUID</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="161.5">+ authTime : Instant</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="176.5">+ signedAt : Instant</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="191.5">+ signedContentHash : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="206.5">+ ipAddress : String</tspan></text>
+<line x1="380.0" y1="218.0" x2="690.0" y2="218.0" stroke="black"/>
+<rect x="380.0" y="290.0" width="310" height="251" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="535" y="302.5">«entity»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="535" y="317.5">ConsentEvidence</tspan></text>
+<line x1="380.0" y1="330.0" x2="690.0" y2="330.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="341.5">+ consentId : UUID</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="356.5">+ actionType : ConsentActionType</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="371.5">+ subjectType : ConsentSubjectType</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="386.5">+ subjectId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="401.5">+ actorUserId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="416.5">+ actorRole : SignerRole</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="431.5">+ statementCode : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="446.5">+ statementVersion : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="461.5">+ statementHash : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="476.5">+ presentedContentHash : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="491.5">+ consentedAt : Instant</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="506.5">+ correlationId : String</tspan></text>
+<line x1="380.0" y1="518.0" x2="690.0" y2="518.0" stroke="black"/>
+<rect x="380.0" y="600.0" width="310" height="371" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="11"><tspan x="535" y="612.5">«entity»</tspan></text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="535" y="627.5">OtpChallenge</tspan></text>
+<line x1="380.0" y1="640.0" x2="690.0" y2="640.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="651.5">+ otpId : UUID</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="666.5">+ consentId : UUID</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="681.5">+ contractId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="696.5">+ signerRole : SignerRole</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="711.5">+ userId : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="726.5">+ authTime : Instant</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="741.5">+ signedContentHash : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="756.5">+ otpHash : String</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="771.5">+ sentAt : Instant</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="786.5">+ expiresAt : Instant</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="801.5">+ verifiedAt : Instant</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="816.5">+ attemptCount : int</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="831.5">+ actionType : ConsentActionType</tspan></text>
+<line x1="380.0" y1="843.0" x2="690.0" y2="843.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="854.5">+ issue(otpId : UUID, consentId : UUID,</tspan></text>
+<line x1="388.0" y1="861.0" x2="597.8125" y2="861.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="869.5">      contractId : String, signerRole : SignerRole,</tspan></text>
+<line x1="408.015625" y1="876.0" x2="638.86328125" y2="876.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="884.5">      userId : String, authTime : Instant,</tspan></text>
+<line x1="408.015625" y1="891.0" x2="588.37890625" y2="891.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="899.5">      signedContentHash : String, otpHash : String,</tspan></text>
+<line x1="408.015625" y1="906.0" x2="650.890625" y2="906.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="914.5">      now : Instant, expirySeconds : long,</tspan></text>
+<line x1="408.015625" y1="921.0" x2="597.51171875" y2="921.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="929.5">      actionType : ConsentActionType) : OtpChallenge</tspan></text>
+<line x1="408.015625" y1="936.0" x2="667.578125" y2="936.0" stroke="black" stroke-width="0.8"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="944.5">+ isUsable(now : Instant, maxAttempts : int) : boolean</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" xml:space="preserve"><tspan x="388.0" y="959.5">+ ensureUsable(now : Instant, maxAttempts : int) : void</tspan></text>
+</svg>
