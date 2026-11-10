@@ -22,6 +22,8 @@ public class ContractConflictException extends RuntimeException {
     public static final String NO_CANCEL_REQUEST = "NO_CANCEL_REQUEST";
     /** #233: withdraw after the second signature (SIGNED or later) or on an already ended offer. */
     public static final String NOT_WITHDRAWABLE = "CONTRACT_NOT_WITHDRAWABLE";
+    /** F18 (#232): the second signature on terms whose total differs from the stored reserved quantity. */
+    public static final String RESERVED_QUANTITY_MISMATCH = "RESERVED_QUANTITY_MISMATCH";
 
     private final String code;
 

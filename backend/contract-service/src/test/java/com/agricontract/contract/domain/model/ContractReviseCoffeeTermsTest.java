@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -105,6 +106,17 @@ class ContractReviseCoffeeTermsTest {
         assertThatThrownBy(() -> offered().reviseCoffeeTerms(SELLER, terms(moreKg)))
                 .isInstanceOf(InvalidContractTermsException.class)
                 .hasMessageContaining("must stay 2500.5 kg");
+    }
+
+    @Test
+    void theTotalIsHeldToTheStoredReservedQuantity_notToTheCurrentTerms() {
+        Contract stored = Contract.reconstitute(new ContractId(UUID.randomUUID().toString()),
+                goods().listingId().toString(), BUYER, SELLER, "Cà phê", "HTX Mua", "HTX Bán", "b@x.test", "s@x.test",
+                null, terms(input()), ContractStatus.OFFERED, Map.of(), 0L, new BigDecimal("2000"));
+
+        assertThatThrownBy(() -> stored.reviseCoffeeTerms(SELLER, terms(input())))
+                .isInstanceOf(InvalidContractTermsException.class)
+                .hasMessageContaining("must stay 2000 kg");
     }
 
     @Test

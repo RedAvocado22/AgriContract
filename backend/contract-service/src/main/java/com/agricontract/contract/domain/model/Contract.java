@@ -196,9 +196,10 @@ public class Contract {
         if (!revised.snapshot().goodsTerms().equals(current.goodsTerms())) {
             throw new InvalidContractTermsException("goodsTerms are fixed at offer time and cannot be revised");
         }
-        if (revised.snapshot().totalQuantity().compareTo(current.totalQuantity()) != 0) {
+        BigDecimal reserved = getReservedQuantity();
+        if (revised.snapshot().totalQuantity().compareTo(reserved) != 0) {
             throw new InvalidContractTermsException("Total committed quantity must stay "
-                    + current.totalQuantity().stripTrailingZeros().toPlainString()
+                    + reserved.stripTrailingZeros().toPlainString()
                     + " kg, the quantity reserved for this offer; withdraw and make a new offer to change it");
         }
         //Mutate
@@ -354,6 +355,12 @@ public class Contract {
         if (otherHash != null && !otherHash.equals(hash)) {
             throw new IllegalStateException("Contract " + this.contractId.value()
                     + " has a signature on other terms than the current ones");
+        }
+        // F18 (design §2.1d): the second signature binds only the quantity product-service reserved for this offer.
+        if (otherHash != null
+                && this.coffeeTerms.snapshot().totalQuantity().compareTo(getReservedQuantity()) != 0) {
+            throw new ContractConflictException(ContractConflictException.RESERVED_QUANTITY_MISMATCH,
+                    "The terms total no longer matches the quantity reserved for this offer; it cannot be signed.");
         }
         //Mutate
         this.signedHashes.put(role, hash);

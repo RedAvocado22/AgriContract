@@ -84,6 +84,23 @@ class ContractSignTest {
     }
 
     @Test
+    void secondSignature_onATotalOtherThanTheReservedQuantity_isRefused_F18() {
+        CanonicalTerms terms = CanonicalTerms.of(ContractTermsSnapshot.assemble(input(), goods(), template(), RULES),
+                FAKE);
+        Contract contract = Contract.reconstitute(new ContractId(UUID.randomUUID().toString()),
+                goods().listingId().toString(), BUYER, SELLER, "Cà phê", "HTX Mua", "HTX Bán", "b@x.test", "s@x.test",
+                null, terms, ContractStatus.NEGOTIATING, Map.of(), 0L,
+                terms.snapshot().totalQuantity().add(java.math.BigDecimal.ONE));
+        contract.sign(SELLER, challenge(contract, SignerRole.SELLER, SELLER, hashOf(contract)), NOW, NOW, null,
+                UUID.randomUUID());
+
+        assertConflict(() -> contract.sign(BUYER, challenge(contract, SignerRole.BUYER, BUYER, hashOf(contract)),
+                NOW, NOW, null, UUID.randomUUID()), ContractConflictException.RESERVED_QUANTITY_MISMATCH);
+        assertThat(contract.getStatus()).isEqualTo(ContractStatus.NEGOTIATING);
+        assertThat(contract.getSignedRoles()).containsExactly(SignerRole.SELLER);
+    }
+
+    @Test
     void samePartyTwice_isRefused() {
         Contract contract = contract(ContractStatus.NEGOTIATING, Map.of());
         contract.sign(SELLER, challenge(contract, SignerRole.SELLER, SELLER, hashOf(contract)), NOW, NOW, null,
