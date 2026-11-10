@@ -394,6 +394,7 @@ class GatewayBoundaryTest {
             new StaffAction("POST", CONTRACT + "/activation/cancel/initiate", "BUYER", "SELLER"),
             new StaffAction("POST", CONTRACT + "/activation/cancel/verify", "BUYER", "SELLER"),
             new StaffAction("DELETE", CONTRACT + "/activation/cancel", "BUYER", "SELLER"),
+            new StaffAction("POST", CONTRACT + "/withdraw", "BUYER", "SELLER"),
             new StaffAction("POST", CONTRACT + "/milestones/" + LISTING_ID + "/funding/retry", "OPERATOR"),
             new StaffAction("GET", "/api/v1/admin/categories", "OPERATOR"),
             new StaffAction("POST", "/api/v1/admin/categories/" + LISTING_ID + "/approve", "OPERATOR"),
