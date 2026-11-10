@@ -28,6 +28,8 @@ import {
   activationFailedPayload,
   cancelEnvelope,
   cancelPayload,
+  terminatedEnvelope,
+  terminatedPayload,
 } from '../../../test/support/commands';
 import { commandRoutes } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
@@ -194,6 +196,44 @@ describe('no personal data in the logs', () => {
     expect(log).not.toContain(BUYER);
     expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });
+
+  it.each([
+    [
+      'a malformed one',
+      { recipients: [{ userId: 'not-a-uuid', email: BUYER, role: 'BUYER' }] },
+      'Malformed notification.contract_terminated_requested command',
+    ],
+    [
+      'one without a template yet',
+      {
+        recipients: [{ userId: null, email: BUYER, role: 'BUYER' }],
+        terminationType: 'MUTUAL_TERMINATION',
+      },
+      'Unsupported notification.contract_terminated_requested command: terminationType MUTUAL_TERMINATION has no email template yet (#278)',
+    ],
+  ])(
+    'a contract-terminated command, %s: dead-lettered at once, the log shows no address',
+    async (_case, patch, expected) => {
+      const lines = captureLogs();
+      const sendMail = jest.fn();
+      const { deliver, nacks } = await harness(sendMail);
+
+      deliver(
+        'notification-svc.notification.contract_terminated_requested',
+        JSON.stringify(
+          terminatedEnvelope({ payload: terminatedPayload(patch) }),
+        ),
+      );
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(nacks).toEqual([false]); // dead-lettered at once, no retry
+      expect(sendMail).not.toHaveBeenCalled();
+      const log = lines.join('\n');
+      expect(log).toContain(expected);
+      expect(log).not.toContain(BUYER);
+      expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+    },
+  );
 
   it('a rejected activation-cancel command: the dead-letter log shows no recipient address', async () => {
     const lines = captureLogs();
