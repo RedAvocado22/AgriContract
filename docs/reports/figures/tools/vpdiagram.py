@@ -190,6 +190,17 @@ class Diagram:
         self.nodes[id] = n
         return n
 
+    def component(self, id, cx, cy, text, stereotype="", w=None):
+        """UML component: a box with the component icon in its top right corner, optional «stereotype»."""
+        lines = text.split("\n")
+        tw = max([text_w(l) for l in lines] + [text_w("\u00ab" + stereotype + "\u00bb", 11, italic=True)
+                                               if stereotype else 0])
+        h = len(lines) * LINE_H + (LINE_H if stereotype else 0) + 22
+        n = Node(id, "component", cx, cy, w or tw + 66, h, text)
+        n.stereotype = stereotype
+        self.nodes[id] = n
+        return n
+
     def legend(self, id, x0, y0, text):
         """A line of plain text, left-aligned at (x0, y0)."""
         w, h = text_size(text, 11)
@@ -197,14 +208,11 @@ class Diagram:
         self.nodes[id] = n
         return n
 
-    def er(self, src, s_side, dst, d_side, *via, s="one", d="zero_many", label="", s_off=0, d_off=0,
-           seg=0, side="on"):
-        """Relationship line, cardinality s at src and d at dst: one | zero_one | many | zero_many.
-        The label (verb read from src to dst) sits on segment seg: on the line, or beside it (t | b | l | r)."""
+    def _route(self, src, s_side, dst, d_side, via, s_off, d_off):
+        """Polyline between two sides. Without an offset a port lines up with its neighbouring corner, or, for a
+        straight line, with the middle of the span the two boxes share."""
         sn, dn = self.nodes[src], self.nodes[dst]
         a, b = sn.port(s_side, s_off), dn.port(d_side, d_off)
-        # Without an offset a port lines up with its neighbouring corner, or, for a straight line, with the middle
-        # of the span the two boxes share.
         def align(p, side, q):
             return (p[0], q[1]) if side in "lr" else (q[0], p[1])
         if via:
@@ -221,15 +229,34 @@ class Diagram:
             else:
                 x = (max(sx0, dx0) + min(sx1, dx1)) / 2
                 a, b = (x, a[1]), (x, b[1])
-        pts = [a, *via, b]
+        return [a, *via, b]
+
+    @staticmethod
+    def _label_at(pts, label, seg, side):
+        w, h = text_size(label, 11)
+        w += 4
+        mx, my = (pts[seg][0] + pts[seg + 1][0]) / 2, (pts[seg][1] + pts[seg + 1][1]) / 2
+        return {"on": (mx - w / 2, my - h / 2), "t": (mx - w / 2, my - 10 - h), "b": (mx - w / 2, my + 10),
+                "l": (mx - 10 - w, my - h / 2), "r": (mx + 10, my - h / 2)}[side]
+
+    def er(self, src, s_side, dst, d_side, *via, s="one", d="zero_many", label="", s_off=0, d_off=0,
+           seg=0, side="on"):
+        """Relationship line, cardinality s at src and d at dst: one | zero_one | many | zero_many.
+        The label (verb read from src to dst) sits on segment seg: on the line, or beside it (t | b | l | r)."""
+        pts = self._route(src, s_side, dst, d_side, via, s_off, d_off)
         e = Edge(src, dst, pts, label, None, False, False, "er")
         e.cards, e.label_seg = (s, d), seg
         if label:
-            w, h = text_size(label, 11)
-            w += 4
-            mx, my = (pts[seg][0] + pts[seg + 1][0]) / 2, (pts[seg][1] + pts[seg + 1][1]) / 2
-            e.label_at = {"on": (mx - w / 2, my - h / 2), "t": (mx - w / 2, my - 10 - h), "b": (mx - w / 2, my + 10),
-                          "l": (mx - 10 - w, my - h / 2), "r": (mx + 10, my - h / 2)}[side]
+            e.label_at = self._label_at(pts, label, seg, side)
+        self.edges.append(e)
+
+    def dep(self, src, s_side, dst, d_side, *via, label="", s_off=0, d_off=0, seg=0, side="on"):
+        """Dependency (dashed, open arrow at dst), ports and label placed as for er()."""
+        pts = self._route(src, s_side, dst, d_side, via, s_off, d_off)
+        e = Edge(src, dst, pts, label, None, True, True, "dependency")
+        e.label_seg = seg
+        if label:
+            e.label_at = self._label_at(pts, label, seg, side)
         self.edges.append(e)
 
     def package(self, id, x0, y0, w, h, name):
@@ -308,6 +335,14 @@ class Diagram:
                         continue
                 if seg_hits_box(p, q, lb):
                     problems.append(f"label {e.label!r} touches edge {self.edges[i].src}->{self.edges[i].dst}")
+        for n in [n for n in self.nodes.values() if n.kind == "package"]:
+            x0, y0, _, _ = n.box()
+            tab = (x0, y0 - 20, x0 + len(n.text) * CHAR_W + 16, y0)
+            for e in self.edges:
+                if n.id not in (e.src, e.dst) and any(seg_hits_box(p, q, tab) for p, q in zip(e.points, e.points[1:])):
+                    problems.append(f"edge {e.src}->{e.dst} crosses the name tab of {n.id}")
+                if e.label and boxes_overlap(self.label_box(e), tab):
+                    problems.append(f"label {e.label!r} touches the name tab of {n.id}")
         for e in self.edges:
             if e.kind == "er" and e.label:
                 lb = self.label_box(e)
@@ -437,6 +472,21 @@ class Diagram:
                 o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="#808080" '
                          f'stroke-width="1.2" stroke-dasharray="5,3"/>')
                 o.append(svg_text(n.cx, n.cy, n.text).replace("<text ", '<text fill="#606060" ', 1))
+            elif n.kind == "component":
+                o.append(f'<rect x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" fill="white" stroke="black" '
+                         f'stroke-width="1.2"/>')
+                ix, iy = x1 - 20, y0 + 6
+                o.append(f'<rect x="{ix}" y="{iy}" width="13" height="11" fill="white" stroke="black"/>'
+                         f'<rect x="{ix - 3}" y="{iy + 2}" width="6" height="3" fill="white" stroke="black"/>'
+                         f'<rect x="{ix - 3}" y="{iy + 6.5}" width="6" height="3" fill="white" stroke="black"/>')
+                lines = n.text.split("\n")
+                y = n.cy - (len(lines) + (1 if n.stereotype else 0) - 1) * LINE_H / 2
+                if n.stereotype:
+                    o.append(svg_text(n.cx, y, "\u00ab" + n.stereotype + "\u00bb", size=11, italic=True))
+                    y += LINE_H
+                for l in lines:
+                    o.append(svg_text(n.cx, y, l))
+                    y += LINE_H
             elif n.kind == "legend":
                 o.append(svg_text(x0 + 2, n.cy, n.text, size=11, anchor="start"))
             elif n.kind == "entity":
@@ -575,7 +625,16 @@ class Diagram:
                              f'{border}fillColor=none;whiteSpace=nowrap;" vertex="1" parent="{n.id}">'
                              f'<mxGeometry y="{y}" width="{n.w}" height="{hgt}" as="geometry"/></mxCell>')
                 y += hgt
-        for n in sorted([n for n in self.nodes.values() if n.kind not in ("class", "entity", "ghost")],
+        for n in [n for n in self.nodes.values() if n.kind == "component"]:
+            x0, y0, x1, _ = n.box()
+            val = ("<i>&laquo;" + html.escape(n.stereotype) + "&raquo;</i><br>" if n.stereotype else "") + \
+                html.escape(n.text).replace("\n", "<br>")
+            cells.append(f'<mxCell id="{n.id}" value={q(val)} style="rounded=0;{base}" vertex="1" parent="1">'
+                         f'<mxGeometry x="{x0}" y="{y0}" width="{n.w}" height="{n.h}" as="geometry"/></mxCell>')
+            cells.append(f'<mxCell id="{n.id}_icon" value="" style="shape=component;jettyWidth=6;jettyHeight=3;'
+                         f'strokeColor=#000000;fillColor=#FFFFFF;html=1;" vertex="1" parent="1"><mxGeometry '
+                         f'x="{x1 - 23}" y="{y0 + 6}" width="16" height="11" as="geometry"/></mxCell>')
+        for n in sorted([n for n in self.nodes.values() if n.kind not in ("class", "entity", "ghost", "component")],
                         key=lambda n: n.kind != "package"):
             x0, y0, _, _ = n.box()
             # html=1 cells hold HTML; the attribute escapes it once more.
