@@ -30,6 +30,8 @@ import com.agricontract.contract.application.port.IdempotencyStore;
 import com.agricontract.contract.application.port.ListingPort;
 import com.agricontract.contract.application.port.UserPort;
 import com.agricontract.contract.application.service.ReservationCompensation;
+import com.agricontract.contract.application.service.SignerEligibility;
+import com.agricontract.contract.application.exception.SignerNotEligibleException;
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.terms.CoffeeGoodsTerms;
@@ -79,7 +81,9 @@ class CreateContractUseCaseTest {
         when(tx.execute(any())).thenAnswer(call -> ((TransactionCallback<Object>) call.getArgument(0))
                 .doInTransaction(null));
         useCase = new CreateContractUseCase(contracts, idempotency, listings, users,
-                new ReservationCompensation(listings, 3, 0), events, new JcsTermsCanonicalizer(), RULES,
+                new ReservationCompensation(listings, 3, 0),
+                new SignerEligibility(users, Clock.fixed(NOW, ZoneOffset.UTC), 300), events,
+                new JcsTermsCanonicalizer(), RULES,
                 template(), tx, Clock.fixed(NOW, ZoneOffset.UTC));
 
         when(idempotency.lookup(eq(BUYER), anyString(), any(), anyString())).thenReturn(Optional.empty());
@@ -164,6 +168,50 @@ class CreateContractUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(command(input())))
                 .isInstanceOf(UserServiceUnavailableException.class);
         verify(listings, never()).reserve(anyString(), anyString(), any(), anyString());
+    }
+
+    @Test
+    void buyerWhoMayNotContract_isA403_beforeAnyListingCallOrReservation() {
+        UserInfo[] refused = {
+                new UserInfo(BUYER, "HTX Mua", "buyer@example.com", "BUYER", "PENDING", null, null),
+                new UserInfo(BUYER, "HTX Mua", "buyer@example.com", "BUYER", "VERIFIED", NOW, null),
+                new UserInfo(BUYER, "HTX Mua", "buyer@example.com", "BUYER", "VERIFIED", null, NOW.plusSeconds(60)),
+        };
+        String[] codes = {SignerNotEligibleException.NOT_VERIFIED, SignerNotEligibleException.AUTHORIZATION_EXPIRED,
+                SignerNotEligibleException.LOCKED};
+        for (int i = 0; i < refused.length; i++) {
+            when(users.findUser(BUYER)).thenReturn(Optional.of(refused[i]));
+
+            assertThatThrownBy(() -> useCase.execute(command(input())))
+                    .isInstanceOf(SignerNotEligibleException.class)
+                    .extracting("code").isEqualTo(codes[i]);
+        }
+        verifyNoInteractions(listings, events);
+        verify(idempotency, never()).claim(anyString(), anyString(), any(), anyString());
+        verify(contracts, never()).save(any());
+    }
+
+    @Test
+    void buyerEligibilityUnknown_failsClosed_beforeAnyListingCall() {
+        when(users.findUser(BUYER)).thenThrow(new UserServiceUnavailableException("down", null));
+
+        assertThatThrownBy(() -> useCase.execute(command(input())))
+                .isInstanceOf(UserServiceUnavailableException.class);
+        verifyNoInteractions(listings, events);
+    }
+
+    @Test
+    void lockedBuyerReplayingAnEarlierCreate_isRefusedToo() {
+        when(users.findUser(BUYER)).thenReturn(Optional.of(
+                new UserInfo(BUYER, "HTX Mua", "buyer@example.com", "BUYER", "VERIFIED", null, NOW.plusSeconds(60))));
+        when(idempotency.lookup(eq(BUYER), anyString(), any(), anyString()))
+                .thenReturn(Optional.of(IdempotencyStore.Outcome.REPLAY));
+
+        assertThatThrownBy(() -> useCase.execute(command(input())))
+                .isInstanceOf(SignerNotEligibleException.class)
+                .extracting("code").isEqualTo(SignerNotEligibleException.LOCKED);
+        verify(contracts, never()).findById(any());
+        verifyNoInteractions(listings);
     }
 
     @Test

@@ -125,6 +125,28 @@ class SignerEligibilityTest {
                 .isInstanceOf(UserServiceUnavailableException.class);
     }
 
+    @Test
+    void offer_verifiedUnlockedBuyerWithOpenAuthorization_mayOffer() {
+        eligibility.requireMayOffer(user("VERIFIED", null, null, "b@x.test"));
+        // an authorization that ends later and a lock that already ended do not block an offer
+        eligibility.requireMayOffer(user("VERIFIED", NOW.plusSeconds(1), NOW.minusSeconds(1), "b@x.test"));
+    }
+
+    @Test
+    void offer_unverifiedExpiredOrLockedBuyer_isRefusedWithTheSameCodesAsSigning() {
+        offerRefused(user("PENDING", null, null, "b@x.test"), SignerNotEligibleException.NOT_VERIFIED);
+        offerRefused(user("REJECTED", null, null, "b@x.test"), SignerNotEligibleException.NOT_VERIFIED);
+        // the authorization end and the lock end are exclusive bounds, as for signing
+        offerRefused(user("VERIFIED", NOW, null, "b@x.test"), SignerNotEligibleException.AUTHORIZATION_EXPIRED);
+        offerRefused(user("VERIFIED", null, NOW.plusSeconds(1), "b@x.test"), SignerNotEligibleException.LOCKED);
+    }
+
+    private void offerRefused(UserInfo buyer, String code) {
+        assertThatThrownBy(() -> eligibility.requireMayOffer(buyer))
+                .isInstanceOf(SignerNotEligibleException.class)
+                .extracting("code").isEqualTo(code);
+    }
+
     private void refused(UserInfo user, String code) {
         when(users.findUser("seller-1")).thenReturn(Optional.of(user));
         assertThatThrownBy(() -> eligibility.requireEligible("seller-1"))

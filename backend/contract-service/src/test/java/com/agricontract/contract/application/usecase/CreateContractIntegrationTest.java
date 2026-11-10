@@ -20,6 +20,7 @@ import com.agricontract.contract.application.dto.UserInfo;
 import com.agricontract.contract.application.port.ListingPort;
 import com.agricontract.contract.application.port.UserPort;
 import com.agricontract.contract.application.service.ReservationCompensation;
+import com.agricontract.contract.application.service.SignerEligibility;
 import com.agricontract.contract.domain.exception.ContractConflictException;
 import com.agricontract.contract.infrastructure.consent.ConsentConfiguration;
 import com.agricontract.contract.infrastructure.contract.FrozenSchemas;
@@ -66,7 +67,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
-@Import({CreateContractUseCase.class, ReservationCompensation.class, OutboxContractEventPublisher.class,
+@Import({CreateContractUseCase.class, ReservationCompensation.class, SignerEligibility.class,
+        OutboxContractEventPublisher.class,
         JdbcIdempotencyStore.class, ContractRepositoryImpl.class, JdbcSignatureRepository.class, ContractMapper.class,
         JcsTermsCanonicalizer.class, ContractTermsConfiguration.class, ConsentConfiguration.class})
 @Testcontainers
