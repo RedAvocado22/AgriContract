@@ -98,7 +98,7 @@ class CreateContractIntegrationTest {
         reset(listings, users);
         when(listings.getListing(LISTING)).thenReturn(new ListingResponse(LISTING, SELLER,
                 goods().productId().toString(), "Robusta", new BigDecimal("10000"), "KG", new BigDecimal("90000"),
-                "VND", LocalDate.of(2027, 2, 1), "AVAILABLE"));
+                "VND", LocalDate.of(2027, 2, 1), "AVAILABLE", TOKEN));
         when(users.findUser(BUYER)).thenReturn(Optional.of(user(BUYER, "HTX Mua")));
         when(users.findUser(SELLER)).thenReturn(Optional.of(user(SELLER, "HTX Bán")));
         when(listings.contractSnapshot(LISTING, TOKEN)).thenReturn(goods());

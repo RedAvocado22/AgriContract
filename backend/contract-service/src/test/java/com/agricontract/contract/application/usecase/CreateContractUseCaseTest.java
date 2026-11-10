@@ -256,6 +256,22 @@ class CreateContractUseCaseTest {
     }
 
     @Test
+    void listingChangedSinceTheBuyerLoadedIt_isA409_beforeAnySnapshotOrReservation() {
+        ListingResponse current = listing(SELLER);
+        when(listings.getListing(LISTING)).thenReturn(new ListingResponse(current.listingId(), current.sellerId(),
+                current.productId(), current.productName(), current.quantity(), current.quantityUnit(),
+                current.priceFloor(), current.currency(), current.deliveryDeadline(), current.status(),
+                "2026-11-10T07:00:00.000001Z"));
+
+        assertThatThrownBy(() -> useCase.execute(command(input())))
+                .isInstanceOfSatisfying(ContractConflictException.class,
+                        e -> assertThat(e.getCode()).isEqualTo("LISTING_VERSION_MISMATCH"));
+        verify(listings, never()).contractSnapshot(anyString(), anyString());
+        verify(listings, never()).reserve(anyString(), anyString(), any(), anyString());
+        verify(contracts, never()).save(any());
+    }
+
+    @Test
     void retryWithTheSameKey_returnsTheFirstContract_withoutReservingAgain() {
         String existingId = UUID.randomUUID().toString();
         when(idempotency.lookup(eq(BUYER), anyString(), any(), anyString()))
@@ -313,7 +329,7 @@ class CreateContractUseCaseTest {
 
     private static ListingResponse listing(String sellerId) {
         return new ListingResponse(LISTING, sellerId, goods().productId().toString(), "Robusta", new BigDecimal("10000"),
-                "KG", new BigDecimal("90000"), "VND", LocalDate.of(2027, 2, 1), "AVAILABLE");
+                "KG", new BigDecimal("90000"), "VND", LocalDate.of(2027, 2, 1), "AVAILABLE", TOKEN);
     }
 
     private static UserInfo user(String id, String email) {
