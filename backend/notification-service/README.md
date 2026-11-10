@@ -108,6 +108,29 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
   characters, so the mail goes out as 7bit. `test/contract/contract-activation-failed-requested.contract.spec.ts`
   checks the parser against the contract in both directions.
 
+### Offer withdrawn (Phase 2, D43, `notification.contract_terminated_requested`)
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.contract_terminated_requested` (DLX `notification-svc.contracts.dlx`) |
+| Exchange, routing key | `agricontract.contracts`, `notification.contract_terminated_requested` |
+| Recipients | every entry of `payload.recipients`: for a withdrawal, only the party that did not withdraw |
+| Row per email | `notification_type = OFFER_WITHDRAWN`, `template_version = offer-withdrawn/v1` |
+
+- The command carries every termination type; the parser checks all of them against the contract. Only
+  `WITHDRAW_OFFER` has an email so far: it says who withdrew (buyer or seller), that the contract can no longer be
+  signed, that nobody is penalised since no deposit was locked, and that the reserved quantity goes back to the
+  listing.
+- Any other `terminationType` (#278), or a withdrawal with `requestedBy = SYSTEM` (the email names the party), is
+  dead-lettered at once as `Unsupported notification.contract_terminated_requested command: <reason>`, unsent, so
+  it waits in the DLQ for its template instead of being acked. A new type is a new entry of `TEMPLATES` in
+  `notify-contract-terminated.use-case.ts` with its own kind.
+- Queue, DLQ and DLX are declared ahead by contract-service (`TERMINATED_REQUESTED_QUEUE`), identically to
+  `topology.ts`, so withdrawals made before this consumer existed are mailed when it starts.
+- Same claim, dedup, redelivery and dead-letter rules as the signed-contract email; lines stay within 76
+  characters. `test/contract/contract-terminated-requested.contract.spec.ts` checks the parser against the
+  contract in both directions.
+
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
