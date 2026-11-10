@@ -27,6 +27,12 @@ public interface OtpChallengeRepository {
     int countSentSince(String contractId, String userId, SignerRole signerRole, ConsentActionType action,
                        Instant since);
 
+    /**
+     * Kills every still-usable challenge on this contract, of both parties and any action (#233: the offer was
+     * withdrawn). Run under the contract row lock. Returns how many were killed.
+     */
+    int expireAllUsable(String contractId, Instant now);
+
     /** Kills one challenge, e.g. when the OTP email could not be handed to the provider. */
     void expire(UUID otpId, Instant now);
 
