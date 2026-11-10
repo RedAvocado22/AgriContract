@@ -1,5 +1,6 @@
 import type {
   ActivationCancelRequestedCommand,
+  ContractActivationFailedRequestedCommand,
   ContractAnchorRequestedCommand,
   NotificationRecipient,
 } from '../../src/application/commands';
@@ -150,5 +151,74 @@ export function cancelCommand(): ActivationCancelRequestedCommand {
     recipients: [{ ...CANCEL_RECIPIENT }],
     requestedByRole: 'BUYER',
     oneSidedCancelAllowedFrom: '2026-11-14T03:00:00Z',
+  };
+}
+
+/*
+ * `notification.contract_activation_failed_requested`, as contract-service
+ * writes it (OutboxContractEventPublisher.contractActivationFailedRequested)
+ * from escrow-service's `escrow.deposit_lock_failed`: the buyer's lock failed,
+ * the seller's is held, and both parties are addressed.
+ */
+export const ACTIVATION_FAILED_RECIPIENTS: NotificationRecipient[] = [
+  {
+    userId: 'd2a1f3b4-6c5d-4e7f-8a9b-0c1d2e3f4a5b',
+    email: 'buyer@activation.test',
+    role: 'BUYER',
+  },
+  {
+    userId: '9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b',
+    email: 'seller@activation.test',
+    role: 'SELLER',
+  },
+];
+
+export function activationFailedEnvelope(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    eventId: '4b3a2c1d-0e9f-4a8b-8c7d-6e5f4a3b2c1d',
+    eventType: 'notification.contract_activation_failed_requested',
+    eventVersion: 1,
+    occurredAt: '2026-11-10T02:00:00.123456Z',
+    producer: 'contract-service',
+    aggregateId: CONTRACT_ID,
+    correlationId: CONTRACT_ID,
+    causationId: '7d6c5b4a-3f2e-4d1c-8b0a-9f8e7d6c5b4a',
+    payload: activationFailedPayload(),
+    ...overrides,
+  };
+}
+
+export function activationFailedPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    contractId: CONTRACT_ID,
+    recipients: ACTIVATION_FAILED_RECIPIENTS.map((r) => ({ ...r })),
+    failedLeg: 'BUYER',
+    buyerDepositState: 'LOCK_FAILED',
+    sellerDepositState: 'DEPOSIT_LOCKED',
+    nextActions: ['RETRY_DEPOSIT_LOCK', 'REQUEST_ACTIVATION_CANCEL'],
+    oneSidedCancelAllowedFrom: '2026-11-13T17:00:00Z',
+    ...overrides,
+  };
+}
+
+export const activationFailedBody = (
+  overrides: Record<string, unknown> = {},
+): Buffer => Buffer.from(JSON.stringify(activationFailedEnvelope(overrides)));
+
+/** The command the parser is expected to produce from `activationFailedEnvelope()`. */
+export function activationFailedCommand(): ContractActivationFailedRequestedCommand {
+  return {
+    eventId: activationFailedEnvelope().eventId as string,
+    contractId: CONTRACT_ID,
+    recipients: ACTIVATION_FAILED_RECIPIENTS.map((r) => ({ ...r })),
+    failedLeg: 'BUYER',
+    buyerDepositState: 'LOCK_FAILED',
+    sellerDepositState: 'DEPOSIT_LOCKED',
+    nextActions: ['RETRY_DEPOSIT_LOCK', 'REQUEST_ACTIVATION_CANCEL'],
+    oneSidedCancelAllowedFrom: '2026-11-13T17:00:00Z',
   };
 }

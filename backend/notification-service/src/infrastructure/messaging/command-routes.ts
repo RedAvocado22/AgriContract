@@ -1,9 +1,11 @@
 import type {
   NotifyActivationCancelRequestedUseCase,
+  NotifyContractActivationFailedUseCase,
   NotifyContractAnchorUseCase,
 } from '../../application/use-cases';
 import {
   parseActivationCancelRequested,
+  parseContractActivationFailedRequested,
   parseContractAnchorRequested,
 } from './notification-command.parsers';
 import type { CommandRoutingKey } from './topology';
@@ -19,6 +21,7 @@ export type CommandRoutes = Record<
 export interface CommandUseCases {
   contractAnchor: NotifyContractAnchorUseCase;
   activationCancelRequested: NotifyActivationCancelRequestedUseCase;
+  contractActivationFailed: NotifyContractActivationFailedUseCase;
 }
 
 /**
@@ -33,5 +36,9 @@ export function commandRoutes(u: CommandUseCases): CommandRoutes {
       u.contractAnchor.execute(parseContractAnchorRequested(b)),
     'notification.activation_cancel_requested': (b) =>
       u.activationCancelRequested.execute(parseActivationCancelRequested(b)),
+    'notification.contract_activation_failed_requested': (b) =>
+      u.contractActivationFailed.execute(
+        parseContractActivationFailedRequested(b),
+      ),
   };
 }

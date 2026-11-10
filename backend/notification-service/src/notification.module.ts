@@ -9,6 +9,7 @@ import {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
   NotifyActivationCancelRequestedUseCase,
+  NotifyContractActivationFailedUseCase,
   NotifyContractAnchorUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
@@ -91,16 +92,24 @@ const USE_CASES = {
     useCaseOf(NotifyCategoryRejectedUseCase),
     useCaseOf(NotifyContractAnchorUseCase),
     useCaseOf(NotifyActivationCancelRequestedUseCase),
+    useCaseOf(NotifyContractActivationFailedUseCase),
     {
       provide: COMMAND_ROUTES,
       inject: [
         NotifyContractAnchorUseCase,
         NotifyActivationCancelRequestedUseCase,
+        NotifyContractActivationFailedUseCase,
       ],
       useFactory: (
         contractAnchor: NotifyContractAnchorUseCase,
         activationCancelRequested: NotifyActivationCancelRequestedUseCase,
-      ) => commandRoutes({ contractAnchor, activationCancelRequested }),
+        contractActivationFailed: NotifyContractActivationFailedUseCase,
+      ) =>
+        commandRoutes({
+          contractAnchor,
+          activationCancelRequested,
+          contractActivationFailed,
+        }),
     },
     {
       provide: LEGACY_ROUTES,

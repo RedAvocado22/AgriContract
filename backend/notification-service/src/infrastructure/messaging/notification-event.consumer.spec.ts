@@ -11,6 +11,8 @@ import {
   anchorCommand,
   anchorEnvelope,
   cancelCommand,
+  activationFailedCommand,
+  activationFailedEnvelope,
   cancelEnvelope,
 } from '../../../test/support/commands';
 import { commandRoutes, type CommandUseCases } from './command-routes';
@@ -58,6 +60,7 @@ class FakeChannel {
 const HANDLERS = [
   'contractAnchor',
   'activationCancelRequested',
+  'contractActivationFailed',
   'escrowLocked',
   'escrowReleased',
   'escrowPenalized',
@@ -277,6 +280,48 @@ describe('NotificationEventConsumer', () => {
 
     expect(service.activationCancelRequested).not.toHaveBeenCalled();
     expect(service.contractAnchor).not.toHaveBeenCalled();
+    expect(channel.nacked).toHaveLength(1);
+  });
+
+  it('runs the activation-failed use case on its own queue, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.contract_activation_failed_requested',
+      activationFailedEnvelope(),
+    );
+    await flush();
+
+    expect(service.contractActivationFailed).toHaveBeenCalledTimes(1);
+    expect(service.contractActivationFailed.mock.calls[0][0]).toEqual(
+      activationFailedCommand(),
+    );
+    for (const other of HANDLERS.filter(
+      (h) => h !== 'contractActivationFailed',
+    )) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('dead-letters an activation-cancel command delivered to the activation-failed queue', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    channel.deliver(
+      'notification-svc.notification.contract_activation_failed_requested',
+      cancelEnvelope(),
+    );
+    await flush();
+
+    expect(service.contractActivationFailed).not.toHaveBeenCalled();
+    expect(service.activationCancelRequested).not.toHaveBeenCalled();
     expect(channel.nacked).toHaveLength(1);
   });
 

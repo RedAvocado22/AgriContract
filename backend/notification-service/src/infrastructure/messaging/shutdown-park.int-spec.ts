@@ -19,6 +19,7 @@ import {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
   NotifyActivationCancelRequestedUseCase,
+  NotifyContractActivationFailedUseCase,
   NotifyContractAnchorUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
@@ -110,6 +111,9 @@ describe('shutdown park on real MySQL', () => {
     const commands = commandRoutes({
       contractAnchor: new NotifyContractAnchorUseCase(sender),
       activationCancelRequested: new NotifyActivationCancelRequestedUseCase(
+        sender,
+      ),
+      contractActivationFailed: new NotifyContractActivationFailedUseCase(
         sender,
       ),
     });

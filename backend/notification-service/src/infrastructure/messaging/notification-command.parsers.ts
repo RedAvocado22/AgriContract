@@ -5,9 +5,12 @@ import {
   type EventEnvelope,
 } from '@agricontract/eventing';
 import {
+  ACTIVATION_NEXT_ACTIONS,
   CANCEL_REQUESTER_ROLES,
+  FAILED_LEGS,
   RECIPIENT_ROLES,
   type ActivationCancelRequestedCommand,
+  type ContractActivationFailedRequestedCommand,
   type ContractAnchorRequestedCommand,
   type NotificationRecipient,
   type RecipientRole,
@@ -113,6 +116,40 @@ class CommandReader {
       throw this.error(`field "${field}" must be one of ${values.join(', ')}`);
     }
     return value as T;
+  }
+
+  /**
+   * Any JSON string, the empty one included, as a bare `{type: string}` is
+   * declared: rejecting more would dead-letter a command the contract allows.
+   */
+  text(field: string): string {
+    const value = this.payload[field];
+    if (typeof value !== 'string') {
+      throw this.error(
+        `field "${field}" must be a string, got ${describe(value)}`,
+      );
+    }
+    return value;
+  }
+
+  /**
+   * An array of the contract's enum values, possibly empty; duplicates are
+   * allowed because the contract does not declare uniqueItems. The bad value
+   * is not quoted, only its index.
+   */
+  enumArray<T extends string>(field: string, values: readonly T[]): T[] {
+    const value = this.payload[field];
+    if (!Array.isArray(value)) {
+      throw this.error(
+        `field "${field}" must be an array, got ${describe(value)}`,
+      );
+    }
+    value.forEach((item, i) => {
+      if (!(values as readonly unknown[]).includes(item)) {
+        throw this.error(`${field}[${i}] must be one of ${values.join(', ')}`);
+      }
+    });
+    return (value as unknown[]).slice() as T[];
   }
 
   /** A JSON object of any shape, as `contractTermsSnapshot` is declared. */
@@ -314,6 +351,42 @@ export function parseActivationCancelRequested(
       'requestedByRole',
       CANCEL_REQUESTER_ROLES,
     ),
+    oneSidedCancelAllowedFrom: payload.dateTime('oneSidedCancelAllowedFrom'),
+  };
+}
+
+export const CONTRACT_ACTIVATION_FAILED_REQUESTED =
+  'notification.contract_activation_failed_requested';
+
+/** Payload properties of `contractActivationFailedRequested`, all required. */
+export const CONTRACT_ACTIVATION_FAILED_FIELDS = [
+  'contractId',
+  'recipients',
+  'failedLeg',
+  'buyerDepositState',
+  'sellerDepositState',
+  'nextActions',
+  'oneSidedCancelAllowedFrom',
+] as const;
+
+export function parseContractActivationFailedRequested(
+  body: Buffer,
+): ContractActivationFailedRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    CONTRACT_ACTIVATION_FAILED_REQUESTED,
+    'contract-service',
+  );
+  payload.only(CONTRACT_ACTIVATION_FAILED_FIELDS);
+
+  return {
+    eventId: envelope.eventId,
+    contractId: payload.uuid('contractId'),
+    recipients: payload.recipients(),
+    failedLeg: payload.enumValue('failedLeg', FAILED_LEGS),
+    buyerDepositState: payload.text('buyerDepositState'),
+    sellerDepositState: payload.text('sellerDepositState'),
+    nextActions: payload.enumArray('nextActions', ACTIVATION_NEXT_ACTIONS),
     oneSidedCancelAllowedFrom: payload.dateTime('oneSidedCancelAllowedFrom'),
   };
 }

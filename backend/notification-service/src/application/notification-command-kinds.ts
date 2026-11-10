@@ -28,4 +28,9 @@ export const COMMAND_KINDS = {
     notificationType: 'ACTIVATION_CANCEL_REQUESTED',
     templateVersion: 'activation-cancel-requested/v1',
   },
+  contractActivationFailed: {
+    eventType: 'notification.contract_activation_failed_requested',
+    notificationType: 'CONTRACT_ACTIVATION_FAILED',
+    templateVersion: 'contract-activation-failed/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;
