@@ -11,7 +11,7 @@ from docx.oxml.ns import qn
 from docxedit import append_row, find, next_table, png_size, replace_image, set_par_text, text_of
 
 REPO = Path(__file__).resolve().parents[3]
-DOC = REPO / "docs/reports/Report-3_SRS_1_7.docx"
+DOC = REPO / "docs/reports/Report-3_Software Requirement Specification.docx"
 FIG = REPO / "docs/reports/figures/srs"
 d = docx.Document(DOC)
 body = d.element.body
