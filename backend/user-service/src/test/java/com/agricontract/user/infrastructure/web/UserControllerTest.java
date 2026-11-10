@@ -1,6 +1,8 @@
 package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.application.dto.PublicUserResponse;
+import com.agricontract.user.application.dto.RegisterUserCommand;
+import com.agricontract.user.application.dto.RegisterUserResult;
 import com.agricontract.user.application.dto.UserProfileResponse;
 import com.agricontract.user.application.usecase.GetUserInfoUseCase;
 import com.agricontract.user.application.usecase.GetUserProfileUseCase;
@@ -9,18 +11,25 @@ import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import com.agricontract.user.infrastructure.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.util.NoSuchElementException;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -133,5 +142,69 @@ class UserControllerTest {
         mockMvc.perform(get("/api/v1/users/me").header("X-Gateway-Secret", GATEWAY_SECRET))
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(getUserProfileUseCase);
+    }
+
+    // --- register (#153: email comes from the body, never from a header) ---
+
+    private static final String REGISTER_URL = "/api/v1/users/register";
+
+    private static UserProfileResponse profile(String email) {
+        return UserProfileResponse.builder().userId(CALLER_ID).organizationName("Cong ty Mua").role(Role.BUYER)
+                .email(email).verificationStatus(VerificationStatus.PENDING).build();
+    }
+
+    private static String registerBody(String emailJson) {
+        return "{\"organizationName\":\"Cong ty Mua\"" + (emailJson == null ? "" : ",\"email\":" + emailJson) + "}";
+    }
+
+    @Test
+    void register_new_takesEmailFromBody_is201() throws Exception {
+        when(registerUserUseCase.execute(any())).thenReturn(new RegisterUserResult(profile("body@test.com"), true));
+
+        mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody("\"body@test.com\"")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.email").value("body@test.com"));
+
+        ArgumentCaptor<RegisterUserCommand> command = ArgumentCaptor.forClass(RegisterUserCommand.class);
+        verify(registerUserUseCase).execute(command.capture());
+        assertThat(command.getValue().userId()).isEqualTo(CALLER_ID);
+        assertThat(command.getValue().email()).isEqualTo("body@test.com");
+        assertThat(command.getValue().role()).isEqualTo(Role.BUYER);
+    }
+
+    @Test
+    void register_forgedEmailHeaders_areIgnored() throws Exception {
+        when(registerUserUseCase.execute(any())).thenReturn(new RegisterUserResult(profile("body@test.com"), true));
+
+        // Two values used to be rejected (403) when X-User-Email was an identity header; it no longer is one.
+        mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Email", "forged-1@test.com").header("X-User-Email", "forged-2@test.com")
+                        .content(registerBody("\"body@test.com\"")))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<RegisterUserCommand> command = ArgumentCaptor.forClass(RegisterUserCommand.class);
+        verify(registerUserUseCase).execute(command.capture());
+        assertThat(command.getValue().email()).isEqualTo("body@test.com");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"<missing>", "\"\"", "\"not-an-email\""})
+    void register_missingOrMalformedEmail_is400(String emailJson) throws Exception {
+        mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody("<missing>".equals(emailJson) ? null : emailJson)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(registerUserUseCase);
+    }
+
+    @Test
+    void register_existingUser_is200_withStoredEmail() throws Exception {
+        when(registerUserUseCase.execute(any())).thenReturn(new RegisterUserResult(profile("stored@test.com"), false));
+
+        mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody("\"body@test.com\"")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("stored@test.com"));
     }
 }

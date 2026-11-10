@@ -24,7 +24,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     static final String FORBIDDEN_BODY = "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}";
     static final String UNAUTHORIZED_BODY = "{\"success\":false,\"message\":\"Unauthorized\",\"data\":null}";
 
-    private static final List<String> IDENTITY_HEADERS = List.of("X-User-Id", "X-User-Role", "X-User-Email");
+    private static final List<String> IDENTITY_HEADERS = List.of("X-User-Id", "X-User-Role");
     private static final GrantedAuthority OPERATOR = new SimpleGrantedAuthority("ROLE_OPERATOR");
     private static final GrantedAuthority ARBITRATOR = new SimpleGrantedAuthority("ROLE_ARBITRATOR");
 
