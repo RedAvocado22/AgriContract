@@ -1,5 +1,5 @@
 meta {
-  name: 07. [Edge] Create Contract idempotent — same contractId, same buyer (expect 201, no duplicate)
+  name: 07. [Edge] Create Contract replay — same Idempotency-Key and body (expect same contract, no second reservation)
   type: http
   seq: 7
 }
@@ -10,30 +10,27 @@ post {
   auth: bearer
 }
 
+headers {
+  Idempotency-Key: 3c0f2b8e-5d1a-4e7b-9a6c-2f4d8e1b7a90
+}
+
 auth:bearer {
   token: {{buyer_token}}
 }
 
 body:json {
   {
-    "contractId": "{{contract_id}}",
     "listingId": "{{listing_id}}",
-    "terms": {
-      "quantity": { "value": 100, "unit": "kg" },
-      "agreedPrice": { "amount": 5000000, "currency": "VND" },
-      "deliveryDeadline": "2026-08-01",
-      "buyerPenaltyRate": 0.1,
-      "sellerDepositRate": 0.1,
-      "qualitySpec": "Grade A, moisture < 14%"
-    }
+    "listingVersionToken": "{{listing_version_token}}",
+    "terms": {"agreedPrice":"95000.00","buyerConfirmWindowDays":3,"buyerDepositRate":0.05,"buyerPenaltyRate":0.08,"currency":"VND","deliveryTerms":{"deliveryResponsibility":"SELLER_DELIVERS","riskTransferPoint":"BUYER_RECEIPT","titleTransferPoint":"FULL_PAYMENT","transportCostBearer":"SELLER","unloadingCostBearer":"BUYER"},"disputeFloorReleaseRate":0.5,"forceMajeureReportWindowDays":7,"inspectionTerms":{"inspectionCostResponsibility":"LOSER_PAYS","reportDueBusinessDays":5,"requiredTier":"LEVEL_1_5","requirement":"NONE_UNLESS_DISPUTED"},"legalProfile":{"contractType":"COFFEE_SALE","damagesPolicy":"COMMERCIAL_CUMULATIVE_IF_PROVEN","governingLaw":"VN_COMMERCIAL_LAW","maxContractualPenaltyRate":0.08},"level2InspectorOrg":null,"milestoneSchedule":[{"committedQuantity":1000,"expectedDeliveryDate":"2026-12-15","graceDays":2,"milestoneIndex":1},{"committedQuantity":1500.5,"expectedDeliveryDate":"2027-01-20","graceDays":2,"milestoneIndex":2}],"priceAdjustmentRule":{"acceptanceMode":"BOTH_ACCEPT","cutoff":"BEFORE_FUNDING_REQUEST","maximumAcceptedAdjustmentsPerMilestone":1},"priceBand":{"maximumUnitPrice":"100000.00","minimumUnitPrice":"90000.00"},"qualityTerms":{"committedSpec":{"blackBrokenBeansPercent":5,"commodity":"COFFEE","foreignMatterPercent":0.5,"moisturePercent":12.5,"type":"ROBUSTA"},"commodity":"COFFEE","deviationPolicy":{"blackBrokenBeansPercent":{"direction":"MAXIMUM","discountRate":0.02,"penalty":1,"reject":2,"tolerance":0.5},"foreignMatterPercent":{"direction":"MAXIMUM","discountRate":0.02,"penalty":1,"reject":2,"tolerance":0.5},"moisturePercent":{"direction":"MAXIMUM","discountRate":0.02,"penalty":1,"reject":2,"tolerance":0.5},"type":{"rejectOnMismatch":true}}},"sellerDepositRate":0.03,"sellerPenaltyRate":0.06,"shortfallPenaltyThreshold":0.05,"toleranceRate":0.05}
   }
 }
 
 tests {
-  test("idempotent create should return 201", function() {
+  test("replay should return 201 like the first call", function() {
     expect(res.getStatus()).to.equal(201);
   });
   test("contractId should be same", function() {
-    expect(res.getBody().data.contractId).to.equal(bru.getEnvVar("contract_id"));
+    expect(res.getBody().contractId).to.equal(bru.getEnvVar("contract_id"));
   });
 }

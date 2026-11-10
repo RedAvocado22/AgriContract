@@ -1,5 +1,5 @@
 meta {
-  name: 06. Create Contract (buyer offers) — state: OFFERED
+  name: 06. Create Contract (buyer offers, reserves listing kg) — state: OFFERED
   type: http
   seq: 6
 }
@@ -10,6 +10,10 @@ post {
   auth: bearer
 }
 
+headers {
+  Idempotency-Key: 3c0f2b8e-5d1a-4e7b-9a6c-2f4d8e1b7a90
+}
+
 auth:bearer {
   token: {{buyer_token}}
 }
@@ -17,15 +21,15 @@ auth:bearer {
 body:json {
   {
     "listingId": "{{listing_id}}",
-    "terms": {
-      "quantity": { "value": 100, "unit": "kg" },
-      "agreedPrice": { "amount": 5000000, "currency": "VND" },
-      "deliveryDeadline": "2026-08-01",
-      "buyerPenaltyRate": 0.1,
-      "sellerDepositRate": 0.1,
-      "qualitySpec": "Grade A, moisture < 14%"
-    }
+    "listingVersionToken": "{{listing_version_token}}",
+    "terms": {"agreedPrice":"95000.00","buyerConfirmWindowDays":3,"buyerDepositRate":0.05,"buyerPenaltyRate":0.08,"currency":"VND","deliveryTerms":{"deliveryResponsibility":"SELLER_DELIVERS","riskTransferPoint":"BUYER_RECEIPT","titleTransferPoint":"FULL_PAYMENT","transportCostBearer":"SELLER","unloadingCostBearer":"BUYER"},"disputeFloorReleaseRate":0.5,"forceMajeureReportWindowDays":7,"inspectionTerms":{"inspectionCostResponsibility":"LOSER_PAYS","reportDueBusinessDays":5,"requiredTier":"LEVEL_1_5","requirement":"NONE_UNLESS_DISPUTED"},"legalProfile":{"contractType":"COFFEE_SALE","damagesPolicy":"COMMERCIAL_CUMULATIVE_IF_PROVEN","governingLaw":"VN_COMMERCIAL_LAW","maxContractualPenaltyRate":0.08},"level2InspectorOrg":null,"milestoneSchedule":[{"committedQuantity":1000,"expectedDeliveryDate":"2026-12-15","graceDays":2,"milestoneIndex":1},{"committedQuantity":1500.5,"expectedDeliveryDate":"2027-01-20","graceDays":2,"milestoneIndex":2}],"priceAdjustmentRule":{"acceptanceMode":"BOTH_ACCEPT","cutoff":"BEFORE_FUNDING_REQUEST","maximumAcceptedAdjustmentsPerMilestone":1},"priceBand":{"maximumUnitPrice":"100000.00","minimumUnitPrice":"90000.00"},"qualityTerms":{"committedSpec":{"blackBrokenBeansPercent":5,"commodity":"COFFEE","foreignMatterPercent":0.5,"moisturePercent":12.5,"type":"ROBUSTA"},"commodity":"COFFEE","deviationPolicy":{"blackBrokenBeansPercent":{"direction":"MAXIMUM","discountRate":0.02,"penalty":1,"reject":2,"tolerance":0.5},"foreignMatterPercent":{"direction":"MAXIMUM","discountRate":0.02,"penalty":1,"reject":2,"tolerance":0.5},"moisturePercent":{"direction":"MAXIMUM","discountRate":0.02,"penalty":1,"reject":2,"tolerance":0.5},"type":{"rejectOnMismatch":true}}},"sellerDepositRate":0.03,"sellerPenaltyRate":0.06,"shortfallPenaltyThreshold":0.05,"toleranceRate":0.05}
   }
+}
+
+docs {
+  listing_version_token is the listingVersionToken of GET /api/v1/listings/{listing_id}. The listing must be a
+  COFFEE listing with at least 2500.5 kg available; the quantity reserved is the sum of milestoneSchedule
+  committedQuantity. Not enough kg → 409 INSUFFICIENT_LISTING_QUANTITY; stale token → 409 LISTING_VERSION_MISMATCH.
 }
 
 tests {
@@ -33,13 +37,16 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
   test("status should be OFFERED", function() {
-    expect(res.getBody().data.status).to.equal("OFFERED");
+    expect(res.getBody().status).to.equal("OFFERED");
+  });
+  test("reservedQuantity is the milestone total", function() {
+    expect(res.getBody().reservedQuantity).to.equal(2500.5);
   });
   test("buyerId should match buyer1", function() {
-    expect(res.getBody().data.buyerId).to.equal(bru.getEnvVar("buyer1_sub"));
+    expect(res.getBody().buyerId).to.equal(bru.getEnvVar("buyer1_sub"));
   });
 }
 
 script:post-response {
-  bru.setEnvVar("contract_id", res.getBody().data.contractId);
+  bru.setEnvVar("contract_id", res.getBody().contractId);
 }
