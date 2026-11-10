@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="730" height="765" viewBox="0 0 730 765" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker></defs>
+<rect width="730" height="765" fill="white"/>
+<rect x="100" y="15" width="510" height="735" fill="white" stroke="black" stroke-width="1.3"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="355.0" y="31.0">AgriContract</tspan></text>
+<line x1="59.0" y1="378.0" x2="150.0" y2="63.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="122.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="188.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="246.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="351.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="402.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="453.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="511.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="577.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="643.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="378.0" x2="150.0" y2="709.5" stroke="black" stroke-width="1.1"/>
+<line x1="430.0" y1="248.0" x2="312.1" y2="246.5" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="346.41015625" y="240.25" width="49.2578125" height="14.0" fill="white"/>
+<text x="371.0390625" y="247.25" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«extend»</text>
+<line x1="430.0" y1="318.0" x2="302.7" y2="351.0" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="341.740234375" y="327.5" width="49.2578125" height="14.0" fill="white"/>
+<text x="366.369140625" y="334.5" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«extend»</text>
+<line x1="430.0" y1="384.0" x2="302.7" y2="351.0" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="341.740234375" y="360.5" width="49.2578125" height="14.0" fill="white"/>
+<text x="366.369140625" y="367.5" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«extend»</text>
+<line x1="600.5" y1="384.0" x2="629.3" y2="384.0" stroke="black" stroke-width="1.1"/>
+<line x1="300.7" y1="577.5" x2="430.0" y2="643.5" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="339.822265625" y="603.5" width="51.09375" height="14.0" fill="white"/>
+<text x="365.369140625" y="610.5" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«include»</text>
+<line x1="299.4" y1="709.5" x2="430.0" y2="643.5" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="339.150390625" y="669.5" width="51.09375" height="14.0" fill="white"/>
+<text x="364.697265625" y="676.5" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«include»</text>
+<circle cx="45" cy="367.5" r="7" fill="white" stroke="black" stroke-width="1.2"/><line x1="45" y1="374.5" x2="45" y2="388.5" stroke="black" stroke-width="1.2"/><line x1="34" y1="379.5" x2="56" y2="379.5" stroke="black" stroke-width="1.2"/><line x1="45" y1="388.5" x2="36" y2="399.5" stroke="black" stroke-width="1.2"/><line x1="45" y1="388.5" x2="54" y2="399.5" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="45" y="412.0">Seller</tspan></text>
+<ellipse cx="240.404296875" cy="63.5" rx="90.404296875" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="240.404296875" y="63.5">UC02 Log In and Log Out</tspan></text>
+<ellipse cx="229.37890625" cy="122.0" rx="79.37890625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="229.37890625" y="114.5">UC03 Manage Profile</tspan><tspan x="229.37890625" y="129.5">and KYC</tspan></text>
+<ellipse cx="231.26953125" cy="188.0" rx="81.26953125" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="231.26953125" y="180.5">UC18 View Reference</tspan><tspan x="231.26953125" y="195.5">Prices</tspan></text>
+<ellipse cx="231.0390625" cy="246.5" rx="81.0390625" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="231.0390625" y="246.5">UC16 Browse Listings</tspan></text>
+<ellipse cx="503.259765625" cy="248.0" rx="73.259765625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="503.259765625" y="240.5">UC04 View Partner</tspan><tspan x="503.259765625" y="255.5">Profile</tspan></text>
+<ellipse cx="498.02734375" cy="318.0" rx="68.02734375" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="498.02734375" y="310.5">UC10 Upload</tspan><tspan x="498.02734375" y="325.5">Cadastral Extract</tspan></text>
+<ellipse cx="515.26171875" cy="384.0" rx="85.26171875" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="515.26171875" y="376.5">UC11 Request Geo-risk</tspan><tspan x="515.26171875" y="391.5">Re-evaluation</tspan></text>
+<ellipse cx="226.369140625" cy="351.0" rx="76.369140625" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="226.369140625" y="351.0">UC09 Register Plots</tspan></text>
+<ellipse cx="236.048828125" cy="402.0" rx="86.048828125" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="236.048828125" y="402.0">UC13 Manage Products</tspan></text>
+<ellipse cx="226.04296875" cy="453.0" rx="76.04296875" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="226.04296875" y="453.0">UC14 Create Listing</tspan></text>
+<ellipse cx="230.04296875" cy="511.5" rx="80.04296875" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="230.04296875" y="504.0">UC15 Pause or Close</tspan><tspan x="230.04296875" y="519.0">Listing</tspan></text>
+<ellipse cx="225.369140625" cy="577.5" rx="75.369140625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="225.369140625" y="570.0">UC32 Record Seller</tspan><tspan x="225.369140625" y="585.0">Weighing</tspan></text>
+<ellipse cx="219.708984375" cy="643.5" rx="69.708984375" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="219.708984375" y="636.0">UC36 Respond to</tspan><tspan x="219.708984375" y="651.0">Delivery Issue</tspan></text>
+<ellipse cx="224.697265625" cy="709.5" rx="74.697265625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="224.697265625" y="702.0">UC37 Submit Force</tspan><tspan x="224.697265625" y="717.0">Majeure Claim</tspan></text>
+<ellipse cx="488.03125" cy="643.5" rx="58.03125" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="488.03125" y="636.0">UC38 Upload</tspan><tspan x="488.03125" y="651.0">Evidence File</tspan></text>
+<rect x="629.3046875" y="363.0" width="91.390625" height="42" fill="white" stroke="black" stroke-width="1.2"/>
+<text x="675" y="376.5" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«system»</text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="675" y="391.5">Geo Datasets</tspan></text>
+</svg>

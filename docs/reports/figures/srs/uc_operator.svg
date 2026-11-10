@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="730" height="625" viewBox="0 0 730 625" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker></defs>
+<rect width="730" height="625" fill="white"/>
+<rect x="100" y="15" width="500" height="595" fill="white" stroke="black" stroke-width="1.3"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="350.0" y="31.0">AgriContract</tspan></text>
+<line x1="59.0" y1="298.0" x2="150.0" y2="63.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="122.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="180.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="239.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="297.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="356.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="422.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="488.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="298.0" x2="150.0" y2="554.0" stroke="black" stroke-width="1.1"/>
+<line x1="320.8" y1="422.0" x2="632.0" y2="455.0" stroke="black" stroke-width="1.1"/>
+<line x1="292.1" y1="488.0" x2="632.0" y2="455.0" stroke="black" stroke-width="1.1"/>
+<line x1="314.7" y1="554.0" x2="654.0" y2="554.0" stroke="black" stroke-width="1.1"/>
+<circle cx="45" cy="287.5" r="7" fill="white" stroke="black" stroke-width="1.2"/><line x1="45" y1="294.5" x2="45" y2="308.5" stroke="black" stroke-width="1.2"/><line x1="34" y1="299.5" x2="56" y2="299.5" stroke="black" stroke-width="1.2"/><line x1="45" y1="308.5" x2="36" y2="319.5" stroke="black" stroke-width="1.2"/><line x1="45" y1="308.5" x2="54" y2="319.5" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="45" y="332.0">Operator</tspan></text>
+<ellipse cx="240.404296875" cy="63.5" rx="90.404296875" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="240.404296875" y="63.5">UC02 Log In and Log Out</tspan></text>
+<ellipse cx="222.6953125" cy="122.0" rx="72.6953125" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="222.6953125" y="114.5">UC05 Review KYC</tspan><tspan x="222.6953125" y="129.5">Application</tspan></text>
+<ellipse cx="234.03515625" cy="180.5" rx="84.03515625" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="234.03515625" y="180.5">UC12 Review Plot Risk</tspan></text>
+<ellipse cx="234.72265625" cy="239.0" rx="84.72265625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="234.72265625" y="231.5">UC17 Moderate</tspan><tspan x="234.72265625" y="246.5">Categories and Listings</tspan></text>
+<ellipse cx="243.046875" cy="297.5" rx="93.046875" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="243.046875" y="297.5">UC19 Enter Manual Prices</tspan></text>
+<ellipse cx="219.048828125" cy="356.0" rx="69.048828125" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="219.048828125" y="348.5">UC06 Propose</tspan><tspan x="219.048828125" y="363.5">Reputation Action</tspan></text>
+<ellipse cx="235.388671875" cy="422.0" rx="85.388671875" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="235.388671875" y="414.5">UC29 Handle Activation</tspan><tspan x="235.388671875" y="429.5">Failure (retry the lock)</tspan></text>
+<ellipse cx="221.04296875" cy="488.0" rx="71.04296875" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="221.04296875" y="480.5">UC39 Retry</tspan><tspan x="221.04296875" y="495.5">Milestone Funding</tspan></text>
+<ellipse cx="232.373046875" cy="554.0" rx="82.373046875" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="232.373046875" y="546.5">UC47 Review External</tspan><tspan x="232.373046875" y="561.5">Inspection Report</tspan></text>
+<rect x="631.974609375" y="426.5" width="72.05078125" height="57" fill="white" stroke="black" stroke-width="1.2"/>
+<text x="668" y="440.0" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«system»</text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="668" y="455.0">Custodian</tspan><tspan x="668" y="470.0">Bank</tspan></text>
+<circle cx="668" cy="536.0" r="7" fill="white" stroke="black" stroke-width="1.2"/><line x1="668" y1="543.0" x2="668" y2="557.0" stroke="black" stroke-width="1.2"/><line x1="657" y1="548.0" x2="679" y2="548.0" stroke="black" stroke-width="1.2"/><line x1="668" y1="557.0" x2="659" y2="568.0" stroke="black" stroke-width="1.2"/><line x1="668" y1="557.0" x2="677" y2="568.0" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="668" y="580.5">Level 2</tspan><tspan x="668" y="595.5">Inspection Org</tspan></text>
+</svg>

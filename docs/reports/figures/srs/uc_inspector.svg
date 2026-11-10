@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="730" height="400" viewBox="0 0 730 400" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker></defs>
+<rect width="730" height="400" fill="white"/>
+<rect x="130" y="15" width="470" height="370" fill="white" stroke="black" stroke-width="1.3"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="365.0" y="31.0">AgriContract</tspan></text>
+<line x1="69.0" y1="138.0" x2="175.0" y2="63.5" stroke="black" stroke-width="1.1"/>
+<line x1="69.0" y1="138.0" x2="175.0" y2="122.0" stroke="black" stroke-width="1.1"/>
+<line x1="69.0" y1="138.0" x2="175.0" y2="188.0" stroke="black" stroke-width="1.1"/>
+<line x1="430.0" y1="236.0" x2="330.9" y2="188.0" stroke="black" stroke-width="1.1" stroke-dasharray="5,4" marker-end="url(#open)"/>
+<rect x="355.80859375" y="205.0" width="49.2578125" height="14.0" fill="white"/>
+<text x="380.4375" y="212.0" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«extend»</text>
+<line x1="654.0" y1="323.0" x2="583.4" y2="316.0" stroke="black" stroke-width="1.1"/>
+<line x1="583.4" y1="316.0" x2="633.3" y2="215.0" stroke="black" stroke-width="1.1"/>
+<circle cx="55" cy="120.0" r="7" fill="white" stroke="black" stroke-width="1.2"/><line x1="55" y1="127.0" x2="55" y2="141.0" stroke="black" stroke-width="1.2"/><line x1="44" y1="132.0" x2="66" y2="132.0" stroke="black" stroke-width="1.2"/><line x1="55" y1="141.0" x2="46" y2="152.0" stroke="black" stroke-width="1.2"/><line x1="55" y1="141.0" x2="64" y2="152.0" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="55" y="164.5">Inspector</tspan><tspan x="55" y="179.5">(Level 1.5)</tspan></text>
+<ellipse cx="265.404296875" cy="63.5" rx="90.404296875" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="265.404296875" y="63.5">UC02 Log In and Log Out</tspan></text>
+<ellipse cx="254.37890625" cy="122.0" rx="79.37890625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="254.37890625" y="114.5">UC03 Manage Profile</tspan><tspan x="254.37890625" y="129.5">and KYC</tspan></text>
+<ellipse cx="252.9375" cy="188.0" rx="77.9375" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="252.9375" y="180.5">UC43 View Assigned</tspan><tspan x="252.9375" y="195.5">Cases</tspan></text>
+<ellipse cx="498.0390625" cy="236.0" rx="68.0390625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="498.0390625" y="228.5">UC44 Submit</tspan><tspan x="498.0390625" y="243.5">Inspection Result</tspan></text>
+<ellipse cx="506.7109375" cy="316.0" rx="76.7109375" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="506.7109375" y="308.5">UC46 Send External</tspan><tspan x="506.7109375" y="323.5">Inspection Report</tspan></text>
+<rect x="633.3203125" y="186.5" width="69.359375" height="57" fill="white" stroke="black" stroke-width="1.2"/>
+<text x="668" y="200.0" text-anchor="middle" dominant-baseline="central" font-size="11" font-style="italic">«system»</text>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="668" y="215.0">Email</tspan><tspan x="668" y="230.0">Service</tspan></text>
+<circle cx="668" cy="297.5" r="7" fill="white" stroke="black" stroke-width="1.2"/><line x1="668" y1="304.5" x2="668" y2="318.5" stroke="black" stroke-width="1.2"/><line x1="657" y1="309.5" x2="679" y2="309.5" stroke="black" stroke-width="1.2"/><line x1="668" y1="318.5" x2="659" y2="329.5" stroke="black" stroke-width="1.2"/><line x1="668" y1="318.5" x2="677" y2="329.5" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="668" y="342.0">Level 2</tspan><tspan x="668" y="357.0">Inspection</tspan><tspan x="668" y="372.0">Organization</tspan></text>
+</svg>

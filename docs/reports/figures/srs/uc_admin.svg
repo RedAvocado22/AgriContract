@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="440" viewBox="0 0 400 440" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker></defs>
+<rect width="400" height="440" fill="white"/>
+<rect x="100" y="15" width="280" height="410" fill="white" stroke="black" stroke-width="1.3"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="240.0" y="31.0">AgriContract</tspan></text>
+<line x1="59.0" y1="213.0" x2="150.0" y2="63.5" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="213.0" x2="150.0" y2="122.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="213.0" x2="150.0" y2="188.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="213.0" x2="150.0" y2="254.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="213.0" x2="150.0" y2="320.0" stroke="black" stroke-width="1.1"/>
+<line x1="59.0" y1="213.0" x2="150.0" y2="386.0" stroke="black" stroke-width="1.1"/>
+<circle cx="45" cy="202.5" r="7" fill="white" stroke="black" stroke-width="1.2"/><line x1="45" y1="209.5" x2="45" y2="223.5" stroke="black" stroke-width="1.2"/><line x1="34" y1="214.5" x2="56" y2="214.5" stroke="black" stroke-width="1.2"/><line x1="45" y1="223.5" x2="36" y2="234.5" stroke="black" stroke-width="1.2"/><line x1="45" y1="223.5" x2="54" y2="234.5" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="45" y="247.0">Admin</tspan></text>
+<ellipse cx="240.404296875" cy="63.5" rx="90.404296875" ry="18.5" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="240.404296875" y="63.5">UC02 Log In and Log Out</tspan></text>
+<ellipse cx="236.720703125" cy="122.0" rx="86.720703125" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="236.720703125" y="114.5">UC08 Manage Accounts</tspan><tspan x="236.720703125" y="129.5">and Roles</tspan></text>
+<ellipse cx="230.705078125" cy="188.0" rx="80.705078125" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="230.705078125" y="180.5">UC48 Export Contract</tspan><tspan x="230.705078125" y="195.5">Evidence</tspan></text>
+<ellipse cx="224.041015625" cy="254.0" rx="74.041015625" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="224.041015625" y="246.5">UC49 Monitor Audit</tspan><tspan x="224.041015625" y="261.5">Integrity</tspan></text>
+<ellipse cx="225.2578125" cy="320.0" rx="75.2578125" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="225.2578125" y="312.5">UC50 View Security</tspan><tspan x="225.2578125" y="327.5">Lock Status</tspan></text>
+<ellipse cx="227.263671875" cy="386.0" rx="77.263671875" ry="26.0" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="227.263671875" y="378.5">UC53 View Analytics</tspan><tspan x="227.263671875" y="393.5">Reports</tspan></text>
+</svg>

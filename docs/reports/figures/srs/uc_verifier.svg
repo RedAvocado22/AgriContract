@@ -3,8 +3,8 @@
 <rect width="640" height="210" fill="white"/>
 <rect x="120" y="15" width="350" height="180" fill="white" stroke="black" stroke-width="1.3"/>
 <text text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="295.0" y="31.0">AgriContract</tspan></text>
-<line x1="69.0" y1="98.0" x2="212.5" y2="83.1" stroke="black" stroke-width="1.1"/>
-<line x1="69.0" y1="98.0" x2="223.8" y2="130.9" stroke="black" stroke-width="1.1"/>
+<line x1="69.0" y1="98.0" x2="204.0" y2="75.0" stroke="black" stroke-width="1.1"/>
+<line x1="69.0" y1="98.0" x2="211.3" y2="145.0" stroke="black" stroke-width="1.1"/>
 <line x1="368.7" y1="145.0" x2="524.0" y2="145.0" stroke="black" stroke-width="1.1"/>
 <circle cx="55" cy="80.0" r="7" fill="white" stroke="black" stroke-width="1.2"/><line x1="55" y1="87.0" x2="55" y2="101.0" stroke="black" stroke-width="1.2"/><line x1="44" y1="92.0" x2="66" y2="92.0" stroke="black" stroke-width="1.2"/><line x1="55" y1="101.0" x2="46" y2="112.0" stroke="black" stroke-width="1.2"/><line x1="55" y1="101.0" x2="64" y2="112.0" stroke="black" stroke-width="1.2"/>
 <text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="55" y="124.5">External</tspan><tspan x="55" y="139.5">Verifier</tspan></text>
