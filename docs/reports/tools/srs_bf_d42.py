@@ -14,7 +14,7 @@ from docxedit import (EMU_PER_CM, append_row, find, insert_copy_after, next_tabl
                       set_cell_text, set_par_text, text_of)
 
 REPO = Path(__file__).resolve().parents[3]
-DOC = REPO / "docs/reports/Report-3_SRS_1_7.docx"
+DOC = REPO / "docs/reports/Report-3_Software Requirement Specification.docx"
 FIG = REPO / "docs/reports/figures/srs"
 d = docx.Document(DOC)
 body = d.element.body
