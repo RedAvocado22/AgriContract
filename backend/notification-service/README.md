@@ -73,7 +73,8 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
 
 - A party asked to cancel a SIGNED contract whose deposit lock failed. The email tells the other party who asked,
   that nobody breached so nobody is penalised, that asking too starts the refund at once, and from when the single
-  request is enough (`oneSidedCancelAllowedFrom`, in Vietnam time and UTC) unless the requester withdraws it. A
+  request is enough (`oneSidedCancelAllowedFrom`, in Vietnam time and UTC) unless the requester withdraws it, and
+  that the request lapses if the deposits get locked first (the contract then becomes active). A
   recipient who is not the other party (an OPERATOR, if the publisher adds one) gets the facts without the "you can"
   lines.
 - Queue, DLQ and DLX are declared ahead by contract-service (`CANCEL_REQUESTED_QUEUE`), identically to `topology.ts`.
