@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="535" viewBox="0 0 800 535" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
+<rect x="0" y="0" width="800" height="535" fill="white"/>
+<path d="M360,53.0 L360,142.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="366.0" y1="60.0" x2="354.0" y2="60.0" stroke="black" stroke-width="1.2"/><line x1="366.0" y1="65.0" x2="354.0" y2="65.0" stroke="black" stroke-width="1.2"/>
+<line x1="360.0" y1="131.0" x2="353.0" y2="142.0" stroke="black" stroke-width="1.2"/><line x1="360.0" y1="131.0" x2="367.0" y2="142.0" stroke="black" stroke-width="1.2"/><circle cx="360.0" cy="123.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="337.8203125" y="90.625" width="44.359375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="339.8203125" y="97.5">supplies</tspan></text>
+<path d="M88.671875,194 L298.62890625,194" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="95.7" y1="188.0" x2="95.7" y2="200.0" stroke="black" stroke-width="1.2"/><line x1="100.7" y1="188.0" x2="100.7" y2="200.0" stroke="black" stroke-width="1.2"/>
+<line x1="287.6" y1="194.0" x2="298.6" y2="201.0" stroke="black" stroke-width="1.2"/><line x1="287.6" y1="194.0" x2="298.6" y2="187.0" stroke="black" stroke-width="1.2"/><circle cx="279.6" cy="194.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="164.439453125" y="187.125" width="58.421875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="166.439453125" y="194.0">buys under</tspan></text>
+<path d="M72,213.0 L72,245 L298.62890625,245" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="78.0" y1="220.0" x2="66.0" y2="220.0" stroke="black" stroke-width="1.2"/><line x1="78.0" y1="225.0" x2="66.0" y2="225.0" stroke="black" stroke-width="1.2"/>
+<line x1="287.6" y1="245.0" x2="298.6" y2="252.0" stroke="black" stroke-width="1.2"/><line x1="287.6" y1="245.0" x2="298.6" y2="238.0" stroke="black" stroke-width="1.2"/><circle cx="279.6" cy="245.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="156.716796875" y="238.125" width="57.1953125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="158.716796875" y="245.0">sells under</tspan></text>
+<path d="M400,142.0 L400,110 L455,110 L455,165 L421.37109375,165" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="394.0" y1="134.0" x2="406.0" y2="134.0" stroke="black" stroke-width="1.2"/><circle cx="400.0" cy="125.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<line x1="429.4" y1="159.0" x2="429.4" y2="171.0" stroke="black" stroke-width="1.2"/><circle cx="438.4" cy="165.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="404.7109375" y="86.25" width="45.578125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="406.7109375" y="93.125">replaces</tspan></text>
+<path d="M50,213.0 L50,297.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="56.0" y1="220.0" x2="44.0" y2="220.0" stroke="black" stroke-width="1.2"/><line x1="56.0" y1="225.0" x2="44.0" y2="225.0" stroke="black" stroke-width="1.2"/>
+<line x1="50.0" y1="286.0" x2="43.0" y2="297.0" stroke="black" stroke-width="1.2"/><line x1="50.0" y1="286.0" x2="57.0" y2="297.0" stroke="black" stroke-width="1.2"/><circle cx="50.0" cy="278.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="27.2109375" y="248.125" width="45.578125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="29.2109375" y="255.0">provides</tspan></text>
+<path d="M360,258.0 L360,304.5" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="366.0" y1="265.0" x2="354.0" y2="265.0" stroke="black" stroke-width="1.2"/><line x1="366.0" y1="270.0" x2="354.0" y2="270.0" stroke="black" stroke-width="1.2"/>
+<line x1="360.0" y1="293.5" x2="353.0" y2="304.5" stroke="black" stroke-width="1.2"/><line x1="360.0" y1="293.5" x2="367.0" y2="304.5" stroke="black" stroke-width="1.2"/><line x1="354.0" y1="289.5" x2="366.0" y2="289.5" stroke="black" stroke-width="1.2"/>
+<rect x="370.0" y="274.375" width="75.5390625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="372.0" y="281.25">is governed by</tspan></text>
+<path d="M291.322265625,340 L115.564453125,340" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="284.3" y1="346.0" x2="284.3" y2="334.0" stroke="black" stroke-width="1.2"/><line x1="279.3" y1="346.0" x2="279.3" y2="334.0" stroke="black" stroke-width="1.2"/>
+<line x1="126.6" y1="340.0" x2="115.6" y2="333.0" stroke="black" stroke-width="1.2"/><line x1="126.6" y1="340.0" x2="115.6" y2="347.0" stroke="black" stroke-width="1.2"/><circle cx="134.6" cy="340.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="168.427734375" y="333.125" width="70.03125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="170.427734375" y="340.0">is signed with</tspan></text>
+<path d="M421.37109375,200 L554.4296875,200" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="428.4" y1="194.0" x2="428.4" y2="206.0" stroke="black" stroke-width="1.2"/><line x1="433.4" y1="194.0" x2="433.4" y2="206.0" stroke="black" stroke-width="1.2"/>
+<line x1="543.4" y1="200.0" x2="554.4" y2="207.0" stroke="black" stroke-width="1.2"/><line x1="543.4" y1="200.0" x2="554.4" y2="193.0" stroke="black" stroke-width="1.2"/><line x1="539.4" y1="206.0" x2="539.4" y2="194.0" stroke="black" stroke-width="1.2"/>
+<rect x="460.224609375" y="193.125" width="55.3515625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="462.224609375" y="200.0">is split into</tspan></text>
+<path d="M600,164.5 L600,103.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="594.0" y1="157.5" x2="606.0" y2="157.5" stroke="black" stroke-width="1.2"/><line x1="594.0" y1="152.5" x2="606.0" y2="152.5" stroke="black" stroke-width="1.2"/>
+<line x1="600.0" y1="114.0" x2="607.0" y2="103.0" stroke="black" stroke-width="1.2"/><line x1="600.0" y1="114.0" x2="593.0" y2="103.0" stroke="black" stroke-width="1.2"/><circle cx="600.0" cy="122.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="610.0" y="126.875" width="69.4140625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="612.0" y="133.75">is repriced by</tspan></text>
+<path d="M600,235.5 L600,309.5" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="606.0" y1="243.5" x2="594.0" y2="243.5" stroke="black" stroke-width="1.2"/><circle cx="600.0" cy="252.5" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<line x1="600.0" y1="298.5" x2="593.0" y2="309.5" stroke="black" stroke-width="1.2"/><line x1="600.0" y1="298.5" x2="607.0" y2="309.5" stroke="black" stroke-width="1.2"/><circle cx="600.0" cy="290.5" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="568.34375" y="265.625" width="63.3125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="570.34375" y="272.5">is funded by</tspan></text>
+<path d="M421.37109375,245 L480,245 L480,490 L528.986328125,490" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="428.4" y1="239.0" x2="428.4" y2="251.0" stroke="black" stroke-width="1.2"/><line x1="433.4" y1="239.0" x2="433.4" y2="251.0" stroke="black" stroke-width="1.2"/>
+<line x1="522.0" y1="496.0" x2="522.0" y2="484.0" stroke="black" stroke-width="1.2"/><line x1="517.0" y1="496.0" x2="517.0" y2="484.0" stroke="black" stroke-width="1.2"/>
+<rect x="445.59765625" y="360.625" width="68.8046875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="447.59765625" y="367.5">is secured by</tspan></text>
+<path d="M600,454.5 L600,410.5" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="594.0" y1="447.5" x2="606.0" y2="447.5" stroke="black" stroke-width="1.2"/><line x1="594.0" y1="442.5" x2="606.0" y2="442.5" stroke="black" stroke-width="1.2"/>
+<line x1="600.0" y1="421.5" x2="607.0" y2="410.5" stroke="black" stroke-width="1.2"/><line x1="600.0" y1="421.5" x2="593.0" y2="410.5" stroke="black" stroke-width="1.2"/><circle cx="600.0" cy="429.5" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="610.0" y="425.625" width="40.6796875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="612.0" y="432.5">records</tspan></text>
+<path d="M740,477.0 L740,360 L659.24609375,360" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="734.0" y1="470.0" x2="746.0" y2="470.0" stroke="black" stroke-width="1.2"/><line x1="734.0" y1="465.0" x2="746.0" y2="465.0" stroke="black" stroke-width="1.2"/>
+<line x1="667.2" y1="354.0" x2="667.2" y2="366.0" stroke="black" stroke-width="1.2"/><circle cx="676.2" cy="360.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="702.84375" y="411.625" width="74.3125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="704.84375" y="418.5">is executed as</tspan></text>
+<rect x="324.65625" y="27.0" width="70.6875" height="26" fill="white" stroke="#808080" stroke-width="1.2" stroke-dasharray="5,3"/>
+<text fill="#606060" text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="360" y="40.0">LISTING</tspan></text>
+<rect x="298.62890625" y="142.0" width="122.7421875" height="116" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="360" y="154.5">CONTRACT</tspan></text>
+<line x1="298.62890625" y1="167.0" x2="421.37109375" y2="167.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="306.62890625" y="178.5">contractId</tspan></text>
+<line x1="306.62890625" y1="185.0" x2="364.65234375" y2="185.0" stroke="black" stroke-width="0.9"/>
+<line x1="298.62890625" y1="190.0" x2="421.37109375" y2="190.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="306.62890625" y="201.5">buyerId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="306.62890625" y="216.5">sellerId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="306.62890625" y="231.5">listingId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="306.62890625" y="246.5">replacesContractId</tspan></text>
+<rect x="31.328125" y="187.0" width="57.34375" height="26" fill="white" stroke="#808080" stroke-width="1.2" stroke-dasharray="5,3"/>
+<text fill="#606060" text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="60" y="200.0">USER</tspan></text>
+<rect x="24.435546875" y="297.0" width="91.12890625" height="86" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="70" y="309.5">SIGNATURE</tspan></text>
+<line x1="24.435546875" y1="322.0" x2="115.564453125" y2="322.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="32.435546875" y="333.5">signatureId</tspan></text>
+<line x1="32.435546875" y1="340.0" x2="97.130859375" y2="340.0" stroke="black" stroke-width="0.9"/>
+<line x1="24.435546875" y1="345.0" x2="115.564453125" y2="345.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="32.435546875" y="356.5">termsId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="32.435546875" y="371.5">signerId</tspan></text>
+<rect x="291.322265625" y="304.5" width="137.35546875" height="71" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="360" y="317.0">CONTRACT_TERMS</tspan></text>
+<line x1="291.322265625" y1="329.5" x2="428.677734375" y2="329.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="299.322265625" y="341.0">termsId</tspan></text>
+<line x1="299.322265625" y1="347.5" x2="342.681640625" y2="347.5" stroke="black" stroke-width="0.9"/>
+<line x1="291.322265625" y1="352.5" x2="428.677734375" y2="352.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="299.322265625" y="364.0">contractId</tspan></text>
+<rect x="554.4296875" y="164.5" width="91.140625" height="71" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="600" y="177.0">MILESTONE</tspan></text>
+<line x1="554.4296875" y1="189.5" x2="645.5703125" y2="189.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="562.4296875" y="201.0">milestoneId</tspan></text>
+<line x1="562.4296875" y1="207.5" x2="629.12890625" y2="207.5" stroke="black" stroke-width="0.9"/>
+<line x1="554.4296875" y1="212.5" x2="645.5703125" y2="212.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="562.4296875" y="224.0">contractId</tspan></text>
+<rect x="526.984375" y="17.0" width="146.03125" height="86" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="600" y="29.5">PRICE_ADJUSTMENT</tspan></text>
+<line x1="526.984375" y1="42.0" x2="673.015625" y2="42.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="534.984375" y="53.5">adjustmentId</tspan></text>
+<line x1="534.984375" y1="60.0" x2="609.67578125" y2="60.0" stroke="black" stroke-width="0.9"/>
+<line x1="526.984375" y1="65.0" x2="673.015625" y2="65.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="534.984375" y="76.5">milestoneId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="534.984375" y="91.5">proposedBy</tspan></text>
+<rect x="540.75390625" y="309.5" width="118.4921875" height="101" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="600" y="322.0">LEDGER_ENTRY</tspan></text>
+<line x1="540.75390625" y1="334.5" x2="659.24609375" y2="334.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="548.75390625" y="346.0">entryId</tspan></text>
+<line x1="548.75390625" y1="352.5" x2="588.7734375" y2="352.5" stroke="black" stroke-width="0.9"/>
+<line x1="540.75390625" y1="357.5" x2="659.24609375" y2="357.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="548.75390625" y="369.0">escrowId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="548.75390625" y="384.0">milestoneId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="548.75390625" y="399.0">remedyLegId</tspan></text>
+<rect x="528.986328125" y="454.5" width="142.02734375" height="71" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="600" y="467.0">ESCROW_ACCOUNT</tspan></text>
+<line x1="528.986328125" y1="479.5" x2="671.013671875" y2="479.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="536.986328125" y="491.0">escrowId</tspan></text>
+<line x1="536.986328125" y1="497.5" x2="589.021484375" y2="497.5" stroke="black" stroke-width="0.9"/>
+<line x1="528.986328125" y1="502.5" x2="671.013671875" y2="502.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="536.986328125" y="514.0">contractId</tspan></text>
+<rect x="686.982421875" y="477.0" width="106.03515625" height="26" fill="white" stroke="#808080" stroke-width="1.2" stroke-dasharray="5,3"/>
+<text fill="#606060" text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="740" y="490.0">REMEDY_LEG</tspan></text>
+</svg>

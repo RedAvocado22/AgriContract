@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450" font-family="Arial" font-size="12">
+<defs><marker id="open" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L11,6 L1,11" fill="none" stroke="black" stroke-width="1.2"/></marker><marker id="tri" viewBox="0 0 14 14" refX="13" refY="7" markerWidth="14" markerHeight="14" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,1 L13,7 L1,13 Z" fill="white" stroke="black"/></marker><marker id="dia" viewBox="0 0 18 10" refX="1" refY="5" markerWidth="18" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M1,5 L9,1 L17,5 L9,9 Z" fill="black"/></marker></defs>
+<rect x="0" y="0" width="800" height="450" fill="white"/>
+<path d="M710,97.0 L710,43.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="704.0" y1="90.0" x2="716.0" y2="90.0" stroke="black" stroke-width="1.2"/><line x1="704.0" y1="85.0" x2="716.0" y2="85.0" stroke="black" stroke-width="1.2"/>
+<line x1="716.0" y1="50.0" x2="704.0" y2="50.0" stroke="black" stroke-width="1.2"/><line x1="716.0" y1="55.0" x2="704.0" y2="55.0" stroke="black" stroke-width="1.2"/>
+<rect x="720.0" y="63.125" width="30.296875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="722.0" y="70.0">holds</tspan></text>
+<path d="M710,239.5 L710,183.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="704.0" y1="232.5" x2="716.0" y2="232.5" stroke="black" stroke-width="1.2"/><line x1="704.0" y1="227.5" x2="716.0" y2="227.5" stroke="black" stroke-width="1.2"/>
+<line x1="710.0" y1="194.0" x2="717.0" y2="183.0" stroke="black" stroke-width="1.2"/><line x1="710.0" y1="194.0" x2="703.0" y2="183.0" stroke="black" stroke-width="1.2"/><circle cx="710.0" cy="202.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="720.0" y="204.375" width="72.46875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="722.0" y="211.25">is reserved by</tspan></text>
+<path d="M510.671875,275 L673.9765625,275" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="517.7" y1="269.0" x2="517.7" y2="281.0" stroke="black" stroke-width="1.2"/><line x1="522.7" y1="269.0" x2="522.7" y2="281.0" stroke="black" stroke-width="1.2"/>
+<line x1="663.0" y1="275.0" x2="674.0" y2="282.0" stroke="black" stroke-width="1.2"/><line x1="663.0" y1="275.0" x2="674.0" y2="268.0" stroke="black" stroke-width="1.2"/><circle cx="655.0" cy="275.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="559.244140625" y="268.125" width="66.16015625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="561.244140625" y="275.0">is offered via</tspan></text>
+<path d="M259.01171875,275 L429.328125,275" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="266.0" y1="269.0" x2="266.0" y2="281.0" stroke="black" stroke-width="1.2"/><line x1="271.0" y1="269.0" x2="271.0" y2="281.0" stroke="black" stroke-width="1.2"/>
+<line x1="418.3" y1="275.0" x2="429.3" y2="282.0" stroke="black" stroke-width="1.2"/><line x1="418.3" y1="275.0" x2="429.3" y2="268.0" stroke="black" stroke-width="1.2"/><circle cx="410.3" cy="275.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="329.330078125" y="268.125" width="29.6796875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="331.330078125" y="275.0">owns</tspan></text>
+<path d="M230,251.0 L230,133.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="224.0" y1="244.0" x2="236.0" y2="244.0" stroke="black" stroke-width="1.2"/><line x1="224.0" y1="239.0" x2="236.0" y2="239.0" stroke="black" stroke-width="1.2"/>
+<line x1="230.0" y1="144.0" x2="237.0" y2="133.0" stroke="black" stroke-width="1.2"/><line x1="230.0" y1="144.0" x2="223.0" y2="133.0" stroke="black" stroke-width="1.2"/><circle cx="230.0" cy="152.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="206.91015625" y="185.125" width="46.1796875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="208.91015625" y="192.0">registers</tspan></text>
+<path d="M314.1484375,90 L410.31640625,90" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="321.1" y1="84.0" x2="321.1" y2="96.0" stroke="black" stroke-width="1.2"/><line x1="326.1" y1="84.0" x2="326.1" y2="96.0" stroke="black" stroke-width="1.2"/>
+<line x1="399.3" y1="90.0" x2="410.3" y2="97.0" stroke="black" stroke-width="1.2"/><line x1="399.3" y1="90.0" x2="410.3" y2="83.0" stroke="black" stroke-width="1.2"/><circle cx="391.3" cy="90.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="336.998046875" y="66.25" width="50.46875" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="338.998046875" y="73.125">is used in</tspan></text>
+<path d="M470,232.0 L470,121.5" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="464.0" y1="225.0" x2="476.0" y2="225.0" stroke="black" stroke-width="1.2"/><line x1="464.0" y1="220.0" x2="476.0" y2="220.0" stroke="black" stroke-width="1.2"/>
+<line x1="470.0" y1="132.5" x2="477.0" y2="121.5" stroke="black" stroke-width="1.2"/><line x1="470.0" y1="132.5" x2="463.0" y2="121.5" stroke="black" stroke-width="1.2"/><line x1="476.0" y1="136.5" x2="464.0" y2="136.5" stroke="black" stroke-width="1.2"/>
+<rect x="439.875" y="169.875" width="60.25" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="441.875" y="176.75">is grown on</tspan></text>
+<path d="M45,167.0 L45,90 L145.8515625,90" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="39.0" y1="159.0" x2="51.0" y2="159.0" stroke="black" stroke-width="1.2"/><circle cx="45.0" cy="150.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<line x1="134.9" y1="90.0" x2="145.9" y2="97.0" stroke="black" stroke-width="1.2"/><line x1="134.9" y1="90.0" x2="145.9" y2="83.0" stroke="black" stroke-width="1.2"/><circle cx="126.9" cy="90.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="29.55078125" y="121.625" width="30.8984375" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="31.55078125" y="128.5">maps</tspan></text>
+<path d="M200.98828125,275 L45,275 L45,193.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="194.0" y1="281.0" x2="194.0" y2="269.0" stroke="black" stroke-width="1.2"/><line x1="189.0" y1="281.0" x2="189.0" y2="269.0" stroke="black" stroke-width="1.2"/>
+<line x1="45.0" y1="204.0" x2="52.0" y2="193.0" stroke="black" stroke-width="1.2"/><line x1="45.0" y1="204.0" x2="38.0" y2="193.0" stroke="black" stroke-width="1.2"/><circle cx="45.0" cy="212.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="101.728515625" y="268.125" width="42.53125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="103.728515625" y="275.0">uploads</tspan></text>
+<path d="M470,364.5 L470,318.0" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="464.0" y1="357.5" x2="476.0" y2="357.5" stroke="black" stroke-width="1.2"/><line x1="464.0" y1="352.5" x2="476.0" y2="352.5" stroke="black" stroke-width="1.2"/>
+<line x1="470.0" y1="329.0" x2="477.0" y2="318.0" stroke="black" stroke-width="1.2"/><line x1="470.0" y1="329.0" x2="463.0" y2="318.0" stroke="black" stroke-width="1.2"/><circle cx="470.0" cy="337.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="480.0" y="334.375" width="48.625" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="482.0" y="341.25">classifies</tspan></text>
+<path d="M412.625,390 L372,390 L372,420 L412.625,420" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="404.6" y1="396.0" x2="404.6" y2="384.0" stroke="black" stroke-width="1.2"/><circle cx="395.6" cy="390.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<line x1="401.6" y1="420.0" x2="412.6" y2="427.0" stroke="black" stroke-width="1.2"/><line x1="401.6" y1="420.0" x2="412.6" y2="413.0" stroke="black" stroke-width="1.2"/><circle cx="393.6" cy="420.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="324.3671875" y="398.125" width="37.6328125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="326.3671875" y="405.0">groups</tspan></text>
+<path d="M527.375,400 L630.3125,400" fill="none" stroke="black" stroke-width="1.1"/>
+<line x1="534.4" y1="394.0" x2="534.4" y2="406.0" stroke="black" stroke-width="1.2"/><line x1="539.4" y1="394.0" x2="539.4" y2="406.0" stroke="black" stroke-width="1.2"/>
+<line x1="619.3" y1="400.0" x2="630.3" y2="407.0" stroke="black" stroke-width="1.2"/><line x1="619.3" y1="400.0" x2="630.3" y2="393.0" stroke="black" stroke-width="1.2"/><circle cx="611.3" cy="400.0" r="4" fill="white" stroke="black" stroke-width="1.2"/>
+<rect x="548.71484375" y="376.25" width="60.2578125" height="13.75" fill="white"/>
+<text text-anchor="start" dominant-baseline="central" font-size="11"><tspan x="550.71484375" y="383.125">is quoted in</tspan></text>
+<rect x="664.662109375" y="17.0" width="90.67578125" height="26" fill="white" stroke="#808080" stroke-width="1.2" stroke-dasharray="5,3"/>
+<text fill="#606060" text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="710" y="30.0">CONTRACT</tspan></text>
+<rect x="656.984375" y="97.0" width="106.03125" height="86" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="710" y="109.5">RESERVATION</tspan></text>
+<line x1="656.984375" y1="122.0" x2="763.015625" y2="122.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="664.984375" y="133.5">reservationId</tspan></text>
+<line x1="664.984375" y1="140.0" x2="740.37109375" y2="140.0" stroke="black" stroke-width="0.9"/>
+<line x1="656.984375" y1="145.0" x2="763.015625" y2="145.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="664.984375" y="156.5">listingId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="664.984375" y="171.5">contractId</tspan></text>
+<rect x="673.9765625" y="239.5" width="72.046875" height="71" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="710" y="252.0">LISTING</tspan></text>
+<line x1="673.9765625" y1="264.5" x2="746.0234375" y2="264.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="681.9765625" y="276.0">listingId</tspan></text>
+<line x1="681.9765625" y1="282.5" x2="727.98828125" y2="282.5" stroke="black" stroke-width="0.9"/>
+<line x1="673.9765625" y1="287.5" x2="746.0234375" y2="287.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="681.9765625" y="299.0">productId</tspan></text>
+<rect x="429.328125" y="232.0" width="81.34375" height="86" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="470" y="244.5">PRODUCT</tspan></text>
+<line x1="429.328125" y1="257.0" x2="510.671875" y2="257.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="437.328125" y="268.5">productId</tspan></text>
+<line x1="437.328125" y1="275.0" x2="492.66796875" y2="275.0" stroke="black" stroke-width="0.9"/>
+<line x1="429.328125" y1="280.0" x2="510.671875" y2="280.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="437.328125" y="291.5">sellerId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="437.328125" y="306.5">categoryId</tspan></text>
+<rect x="200.98828125" y="251.0" width="58.0234375" height="48" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="230" y="263.5">USER</tspan></text>
+<line x1="200.98828125" y1="276.0" x2="259.01171875" y2="276.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="208.98828125" y="287.5">userId</tspan></text>
+<line x1="208.98828125" y1="294.0" x2="245.01171875" y2="294.0" stroke="black" stroke-width="0.9"/>
+<rect x="145.8515625" y="47.0" width="168.296875" height="86" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="230" y="59.5">PLOT_REGISTRY_ENTRY</tspan></text>
+<line x1="145.8515625" y1="72.0" x2="314.1484375" y2="72.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="153.8515625" y="83.5">plotId</tspan></text>
+<line x1="153.8515625" y1="90.0" x2="186.515625" y2="90.0" stroke="black" stroke-width="0.9"/>
+<line x1="145.8515625" y1="95.0" x2="314.1484375" y2="95.0" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="153.8515625" y="106.5">sellerId</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="153.8515625" y="121.5">cadastralFileId</tspan></text>
+<rect x="410.31640625" y="58.5" width="119.3671875" height="63" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="470" y="71.0">PRODUCT_PLOT</tspan></text>
+<line x1="410.31640625" y1="83.5" x2="529.68359375" y2="83.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="418.31640625" y="95.0">productId</tspan></text>
+<line x1="418.31640625" y1="101.5" x2="473.65625" y2="101.5" stroke="black" stroke-width="0.9"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="476.9921875" y="95.0">(FK)</tspan></text>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="418.31640625" y="110.0">plotId</tspan></text>
+<line x1="418.31640625" y1="116.5" x2="450.98046875" y2="116.5" stroke="black" stroke-width="0.9"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12"><tspan x="454.31640625" y="110.0">(FK)</tspan></text>
+<rect x="20.326171875" y="167.0" width="49.34765625" height="26" fill="white" stroke="#808080" stroke-width="1.2" stroke-dasharray="5,3"/>
+<text fill="#606060" text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="45" y="180.0">FILE</tspan></text>
+<rect x="412.625" y="364.5" width="114.75" height="71" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="470" y="377.0">CATEGORY</tspan></text>
+<line x1="412.625" y1="389.5" x2="527.375" y2="389.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="420.625" y="401.0">categoryId</tspan></text>
+<line x1="420.625" y1="407.5" x2="481.328125" y2="407.5" stroke="black" stroke-width="0.9"/>
+<line x1="412.625" y1="412.5" x2="527.375" y2="412.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="420.625" y="424.0">parentCategoryId</tspan></text>
+<rect x="630.3125" y="364.5" width="139.375" height="71" fill="white" stroke="black" stroke-width="1.2"/>
+<text text-anchor="middle" dominant-baseline="central" font-size="12"><tspan x="700" y="377.0">REFERENCE_PRICE</tspan></text>
+<line x1="630.3125" y1="389.5" x2="769.6875" y2="389.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-weight="bold"><tspan x="638.3125" y="401.0">priceId</tspan></text>
+<line x1="638.3125" y1="407.5" x2="677.671875" y2="407.5" stroke="black" stroke-width="0.9"/>
+<line x1="630.3125" y1="412.5" x2="769.6875" y2="412.5" stroke="black"/>
+<text text-anchor="start" dominant-baseline="central" font-size="12" font-style="italic"><tspan x="638.3125" y="424.0">categoryId</tspan></text>
+</svg>
