@@ -16,6 +16,10 @@ import {
   kycCommand,
   kycPayload,
   kycVerifiedPayload,
+  LOCK_EMAIL,
+  lockBody,
+  lockCommand,
+  lockPayload,
   BREACH_TERMINATION,
   terminatedBody,
   terminatedCommand,
@@ -30,6 +34,8 @@ import {
   parseContractTerminatedRequested,
   parseUserKycResultRequested,
   USER_KYC_RESULT_REQUIRED,
+  parseUserLockChangedRequested,
+  USER_LOCK_CHANGED_REQUIRED,
 } from './notification-command.parsers';
 
 /** Delivers a message built from `overrides` on the envelope. */
@@ -530,6 +536,80 @@ describe('parseUserKycResultRequested', () => {
 
   it('rejects the activation-cancel command, whose eventType is not this queue’s', () => {
     expect(message(() => parseUserKycResultRequested(cancelBody()))).toContain(
+      "is not this queue's command",
+    );
+  });
+});
+
+describe('parseUserLockChangedRequested', () => {
+  const parseLock = (payload: Record<string, unknown> = lockPayload()) =>
+    parseUserLockChangedRequested(lockBody({ payload }));
+
+  it('reads the envelope eventId and every payload field of a lock', () => {
+    expect(parseLock()).toEqual(lockCommand());
+  });
+
+  it.each([
+    [
+      'an unlock with no lock left',
+      { action: 'UNLOCKED', effectiveUntil: null },
+    ],
+    [
+      'an unlock with another lock still on',
+      { action: 'UNLOCKED', effectiveUntil: '2026-11-20T00:00:00Z' },
+    ],
+    ['a lock without an end', { effectiveUntil: null }],
+    ['an empty reason code', { reasonCode: '' }],
+  ])('accepts %s, as the contract does', (_case, patch) => {
+    expect(parseLock(lockPayload(patch))).toMatchObject(patch);
+  });
+
+  it('reads an absent effectiveUntil as null, since it is not required', () => {
+    const payload = lockPayload();
+    delete payload.effectiveUntil;
+
+    expect(parseLock(payload).effectiveUntil).toBeNull();
+  });
+
+  it.each([
+    ['action', 'SUSPENDED', 'field "action" must be one of LOCKED, UNLOCKED'],
+    ['action', 'locked', 'field "action" must be one of LOCKED, UNLOCKED'],
+    ['effectiveUntil', '2026-12-11', 'RFC 3339'],
+    ['effectiveUntil', 0, 'must be a non-empty string'],
+    ['reasonCode', null, 'field "reasonCode" must be a string, got null'],
+    ['recipientEmail', 'trader.lock.test', 'must be an email address'],
+    ['userId', 'user-1', 'field "userId" must be a UUID'],
+    ['lockRevision', 3, 'unknown payload property "lockRevision"'],
+  ])(
+    'rejects %s = %p, naming the field and not the value',
+    (field, value, reason) => {
+      const text = message(() => parseLock(lockPayload({ [field]: value })));
+
+      expect(text).toContain(
+        'Malformed notification.user_lock_changed_requested',
+      );
+      expect(text).toContain(reason);
+      if (typeof value === 'string') expect(text).not.toContain(`"${value}"`);
+    },
+  );
+
+  it.each(USER_LOCK_CHANGED_REQUIRED)('rejects a missing %s', (field) => {
+    const payload = lockPayload();
+    delete payload[field];
+
+    expect(message(() => parseLock(payload))).toContain(`"${field}"`);
+  });
+
+  it('never quotes the address it rejects', () => {
+    const text = message(() =>
+      parseLock(lockPayload({ recipientEmail: `${LOCK_EMAIL} ` })),
+    );
+
+    expect(text).not.toContain(LOCK_EMAIL);
+  });
+
+  it('rejects the KYC-result command, whose eventType is not this queue’s', () => {
+    expect(message(() => parseUserLockChangedRequested(kycBody()))).toContain(
       "is not this queue's command",
     );
   });

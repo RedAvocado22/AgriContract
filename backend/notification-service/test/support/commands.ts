@@ -5,6 +5,7 @@ import type {
   ContractTerminatedRequestedCommand,
   NotificationRecipient,
   UserKycResultRequestedCommand,
+  UserLockChangedRequestedCommand,
 } from '../../src/application/commands';
 
 /*
@@ -386,5 +387,61 @@ export function kycCommand(): UserKycResultRequestedCommand {
     result: 'REJECTED',
     reason: 'The business licence is not legible.',
     decidedAt: '2026-11-11T02:30:00.123456Z',
+  };
+}
+
+/*
+ * `notification.user_lock_changed_requested`, as user-service writes it
+ * (OutboxLockChangePublisher) after applying a `reputation.locked`: the
+ * command continues the reputation event's chain, so causationId is that
+ * event's eventId and correlationId is inherited. effectiveUntil is always
+ * written, null when no lock is left.
+ */
+export const LOCK_USER_ID = '3e2d1c0b-9a8f-4e7d-8c6b-5a4f3e2d1c0b';
+export const LOCK_EMAIL = 'trader@lock.test';
+const LOCK_EVENT_ID = '6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a';
+
+export function lockEnvelope(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    eventId: LOCK_EVENT_ID,
+    eventType: 'notification.user_lock_changed_requested',
+    eventVersion: 1,
+    occurredAt: '2026-11-11T04:00:00.654321Z',
+    producer: 'user-service',
+    aggregateId: LOCK_USER_ID,
+    correlationId: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+    causationId: '9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a',
+    payload: lockPayload(),
+    ...overrides,
+  };
+}
+
+export function lockPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    userId: LOCK_USER_ID,
+    recipientEmail: LOCK_EMAIL,
+    action: 'LOCKED',
+    effectiveUntil: '2026-12-11T04:00:00Z',
+    reasonCode: 'STRATEGIC_ABANDONMENT',
+    ...overrides,
+  };
+}
+
+export const lockBody = (overrides: Record<string, unknown> = {}): Buffer =>
+  Buffer.from(JSON.stringify(lockEnvelope(overrides)));
+
+/** The command the parser is expected to produce from `lockEnvelope()`. */
+export function lockCommand(): UserLockChangedRequestedCommand {
+  return {
+    eventId: LOCK_EVENT_ID,
+    userId: LOCK_USER_ID,
+    recipientEmail: LOCK_EMAIL,
+    action: 'LOCKED',
+    effectiveUntil: '2026-12-11T04:00:00Z',
+    reasonCode: 'STRATEGIC_ABANDONMENT',
   };
 }

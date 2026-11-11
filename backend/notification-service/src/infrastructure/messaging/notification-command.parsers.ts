@@ -11,6 +11,7 @@ import {
   FAILED_LEGS,
   FUND_TYPES,
   KYC_RESULTS,
+  LOCK_ACTIONS,
   PARTY_ROLES,
   RECIPIENT_ROLES,
   REMEDY_TYPES,
@@ -24,6 +25,7 @@ import {
   type NotificationRecipient,
   type RecipientRole,
   type UserKycResultRequestedCommand,
+  type UserLockChangedRequestedCommand,
 } from '../../application/commands';
 
 /*
@@ -160,6 +162,15 @@ class CommandReader {
    */
   optionalText(field: string): string | null {
     return field in this.payload ? this.text(field) : null;
+  }
+
+  /**
+   * An optional date-time that may also be null, as `{type: [string, "null"]}`
+   * outside `required` is declared: absent and null both read as null.
+   */
+  optionalNullableDateTime(field: string): string | null {
+    const value = this.payload[field];
+    return value === undefined || value === null ? null : this.dateTime(field);
   }
 
   /** A single address outside `payload.recipients`, checked as a recipient's is; never quoted. */
@@ -635,6 +646,48 @@ export function parseUserKycResultRequested(
     result: payload.enumValue('result', KYC_RESULTS),
     reason: payload.optionalText('reason'),
     decidedAt: payload.dateTime('decidedAt'),
+  };
+}
+
+export const USER_LOCK_CHANGED_REQUESTED =
+  'notification.user_lock_changed_requested';
+
+/** Payload properties of `userLockChangedRequested`. */
+export const USER_LOCK_CHANGED_FIELDS = [
+  'userId',
+  'recipientEmail',
+  'action',
+  'effectiveUntil',
+  'reasonCode',
+] as const;
+
+/** All of them but `effectiveUntil`, which the contract leaves optional. */
+export const USER_LOCK_CHANGED_REQUIRED = USER_LOCK_CHANGED_FIELDS.filter(
+  (field) => field !== 'effectiveUntil',
+);
+
+/**
+ * user-service's lock command: one user, one address. A LOCKED without an
+ * end is what the contract allows (user-service never sends one), so it
+ * parses; the template words it.
+ */
+export function parseUserLockChangedRequested(
+  body: Buffer,
+): UserLockChangedRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    USER_LOCK_CHANGED_REQUESTED,
+    'user-service',
+  );
+  payload.only(USER_LOCK_CHANGED_FIELDS);
+
+  return {
+    eventId: envelope.eventId,
+    userId: payload.uuid('userId'),
+    recipientEmail: payload.email('recipientEmail'),
+    action: payload.enumValue('action', LOCK_ACTIONS),
+    effectiveUntil: payload.optionalNullableDateTime('effectiveUntil'),
+    reasonCode: payload.text('reasonCode'),
   };
 }
 
