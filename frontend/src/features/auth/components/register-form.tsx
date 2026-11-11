@@ -9,7 +9,7 @@ import { FileUpload, type FileUploadItem } from "@/shared/ui/file-upload"
 import { Stepper } from "@/shared/ui/stepper"
 import { TextInput } from "@/shared/ui/text-input"
 import { getPasswordStrength, strengthColors, strengthLabels } from "@/features/auth/lib/password"
-import { MOCK_OTP_RESPONSE_DELAY_MS } from "@/features/auth/lib/mock-auth"
+import { registerUser, RegisterValidationError } from "@/features/auth/api/register-user"
 
 // ─── ZOD SCHEMAS ─────────────────────────────────────────────────────────────
 
@@ -450,6 +450,7 @@ interface RegisterFormProps {
 function RegisterForm({ onSuccess, onLogin }: RegisterFormProps) {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const methods = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -466,13 +467,26 @@ function RegisterForm({ onSuccess, onLogin }: RegisterFormProps) {
     mode: "onTouched",
   })
 
-  function handleSubmit(_data: RegisterFormData) {
+  async function handleSubmit(data: RegisterFormData) {
     setIsLoading(true)
-    // TODO: Replace with Keycloak API call
-    setTimeout(() => {
-      setIsLoading(false)
+    setSubmitError(null)
+    try {
+      // TODO: create the Keycloak account first and pass its access token here.
+      await registerUser({
+        organizationName: data.fullName,
+        email: data.email,
+        phone: data.phone.replace(/\s/g, ""),
+      })
       onSuccess()
-    }, MOCK_OTP_RESPONSE_DELAY_MS)
+    } catch (error) {
+      setSubmitError(
+        error instanceof RegisterValidationError
+          ? error.message
+          : "Không thể gửi hồ sơ đăng ký. Vui lòng thử lại."
+      )
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -490,6 +504,12 @@ function RegisterForm({ onSuccess, onLogin }: RegisterFormProps) {
           />
         )}
       </FormProvider>
+
+      {step === 3 && submitError && (
+        <div role="alert" className="mt-4 text-[13px] text-danger">
+          {submitError}
+        </div>
+      )}
 
       <div className="mt-6 text-center text-[13.5px] text-text-secondary">
         Đã có tài khoản?{" "}
