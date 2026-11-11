@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Channel, ChannelModel } from 'amqplib';
 import { validate, type AppConfig } from '../../config/env.validation';
 import { AmqpService, PREFETCH, type AmqpConnect } from './amqp.provider';
-import { RETIRED_QUEUES, queueNames } from './topology';
+import { RETIRED_QUEUES, TOPOLOGY, queueNames } from './topology';
 
 class FakeChannel extends EventEmitter {
   prefetch = jest.fn(() => Promise.resolve());
@@ -128,7 +128,10 @@ describe('AmqpService', () => {
     await jest.advanceTimersByTimeAsync(1000);
     expect(service.isHealthy()).toBe(true);
     expect(second.channel.prefetch).toHaveBeenCalledWith(PREFETCH);
-    expect(second.channel.assertExchange).toHaveBeenCalledTimes(6);
+    // Each TOPOLOGY row declares its exchange and its DLX.
+    expect(second.channel.assertExchange).toHaveBeenCalledTimes(
+      TOPOLOGY.length * 2,
+    );
     expect(second.channel.bindQueue).toHaveBeenCalledTimes(
       queueNames().length * 2,
     );

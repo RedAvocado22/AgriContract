@@ -14,6 +14,8 @@ import {
   activationFailedCommand,
   activationFailedEnvelope,
   cancelEnvelope,
+  kycCommand,
+  kycEnvelope,
   terminatedCommand,
   terminatedEnvelope,
   terminatedPayload,
@@ -65,6 +67,7 @@ const HANDLERS = [
   'activationCancelRequested',
   'contractActivationFailed',
   'contractTerminated',
+  'userKycResult',
   'escrowLocked',
   'escrowReleased',
   'escrowPenalized',
@@ -377,6 +380,44 @@ describe('NotificationEventConsumer', () => {
       expect(channel.acked).toEqual([]);
     },
   );
+
+  it('runs the KYC-result use case on its own queue, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.user_kyc_result_requested',
+      kycEnvelope(),
+    );
+    await flush();
+
+    expect(service.userKycResult).toHaveBeenCalledTimes(1);
+    expect(service.userKycResult.mock.calls[0][0]).toEqual(kycCommand());
+    for (const other of HANDLERS.filter((h) => h !== 'userKycResult')) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('dead-letters a contract command delivered to the KYC-result queue', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    channel.deliver(
+      'notification-svc.notification.user_kyc_result_requested',
+      cancelEnvelope(),
+    );
+    await flush();
+
+    expect(service.userKycResult).not.toHaveBeenCalled();
+    expect(service.activationCancelRequested).not.toHaveBeenCalled();
+    expect(channel.nacked).toHaveLength(1);
+  });
 
   it('dead-letters a command whose eventType is not this queue’s, without calling the handler', async () => {
     const { consumer, service, open } = setup();

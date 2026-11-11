@@ -29,6 +29,12 @@ export const TOPOLOGY = [
     dlx: 'notification-svc.events.dlx',
     routingKeys: ['category.approved', 'category.rejected'],
   },
+  {
+    // user-service's outbox exchange (agricontract.eventing.outbox.exchange).
+    exchange: 'agricontract.user',
+    dlx: 'notification-svc.user.dlx',
+    routingKeys: ['notification.user_kyc_result_requested'],
+  },
 ] as const;
 
 export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
@@ -56,12 +62,21 @@ export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
  * `notification.contract_terminated_requested` (D43) tells the other party an
  * offer was withdrawn; the other termination types come with #278. Declared
  * ahead the same way (TERMINATED_REQUESTED_QUEUE), same DLX.
+ *
+ * `notification.user_kyc_result_requested` tells a user the KYC decision on
+ * their organisation; its one address is `payload.recipientEmail`. It rides
+ * user-service's exchange, agricontract.user, in a row of its own. Unlike
+ * contract-service, user-service declares no queue ahead of us, so this
+ * declaration is the only one: until notification-service has started once,
+ * user-service's publish is returned unroutable, and its outbox poller stops
+ * at that row and retries it on every poll, holding back the rows after it.
  */
 export const COMMAND_ROUTING_KEYS = [
   'notification.contract_anchor_requested',
   'notification.activation_cancel_requested',
   'notification.contract_activation_failed_requested',
   'notification.contract_terminated_requested',
+  'notification.user_kyc_result_requested',
 ] as const;
 
 export type CommandRoutingKey = (typeof COMMAND_ROUTING_KEYS)[number];
