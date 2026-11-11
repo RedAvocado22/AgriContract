@@ -11,6 +11,11 @@ import {
   cancelCommand,
   cancelEnvelope,
   cancelPayload,
+  KYC_EMAIL,
+  kycBody,
+  kycCommand,
+  kycPayload,
+  kycVerifiedPayload,
   BREACH_TERMINATION,
   terminatedBody,
   terminatedCommand,
@@ -23,6 +28,8 @@ import {
   CONTRACT_TERMINATED_FIELDS,
   parseContractAnchorRequested,
   parseContractTerminatedRequested,
+  parseUserKycResultRequested,
+  USER_KYC_RESULT_REQUIRED,
 } from './notification-command.parsers';
 
 /** Delivers a message built from `overrides` on the envelope. */
@@ -446,5 +453,84 @@ describe('parseContractTerminatedRequested', () => {
     expect(
       message(() => parseContractTerminatedRequested(cancelBody())),
     ).toContain("is not this queue's command");
+  });
+});
+
+describe('parseUserKycResultRequested', () => {
+  const parseKyc = (payload: Record<string, unknown> = kycPayload()) =>
+    parseUserKycResultRequested(kycBody({ payload }));
+
+  it('reads the envelope eventId and every payload field of a rejection', () => {
+    expect(parseKyc()).toEqual(kycCommand());
+  });
+
+  it('reads a verification, whose reason user-service leaves out, as a null reason', () => {
+    expect(parseKyc(kycVerifiedPayload())).toEqual({
+      ...kycCommand(),
+      result: 'VERIFIED',
+      reason: null,
+    });
+  });
+
+  it.each([
+    ['a rejection without a reason', kycPayload({ reason: undefined })],
+    ['a verification with a reason', kycVerifiedPayload({ reason: 'ok' })],
+    ['an empty organisation name', kycPayload({ organizationName: '' })],
+    ['an empty reason', kycPayload({ reason: '' })],
+  ])('accepts %s, as the contract does', (_case, payload) => {
+    // JSON drops undefined, as it drops the property.
+    const sent = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+    expect(() => parseKyc(sent)).not.toThrow();
+  });
+
+  it.each([
+    ['result', 'PENDING', 'field "result" must be one of VERIFIED, REJECTED'],
+    ['result', 'rejected', 'field "result" must be one of VERIFIED, REJECTED'],
+    ['reason', null, 'field "reason" must be a string, got null'],
+    ['organizationName', null, 'field "organizationName" must be a string'],
+    ['recipientEmail', 'owner.kyc.test', 'must be an email address'],
+    ['userId', 'user-1', 'field "userId" must be a UUID'],
+    ['decidedAt', '2026-11-11', 'RFC 3339'],
+    ['recipients', [], 'unknown payload property "recipients"'],
+  ])(
+    'rejects %s = %p, naming the field and not the value',
+    (field, value, reason) => {
+      const text = message(() => parseKyc(kycPayload({ [field]: value })));
+
+      expect(text).toContain(
+        'Malformed notification.user_kyc_result_requested',
+      );
+      expect(text).toContain(reason);
+      if (typeof value === 'string') expect(text).not.toContain(`"${value}"`);
+    },
+  );
+
+  it.each(USER_KYC_RESULT_REQUIRED)('rejects a missing %s', (field) => {
+    const payload = kycPayload();
+    delete payload[field];
+
+    expect(message(() => parseKyc(payload))).toContain(`"${field}"`);
+  });
+
+  it('never quotes the address it rejects', () => {
+    const text = message(() =>
+      parseKyc(kycPayload({ recipientEmail: `${KYC_EMAIL} ` })),
+    );
+
+    expect(text).not.toContain(KYC_EMAIL);
+  });
+
+  it('rejects the command from another producer', () => {
+    expect(
+      message(() =>
+        parseUserKycResultRequested(kycBody({ producer: 'contract-service' })),
+      ),
+    ).toContain('producer must be "user-service"');
+  });
+
+  it('rejects the activation-cancel command, whose eventType is not this queue’s', () => {
+    expect(message(() => parseUserKycResultRequested(cancelBody()))).toContain(
+      "is not this queue's command",
+    );
   });
 });
