@@ -15,6 +15,7 @@ import {
   NotifyEscrowLockedUseCase,
   NotifyEscrowPenalizedUseCase,
   NotifyEscrowReleasedUseCase,
+  NotifyUserKycResultUseCase,
 } from './application/use-cases';
 import {
   NodemailerEmailAdapter,
@@ -95,6 +96,7 @@ const USE_CASES = {
     useCaseOf(NotifyActivationCancelRequestedUseCase),
     useCaseOf(NotifyContractActivationFailedUseCase),
     useCaseOf(NotifyContractTerminatedUseCase),
+    useCaseOf(NotifyUserKycResultUseCase),
     {
       provide: COMMAND_ROUTES,
       inject: [
@@ -102,18 +104,21 @@ const USE_CASES = {
         NotifyActivationCancelRequestedUseCase,
         NotifyContractActivationFailedUseCase,
         NotifyContractTerminatedUseCase,
+        NotifyUserKycResultUseCase,
       ],
       useFactory: (
         contractAnchor: NotifyContractAnchorUseCase,
         activationCancelRequested: NotifyActivationCancelRequestedUseCase,
         contractActivationFailed: NotifyContractActivationFailedUseCase,
         contractTerminated: NotifyContractTerminatedUseCase,
+        userKycResult: NotifyUserKycResultUseCase,
       ) =>
         commandRoutes({
           contractAnchor,
           activationCancelRequested,
           contractActivationFailed,
           contractTerminated,
+          userKycResult,
         }),
     },
     {

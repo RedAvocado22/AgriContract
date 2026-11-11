@@ -40,4 +40,11 @@ export const COMMAND_KINDS = {
     notificationType: 'OFFER_WITHDRAWN',
     templateVersion: 'offer-withdrawn/v1',
   },
+  // One email per decision, VERIFIED or REJECTED: the template tells them
+  // apart, and a user decided twice gets two commands, two eventIds.
+  userKycResult: {
+    eventType: 'notification.user_kyc_result_requested',
+    notificationType: 'USER_KYC_RESULT',
+    templateVersion: 'user-kyc-result/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;

@@ -14,6 +14,7 @@ import {
   NotifyActivationCancelRequestedUseCase,
   NotifyContractActivationFailedUseCase,
   NotifyContractTerminatedUseCase,
+  NotifyUserKycResultUseCase,
   NotifyContractAnchorUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowReleasedUseCase,
@@ -30,6 +31,8 @@ import {
   cancelPayload,
   terminatedEnvelope,
   terminatedPayload,
+  kycEnvelope,
+  kycPayload,
 } from '../../../test/support/commands';
 import { commandRoutes } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
@@ -93,6 +96,7 @@ async function harness(sendMail: jest.Mock) {
     ),
     contractActivationFailed: new NotifyContractActivationFailedUseCase(sender),
     contractTerminated: new NotifyContractTerminatedUseCase(sender),
+    userKycResult: new NotifyUserKycResultUseCase(sender),
   });
   const consumer = new NotificationEventConsumer(amqp, routes, commands);
   await consumer.onModuleInit();
@@ -288,6 +292,38 @@ describe('no personal data in the logs', () => {
     expect(log).toContain('nextActions[1]');
     expect(log).not.toContain(BUYER);
     expect(log).not.toContain(SELLER);
+    expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it('a rejected KYC-result command: the dead-letter log quotes neither the address, the organisation nor the reason', async () => {
+    const lines = captureLogs();
+    const { deliver, nacks } = await harness(jest.fn());
+
+    deliver(
+      'notification-svc.notification.user_kyc_result_requested',
+      JSON.stringify(
+        kycEnvelope({
+          payload: kycPayload({
+            recipientEmail: BUYER,
+            organizationName: NAME,
+            reason: `Call ${SELLER}`,
+            result: BUYER,
+          }),
+        }),
+      ),
+    );
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(nacks).toEqual([false]); // dead-lettered at once, no retry
+    const log = lines.join('\n');
+    expect(log).toContain(
+      'Malformed notification.user_kyc_result_requested command',
+    );
+    // The log line is JSON, so the quotes around the field name are escaped.
+    expect(log).toContain('must be one of VERIFIED, REJECTED');
+    expect(log).not.toContain(BUYER);
+    expect(log).not.toContain(SELLER);
+    expect(log).not.toContain(NAME);
     expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });
 

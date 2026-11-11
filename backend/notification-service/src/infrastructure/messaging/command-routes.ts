@@ -4,6 +4,7 @@ import {
   type NotifyContractActivationFailedUseCase,
   type NotifyContractAnchorUseCase,
   type NotifyContractTerminatedUseCase,
+  type NotifyUserKycResultUseCase,
 } from '../../application/use-cases';
 import {
   CONTRACT_TERMINATED_REQUESTED,
@@ -11,6 +12,7 @@ import {
   parseContractActivationFailedRequested,
   parseContractAnchorRequested,
   parseContractTerminatedRequested,
+  parseUserKycResultRequested,
   unsupportedCommand,
 } from './notification-command.parsers';
 import type { CommandRoutingKey } from './topology';
@@ -28,6 +30,7 @@ export interface CommandUseCases {
   activationCancelRequested: NotifyActivationCancelRequestedUseCase;
   contractActivationFailed: NotifyContractActivationFailedUseCase;
   contractTerminated: NotifyContractTerminatedUseCase;
+  userKycResult: NotifyUserKycResultUseCase;
 }
 
 /**
@@ -58,5 +61,7 @@ export function commandRoutes(u: CommandUseCases): CommandRoutes {
       }
       await u.contractTerminated.execute(command);
     },
+    'notification.user_kyc_result_requested': (b) =>
+      u.userKycResult.execute(parseUserKycResultRequested(b)),
   };
 }

@@ -44,6 +44,7 @@ const EXPECTED_QUEUES = [
   'notification-svc.escrow.penalized',
   'notification-svc.category.approved',
   'notification-svc.category.rejected',
+  'notification-svc.notification.user_kyc_result_requested',
 ];
 
 /** The exchange row a queue belongs to, from the routing key in its name. */
@@ -51,16 +52,17 @@ const dlxOf = (queue: string): string => {
   const key = queue.replace('notification-svc.', '').replace(/\.dlq$/, '');
   if (key.startsWith('escrow.')) return 'notification-svc.escrow.dlx';
   if (key.startsWith('category.')) return 'notification-svc.events.dlx';
+  if (key.startsWith('notification.user_')) return 'notification-svc.user.dlx';
   return 'notification-svc.contracts.dlx';
 };
 
 describe('topology (must match the Java RabbitMQConfig)', () => {
-  it('names the 9 queues and 9 DLQs', () => {
+  it('names the 10 queues and 10 DLQs', () => {
     expect(queueNames()).toEqual(EXPECTED_QUEUES);
     expect(dlqNames()).toEqual(EXPECTED_QUEUES.map((q) => `${q}.dlq`));
   });
 
-  it('declares exactly 6 durable, non auto-delete exchanges', async () => {
+  it('declares exactly 8 durable, non auto-delete exchanges', async () => {
     const { channel, exchanges } = recordingChannel();
     await declareTopology(channel);
 
@@ -72,14 +74,18 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
       ['notification-svc.escrow.dlx', 'direct', durable],
       ['agricontract.events', 'topic', durable],
       ['notification-svc.events.dlx', 'direct', durable],
+      // user-service declares agricontract.user with the same options
+      // (RabbitConfiguration.userExchange: durable, not auto-delete).
+      ['agricontract.user', 'topic', durable],
+      ['notification-svc.user.dlx', 'direct', durable],
     ]);
   });
 
-  it('declares 18 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
+  it('declares 20 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
     const { channel, queues } = recordingChannel();
     await declareTopology(channel);
 
-    expect(queues).toHaveLength(18);
+    expect(queues).toHaveLength(20);
 
     for (const q of EXPECTED_QUEUES) {
       // toEqual on the whole options object also fails on any extra option
@@ -109,7 +115,19 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, bindings } = recordingChannel();
     await declareTopology(channel);
 
-    expect(bindings).toHaveLength(18);
+    expect(bindings).toHaveLength(20);
+    // user-service publishes the KYC command to its own exchange and declares
+    // nothing for us, so this binding is the only route it has.
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.user_kyc_result_requested',
+      'agricontract.user',
+      'notification.user_kyc_result_requested',
+    ]);
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.user_kyc_result_requested.dlq',
+      'notification-svc.user.dlx',
+      'notification.user_kyc_result_requested',
+    ]);
     // Exactly the queue, DLX and binding contract-service declares ahead of us
     // (ConsumerQueuesDeclaredAhead), so its declaration and ours are the same.
     expect(bindings).toContainEqual([
