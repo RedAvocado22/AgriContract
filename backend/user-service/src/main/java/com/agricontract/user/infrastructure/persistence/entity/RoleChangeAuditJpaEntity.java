@@ -1,6 +1,7 @@
 package com.agricontract.user.infrastructure.persistence.entity;
 
 import com.agricontract.user.domain.model.vo.Role;
+import com.agricontract.user.domain.model.vo.RoleChangeOutcome;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,6 +33,10 @@ public class RoleChangeAuditJpaEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "new_role", nullable = false, updatable = false, length = 32)
     private Role newRole;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "outcome", nullable = false, updatable = false, length = 32)
+    private RoleChangeOutcome outcome;
 
     @Column(name = "changed_at", nullable = false, updatable = false)
     private Instant changedAt;

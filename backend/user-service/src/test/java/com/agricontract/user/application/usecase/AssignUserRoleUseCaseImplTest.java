@@ -72,7 +72,7 @@ class AssignUserRoleUseCaseImplTest {
         verify(userProfileRepository).update(captor.capture());
         assertThat(captor.getValue().getRole()).isEqualTo(Role.INSPECTOR);
         assertThat(response.role()).isEqualTo(Role.INSPECTOR);
-        verify(roleChangeAuditRepository).append(new RoleChangeAuditEntry(ACTOR_ID, TARGET_ID,
+        verify(roleChangeAuditRepository).append(RoleChangeAuditEntry.applied(ACTOR_ID, TARGET_ID,
                 Role.BUYER, Role.INSPECTOR, Instant.parse("2026-10-31T03:00:00.123456Z")));
     }
 
@@ -88,13 +88,25 @@ class AssignUserRoleUseCaseImplTest {
     }
 
     @Test
-    void execute_operatorToArbitrator_throwsAndDoesNotUpdate() {
+    void execute_operatorToArbitrator_throwsAndAuditsRejectionWithActor() {
         when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(profileWithRole(TARGET_ID, Role.OPERATOR)));
 
         assertThatThrownBy(() -> useCase.execute(new AssignUserRoleCommand(TARGET_ID, ACTOR_ID, Role.ARBITRATOR)))
                 .isInstanceOf(RoleSeparationViolationException.class);
         verify(userProfileRepository, never()).update(any());
-        verifyNoInteractions(roleChangeAuditRepository);
+        verify(roleChangeAuditRepository).append(RoleChangeAuditEntry.rejectedForSeparation(ACTOR_ID, TARGET_ID,
+                Role.OPERATOR, Role.ARBITRATOR, Instant.parse("2026-10-31T03:00:00.123456Z")));
+    }
+
+    @Test
+    void execute_arbitratorToOperator_throwsAndAuditsRejectionWithActor() {
+        when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(profileWithRole(TARGET_ID, Role.ARBITRATOR)));
+
+        assertThatThrownBy(() -> useCase.execute(new AssignUserRoleCommand(TARGET_ID, ACTOR_ID, Role.OPERATOR)))
+                .isInstanceOf(RoleSeparationViolationException.class);
+        verify(userProfileRepository, never()).update(any());
+        verify(roleChangeAuditRepository).append(RoleChangeAuditEntry.rejectedForSeparation(ACTOR_ID, TARGET_ID,
+                Role.ARBITRATOR, Role.OPERATOR, Instant.parse("2026-10-31T03:00:00.123456Z")));
     }
 
     @Test
