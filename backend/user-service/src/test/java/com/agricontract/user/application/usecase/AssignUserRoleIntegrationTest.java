@@ -25,8 +25,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Role assignment against real MySQL: V4 accepts ARBITRATOR in the role ENUM, the update path
- * persists the new role with its V8 audit row, and refused changes (OPERATOR -> ARBITRATOR, own role)
- * leave the row untouched and write no audit.
+ * persists the new role with its V8 audit row, a refused OPERATOR -> ARBITRATOR change leaves the row untouched
+ * but commits a REJECTED_ROLE_SEPARATION audit row with the actor (#261), and a refused own-role change writes no audit.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
@@ -58,11 +58,12 @@ class AssignUserRoleIntegrationTest {
         assertThat(userProfileRepository.findById(new UserId("staff-1")).orElseThrow().getRole())
                 .isEqualTo(Role.ARBITRATOR);
         Map<String, Object> audit = jdbcTemplate.queryForMap(
-                "SELECT actor_id, target_user_id, old_role, new_role, changed_at FROM role_change_audit");
+                "SELECT actor_id, target_user_id, old_role, new_role, outcome, changed_at FROM role_change_audit");
         assertThat(audit).containsEntry("actor_id", ADMIN_ID)
                 .containsEntry("target_user_id", "staff-1")
                 .containsEntry("old_role", "BUYER")
-                .containsEntry("new_role", "ARBITRATOR");
+                .containsEntry("new_role", "ARBITRATOR")
+                .containsEntry("outcome", "APPLIED");
         assertThat(audit.get("changed_at")).isNotNull();
     }
 
@@ -76,14 +77,21 @@ class AssignUserRoleIntegrationTest {
     }
 
     @Test
-    void operatorToArbitrator_refusedAndRowUnchanged() {
+    void operatorToArbitrator_refusedRowUnchangedAndRejectionAudited() {
         register("staff-2", Role.OPERATOR);
 
         assertThatThrownBy(() -> assignUserRoleUseCase.execute(new AssignUserRoleCommand("staff-2", ADMIN_ID, Role.ARBITRATOR)))
                 .isInstanceOf(RoleSeparationViolationException.class);
 
         assertThat(storedRole("staff-2")).isEqualTo("OPERATOR");
-        assertThat(auditCount()).isZero();
+        Map<String, Object> audit = jdbcTemplate.queryForMap(
+                "SELECT actor_id, target_user_id, old_role, new_role, outcome, changed_at FROM role_change_audit");
+        assertThat(audit).containsEntry("actor_id", ADMIN_ID)
+                .containsEntry("target_user_id", "staff-2")
+                .containsEntry("old_role", "OPERATOR")
+                .containsEntry("new_role", "ARBITRATOR")
+                .containsEntry("outcome", "REJECTED_ROLE_SEPARATION");
+        assertThat(audit.get("changed_at")).isNotNull();
     }
 
     @Test
