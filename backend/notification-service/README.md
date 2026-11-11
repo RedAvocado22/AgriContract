@@ -158,6 +158,30 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
   `test/contract/user-kyc-result-requested.contract.spec.ts` checks the parser against the contract in both
   directions.
 
+### Account locked or unlocked (Phase 2, `notification.user_lock_changed_requested`)
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.user_lock_changed_requested` (DLX `notification-svc.user.dlx`) |
+| Exchange, routing key | `agricontract.user`, `notification.user_lock_changed_requested` |
+| Recipients | `payload.recipientEmail` alone: the user whose lock changed |
+| Row per email | `notification_type = USER_LOCK_CHANGED`, `template_version = user-lock-changed/v1` |
+
+- user-service publishes it (`OutboxLockChangePublisher`) once it has applied a `reputation.locked` or
+  `reputation.unlocked`; a stale revision it ignores publishes nothing. `effectiveUntil` is the lock stored after
+  the change, so the email has three cases:
+  - `LOCKED`: locked until `effectiveUntil` (Vietnam time and UTC), and while locked the user cannot create
+    listings or offers, nor sign contracts (user-service design §3);
+  - `UNLOCKED` with `null`: no lock is left;
+  - `UNLOCKED` with a date: one lock was lifted but another still applies until then; the email does not say
+    "unlocked".
+- `reasonCode` is quoted as sent (`(none given)` if empty): its values have no agreed wording.
+- Same row, DLX and caveat as the KYC result: no queue is declared ahead, so lock changes applied before this
+  service first starts wait in user-service's outbox. Same claim, dedup, redelivery and dead-letter rules as the
+  signed-contract email; lines stay within 76 characters, so the mail goes out as 7bit.
+  `test/contract/user-lock-changed-requested.contract.spec.ts` checks the parser against the contract in both
+  directions.
+
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
