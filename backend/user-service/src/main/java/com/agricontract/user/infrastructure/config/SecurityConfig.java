@@ -38,6 +38,8 @@ public class SecurityConfig {
                         // Profile reads need an end-user principal (design §4.1): /me is the owner's own profile, and
                         // the public DTO is for logged-in users. Service-to-service reads go to /internal/v1/users/{userId}.
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/**").authenticated()
+                        // Email verification acts on the principal's own profile (design §4.4).
+                        .requestMatchers(HttpMethod.POST, "/api/v1/users/me/**").authenticated()
                         .anyRequest().permitAll()
                 )
                 .exceptionHandling(ex -> ex

@@ -36,6 +36,9 @@ public class UserProfile {
     private String rejectionReason;
     // Projection of reputation-service lock state; only the lock event consumer may change it.
     private Instant lockedUntil;
+    // The address the user proved to own with an emailed code (design §4.4). Only a proven address gets notifications.
+    private String verifiedEmail;
+    private Instant emailVerifiedAt;
 
     private UserProfile() {
     }
@@ -63,7 +66,9 @@ public class UserProfile {
                                            String verifiedByActorId,
                                            Instant verifiedAt,
                                            String rejectionReason,
-                                           Instant lockedUntil) {
+                                           Instant lockedUntil,
+                                           String verifiedEmail,
+                                           Instant emailVerifiedAt) {
         UserProfile userProfile = new UserProfile();
         userProfile.userId = userId;
         userProfile.organizationName = organizationName;
@@ -75,6 +80,8 @@ public class UserProfile {
         userProfile.verifiedAt = verifiedAt;
         userProfile.rejectionReason = rejectionReason;
         userProfile.lockedUntil = lockedUntil;
+        userProfile.verifiedEmail = verifiedEmail;
+        userProfile.emailVerifiedAt = emailVerifiedAt;
         return userProfile;
     }
 
@@ -150,7 +157,39 @@ public class UserProfile {
         if (newInfo == null) {
             return;
         }
+        // A new address is not proven yet: the old proof does not carry over.
+        if (!sameAddress(this.contactInfo.email(), newInfo.email())) {
+            this.verifiedEmail = null;
+            this.emailVerifiedAt = null;
+        }
         this.contactInfo = newInfo;
+    }
+
+    // True only while the proven address is still the contact address.
+    public boolean isEmailVerified() {
+        return verifiedEmail != null && sameAddress(verifiedEmail, contactInfo.email());
+    }
+
+    // The contact address once proven, else null. Every notification recipient must come from here.
+    public String verifiedContactEmail() {
+        return isEmailVerified() ? contactInfo.email() : null;
+    }
+
+    // codeSentTo: the address the confirmed code went to; it must still be the contact address.
+    public void markEmailVerified(String codeSentTo, Instant verifiedAt) {
+        if (verifiedAt == null) {
+            throw new IllegalArgumentException("Email verification time must not be null");
+        }
+        if (!sameAddress(codeSentTo, contactInfo.email())) {
+            throw new IllegalArgumentException("The code was sent to an address that is no longer the contact email");
+        }
+        this.verifiedEmail = contactInfo.email();
+        this.emailVerifiedAt = verifiedAt;
+    }
+
+    // Addresses compare case-insensitively, like the unique key on user_profiles.verified_email under MySQL collation.
+    private static boolean sameAddress(String a, String b) {
+        return a != null && a.equalsIgnoreCase(b);
     }
 
     private void requireDecision(String actorId, Instant decidedAt) {

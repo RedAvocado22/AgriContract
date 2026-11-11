@@ -98,6 +98,7 @@ class ApplyLockChangeUseCaseImplTest {
         UserProfile created = UserProfile.create(ID, "HTX Ca Phe", Role.SELLER,
                 new ContactInfo("seller@example.com", null, null));
         return UserProfile.reconstitute(ID, created.getOrganizationName(), created.getRole(),
-                created.getContactInfo(), created.getVerificationStatus(), null, null, null, null, lockedUntil);
+                created.getContactInfo(), created.getVerificationStatus(), null, null, null, null, lockedUntil,
+                "seller@example.com", Instant.parse("2026-10-01T00:00:00Z"));
     }
 }

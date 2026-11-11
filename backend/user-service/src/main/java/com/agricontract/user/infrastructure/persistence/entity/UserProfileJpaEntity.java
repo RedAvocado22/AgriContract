@@ -62,6 +62,13 @@ public class UserProfileJpaEntity {
     @Column(name = "locked_until", updatable = false)
     private Instant lockedUntil;
 
+    // Unique: one proven owner per address (V11). NULL until the user confirms a code.
+    @Column(name = "verified_email", length = 255)
+    private String verifiedEmail;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
     @Version
     @Column(nullable = false)
     private Long version;

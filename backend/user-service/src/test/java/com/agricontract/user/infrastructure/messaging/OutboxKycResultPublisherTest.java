@@ -43,8 +43,21 @@ class OutboxKycResultPublisherTest {
     }
 
     private static UserProfile pendingProfile() {
-        return UserProfile.create(new UserId(USER_ID), "HTX Ca Phe", Role.SELLER,
+        UserProfile profile = UserProfile.create(new UserId(USER_ID), "HTX Ca Phe", Role.SELLER,
                 new ContactInfo("seller@example.com", null, null));
+        profile.markEmailVerified("seller@example.com", Instant.parse("2026-10-01T00:00:00Z"));
+        return profile;
+    }
+
+    @Test
+    void decided_unverifiedEmail_publishesNothing() {
+        UserProfile profile = UserProfile.create(new UserId(USER_ID), "HTX Ca Phe", Role.SELLER,
+                new ContactInfo("seller@example.com", null, null));
+        profile.verify(ACTOR_ID, DECIDED_AT, null);
+
+        publisher.decided(profile);
+
+        verifyNoInteractions(outbox);
     }
 
     @Test

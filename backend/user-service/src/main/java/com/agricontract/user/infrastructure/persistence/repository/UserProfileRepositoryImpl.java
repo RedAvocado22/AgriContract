@@ -2,6 +2,7 @@ package com.agricontract.user.infrastructure.persistence.repository;
 
 import com.agricontract.user.common.exception.UserAlreadyExistsException;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
+import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
@@ -58,6 +59,9 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
             return mapper.toDomain(jpaRepository.saveAndFlush(entity));
         } catch (OptimisticLockingFailureException e) {
             throw new ConcurrentProfileUpdateException(userId);
+        } catch (DataIntegrityViolationException e) {
+            // The only unique key an update can break is uk_user_profiles_verified_email: someone proved it first.
+            throw new EmailAlreadyClaimedException();
         }
     }
 
@@ -70,6 +74,11 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     @Override
     public boolean existsById(UserId userId) {
         return jpaRepository.existsByUserId(userId.value());
+    }
+
+    @Override
+    public boolean isEmailVerifiedByAnotherUser(String email, UserId userId) {
+        return jpaRepository.existsByVerifiedEmailAndUserIdNot(email, userId.value());
     }
 
     @Override

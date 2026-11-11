@@ -118,8 +118,11 @@ class KycDecisionConcurrencyTest {
     }
 
     private String register(String userId) {
-        userProfileRepository.save(UserProfile.create(new UserId(userId), "HTX Ca Phe", Role.SELLER,
-                new ContactInfo(userId + "@agricontract.test", null, null)));
+        UserProfile profile = UserProfile.create(new UserId(userId), "HTX Ca Phe", Role.SELLER,
+                new ContactInfo(userId + "@agricontract.test", null, null));
+        // Only a verified address is notified (design §4.4).
+        profile.markEmailVerified(userId + "@agricontract.test", Instant.parse("2026-10-01T00:00:00Z"));
+        userProfileRepository.save(profile);
         return userId;
     }
 
