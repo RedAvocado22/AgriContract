@@ -43,7 +43,9 @@ public interface UserProfileMapper {
                 entity.getVerifiedByActorId(),
                 entity.getVerifiedAt(),
                 entity.getRejectionReason(),
-                entity.getLockedUntil()
+                entity.getLockedUntil(),
+                entity.getVerifiedEmail(),
+                entity.getEmailVerifiedAt()
         );
     }
 }

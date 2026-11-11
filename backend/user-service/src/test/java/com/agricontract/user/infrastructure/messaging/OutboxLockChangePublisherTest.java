@@ -26,6 +26,7 @@ import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class OutboxLockChangePublisherTest {
@@ -44,6 +45,17 @@ class OutboxLockChangePublisherTest {
     @BeforeEach
     void setUp() {
         publisher = new OutboxLockChangePublisher(outbox, Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    @Test
+    void lock_unverifiedEmail_publishesNothing() {
+        UserProfile unverified = UserProfile.reconstitute(new UserId(USER_ID), "HTX Ca Phe", Role.SELLER,
+                new ContactInfo("seller@example.com", null, null), VerificationStatus.VERIFIED,
+                null, null, null, null, STORED_UNTIL, null, null);
+
+        publisher.lockChanged(unverified, command(LockAction.LOCKED, STORED_UNTIL));
+
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -95,6 +107,6 @@ class OutboxLockChangePublisherTest {
     private static UserProfile profile(Instant lockedUntil) {
         return UserProfile.reconstitute(new UserId(USER_ID), "HTX Ca Phe", Role.SELLER,
                 new ContactInfo("seller@example.com", null, null), VerificationStatus.VERIFIED,
-                null, null, null, null, lockedUntil);
+                null, null, null, null, lockedUntil, "seller@example.com", Instant.parse("2026-10-01T00:00:00Z"));
     }
 }
