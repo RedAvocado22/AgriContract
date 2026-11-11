@@ -22,7 +22,8 @@ public class GetInternalUserInfoUseCaseImpl implements GetInternalUserInfoUseCas
         return InternalUserInfoResponse.builder()
                 .userId(profile.getUserId().value())
                 .organizationName(profile.getOrganizationName())
-                .email(profile.getContactInfo().email())
+                // null until the user proves the address: callers treat a missing email as "cannot notify" (design §4.3).
+                .email(profile.verifiedContactEmail())
                 .role(profile.getRole())
                 .verificationStatus(profile.getVerificationStatus())
                 .authorizationExpiresAt(profile.getAuthorizationExpiresAt())

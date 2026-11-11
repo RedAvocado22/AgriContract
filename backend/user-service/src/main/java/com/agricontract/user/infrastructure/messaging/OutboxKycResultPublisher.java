@@ -6,6 +6,7 @@ import com.agricontract.user.application.port.KycResultPublisher;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -15,10 +16,12 @@ import java.util.UUID;
 /**
  * notification.user_kyc_result_requested (notification-commands.yaml). The decision starts its own chain, so
  * correlationId is the command's eventId and there is no causationId. Times come from the stored decision, not the
- * clock: decidedAt must equal verifiedAt.
+ * clock: decidedAt must equal verifiedAt. Nothing is published while the contact email is unverified (design §4.4):
+ * the decision still stands, the user sees it on /me.
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class OutboxKycResultPublisher implements KycResultPublisher {
 
     static final String PRODUCER = "user-service";
@@ -32,10 +35,15 @@ public class OutboxKycResultPublisher implements KycResultPublisher {
         if (result != VerificationStatus.VERIFIED && result != VerificationStatus.REJECTED) {
             throw new IllegalStateException("No KYC decision to publish for status " + result);
         }
+        String recipientEmail = profile.verifiedContactEmail();
+        if (recipientEmail == null) {
+            log.info("KYC result email for user {} skipped: contact email not verified", profile.getUserId().value());
+            return;
+        }
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userId", profile.getUserId().value());
-        payload.put("recipientEmail", profile.getContactInfo().email());
+        payload.put("recipientEmail", recipientEmail);
         payload.put("organizationName", profile.getOrganizationName());
         payload.put("result", result.name());
         // reason is optional, not nullable: it is left out entirely for VERIFIED.

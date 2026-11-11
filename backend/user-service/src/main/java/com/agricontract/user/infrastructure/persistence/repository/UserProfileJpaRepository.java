@@ -25,6 +25,8 @@ public interface UserProfileJpaRepository extends JpaRepository<UserProfileJpaEn
 
     boolean existsByUserId(String userId);
 
+    boolean existsByVerifiedEmailAndUserIdNot(String verifiedEmail, String userId);
+
     List<UserProfileJpaEntity> findByVerificationStatus(VerificationStatus verificationStatus, Pageable pageable);
 
     long countByVerificationStatus(VerificationStatus verificationStatus);

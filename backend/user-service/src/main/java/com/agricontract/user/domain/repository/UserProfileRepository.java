@@ -21,6 +21,9 @@ public interface UserProfileRepository {
 
     boolean existsById(UserId userId);
 
+    // True when a user other than userId has already proven this address (case-insensitive).
+    boolean isEmailVerifiedByAnotherUser(String email, UserId userId);
+
     // Oldest registration first, so the KYC queue is reviewed in submission order. page is zero-based.
     List<UserProfile> findByVerificationStatus(VerificationStatus status, int page, int size);
 

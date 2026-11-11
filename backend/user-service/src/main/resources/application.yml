@@ -29,6 +29,12 @@ agricontract:
       exchange: agricontract.user
 
 user:
+  # Register email ownership proof (design §4.4).
+  email-verification:
+    expiry-seconds: 600
+    max-attempts: 5
+    resend-cooldown-seconds: 60
+    pepper: ${EMAIL_VERIFICATION_PEPPER:dev-only-email-verification-pepper}
   dlq-monitor:
     enabled: ${USER_DLQ_MONITOR_ENABLED:true}
     interval-ms: ${USER_DLQ_MONITOR_INTERVAL_MS:300000}
@@ -52,3 +58,7 @@ management:
 logging:
   level:
     com.agricontract: DEBUG
+
+# Verification email goes through notification-service (POST /internal/v1/notifications/otp-email, VERIFY_EMAIL).
+notification-service:
+  url: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
