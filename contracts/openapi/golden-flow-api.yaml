@@ -505,8 +505,51 @@ paths:
       operationId: registerUser
       security: [{bearerAuth: []}]
       responses:
-        '2XX': {description: Idempotent registration; exact success status is not frozen.}
+        '2XX': {description: 'Idempotent registration; exact success status is not frozen. The body email is stored unverified (#344) and receives no notification until confirmed.'}
         '400': {$ref: '#/components/responses/BadRequest'}
+        '409':
+          description: New profile only - EMAIL_ALREADY_CLAIMED, another account has already verified this email. An existing profile is returned unchanged instead.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+  /api/v1/users/me/email-verification:
+    x-service-owner: user-service
+    post:
+      operationId: requestEmailVerification
+      security: [{bearerAuth: []}]
+      description: Emails a 6-digit code to the caller's contact email (notification-service otp-email, purpose VERIFY_EMAIL). Replaces any pending code.
+      responses:
+        '202':
+          description: Email accepted by notification-service.
+          content: {application/json: {schema: {type: object, required: [expiresAt], properties: {expiresAt: {type: string, format: date-time}}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: EMAIL_ALREADY_VERIFIED, EMAIL_ALREADY_CLAIMED or VERIFICATION_RESEND_TOO_SOON.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+        '503': {description: The email was not accepted; no code is kept and the caller may ask again.}
+  /api/v1/users/me/email-verification/confirm:
+    x-service-owner: user-service
+    post:
+      operationId: confirmEmailVerification
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties: {code: {type: string, pattern: '^[0-9]{6}$'}}
+              additionalProperties: false
+      responses:
+        '2XX': {description: Email verified; returns the own profile with emailVerified true.}
+        '400':
+          description: Malformed code, or VERIFICATION_CODE_INVALID (the wrong guess is counted).
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: EMAIL_ALREADY_VERIFIED, EMAIL_ALREADY_CLAIMED, VERIFICATION_NOT_REQUESTED, VERIFICATION_EXPIRED or VERIFICATION_ATTEMPTS_EXHAUSTED.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
   /api/v1/users/me:
     x-service-owner: user-service
     get:
@@ -1337,7 +1380,10 @@ components:
       additionalProperties: false
     OtpEmailRequest:
       type: object
-      required: [requestId, recipientUserId, recipientEmail, contractId, otpCode, signedContentHash, expiresAt]
+      required: [requestId, recipientUserId, recipientEmail, otpCode, expiresAt]
+      description: >-
+        contractId and signedContentHash are required for the contract purposes (SIGN_CONTRACT, CANCEL_ACTIVATION,
+        or purpose absent) and must be absent for VERIFY_EMAIL (#344).
       properties:
         requestId: {type: string}
         recipientUserId: {type: string}
@@ -1346,7 +1392,14 @@ components:
         otpCode: {type: string, pattern: '^[0-9]{6}$'}
         signedContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
         expiresAt: {type: string, format: date-time, description: UTC OTP expiry instant derived from the owner service system timestamp.}
-        purpose: {enum: [SIGN_CONTRACT, CANCEL_ACTIVATION], default: SIGN_CONTRACT, description: Which action the code confirms; selects the email template. Absent means SIGN_CONTRACT.}
+        purpose: {enum: [SIGN_CONTRACT, CANCEL_ACTIVATION, VERIFY_EMAIL], default: SIGN_CONTRACT, description: 'Which action the code confirms; selects the email template. Absent means SIGN_CONTRACT. VERIFY_EMAIL (#344) is sent by user-service to prove the register email.'}
+      if:
+        required: [purpose]
+        properties: {purpose: {const: VERIFY_EMAIL}}
+      then:
+        not: {anyOf: [{required: [contractId]}, {required: [signedContentHash]}]}
+      else:
+        required: [contractId, signedContentHash]
       additionalProperties: false
     InitiateSignRequest:
       type: object
@@ -1561,6 +1614,8 @@ x-reference-only:
     document by inference.
   paths:
     - /api/v1/users/register
+    - /api/v1/users/me/email-verification
+    - /api/v1/users/me/email-verification/confirm
     - /api/v1/users/me
     - /api/v1/users/{userId}
     - /api/v1/admin/users
