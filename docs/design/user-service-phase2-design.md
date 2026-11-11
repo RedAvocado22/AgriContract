@@ -73,8 +73,10 @@ Gate nằm tại use-case của `product-service`/`contract-service`, không n�
 
 | Method | Path | Quyền | Response/ý nghĩa |
 |---|---|---|---|
-| `POST` | `/api/v1/users/register` | Authenticated | Idempotent theo Keycloak `sub`; tạo `PENDING` nếu mới |
-| `GET` | `/api/v1/users/me` | Chính chủ | `UserProfileResponse` đầy đủ contact/KYC/authorization/lock |
+| `POST` | `/api/v1/users/register` | Authenticated | Idempotent theo Keycloak `sub`; tạo `PENDING` nếu mới. Email lấy từ body, lưu **chưa verify** (§4.4); email đã có account khác verify → 409 `EMAIL_ALREADY_CLAIMED` (chỉ khi tạo mới) |
+| `POST` | `/api/v1/users/me/email-verification` | Chính chủ | Gửi OTP 6 số tới contact email → 202 `{expiresAt}` (§4.4) |
+| `POST` | `/api/v1/users/me/email-verification/confirm` | Chính chủ | Body `{code}`; đúng mã → 200 `UserProfileResponse` với `emailVerified: true` (§4.4) |
+| `GET` | `/api/v1/users/me` | Chính chủ | `UserProfileResponse` đầy đủ contact/KYC/authorization/lock, kèm `emailVerified` |
 | `GET` | `/api/v1/users/{userId}` | Authenticated | `PublicUserResponse`: `userId`, `organizationName`, `role`, `verificationStatus`; **không email/phone/address** |
 
 Reputation công khai không nhét vào DTO này; client gọi `GET /api/v1/reputation/{userId}/public-summary` ở service sở hữu.
@@ -124,6 +126,22 @@ Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào 
 
 Chỉ service identity (mTLS/service token; Phase 2 có thể dùng `SERVICE_INTERNAL_SECRET`) được gọi. Không tái dùng `UserInfoResponse` public cho Feign vì đó là nguyên nhân KI-3.
 
+**`email` = `null` khi user chưa verify email (11/11/2026, #344).** Caller coi email thiếu là "không gửi được": contract-service đã fail-closed (`SignerEligibility`, `CreateContractUseCase`), product-service `ProposeCategory` hiện báo `UserServiceUnavailableException` khi không có email (user chưa verify nhận lỗi 503, follow-up nếu cần mã lỗi riêng).
+
+### 4.4 Xác minh email (chốt 11/11/2026, #344)
+
+Từ #314 email đăng ký đến từ body, không còn từ JWT, nên không có gì chứng minh địa chỉ thuộc về người gọi (realm `verifyEmail: false`, body cũng bỏ qua `duplicateEmailsAllowed: false` của realm). **Chọn OTP ở user-service**, không bật `verifyEmail` của Keycloak: user-service không thấy JWT, nên muốn đối chiếu email body với email Keycloak đã verify thì gateway phải inject lại một header email (đi ngược quyết định bỏ `X-User-Email`, api-gateway design §2) hoặc user-service phải gọi Keycloak admin API (chưa có client). Realm cũng chưa có SMTP.
+
+- `register` lưu email body vào `contactInfo` ở trạng thái **chưa verify**. Không gửi gì tự động; client gọi `POST /me/email-verification`.
+- **Gửi mã:** mã 6 số ngẫu nhiên (`SecureRandom`), lưu `HMAC-SHA256(code, pepper)` trong `email_verification_challenge` (mỗi user tối đa 1 dòng; yêu cầu mới thay dòng cũ), hết hạn sau `expiry-seconds` (600), tối đa `max-attempts` (5) lần nhập sai, cách nhau tối thiểu `resend-cooldown-seconds` (60) → 409 `VERIFICATION_RESEND_TOO_SOON`. Email gửi đồng bộ qua `POST /internal/v1/notifications/otp-email` với `purpose: VERIFY_EMAIL` (không `contractId`/`signedContentHash`), trong transaction: notification không nhận → 503, challenge rollback, user gửi lại. Log chỉ có `requestId`, không mã, không địa chỉ.
+- **Xác nhận:** sai mã → 400 `VERIFICATION_CODE_INVALID`, lần sai được commit (`noRollbackFor`); hết lượt → 409 `VERIFICATION_ATTEMPTS_EXHAUSTED`; hết hạn hoặc mã gửi tới địa chỉ khác contact email hiện tại → 409 `VERIFICATION_EXPIRED`; chưa xin mã → 409 `VERIFICATION_NOT_REQUESTED`; đã verify → 409 `EMAIL_ALREADY_VERIFIED`. Đúng mã → ghi `verified_email` + `email_verified_at`, xoá challenge.
+- **Địa chỉ đã có người verify:** `user_profiles.verified_email` UNIQUE (không phân biệt hoa thường theo collation). Nhiều user có thể *đăng ký* cùng địa chỉ chưa verify; **ai xác nhận trước thì sở hữu**. Sau đó: register mới với địa chỉ đó → 409 `EMAIL_ALREADY_CLAIMED`; xin mã hoặc xác nhận cho địa chỉ đó → 409 `EMAIL_ALREADY_CLAIMED` (unique key chặn cả hai confirm chạy song song). Message không lộ user nào đang giữ địa chỉ.
+- **Idempotent register không đổi:** profile đã tồn tại → trả nguyên profile (200), không kiểm tra email body.
+- **Đổi contact email** (`updateContactInfo`, chưa có endpoint) xoá trạng thái verify nếu địa chỉ khác.
+- **Không gửi tới địa chỉ chưa verify:** mọi recipient lấy từ `UserProfile.verifiedContactEmail()`. `notification.user_kyc_result_requested` và `notification.user_lock_changed_requested` **không được publish** khi chưa verify (quyết định KYC / lock vẫn áp dụng; user xem trên `/me`). Internal API trả `email: null` (§4.3).
+- Profile có sẵn trước V11 đều **chưa verify**: email của chúng từ #314 trở đi đến từ body, không phân biệt được với email cũ từ JWT.
+- **Phụ thuộc notification-service** (owner khác): nhận `purpose: VERIFY_EMAIL` không có `contractId`/`signedContentHash` + template. Chưa làm thì `POST /me/email-verification` trả 503.
+
 ## 5. Events
 
 | Event | Publisher | Consumer | Payload tối thiểu |
@@ -133,7 +151,7 @@ Chỉ service identity (mTLS/service token; Phase 2 có thể dùng `SERVICE_INT
 | `reputation.unlocked` | reputation-service | user-service | `{eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}`; **sửa 17/07/2026** — mang effective lock còn lại do reputation tính lại (đóng edge case nhiều lock chồng nhau); không mang email |
 | `notification.user_lock_changed_requested` | user-service | notification-service | `{eventId, sourceEventId, userId, recipientEmail, action: LOCKED\|UNLOCKED, effectiveUntil?, reasonCode}` |
 
-Email trong event là routing data nội bộ RabbitMQ, không được expose qua API/log plaintext ngoài nhu cầu vận hành.
+Email trong event là routing data nội bộ RabbitMQ, không được expose qua API/log plaintext ngoài nhu cầu vận hành. `recipientEmail` luôn là email **đã verify**; chưa verify thì không publish 2 command notification ở trên (§4.4, #344).
 
 ## 6. Database Migration
 
@@ -161,6 +179,8 @@ Không thêm credential, password hoặc Keycloak token vào `user_db`.
 **Triển khai từng phần (20/10/2026, #107):** `V6__add_locked_until.sql` chỉ thêm `locked_until` để `GET /internal/v1/users/{userId}` trả đúng lock projection. `last_lock_revision` và `user_event_idempotency` đi cùng consumer `reputation.locked/unlocked` (chưa có issue). Cột `locked_until` không nằm trong UPDATE của JPA (`updatable = false`) — consumer phải ghi bằng câu UPDATE riêng (atomic với `last_lock_revision`, §2.2), giá trị theo UTC; save KYC không bao giờ ghi đè lock.
 
 **Consumer lock (01/11/2026, #260):** `V9__add_lock_revision_and_processed_event.sql` thêm `last_lock_revision` và bảng `processed_event` của `shared/java-eventing` thay cho `user_event_idempotency` ở trên (một schema dedupe chung mọi service). Queue `user-svc.reputation` bind `reputation.locked` + `reputation.unlocked` trên exchange `agricontract.reputation` (DLQ `user-svc.reputation.dlq` qua `agricontract.user.dlx`, giữ routing key gốc nên bind cả hai key; `DlqMonitor` log WARN khi DLQ có message, tắt bằng `user.dlq-monitor.enabled`). Theo frozen contract, `reputation.unlocked` cũng mang `lockRevision` và cũng bị kiểm revision. `notification.user_lock_changed_requested` không có field `sourceEventId` trong payload frozen: eventId nguồn nằm ở `causationId` của envelope; `effectiveUntil` là `locked_until` đã lưu sau khi apply. Event cho `userId` không tồn tại: log WARN rồi ack, không vào DLQ.
+
+**Xác minh email (11/11/2026, #344):** `V11__add_email_verification.sql` thêm `user_profiles.verified_email` (UNIQUE) + `email_verified_at`, và bảng `email_verification_challenge` (PK `user_id`, `email`, `code_hash` CHAR(64), `sent_at`, `expires_at`, `attempts_left`). Không backfill: profile cũ đều chưa verify. V10 thuộc #261, merge trước.
 
 ## 7. Security & Failure Modes
 

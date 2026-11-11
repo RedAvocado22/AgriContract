@@ -43,6 +43,15 @@ class GetInternalUserInfoUseCaseImplTest {
     }
 
     @Test
+    void execute_unverifiedEmail_isNotHandedOut() {
+        when(userProfileRepository.findById(USER_ID)).thenReturn(Optional.of(UserProfile.reconstitute(USER_ID,
+                "HTX Ca Phe", Role.SELLER, new ContactInfo("someone-else@agricontract.test", null, null),
+                VerificationStatus.VERIFIED, null, null, null, null, null, null, null)));
+
+        assertThat(useCase.execute("seller-1").email()).isNull();
+    }
+
+    @Test
     void execute_keepsUnlimitedAuthorizationAndNoLockAsNull() {
         when(userProfileRepository.findById(USER_ID)).thenReturn(Optional.of(profile(
                 VerificationStatus.PENDING, null, null)));
@@ -64,6 +73,7 @@ class GetInternalUserInfoUseCaseImplTest {
     private static UserProfile profile(VerificationStatus status, Instant expiresAt, Instant lockedUntil) {
         return UserProfile.reconstitute(USER_ID, "HTX Ca Phe", Role.SELLER,
                 new ContactInfo("seller@agricontract.test", "0900000000", "Dak Lak"),
-                status, expiresAt, "operator-1", Instant.parse("2026-10-07T03:00:00Z"), null, lockedUntil);
+                status, expiresAt, "operator-1", Instant.parse("2026-10-07T03:00:00Z"), null, lockedUntil,
+                "seller@agricontract.test", Instant.parse("2026-10-01T00:00:00Z"));
     }
 }

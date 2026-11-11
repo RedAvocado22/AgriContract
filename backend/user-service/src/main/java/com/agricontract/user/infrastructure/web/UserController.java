@@ -1,6 +1,10 @@
 package com.agricontract.user.infrastructure.web;
 
+import com.agricontract.user.application.dto.EmailVerificationSentResponse;
 import com.agricontract.user.application.dto.RegisterUserCommand;
+import com.agricontract.user.application.usecase.ConfirmEmailVerificationUseCase;
+import com.agricontract.user.application.usecase.RequestEmailVerificationUseCase;
+import com.agricontract.user.infrastructure.web.dto.ConfirmEmailVerificationRequest;
 import com.agricontract.user.application.dto.RegisterUserResult;
 import com.agricontract.user.application.dto.PublicUserResponse;
 import com.agricontract.user.application.dto.UserProfileResponse;
@@ -25,6 +29,8 @@ public class UserController {
     private final GetUserProfileUseCase getUserProfileUseCase;
     private final RegisterUserUseCase registerUserUseCase;
     private final GetUserInfoUseCase getUserInfoUseCase;
+    private final RequestEmailVerificationUseCase requestEmailVerificationUseCase;
+    private final ConfirmEmailVerificationUseCase confirmEmailVerificationUseCase;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<UserProfileResponse>> register(
@@ -55,6 +61,22 @@ public class UserController {
             @AuthenticationPrincipal String userId
     ) {
         return ResponseEntity.ok(ApiResponse.ok(getUserProfileUseCase.execute(userId)));
+    }
+
+    // Emails a code to the caller's contact address (design §4.4).
+    @PostMapping("/me/email-verification")
+    public ResponseEntity<ApiResponse<EmailVerificationSentResponse>> requestEmailVerification(
+            @AuthenticationPrincipal String userId
+    ) {
+        return ResponseEntity.status(202).body(ApiResponse.ok(requestEmailVerificationUseCase.execute(userId)));
+    }
+
+    @PostMapping("/me/email-verification/confirm")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> confirmEmailVerification(
+            @AuthenticationPrincipal String userId,
+            @RequestBody @Valid ConfirmEmailVerificationRequest req
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(confirmEmailVerificationUseCase.execute(userId, req.code())));
     }
 
     @GetMapping("/{userId}")

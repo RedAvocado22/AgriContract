@@ -2,7 +2,11 @@ package com.agricontract.user.infrastructure.web;
 
 import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.common.exception.UserAlreadyExistsException;
+import com.agricontract.user.application.exception.VerificationEmailNotSentException;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
+import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
+import com.agricontract.user.domain.exception.EmailVerificationConflictException;
+import com.agricontract.user.domain.exception.InvalidVerificationCodeException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.ReadAuditUnavailableException;
@@ -22,6 +26,26 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoSuchElementException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(NoSuchElementException ex) {
         return ResponseEntity.status(404).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(EmailAlreadyClaimedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEmailAlreadyClaimed(EmailAlreadyClaimedException ex) {
+        return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(EmailVerificationConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEmailVerificationConflict(EmailVerificationConflictException ex) {
+        return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidVerificationCodeException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidVerificationCode(InvalidVerificationCodeException ex) {
+        return ResponseEntity.status(400).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(VerificationEmailNotSentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleVerificationEmailNotSent(VerificationEmailNotSentException ex) {
+        return ResponseEntity.status(503).body(ApiResponse.error("Verification email could not be sent; try again"));
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)

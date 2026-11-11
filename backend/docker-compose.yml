@@ -408,6 +408,7 @@ services:
       GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
       SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
       RABBITMQ_HOST: rabbitmq
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
     depends_on:
       user-db:
         condition: service_healthy

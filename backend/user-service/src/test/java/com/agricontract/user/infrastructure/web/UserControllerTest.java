@@ -10,6 +10,12 @@ import com.agricontract.user.application.usecase.RegisterUserUseCase;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import com.agricontract.user.infrastructure.config.SecurityConfig;
+import com.agricontract.user.application.dto.EmailVerificationSentResponse;
+import com.agricontract.user.application.usecase.ConfirmEmailVerificationUseCase;
+import com.agricontract.user.application.usecase.RequestEmailVerificationUseCase;
+import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
+import com.agricontract.user.domain.exception.InvalidVerificationCodeException;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -52,6 +58,8 @@ class UserControllerTest {
     @MockBean private GetUserProfileUseCase getUserProfileUseCase;
     @MockBean private RegisterUserUseCase registerUserUseCase;
     @MockBean private GetUserInfoUseCase getUserInfoUseCase;
+    @MockBean private RequestEmailVerificationUseCase requestEmailVerificationUseCase;
+    @MockBean private ConfirmEmailVerificationUseCase confirmEmailVerificationUseCase;
 
     private MockHttpServletRequestBuilder viaGateway(MockHttpServletRequestBuilder request) {
         return request
@@ -206,5 +214,64 @@ class UserControllerTest {
                         .content(registerBody("\"body@test.com\"")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.email").value("stored@test.com"));
+    }
+
+    // --- email verification ---
+
+    @Test
+    void requestEmailVerification_usesPrincipal_accepted() throws Exception {
+        Instant expiresAt = Instant.parse("2026-11-11T10:10:00Z");
+        when(requestEmailVerificationUseCase.execute(CALLER_ID)).thenReturn(new EmailVerificationSentResponse(expiresAt));
+
+        mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification")))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.expiresAt").exists());
+    }
+
+    @Test
+    void requestEmailVerification_withoutPrincipal_unauthorized() throws Exception {
+        mockMvc.perform(post("/api/v1/users/me/email-verification").header("X-Internal-Secret", INTERNAL_SECRET))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(requestEmailVerificationUseCase);
+    }
+
+    @Test
+    void confirmEmailVerification_rightCode_returnsVerifiedProfile() throws Exception {
+        when(confirmEmailVerificationUseCase.execute(CALLER_ID, "123456")).thenReturn(UserProfileResponse.builder()
+                .userId(CALLER_ID).email("buyer@agricontract.test").emailVerified(true).build());
+
+        mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification/confirm"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.emailVerified").value(true));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"code\":\"12345\"}", "{\"code\":\"abcdef\"}"})
+    void confirmEmailVerification_malformedCode_badRequest(String body) throws Exception {
+        mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification/confirm"))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(confirmEmailVerificationUseCase);
+    }
+
+    @Test
+    void confirmEmailVerification_wrongCode_badRequest() throws Exception {
+        when(confirmEmailVerificationUseCase.execute(CALLER_ID, "000000"))
+                .thenThrow(new InvalidVerificationCodeException(4));
+
+        mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification/confirm"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"000000\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void register_addressClaimedByAnotherUser_conflict() throws Exception {
+        when(registerUserUseCase.execute(any())).thenThrow(new EmailAlreadyClaimedException());
+
+        mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationName\":\"HTX\",\"email\":\"taken@example.com\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("EMAIL_ALREADY_CLAIMED")));
     }
 }
