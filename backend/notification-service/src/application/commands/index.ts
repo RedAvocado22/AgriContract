@@ -34,6 +34,11 @@ export {
   type KycResult,
   type UserKycResultRequestedCommand,
 } from './user-kyc-result-requested.command';
+export {
+  LOCK_ACTIONS,
+  type LockAction,
+  type UserLockChangedRequestedCommand,
+} from './user-lock-changed-requested.command';
 export type { EscrowLockedCommand } from './escrow-locked.command';
 export type { EscrowPenalizedCommand } from './escrow-penalized.command';
 export type { EscrowReleasedCommand } from './escrow-released.command';
