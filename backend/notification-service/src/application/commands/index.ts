@@ -29,6 +29,11 @@ export {
   type TerminationRequester,
   type TerminationType,
 } from './contract-terminated-requested.command';
+export {
+  KYC_RESULTS,
+  type KycResult,
+  type UserKycResultRequestedCommand,
+} from './user-kyc-result-requested.command';
 export type { EscrowLockedCommand } from './escrow-locked.command';
 export type { EscrowPenalizedCommand } from './escrow-penalized.command';
 export type { EscrowReleasedCommand } from './escrow-released.command';

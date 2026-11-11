@@ -10,6 +10,7 @@ import {
   CANCEL_REQUESTER_ROLES,
   FAILED_LEGS,
   FUND_TYPES,
+  KYC_RESULTS,
   PARTY_ROLES,
   RECIPIENT_ROLES,
   REMEDY_TYPES,
@@ -22,6 +23,7 @@ import {
   type ContractAnchorRequestedCommand,
   type NotificationRecipient,
   type RecipientRole,
+  type UserKycResultRequestedCommand,
 } from '../../application/commands';
 
 /*
@@ -148,6 +150,23 @@ class CommandReader {
       throw this.error(
         `field "${field}" must be a string, got ${describe(value)}`,
       );
+    }
+    return value;
+  }
+
+  /**
+   * An optional bare `{type: string}`: absent is null, but a property that is
+   * present must be a string, since the contract does not allow null.
+   */
+  optionalText(field: string): string | null {
+    return field in this.payload ? this.text(field) : null;
+  }
+
+  /** A single address outside `payload.recipients`, checked as a recipient's is; never quoted. */
+  email(field: string): string {
+    const value = this.payload[field];
+    if (typeof value !== 'string' || !EMAIL.test(value)) {
+      throw this.error(`field "${field}" must be an email address`);
     }
     return value;
   }
@@ -572,6 +591,50 @@ export function parseContractTerminatedRequested(
     supersededByContractId: payload.nullableUuid('supersededByContractId'),
     replacesContractId: payload.nullableUuid('replacesContractId'),
     remedyLegs: payload.remedyLegs(),
+  };
+}
+
+export const USER_KYC_RESULT_REQUESTED =
+  'notification.user_kyc_result_requested';
+
+/** Payload properties of `userKycResultRequested`. */
+export const USER_KYC_RESULT_FIELDS = [
+  'userId',
+  'recipientEmail',
+  'organizationName',
+  'result',
+  'reason',
+  'decidedAt',
+] as const;
+
+/** All of them but `reason`, which user-service leaves out for VERIFIED. */
+export const USER_KYC_RESULT_REQUIRED = USER_KYC_RESULT_FIELDS.filter(
+  (field) => field !== 'reason',
+);
+
+/**
+ * user-service's command: one user, one address, no `payload.recipients`.
+ * A REJECTED without a reason, or a VERIFIED with one, is what the contract
+ * allows, so both parse; the template decides what to show.
+ */
+export function parseUserKycResultRequested(
+  body: Buffer,
+): UserKycResultRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    USER_KYC_RESULT_REQUESTED,
+    'user-service',
+  );
+  payload.only(USER_KYC_RESULT_FIELDS);
+
+  return {
+    eventId: envelope.eventId,
+    userId: payload.uuid('userId'),
+    recipientEmail: payload.email('recipientEmail'),
+    organizationName: payload.text('organizationName'),
+    result: payload.enumValue('result', KYC_RESULTS),
+    reason: payload.optionalText('reason'),
+    decidedAt: payload.dateTime('decidedAt'),
   };
 }
 

@@ -4,6 +4,7 @@ import type {
   ContractAnchorRequestedCommand,
   ContractTerminatedRequestedCommand,
   NotificationRecipient,
+  UserKycResultRequestedCommand,
 } from '../../src/application/commands';
 
 /*
@@ -320,3 +321,70 @@ export const BREACH_TERMINATION: Record<string, unknown> = {
     },
   ],
 };
+
+/*
+ * `notification.user_kyc_result_requested`, as user-service writes it
+ * (OutboxKycResultPublisher): the decision starts its own chain, so
+ * correlationId is the command's eventId and causationId is null;
+ * aggregateId is the user, and occurredAt and decidedAt are both the stored
+ * decision time. This one is a rejection.
+ */
+export const KYC_USER_ID = '5f4e3d2c-1b0a-4f9e-8d7c-6b5a4f3e2d1c';
+export const KYC_EMAIL = 'owner@kyc.test';
+const KYC_EVENT_ID = '2c1b0a9f-8e7d-4c6b-9a5f-4e3d2c1b0a9f';
+
+export function kycEnvelope(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    eventId: KYC_EVENT_ID,
+    eventType: 'notification.user_kyc_result_requested',
+    eventVersion: 1,
+    occurredAt: '2026-11-11T02:30:00.123456Z',
+    producer: 'user-service',
+    aggregateId: KYC_USER_ID,
+    correlationId: KYC_EVENT_ID,
+    causationId: null,
+    payload: kycPayload(),
+    ...overrides,
+  };
+}
+
+export function kycPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    userId: KYC_USER_ID,
+    recipientEmail: KYC_EMAIL,
+    organizationName: 'Dak Lak Coffee Cooperative',
+    result: 'REJECTED',
+    reason: 'The business licence is not legible.',
+    decidedAt: '2026-11-11T02:30:00.123456Z',
+    ...overrides,
+  };
+}
+
+/** A VERIFIED payload: user-service leaves `reason` out entirely. */
+export function kycVerifiedPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const payload = kycPayload({ result: 'VERIFIED', ...overrides });
+  if (!('reason' in overrides)) delete payload.reason;
+  return payload;
+}
+
+export const kycBody = (overrides: Record<string, unknown> = {}): Buffer =>
+  Buffer.from(JSON.stringify(kycEnvelope(overrides)));
+
+/** The command the parser is expected to produce from `kycEnvelope()`. */
+export function kycCommand(): UserKycResultRequestedCommand {
+  return {
+    eventId: KYC_EVENT_ID,
+    userId: KYC_USER_ID,
+    recipientEmail: KYC_EMAIL,
+    organizationName: 'Dak Lak Coffee Cooperative',
+    result: 'REJECTED',
+    reason: 'The business licence is not legible.',
+    decidedAt: '2026-11-11T02:30:00.123456Z',
+  };
+}
