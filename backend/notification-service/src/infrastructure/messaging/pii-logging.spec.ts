@@ -15,6 +15,7 @@ import {
   NotifyContractActivationFailedUseCase,
   NotifyContractTerminatedUseCase,
   NotifyUserKycResultUseCase,
+  NotifyUserLockChangedUseCase,
   NotifyContractAnchorUseCase,
   NotifyEscrowLockedUseCase,
   NotifyEscrowReleasedUseCase,
@@ -33,6 +34,8 @@ import {
   terminatedPayload,
   kycEnvelope,
   kycPayload,
+  lockEnvelope,
+  lockPayload,
 } from '../../../test/support/commands';
 import { commandRoutes } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
@@ -97,6 +100,7 @@ async function harness(sendMail: jest.Mock) {
     contractActivationFailed: new NotifyContractActivationFailedUseCase(sender),
     contractTerminated: new NotifyContractTerminatedUseCase(sender),
     userKycResult: new NotifyUserKycResultUseCase(sender),
+    userLockChanged: new NotifyUserLockChangedUseCase(sender),
   });
   const consumer = new NotificationEventConsumer(amqp, routes, commands);
   await consumer.onModuleInit();
@@ -324,6 +328,32 @@ describe('no personal data in the logs', () => {
     expect(log).not.toContain(BUYER);
     expect(log).not.toContain(SELLER);
     expect(log).not.toContain(NAME);
+    expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it('a rejected lock-changed command: the dead-letter log quotes no address', async () => {
+    const lines = captureLogs();
+    const { deliver, nacks } = await harness(jest.fn());
+
+    deliver(
+      'notification-svc.notification.user_lock_changed_requested',
+      JSON.stringify(
+        lockEnvelope({
+          payload: lockPayload({ recipientEmail: BUYER, action: SELLER }),
+        }),
+      ),
+    );
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(nacks).toEqual([false]); // dead-lettered at once, no retry
+    const log = lines.join('\n');
+    expect(log).toContain(
+      'Malformed notification.user_lock_changed_requested command',
+    );
+    // The log line is JSON, so the quotes around the field name are escaped.
+    expect(log).toContain('must be one of LOCKED, UNLOCKED');
+    expect(log).not.toContain(BUYER);
+    expect(log).not.toContain(SELLER);
     expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });
 

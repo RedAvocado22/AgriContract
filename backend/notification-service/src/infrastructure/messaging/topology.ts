@@ -33,7 +33,10 @@ export const TOPOLOGY = [
     // user-service's outbox exchange (agricontract.eventing.outbox.exchange).
     exchange: 'agricontract.user',
     dlx: 'notification-svc.user.dlx',
-    routingKeys: ['notification.user_kyc_result_requested'],
+    routingKeys: [
+      'notification.user_kyc_result_requested',
+      'notification.user_lock_changed_requested',
+    ],
   },
 ] as const;
 
@@ -70,6 +73,10 @@ export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
  * declaration is the only one: until notification-service has started once,
  * user-service's publish is returned unroutable, and its outbox poller stops
  * at that row and retries it on every poll, holding back the rows after it.
+ *
+ * `notification.user_lock_changed_requested` tells a user their reputation
+ * lock changed, once user-service has applied it; same exchange, same row,
+ * same DLX, and likewise declared by no one else.
  */
 export const COMMAND_ROUTING_KEYS = [
   'notification.contract_anchor_requested',
@@ -77,6 +84,7 @@ export const COMMAND_ROUTING_KEYS = [
   'notification.contract_activation_failed_requested',
   'notification.contract_terminated_requested',
   'notification.user_kyc_result_requested',
+  'notification.user_lock_changed_requested',
 ] as const;
 
 export type CommandRoutingKey = (typeof COMMAND_ROUTING_KEYS)[number];

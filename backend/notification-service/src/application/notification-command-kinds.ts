@@ -47,4 +47,11 @@ export const COMMAND_KINDS = {
     notificationType: 'USER_KYC_RESULT',
     templateVersion: 'user-kyc-result/v1',
   },
+  // One email per applied lock change: locked, unlocked, or one lock lifted
+  // with another still on. The template tells them apart.
+  userLockChanged: {
+    eventType: 'notification.user_lock_changed_requested',
+    notificationType: 'USER_LOCK_CHANGED',
+    templateVersion: 'user-lock-changed/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;

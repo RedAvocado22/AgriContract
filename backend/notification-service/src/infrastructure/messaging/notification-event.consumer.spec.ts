@@ -16,6 +16,8 @@ import {
   cancelEnvelope,
   kycCommand,
   kycEnvelope,
+  lockCommand,
+  lockEnvelope,
   terminatedCommand,
   terminatedEnvelope,
   terminatedPayload,
@@ -68,6 +70,7 @@ const HANDLERS = [
   'contractActivationFailed',
   'contractTerminated',
   'userKycResult',
+  'userLockChanged',
   'escrowLocked',
   'escrowReleased',
   'escrowPenalized',
@@ -400,6 +403,44 @@ describe('NotificationEventConsumer', () => {
     }
     expect(channel.acked).toEqual([msg]);
     expect(channel.nacked).toEqual([]);
+  });
+
+  it('runs the lock-changed use case on its own queue, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.user_lock_changed_requested',
+      lockEnvelope(),
+    );
+    await flush();
+
+    expect(service.userLockChanged).toHaveBeenCalledTimes(1);
+    expect(service.userLockChanged.mock.calls[0][0]).toEqual(lockCommand());
+    for (const other of HANDLERS.filter((h) => h !== 'userLockChanged')) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('dead-letters a KYC-result command delivered to the lock-changed queue', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    channel.deliver(
+      'notification-svc.notification.user_lock_changed_requested',
+      kycEnvelope(),
+    );
+    await flush();
+
+    expect(service.userLockChanged).not.toHaveBeenCalled();
+    expect(service.userKycResult).not.toHaveBeenCalled();
+    expect(channel.nacked).toHaveLength(1);
   });
 
   it('dead-letters a contract command delivered to the KYC-result queue', async () => {
