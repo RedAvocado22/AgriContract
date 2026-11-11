@@ -131,6 +131,33 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
   characters. `test/contract/contract-terminated-requested.contract.spec.ts` checks the parser against the
   contract in both directions.
 
+### KYC result (Phase 2, `notification.user_kyc_result_requested`)
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.user_kyc_result_requested` (DLX `notification-svc.user.dlx`) |
+| Exchange, routing key | `agricontract.user`, `notification.user_kyc_result_requested` |
+| Recipients | `payload.recipientEmail` alone: the user whose organisation was decided (no `payload.recipients`) |
+| Row per email | `notification_type = USER_KYC_RESULT`, `template_version = user-kyc-result/v1` |
+
+- The first command from user-service (`OutboxKycResultPublisher`), on its own exchange: a new `TOPOLOGY` row,
+  with its own DLX. An Admin verified or rejected the user's KYC. The email names the organisation, the result
+  (subject and body), for a rejection the reason the Admin gave (user-service requires one; "No reason was given."
+  if a command lacks it), and when the decision was taken, in Vietnam time and UTC. A reason sent with a
+  verification is not shown. It promises no next step: user-service can move a rejected profile back to PENDING,
+  but no endpoint does that yet.
+- **No queue is declared ahead.** user-service declares the exchange, not our queue, and its outbox poller treats
+  an unroutable publish as a failure: it stops at that row, holding back every row after it, and retries on each
+  poll. So decisions taken before this service first starts wait in user-service's outbox, and are delivered once
+  `topology.ts` has declared the queue.
+- Every decision is a new command (new `eventId`): a user rejected, then verified after resubmitting, gets two
+  emails.
+- Same claim, dedup, redelivery and dead-letter rules as the signed-contract email; the address, the organisation
+  name and the reason are never logged. The fixed lines stay within 76 characters; the name and the reason are
+  quoted as sent, so a Vietnamese one makes nodemailer send quoted-printable.
+  `test/contract/user-kyc-result-requested.contract.spec.ts` checks the parser against the contract in both
+  directions.
+
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
