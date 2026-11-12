@@ -51,8 +51,8 @@ export class MysqlPriceHistoryRepository implements PriceHistoryRepository {
       await this.pool.query(
         `INSERT INTO price_history
            (id, commodity, item_name, item_slug, province, province_slug, price, source,
-            captured_at, ingested_at, reference_source, reason, recorded_by, idempotency_key, request_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            captured_at, ingested_at, reference_source, reason, recorded_by, idempotency_key, request_hash, source_identity)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           q.id,
           q.commodity,
@@ -69,6 +69,7 @@ export class MysqlPriceHistoryRepository implements PriceHistoryRepository {
           q.recordedBy,
           row.idempotencyKey,
           row.requestHash,
+          row.sourceIdentity ?? null,
         ],
       );
     } catch (err) {
@@ -90,6 +91,40 @@ export class MysqlPriceHistoryRepository implements PriceHistoryRepository {
     const r = (rows as PriceRow[])[0];
     if (!r) return undefined;
     return { quote: fromRow(r), requestHash: r.request_hash ?? '' };
+  }
+
+  async findLatest(commodity: string, provinceSlug: string, itemSlug?: string): Promise<PriceQuote | undefined> {
+    const values: unknown[] = [commodity, provinceSlug];
+    const itemClause = itemSlug ? ' AND item_slug = ?' : '';
+    if (itemSlug) values.push(itemSlug);
+    const [rows] = await this.pool.query(
+      `SELECT id, commodity, item_name, item_slug, province, province_slug, price, source,
+              captured_at, ingested_at, reference_source, reason, recorded_by
+         FROM price_history WHERE commodity = ? AND province_slug = ?${itemClause}
+        ORDER BY captured_at DESC, ingested_at DESC, id DESC LIMIT 1`,
+      values,
+    );
+    const row = (rows as PriceRow[])[0];
+    return row ? fromRow(row) : undefined;
+  }
+
+  async listItems(commodity: string, provinceSlug: string): Promise<Array<{ itemName: string; itemSlug: string }>> {
+    const [rows] = await this.pool.query(
+      `SELECT item_name, item_slug FROM price_history
+        WHERE commodity = ? AND province_slug = ? GROUP BY item_name, item_slug ORDER BY item_name`,
+      [commodity, provinceSlug],
+    );
+    return (rows as Array<{ item_name: string; item_slug: string }>).map((row) => ({
+      itemName: row.item_name,
+      itemSlug: row.item_slug,
+    }));
+  }
+
+  async recordIngestionFailure(commodity: string, reason: string): Promise<void> {
+    await this.pool.query(
+      'INSERT INTO price_ingestion_failure (id, commodity, failure_reason, detected_at) VALUES (UUID(), ?, ?, UTC_TIMESTAMP(3))',
+      [commodity, reason.slice(0, 4000)],
+    );
   }
 }
 

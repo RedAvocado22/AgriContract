@@ -15,13 +15,16 @@ export class InMemoryPriceHistory implements PriceHistoryRepository {
   events: string[] = [];
   /** Delay inside append, to let concurrent requests race on the same key. */
   appendDelayMs = 0;
+  failures: Array<{ commodity: string; reason: string }> = [];
 
   async append(row: NewPriceRow): Promise<void> {
     if (this.appendDelayMs) await new Promise((r) => setTimeout(r, this.appendDelayMs));
     const dup = this.rows.some(
       (r) => r.quote.recordedBy === row.quote.recordedBy && r.idempotencyKey === row.idempotencyKey,
     );
-    if (dup) throw new DuplicateIdempotencyKeyError();
+    if (dup || (row.sourceIdentity && this.rows.some((r) => r.sourceIdentity === row.sourceIdentity))) {
+      throw new DuplicateIdempotencyKeyError();
+    }
     this.rows.push(structuredClone(row));
     this.events.push(`append:${row.quote.id}`);
   }
@@ -30,12 +33,32 @@ export class InMemoryPriceHistory implements PriceHistoryRepository {
     const r = this.rows.find((x) => x.quote.recordedBy === recordedBy && x.idempotencyKey === key);
     return r ? { quote: structuredClone(r.quote), requestHash: r.requestHash } : undefined;
   }
+
+  async findLatest(_commodity: string, provinceSlug: string, itemSlug?: string): Promise<PriceQuote | undefined> {
+    const rows = this.rows.map((r) => r.quote).filter((q) => q.provinceSlug === provinceSlug && (!itemSlug || q.itemSlug === itemSlug));
+    rows.sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.ingestedAt.localeCompare(a.ingestedAt));
+    return rows[0] ? structuredClone(rows[0]) : undefined;
+  }
+
+  async listItems(_commodity: string, provinceSlug: string): Promise<Array<{ itemName: string; itemSlug: string }>> {
+    return [...new Map(this.rows.filter((r) => r.quote.provinceSlug === provinceSlug)
+      .map((r) => [r.quote.itemSlug, { itemName: r.quote.itemName, itemSlug: r.quote.itemSlug }])).values()];
+  }
+
+  async recordIngestionFailure(commodity: string, reason: string): Promise<void> {
+    this.failures.push({ commodity, reason });
+  }
 }
 
 export class FakeCache implements PriceCache {
   stored: PriceQuote[] = [];
   fail = false;
   constructor(private readonly events?: string[]) {}
+
+  async getLatest(provinceSlug: string, itemSlug: string): Promise<PriceQuote | undefined> {
+    return structuredClone(this.stored.filter((q) => q.provinceSlug === provinceSlug && q.itemSlug === itemSlug)
+      .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.ingestedAt.localeCompare(a.ingestedAt))[0]);
+  }
 
   async putLatest(quote: PriceQuote): Promise<void> {
     this.events?.push(`cache:${quote.id}`);
