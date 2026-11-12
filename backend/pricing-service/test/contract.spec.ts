@@ -118,11 +118,14 @@ describe('pricing is not a synchronous dependency of the contract flow (design Â
     });
   }
 
-  it('pricing-service makes no outbound HTTP calls and exposes no internal endpoint for contract/escrow', () => {
+  it('outbound scraping is isolated to the configured VNSAT adapter and exposes no internal contract endpoint', () => {
     const dir = resolve(here, '../src');
+    const outbound: string[] = [];
     for (const f of sourceFiles(dir)) {
       const src = readFileSync(f, 'utf8');
-      assert.doesNotMatch(src, /\bfetch\(|http\.request|https\.request|\/internal\//, f);
+      if (/\bfetch(?:er)?\(|http\.request|https\.request/.test(src)) outbound.push(f.slice(dir.length + 1).replaceAll('\\', '/'));
+      assert.doesNotMatch(src, /\/internal\//, f);
     }
+    deepEqual(outbound, ['infrastructure/vnsat/vnsatScraper.ts']);
   });
 });
