@@ -20,6 +20,8 @@ export interface Config {
   db: DbConfig;
   gatewaySecret: string;
   redis: RedisConfig;
+  pricing: { coffeeStaleThresholdDays: number };
+  vnsat: { enabled: boolean; url: string; intervalMs: number; timeoutMs: number };
 }
 
 /** Same environment variable names as the Java services / docker-compose. */
@@ -40,6 +42,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       url: env.REDIS_URL || undefined,
       connectTimeoutMs: positiveInt(env, 'REDIS_CONNECT_TIMEOUT_MS', 2000),
       commandTimeoutMs: positiveInt(env, 'REDIS_COMMAND_TIMEOUT_MS', 500),
+    },
+    pricing: {
+      coffeeStaleThresholdDays: positiveInt(env, 'PRICING_COFFEE_STALE_THRESHOLD_DAYS', 14),
+    },
+    vnsat: {
+      enabled: env.VNSAT_SCRAPER_ENABLED !== 'false',
+      url: env.VNSAT_URL ?? 'https://thitruongnongsan.gov.vn/vn/nguonwmy.aspx',
+      intervalMs: positiveInt(env, 'VNSAT_SCRAPER_INTERVAL_MS', 24 * 60 * 60 * 1000),
+      timeoutMs: positiveInt(env, 'VNSAT_HTTP_TIMEOUT_MS', 12_000),
     },
   };
 }

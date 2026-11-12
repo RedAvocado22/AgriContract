@@ -5,6 +5,8 @@ export interface NewPriceRow {
   quote: PriceQuote;
   idempotencyKey: string;
   requestHash: string;
+  /** Stable hash for a VNSAT row (source/province/item/captured date); null for operator entries. */
+  sourceIdentity?: string | null;
 }
 
 export interface StoredManualPrice {
@@ -19,6 +21,9 @@ export interface PriceHistoryRepository {
   /** Inserts the row. Throws DuplicateIdempotencyKeyError if (recordedBy, idempotencyKey) already exists. */
   append(row: NewPriceRow): Promise<void>;
   findByIdempotencyKey(recordedBy: string, idempotencyKey: string): Promise<StoredManualPrice | undefined>;
+  findLatest(commodity: string, provinceSlug: string, itemSlug?: string): Promise<PriceQuote | undefined>;
+  listItems(commodity: string, provinceSlug: string): Promise<Array<{ itemName: string; itemSlug: string }>>;
+  recordIngestionFailure?(commodity: string, reason: string): Promise<void>;
 }
 
 export class DuplicateIdempotencyKeyError extends Error {
