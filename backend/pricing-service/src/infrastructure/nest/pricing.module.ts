@@ -10,6 +10,7 @@ import { PricesController } from '../http/prices.controller';
 import { ProblemFilter } from '../http/problem.filter';
 import { jsonLogger } from '../logger';
 import { MysqlPriceHistoryRepository, createMysqlPool, type MysqlPoolLike } from '../persistence/mysqlPriceHistoryRepository';
+import { VnsatPriceIngestionJob } from '../vnsat/vnsatIngestionJob';
 import { CACHE_HANDLE, CONFIG, GATEWAY_SECRET, LOGGER, MANUAL_PRICE_DEPS, MYSQL_POOL } from './tokens';
 
 export interface AppDeps extends ManualPriceDeps {
@@ -73,13 +74,15 @@ export class PricingModule {
         },
         {
           provide: MANUAL_PRICE_DEPS,
-          useFactory: (pool: MysqlPoolLike, cache: RedisCacheHandle, logger: Logger): ManualPriceDeps => ({
+          useFactory: (pool: MysqlPoolLike, cache: RedisCacheHandle, logger: Logger, config: Config): ManualPriceDeps => ({
             repository: new MysqlPriceHistoryRepository(pool),
             cache: cache.cache,
             logger,
+            staleThresholdDays: config.pricing.coffeeStaleThresholdDays,
           }),
-          inject: [MYSQL_POOL, CACHE_HANDLE, LOGGER],
+          inject: [MYSQL_POOL, CACHE_HANDLE, LOGGER, CONFIG],
         },
+        VnsatPriceIngestionJob,
         PricingShutdown,
       ],
     };
