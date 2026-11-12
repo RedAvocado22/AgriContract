@@ -82,7 +82,16 @@ npm start            # nest start, port 8091
 
 Environment (same names as the Java services): `GATEWAY_INTERNAL_SECRET` (required), `SERVER_PORT` (8091),
 `DB_HOST`, `DB_PORT`, `DB_NAME` (`pricing_db`), `DB_USERNAME`, `DB_PASSWORD`, `REDIS_URL` (optional; cache disabled if unset),
-`REDIS_CONNECT_TIMEOUT_MS` (2000), `REDIS_COMMAND_TIMEOUT_MS` (500, deadline for one cache update).
+`REDIS_CONNECT_TIMEOUT_MS` (2000), `REDIS_COMMAND_TIMEOUT_MS` (500, deadline for one cache command),
+`VNSAT_SCRAPER_ENABLED` (`true`), `VNSAT_URL` (official VNSAT page), `VNSAT_SCRAPER_INTERVAL_MS` (24 hours),
+`VNSAT_HTTP_TIMEOUT_MS` (12000), and `PRICING_COFFEE_STALE_THRESHOLD_DAYS` (14).
+
+The VNSAT adapter performs the source's ASP.NET WebForms GET/postback and stores each source row once in
+append-only `price_history`. A failed scrape is recorded in `price_ingestion_failure`; the latest committed
+quote and Redis entry remain available, and Operators can still use `POST /api/v1/prices/manual` as fallback.
+Public reads are `GET /api/v1/prices/COFFEE/{province}?item={itemSlug}` and
+`GET /api/v1/prices/COFFEE/{province}/items`. They return the quote source, source capture date, ingestion
+timestamp, and a computed `stale` flag. The data is advisory and is not connected to signed contract price bands.
 
 ## Test
 
