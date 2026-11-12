@@ -253,6 +253,8 @@ describe('POST /api/v1/prices/manual', () => {
             throw new Error('Access denied for user root@10.0.0.5');
           },
           findByIdempotencyKey: async () => undefined,
+          findLatest: async () => undefined,
+          listItems: async () => [],
         },
       });
       const res = await postManual(app, validBody());
@@ -260,5 +262,47 @@ describe('POST /api/v1/prices/manual', () => {
       assert.equal(res.json.code, 'INTERNAL_ERROR');
       assert.doesNotMatch(res.json.message, /root@/);
     });
+  });
+});
+
+describe('public reference price read API', () => {
+  let app: TestApp;
+  beforeEach(async () => { app = await startApp(); });
+  afterEach(async () => { await app.close(); });
+
+  it('returns source, captured date, ingestion timestamp, and advisory staleness without authentication', async () => {
+    await postManual(app, validBody());
+    app.cache.stored = []; // exercise MySQL cache-aside repair
+    const res = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
+    const json = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(json.source, 'OPERATOR_MANUAL');
+    assert.equal(json.capturedAt, '2026-10-10');
+    assert.equal(json.ingestedAt, '2026-10-12T05:00:00.000Z');
+    assert.equal(json.stale, false);
+    assert.equal('recordedBy' in json, false);
+    assert.equal(app.cache.stored.length, 1);
+  });
+
+  it('lists available item slugs for autocomplete and requires item when the province has multiple', async () => {
+    await postManual(app, validBody());
+    await postManual(app, validBody({ itemName: 'Cà phê Arabica', capturedAt: '2026-10-11' }),
+      operatorHeaders({ 'Idempotency-Key': 'second-item' }));
+    const items = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak/items`);
+    const itemsJson = await items.json();
+    assert.equal(items.status, 200);
+    assert.equal(itemsJson.items.length, 2);
+    const ambiguous = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
+    assert.equal(ambiguous.status, 400);
+    const selected = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak?item=ca-phe-arabica`);
+    assert.equal(selected.status, 200);
+    assert.equal((await selected.json()).itemSlug, 'ca-phe-arabica');
+  });
+
+  it('returns 404 when no reference quote exists and rejects non-COFFEE commodities', async () => {
+    const missing = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
+    assert.equal(missing.status, 404);
+    const unsupported = await fetch(`${app.baseUrl}/api/v1/prices/RICE/dak-lak`);
+    assert.equal(unsupported.status, 400);
   });
 });
