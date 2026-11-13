@@ -15,27 +15,71 @@ export class InMemoryPriceHistory implements PriceHistoryRepository {
   events: string[] = [];
   /** Delay inside append, to let concurrent requests race on the same key. */
   appendDelayMs = 0;
+  failures: Array<{ commodity: string; reason: string }> = [];
 
   async append(row: NewPriceRow): Promise<void> {
     if (this.appendDelayMs) await new Promise((r) => setTimeout(r, this.appendDelayMs));
     const dup = this.rows.some(
       (r) => r.quote.recordedBy === row.quote.recordedBy && r.idempotencyKey === row.idempotencyKey,
     );
-    if (dup) throw new DuplicateIdempotencyKeyError();
+    if (dup || (row.sourceIdentity && this.rows.some((r) => r.sourceIdentity === row.sourceIdentity))) {
+      throw new DuplicateIdempotencyKeyError();
+    }
     this.rows.push(structuredClone(row));
     this.events.push(`append:${row.quote.id}`);
+  }
+
+  /** When set, appendScrapedBatch throws a DB error on this (0-based) row, after the earlier rows were written. */
+  failBatchAtRow: number | undefined;
+
+  /** All-or-nothing like the MySQL transaction: works on a copy and keeps it only if every row succeeds. */
+  async appendScrapedBatch(rows: NewPriceRow[]): Promise<PriceQuote[]> {
+    const staged = [...this.rows];
+    const inserted: PriceQuote[] = [];
+    rows.forEach((row, index) => {
+      if (index === this.failBatchAtRow) throw new Error('ER_LOCK_WAIT_TIMEOUT');
+      if (row.sourceIdentity && staged.some((r) => r.sourceIdentity === row.sourceIdentity)) return;
+      staged.push(structuredClone(row));
+      inserted.push(structuredClone(row.quote));
+    });
+    this.rows = staged;
+    for (const q of inserted) this.events.push(`append:${q.id}`);
+    return inserted;
   }
 
   async findByIdempotencyKey(recordedBy: string, key: string): Promise<StoredManualPrice | undefined> {
     const r = this.rows.find((x) => x.quote.recordedBy === recordedBy && x.idempotencyKey === key);
     return r ? { quote: structuredClone(r.quote), requestHash: r.requestHash } : undefined;
   }
+
+  async findLatest(_commodity: string, provinceSlug: string, itemSlug?: string): Promise<PriceQuote | undefined> {
+    const rows = this.rows.map((r) => r.quote).filter((q) => q.provinceSlug === provinceSlug && (!itemSlug || q.itemSlug === itemSlug));
+    rows.sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.ingestedAt.localeCompare(a.ingestedAt));
+    return rows[0] ? structuredClone(rows[0]) : undefined;
+  }
+
+  async listItems(_commodity: string, provinceSlug: string): Promise<Array<{ itemName: string; itemSlug: string }>> {
+    return [...new Map(this.rows.filter((r) => r.quote.provinceSlug === provinceSlug)
+      .map((r) => [r.quote.itemSlug, { itemName: r.quote.itemName, itemSlug: r.quote.itemSlug }])).values()];
+  }
+
+  async recordIngestionFailure(commodity: string, reason: string): Promise<void> {
+    this.failures.push({ commodity, reason });
+  }
 }
 
 export class FakeCache implements PriceCache {
   stored: PriceQuote[] = [];
   fail = false;
+  /** When true, getLatest throws (Redis down on read). */
+  failReads = false;
   constructor(private readonly events?: string[]) {}
+
+  async getLatest(provinceSlug: string, itemSlug: string): Promise<PriceQuote | undefined> {
+    if (this.failReads) throw new Error('redis read timeout');
+    return structuredClone(this.stored.filter((q) => q.provinceSlug === provinceSlug && q.itemSlug === itemSlug)
+      .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.ingestedAt.localeCompare(a.ingestedAt))[0]);
+  }
 
   async putLatest(quote: PriceQuote): Promise<void> {
     this.events?.push(`cache:${quote.id}`);

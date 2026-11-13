@@ -4,7 +4,7 @@ import type { Logger } from '../../application/port';
 import { LOGGER } from '../nest/tokens';
 import { HttpError, errorEnvelope, toHttpError } from './errors';
 import { traceIdOf } from './request';
-import { ALLOWED_METHOD } from './routes';
+import { allowedMethod } from './routes';
 
 /**
  * Every error leaves the service as the shared AgriContract error envelope
@@ -40,7 +40,7 @@ export class ProblemFilter implements ExceptionFilter {
 function routingError(exception: unknown, method: string | undefined, path: string): HttpError | undefined {
   if (!(exception instanceof HttpException)) return undefined;
   if (!(exception instanceof NotFoundException)) return undefined;
-  const allowed = ALLOWED_METHOD[path];
+  const allowed = allowedMethod(path);
   if (allowed && method !== allowed && !(allowed === 'GET' && method === 'HEAD')) {
     return new HttpError(405, 'METHOD_NOT_ALLOWED', `Use ${allowed}`);
   }

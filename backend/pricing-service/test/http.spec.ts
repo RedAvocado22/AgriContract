@@ -252,7 +252,10 @@ describe('POST /api/v1/prices/manual', () => {
           append: async () => {
             throw new Error('Access denied for user root@10.0.0.5');
           },
+          appendScrapedBatch: async () => [],
           findByIdempotencyKey: async () => undefined,
+          findLatest: async () => undefined,
+          listItems: async () => [],
         },
       });
       const res = await postManual(app, validBody());
@@ -260,5 +263,64 @@ describe('POST /api/v1/prices/manual', () => {
       assert.equal(res.json.code, 'INTERNAL_ERROR');
       assert.doesNotMatch(res.json.message, /root@/);
     });
+  });
+});
+
+describe('public reference price read API', () => {
+  let app: TestApp;
+  beforeEach(async () => { app = await startApp(); });
+  afterEach(async () => { await app.close(); });
+
+  it('returns source, captured date, ingestion timestamp, and advisory staleness without authentication', async () => {
+    await postManual(app, validBody());
+    app.cache.stored = []; // exercise MySQL cache-aside repair
+    const res = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
+    const json = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(json.source, 'OPERATOR_MANUAL');
+    assert.equal(json.capturedAt, '2026-10-10');
+    assert.equal(json.ingestedAt, '2026-10-12T05:00:00.000Z');
+    assert.equal(json.stale, false);
+    assert.equal('recordedBy' in json, false);
+    assert.equal(app.cache.stored.length, 1);
+  });
+
+  it('lists available item slugs for autocomplete and requires item when the province has multiple', async () => {
+    await postManual(app, validBody());
+    await postManual(app, validBody({ itemName: 'Cà phê Arabica', capturedAt: '2026-10-11' }),
+      operatorHeaders({ 'Idempotency-Key': 'second-item' }));
+    const items = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak/items`);
+    const itemsJson = await items.json();
+    assert.equal(items.status, 200);
+    assert.equal(itemsJson.items.length, 2);
+    const ambiguous = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
+    assert.equal(ambiguous.status, 404); // frozen contract: getPriceQuote declares only 200/404
+    assert.equal((await ambiguous.json()).code, 'PRICE_NOT_FOUND');
+    const selected = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak?item=ca-phe-arabica`);
+    assert.equal(selected.status, 200);
+    assert.equal((await selected.json()).itemSlug, 'ca-phe-arabica');
+  });
+
+  it('labels staleness with the read API threshold, not a manual-price setting', async () => {
+    await app.close();
+    app = await startApp({ staleThresholdDays: 1 });
+    await postManual(app, validBody());
+    const res = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
+    assert.equal((await res.json()).stale, true); // captured 2026-10-10, test clock 2026-10-12
+  });
+
+  it('answers only the status codes the frozen contract declares (getPriceQuote 200/404, listPriceItems 200)', async () => {
+    await postManual(app, validBody());
+    const quoteCases = ['COFFEE/gia-lai', 'RICE/dak-lak', 'COFFEE/Dak_Lak', 'COFFEE/dak-lak?item=Not%20A%20Slug'];
+    for (const path of quoteCases) {
+      const res = await fetch(`${app.baseUrl}/api/v1/prices/${path}`);
+      assert.equal(res.status, 404, path);
+      assert.equal((await res.json()).code, 'PRICE_NOT_FOUND', path);
+    }
+    for (const path of ['RICE/dak-lak', 'COFFEE/Dak_Lak', 'COFFEE/gia-lai']) {
+      const res = await fetch(`${app.baseUrl}/api/v1/prices/${path}/items`);
+      assert.equal(res.status, 200, path);
+      deepEqual((await res.json()).items, []);
+    }
   });
 });

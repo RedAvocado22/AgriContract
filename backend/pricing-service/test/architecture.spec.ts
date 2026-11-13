@@ -35,7 +35,9 @@ describe('canonical layout', () => {
   });
 
   it('use cases live in application/usecase, ports in application/port.ts', () => {
-    assert.ok(statSync(join(src, 'application/usecase/recordManualPrice.ts')).isFile());
+    for (const useCase of ['recordManualPrice', 'ingestVnsatPrices', 'getPriceQuote', 'listPriceItems']) {
+      assert.ok(statSync(join(src, `application/usecase/${useCase}.ts`)).isFile(), useCase);
+    }
     assert.ok(statSync(join(src, 'application/port.ts')).isFile());
   });
 

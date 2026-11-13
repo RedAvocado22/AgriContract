@@ -1,6 +1,6 @@
 import { DynamicModule, Inject, Injectable, Module, type OnApplicationShutdown, type Provider } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
-import type { Logger } from '../../application/port';
+import type { Logger, ReferencePriceSource } from '../../application/port';
 import type { ManualPriceDeps } from '../../application/usecase/recordManualPrice';
 import { createRedisCache, noCache, type RedisCacheHandle } from '../cache/redisPriceCache';
 import { loadConfig, type Config } from '../config';
@@ -10,10 +10,15 @@ import { PricesController } from '../http/prices.controller';
 import { ProblemFilter } from '../http/problem.filter';
 import { jsonLogger } from '../logger';
 import { MysqlPriceHistoryRepository, createMysqlPool, type MysqlPoolLike } from '../persistence/mysqlPriceHistoryRepository';
-import { CACHE_HANDLE, CONFIG, GATEWAY_SECRET, LOGGER, MANUAL_PRICE_DEPS, MYSQL_POOL } from './tokens';
+import { VnsatPriceIngestionJob } from '../vnsat/vnsatIngestionJob';
+import { VnsatPriceSource } from '../vnsat/vnsatPriceSource';
+import type { PriceReadConfig } from '../http/prices.controller';
+import { CACHE_HANDLE, CONFIG, GATEWAY_SECRET, LOGGER, MANUAL_PRICE_DEPS, MYSQL_POOL, PRICE_READ_CONFIG, VNSAT_SOURCE } from './tokens';
 
 export interface AppDeps extends ManualPriceDeps {
   gatewaySecret: string;
+  /** Read API stale threshold; production takes it from PRICING_COFFEE_STALE_THRESHOLD_DAYS. */
+  staleThresholdDays?: number;
 }
 
 /** Closes the MySQL pool and the Redis connection when Nest shuts down (SIGTERM / SIGINT / app.close()). */
@@ -80,6 +85,17 @@ export class PricingModule {
           }),
           inject: [MYSQL_POOL, CACHE_HANDLE, LOGGER],
         },
+        {
+          provide: PRICE_READ_CONFIG,
+          useFactory: (config: Config): PriceReadConfig => ({ staleThresholdDays: config.pricing.coffeeStaleThresholdDays }),
+          inject: [CONFIG],
+        },
+        {
+          provide: VNSAT_SOURCE,
+          useFactory: (config: Config): ReferencePriceSource => new VnsatPriceSource(config.vnsat.url, config.vnsat.timeoutMs),
+          inject: [CONFIG],
+        },
+        VnsatPriceIngestionJob,
         PricingShutdown,
       ],
     };
@@ -94,6 +110,7 @@ export class PricingModule {
         { provide: LOGGER, useValue: deps.logger },
         { provide: GATEWAY_SECRET, useValue: deps.gatewaySecret },
         { provide: MANUAL_PRICE_DEPS, useValue: deps },
+        { provide: PRICE_READ_CONFIG, useValue: { staleThresholdDays: deps.staleThresholdDays ?? 14 } satisfies PriceReadConfig },
       ],
     };
   }

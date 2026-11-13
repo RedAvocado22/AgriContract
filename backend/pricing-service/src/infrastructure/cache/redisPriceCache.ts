@@ -31,6 +31,18 @@ export class RedisPriceCache implements PriceCache {
     private readonly timeoutMs: number,
   ) {}
 
+  async getLatest(provinceSlug: string, itemSlug: string): Promise<PriceQuote | undefined> {
+    const raw = await withTimeout(this.client.get(cacheKey(provinceSlug, itemSlug)), this.timeoutMs);
+    if (!raw) return undefined;
+    try {
+      const value: unknown = JSON.parse(raw);
+      if (!isPriceQuote(value) || value.provinceSlug !== provinceSlug || value.itemSlug !== itemSlug) return undefined;
+      return value;
+    } catch {
+      return undefined;
+    }
+  }
+
   putLatest(quote: PriceQuote): Promise<void> {
     return withTimeout(this.write(quote), this.timeoutMs);
   }
@@ -46,6 +58,7 @@ export class RedisPriceCache implements PriceCache {
 
 /** No-op cache, used when REDIS_URL is not configured. */
 export const noCache: PriceCache = {
+  async getLatest() { return undefined; },
   async putLatest() {},
 };
 
@@ -116,6 +129,21 @@ function readCachedOrder(raw: string | null): CachedOrder | undefined {
 function isNewer(a: CachedOrder, b: CachedOrder): boolean {
   if (a.capturedAt !== b.capturedAt) return a.capturedAt > b.capturedAt;
   return a.ingestedAt > b.ingestedAt;
+}
+
+function isPriceQuote(value: unknown): value is PriceQuote {
+  if (typeof value !== 'object' || value === null) return false;
+  const quote = value as Partial<PriceQuote>;
+  return quote.commodity === 'COFFEE'
+    && typeof quote.id === 'string'
+    && typeof quote.itemName === 'string'
+    && typeof quote.itemSlug === 'string'
+    && typeof quote.province === 'string'
+    && typeof quote.provinceSlug === 'string'
+    && typeof quote.price === 'string'
+    && (quote.source === 'VNSAT_SCRAPE' || quote.source === 'OPERATOR_MANUAL')
+    && typeof quote.capturedAt === 'string'
+    && typeof quote.ingestedAt === 'string';
 }
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
