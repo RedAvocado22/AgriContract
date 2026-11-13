@@ -3,16 +3,13 @@
 Migrated from the Spring Boot `notification-service`; see `docs/notification-service-nestjs-migration.md`
 (done, M5).
 
-**Status: M5 (cutover done), Phase 2 in progress.** The service consumes the 5 remaining Phase 1 queues, sends the same emails as the Java
+**Status: M5 (cutover done), Phase 2 in progress.** The service consumes the 2 remaining Phase 1 queues, sends the same emails as the Java
 service did and records them in `notification_logs`, with the same retry, dead-lettering and per-recipient deduplication.
 Parity with Java was signed off in M4 (`docs/notification-service-parity-m4.md`). The Java service is
 removed; tag `notification-java-final` is the rollback point (plan §7).
 
 | Queue (`notification-svc.<key>`) | Recipients, in order |
 | --- | --- |
-| `escrow.locked` | seller |
-| `escrow.released` | seller, buyer |
-| `escrow.penalized` | buyer if `penalizedParty` is `BUYER`, otherwise seller |
 | `category.approved`, `category.rejected` | proposer |
 
 - The four Phase 1 contract queues (`contract.signed`, `.delivered`, `.cancelled`, `.disputed`) are retired
@@ -21,6 +18,12 @@ removed; tag `notification-java-final` is the rollback point (plan §7).
   comes from `notification.contract_anchor_requested`. Every start deletes those queues and their DLQs
   (`RETIRED_QUEUES` in `topology.ts`; a no-op once they are gone) and logs a warning naming any that still held
   messages. `ADMIN_EMAIL`, read only by the `contract.disputed` email, is gone with it.
+- The three escrow queues (`escrow.locked`, `.released`, `.penalized`) are retired the same way (#421):
+  escrow-service moved to the Phase 2 events and publishes none of them, so their parsers, use cases and the
+  `/p1` templates behind them were dead code. They are in `RETIRED_QUEUES` too, so every start deletes them and
+  their DLQs. `agricontract.escrow` is escrow-service's own exchange and is left declared; the now unused
+  `notification-svc.escrow.dlx` has nothing bound to it. `ESCROW_LOCKED`, `ESCROW_RELEASED` and
+  `ESCROW_PENALIZED` rows already in `notification_logs` keep those values.
 - A payload that is not JSON, or misses a required field, goes to the DLQ at once (see
   `src/infrastructure/messaging/legacy-payload.parsers.ts` for the required fields).
 - Each email (event + recipient + notification type) is claimed atomically in `notification_logs` before sending,

@@ -89,7 +89,9 @@ async function startApp(handler: () => Promise<void>) {
   await jest.advanceTimersByTimeAsync(0); // AmqpService connects in the background
 
   const deliver = () => {
-    const onMessage = channel.consumers.get('notification-svc.escrow.released');
+    const onMessage = channel.consumers.get(
+      'notification-svc.category.rejected',
+    );
     if (!onMessage) throw new Error('consumer not attached');
     onMessage({ content: Buffer.from('{}'), fields: {} });
   };

@@ -3,8 +3,8 @@ import { Test } from '@nestjs/testing';
 import { validate } from './config/env.validation';
 import { NotificationSender } from './application/notification-sender';
 import {
+  NotifyCategoryApprovedUseCase,
   NotifyContractAnchorUseCase,
-  NotifyEscrowLockedUseCase,
 } from './application/use-cases';
 import { MYSQL_POOL } from './infrastructure/persistence/mysql.provider';
 import { AMQP_CONNECT } from './infrastructure/messaging/amqp.provider';
@@ -41,8 +41,8 @@ describe('NotificationModule wiring', () => {
     expect(moduleRef.get(NotificationSender)).toBeInstanceOf(
       NotificationSender,
     );
-    expect(moduleRef.get(NotifyEscrowLockedUseCase)).toBeInstanceOf(
-      NotifyEscrowLockedUseCase,
+    expect(moduleRef.get(NotifyCategoryApprovedUseCase)).toBeInstanceOf(
+      NotifyCategoryApprovedUseCase,
     );
     expect(moduleRef.get(NotifyContractAnchorUseCase)).toBeInstanceOf(
       NotifyContractAnchorUseCase,

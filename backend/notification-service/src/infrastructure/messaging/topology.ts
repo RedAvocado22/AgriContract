@@ -20,11 +20,6 @@ export const TOPOLOGY = [
     ],
   },
   {
-    exchange: 'agricontract.escrow',
-    dlx: 'notification-svc.escrow.dlx',
-    routingKeys: ['escrow.locked', 'escrow.released', 'escrow.penalized'],
-  },
-  {
     exchange: 'agricontract.events',
     dlx: 'notification-svc.events.dlx',
     routingKeys: ['category.approved', 'category.rejected'],
@@ -131,12 +126,23 @@ export const dlqNames = (): string[] => routingKeys().map(dlqName);
  * it is a no-op once done. contract.signed still has other queues
  * (escrow-svc, audit-svc), so contract-service's mandatory publish still
  * routes.
+ *
+ * The escrow queues go the same way (#421): escrow-service moved to the Phase 2
+ * events and publishes no escrow.locked, escrow.released or escrow.penalized at
+ * all, so those three queues, their DLQs and the agricontract.escrow row only
+ * kept dead parsers, use cases and templates alive. Deleting a queue unbinds
+ * it; agricontract.escrow is escrow-service's own exchange and is left alone,
+ * and the orphaned notification-svc.escrow.dlx is harmless with nothing bound
+ * to it (deleteQueue is the only removal this topology does).
  */
 export const RETIRED_QUEUES = [
   'notification-svc.contract.signed',
   'notification-svc.contract.delivered',
   'notification-svc.contract.cancelled',
   'notification-svc.contract.disputed',
+  'notification-svc.escrow.locked',
+  'notification-svc.escrow.released',
+  'notification-svc.escrow.penalized',
 ].flatMap((queue) => [queue, `${queue}.dlq`]);
 
 export type TopologyChannel = Pick<
@@ -163,8 +169,8 @@ export async function declareTopology(
 
 /**
  * Deletes each retired queue, its messages included: they are Phase 2
- * contract.signed events the flat parser could never read, or Phase 1 events
- * nobody publishes any more. Not `ifEmpty`: a non-empty queue would make
+ * contract.signed events the flat parser could never read, or Phase 1 contract
+ * and escrow events nobody publishes any more. Not `ifEmpty`: a non-empty queue would make
  * RabbitMQ close the channel, and the topology step would then fail on every
  * reconnect. The count dropped is logged instead.
  */
@@ -176,7 +182,7 @@ async function retire(
     const { messageCount } = await channel.deleteQueue(queue);
     if (messageCount > 0) {
       log?.warn(
-        `Deleted retired queue ${queue} with ${messageCount} message(s) (#398)`,
+        `Deleted retired queue ${queue} with ${messageCount} message(s) (#398, #421)`,
       );
     }
   }
