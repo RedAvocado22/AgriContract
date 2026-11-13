@@ -301,6 +301,14 @@ describe('public reference price read API', () => {
     assert.equal((await selected.json()).itemSlug, 'ca-phe-arabica');
   });
 
+  it('labels staleness with the read API threshold, not a manual-price setting', async () => {
+    await app.close();
+    app = await startApp({ staleThresholdDays: 1 });
+    await postManual(app, validBody());
+    const res = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
+    assert.equal((await res.json()).stale, true); // captured 2026-10-10, test clock 2026-10-12
+  });
+
   it('answers only the status codes the frozen contract declares (getPriceQuote 200/404, listPriceItems 200)', async () => {
     await postManual(app, validBody());
     const quoteCases = ['COFFEE/gia-lai', 'RICE/dak-lak', 'COFFEE/Dak_Lak', 'COFFEE/dak-lak?item=Not%20A%20Slug'];
