@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import type { Logger } from '../../application/port';
 import type { ManualPriceDeps } from '../../application/usecase/recordManualPrice';
@@ -39,6 +40,9 @@ export class VnsatPriceIngestionJob implements OnApplicationBootstrap, OnApplica
         this.deps,
         this.logger,
         () => scrapeVnsatCoffee({ url: this.config.vnsat.url, timeoutMs: this.config.vnsat.timeoutMs }),
+        new Date(),
+        randomUUID,
+        this.config.vnsat.url,
       );
     } finally {
       this.running = false;
