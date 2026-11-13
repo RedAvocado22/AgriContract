@@ -267,6 +267,11 @@
 <td>Một bên đã yêu cầu huỷ hợp đồng khoá cọc thất bại; nêu mốc từ đó yêu cầu 1 bên là đủ, để bên kia im lặng là lựa chọn có thông tin</td>
 </tr>
 <tr>
+<td><code>notification.level1_5_assignment_waiting_requested</code> / inspection-service (<strong>mới 13/11/2026, D49</strong>)</td>
+<td>Operator only (<code>notification.operatorEmail</code>; command không mang recipients)</td>
+<td>Yêu cầu giám định Level 1.5 chưa giao được vì hết inspector: <code>contractId</code>, <code>milestoneId</code>, <code>reason</code> (<code>NO_ELIGIBLE</code>/<code>ALL_EXCLUDED</code>), <code>waitingSince</code>, <code>stage</code> (<code>WAITING_STARTED</code>/<code>STILL_WAITING</code>/<code>ASSIGNED</code>); mỗi <code>stage</code> 1 template; không tên/email inspector (inspection design §2.5)</td>
+</tr>
+<tr>
 <td><code>notification.reconciliation_mismatch_requested</code> / bank-service</td>
 <td>Admin only</td>
 <td>Ledger lệch số với audit record đã anchor (bank §5b.1) — vị trí lệch (contractId/milestoneId, chênh lệch); không fan-out buyer/seller, không auto-fix</td>
@@ -345,7 +350,7 @@ CREATE UNIQUE INDEX uq_event_recipient_type
 <tr>
 <td class="identifier"><code>notification.operatorEmail</code></td>
 <td class="numeric">deployment value</td>
-<td>Activation/funding fail, hàng đợi vận hành</td>
+<td>Activation/funding fail, hàng đợi vận hành; hết inspector Level 1.5 (13/11/2026, D49)</td>
 </tr>
 <tr>
 <td class="identifier"><code>notification.arbitratorEmail</code></td>

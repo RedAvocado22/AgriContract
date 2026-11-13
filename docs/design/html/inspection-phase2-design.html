@@ -90,7 +90,7 @@ reportHash = SHA256(RFC8785_canonical_json({
 <p><strong>Ai quyết "cần Level 1.5", ai chọn inspector — tách 2 quyền:</strong></p>
 <ul>
 <li><strong>contract-service</strong> quyết milestone cần giám định Level 1.5 — đúng ownership đã có: <code>DisputeRoutingService</code> route <code>LEVEL_1_5</code> (milestone-escrow §3.2), <code>InspectionTerms.requirement = MANDATORY_BEFORE_SETTLEMENT</code> với <code>requiredTier = LEVEL_1_5</code>, FM contest (milestone-escrow §5), contest window sau quyết định (milestone-escrow §6.4, GB-50), provisional Level 1.5 khi hết <code>level2BufferWindowDays</code> (milestone-escrow §3.2). contract-service <strong>không</strong> chọn inspector.</li>
-<li><strong>inspection-service</strong> chọn inspector: <strong>random đều</strong> trong tập INSPECTOR eligible tại thời điểm chọn (<code>role = INSPECTOR</code>, KYC <code>VERIFIED</code>, <code>authorizationExpiresAt</code> NULL hoặc &gt; now — cùng điều kiện §2.2). Không role nào (OPERATOR, ARBITRATOR, ADMIN) được chọn tay hay chỉ định inspector — đồng nhất với nguyên tắc "không tự chọn tổ chức inspect" ở <code>reputation-service-phase2-design.md</code> §8 và lý do KI-2 (§3.2): người chọn được là người thông đồng được. Tập eligible rỗng → không tạo assignment, alert OPERATOR; milestone giữ nguyên state, không tự rơi về Level 1.</li>
+<li><strong>inspection-service</strong> chọn inspector: <strong>random đều</strong> trong tập INSPECTOR eligible tại thời điểm chọn (<code>role = INSPECTOR</code>, KYC <code>VERIFIED</code>, <code>authorizationExpiresAt</code> NULL hoặc &gt; now — cùng điều kiện §2.2). Không role nào (OPERATOR, ARBITRATOR, ADMIN) được chọn tay hay chỉ định inspector — đồng nhất với nguyên tắc "không tự chọn tổ chức inspect" ở <code>reputation-service-phase2-design.md</code> §8 và lý do KI-2 (§3.2): người chọn được là người thông đồng được. Tập eligible rỗng → không tạo assignment, ghi <strong>dòng chờ</strong> và báo OPERATOR (chi tiết ở mục "Hết inspector để giao" bên dưới); milestone giữ nguyên state, không tự rơi về Level 1.</li>
 </ul>
 <p><strong>Transport:</strong> contract-service publish command event <code>inspection.level1_5_requested</code> (qua outbox) với payload <code>{contractId, milestoneId, reason, reportDueBusinessDays}</code>; inspection-service consume → chọn inspector → INSERT assignment với <code>assigned_by_service = 'contract-service'</code>, <code>initiated_by_actor_id</code> = actor gây ra yêu cầu nếu có (buyer flag, bên contest), NULL nếu system-triggered. <em>Event chưa có trong <code>contracts/events/*.yaml</code> — thêm ở đợt sync YAML v1.6.</em></p>
 <p><strong>Idempotency:</strong> dedup consumer theo <code>eventId</code> (<code>processed_event</code>, pattern chung). Thêm vào đó, <code>uk_l15_active_milestone</code> đảm bảo mỗi <code>(contract_id, milestone_id)</code> chỉ 1 assignment active — request trùng khi đã có assignment active là no-op, không chọn lại.</p>
@@ -101,6 +101,15 @@ reportHash = SHA256(RFC8785_canonical_json({
 <li>Inspector mất eligibility (KYC bị thu hồi, giấy phép hết hạn) giữa chừng → submit bị chặn ở eligibility gate §2.2; assignment kết thúc theo nhánh quá hạn ở trên, không cần trigger riêng.</li>
 <li><code>ended_at</code> là cột duy nhất được UPDATE và chỉ đi từ NULL sang có giá trị; mọi lần đổi người là row mới, lịch sử giữ nguyên.</li>
 </ul>
+<p><strong>Hết inspector để giao (bổ sung 13/11/2026, D49):</strong> trước đây code chỉ ghi log rồi bỏ qua, yêu cầu mất hẳn (event đã đánh dấu xử lý, assignment cũ đã kết thúc) và milestone kẹt vĩnh viễn. Chốt:</p>
+<ol>
+<li><strong>Dòng chờ</strong> <code>level1_5_assignment_waiting</code> (§5): 1 dòng / <code>(contract_id, milestone_id)</code>, ghi <strong>cùng transaction</strong> với lúc phát hiện tập rỗng. Lý do <code>NO_ELIGIBLE</code> (lần chọn đầu không có ai) hoặc <code>ALL_EXCLUDED</code> (chọn lại sau quá hạn, mọi người eligible đều đã từng được giao). Dòng giữ đủ dữ liệu để tạo assignment sau này (<code>report_due_business_days</code>, <code>initiated_by_actor_id</code>, <code>assigned_by_service</code>). Yêu cầu trùng khi đang có dòng chờ hoặc đang có assignment active = no-op.</li>
+<li><strong>Job bốc lại mỗi giờ</strong> (profile demo chạy ngắn hơn, cùng kiểu job retry của escrow): lấy danh sách eligible mới nhất, <strong>vẫn trừ</strong> inspector đã từng được giao cho đúng milestone đó (giữ luật "người đã bỏ hạn không nhận lại ca đó"). Có người → tạo assignment (hạn nộp <code>report_due_at</code> tính từ lúc giao thật, không tính từ lúc bắt đầu chờ) và xoá dòng chờ trong cùng transaction. Nhiều instance: khoá dòng bằng <code>SELECT … FOR UPDATE SKIP LOCKED</code>.</li>
+<li><strong>Báo OPERATOR qua email</strong>: command <code>notification.level1_5_assignment_waiting_requested</code> (<code>contracts/events/notification-commands.yaml</code>), notification-service gửi tới <code>notification.operatorEmail</code>. Gửi 1 lần khi bắt đầu chờ (<code>stage = WAITING_STARTED</code>), nhắc 1 lần mỗi ngày làm việc nếu vẫn chờ (<code>STILL_WAITING</code>), 1 lần khi đã giao được (<code>ASSIGNED</code>). Payload chỉ <code>contractId</code>, <code>milestoneId</code>, <code>reason</code>, <code>waitingSince</code>, <code>stage</code> — không tên/email inspector. Command ghi qua outbox cùng transaction với dòng chờ / assignment.</li>
+<li><strong>Lỗi đọc danh sách inspector ≠ hết người</strong>: user-service chết/timeout/trả sai → không ghi dòng chờ, không gửi mail; ném lỗi để retry (consumer → retry/DLQ theo pattern chung; job → lần chạy sau).</li>
+<li>Milestone giữ nguyên state. <strong>Không tự động ra kết quả</strong> khi chờ lâu (không tự giữ phán quyết Arbitrator, không tự huỷ contest); hai bên luôn có thể thoả thuận (<code>MUTUAL</code>) hoặc giải quyết ngoài nền tảng (milestone-escrow, D33). Việc thực tế của OPERATOR: nhờ ADMIN cấp thêm tài khoản INSPECTOR (đối tác kiểm định) — vẫn không chọn tay inspector.</li>
+<li>Known limitation: xem §6 (chưa có event huỷ yêu cầu giám định).</li>
+</ol>
 <p><strong>Binding report ↔ assignment:</strong> report <code>LEVEL_1_5</code> lưu <code>l15_commission_id</code> trỏ tới assignment đã cho phép nộp (§5) — trả lời được "report này nộp theo lần giao nào" khi 1 milestone bị giám định nhiều lần (FM contest rồi dispute số lượng). Không dùng chung cột <code>commission_id</code> của Level 2. <strong>DB enforce (28/10/2026):</strong> mỗi assignment có tối đa 1 report (<code>UNIQUE(l15_commission_id)</code>), và composite FK chặn report trỏ lệch contract/milestone/inspector của assignment (§5).</p>
 </section><section aria-labelledby="heading-sec-3" class="section" id="sec-3"><h2 id="heading-sec-3"><span class="sec-num">§3</span> Level 2 — External Inspector (Admin-mediated → Auto-intake + Human-confirm) <a aria-label="Sao chép liên kết tới §3" class="anchor" href="#sec-3">#</a></h2>
 </section><section aria-labelledby="heading-sec-3-1" class="section" id="sec-3-1"><h3 id="heading-sec-3-1"><span class="sec-num">§3.1</span> Không Signature, không RBAC <a aria-label="Sao chép liên kết tới §3.1" class="anchor" href="#sec-3-1">#</a></h3>
@@ -378,6 +387,23 @@ CREATE TABLE level2_inspection_commission (
 -- inspection-service — 1 bảng, phân theo tier, schema cuối cùng sau khi merge auto-intake flow
 -- BỔ SUNG 12/10/2026 (§2.5) — schema lấy nguyên từ PR #152 (issue #112), chấp nhận làm chính thức.
 -- Authorization record: inspector nào được nộp report Level 1.5 cho milestone nào.
+-- BỔ SUNG 13/11/2026 (§2.5 "Hết inspector để giao", D49): yêu cầu Level 1.5 chưa giao được vì tập eligible rỗng.
+-- 1 dòng / milestone; xoá khi đã tạo được assignment (cùng transaction). Job bốc lại khoá dòng bằng FOR UPDATE SKIP LOCKED.
+CREATE TABLE level1_5_assignment_waiting (
+    contract_id              CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    milestone_id             CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    reason                   VARCHAR(20) NOT NULL,    -- 'NO_ELIGIBLE' | 'ALL_EXCLUDED'
+    report_due_business_days INT NOT NULL,            -- từ inspection.level1_5_requested, dùng khi giao thật
+    assigned_by_service      VARCHAR(64) NOT NULL,
+    initiated_by_actor_id    CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    waiting_since            TIMESTAMP(6) NOT NULL,
+    last_attempt_at          TIMESTAMP(6) NOT NULL,
+    last_reminder_on         DATE NULL,               -- ngày làm việc đã gửi nhắc STILL_WAITING gần nhất
+    PRIMARY KEY (contract_id, milestone_id),
+    CONSTRAINT chk_l15_waiting_reason CHECK (reason IN ('NO_ELIGIBLE', 'ALL_EXCLUDED')),
+    CONSTRAINT chk_l15_waiting_due CHECK (report_due_business_days BETWEEN 1 AND 30)
+);
+
 CREATE TABLE level1_5_inspection_assignment (
     commission_id           CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     contract_id             CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -488,6 +514,7 @@ CREATE TABLE inspection_report (
 <li><strong>SPF/DKIM chỉ raise bar domain gửi, không chứng minh thẩm quyền người gửi.</strong> Admin vẫn là quyết định cuối cho tính hợp lệ của report.</li>
 <li><strong>Endpoint duyệt (<code>ReviewPendingExternalReport</code>) không nhận file, và <code>reportFileHash</code> đóng băng trước khi Admin chạm vào</strong>; <code>reportHash</code> cuối commit chính file hash đó cùng normalized result và attribution lúc CONFIRMED — ngăn Admin thay file hoặc sửa result ngoài hash.</li>
 <li><strong>3-mail chỉ là passive backup</strong>, không có active reconciliation tự động — không có bước nào chủ động so sánh bản buyer/seller nhận với bản platform xử lý, chỉ nằm đó dùng khi có tranh chấp thật cần lôi ra đối chiếu. Kế thừa đúng giới hạn "phải có người chủ động nhìn" từ <code>hash-chain-phase2-design.md</code> §6.</li>
+<li><strong>Chưa có event huỷ yêu cầu giám định Level 1.5 (13/11/2026, D49).</strong> Khi milestone được giải quyết bằng đường khác (hai bên thoả thuận) trong lúc đang có assignment hoặc dòng chờ, inspection-service không được báo: inspector vẫn có thể được giao một ca đã hết tranh chấp; contract-service bỏ qua report đến muộn. Làm follow-up riêng nếu cần.</li>
 <li><strong>Random đều trong tập INSPECTOR eligible không xử lý xung đột lợi ích (§2.5).</strong> Hệ thống không biết inspector có quan hệ với buyer/seller hay không — không chọn tay giảm rủi ro thông đồng chủ động, nhưng không loại được trùng hợp. Inspector tự khai báo xung đột rồi từ chối là enhancement, không phải Phase 2.</li>
 <li><strong>WebAuthn/passkey cho INSPECTOR</strong> — cùng lý do đã ghi ở <code>signature-phase2-design.md</code> §8: không đổi tier pháp lý (vẫn thiếu chứng thư CA cấp phép, Điều 22 khoản 3(đ)), chỉ nâng chất lượng bằng chứng khi tranh chấp, không nâng presumption pháp lý mặc định. Để ngoài phạm vi, có chủ đích.</li>
 </ul>
