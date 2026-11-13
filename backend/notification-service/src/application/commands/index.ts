@@ -39,6 +39,13 @@ export {
   type LockAction,
   type UserLockChangedRequestedCommand,
 } from './user-lock-changed-requested.command';
+export {
+  LEVEL15_WAITING_REASONS,
+  LEVEL15_WAITING_STAGES,
+  type Level15AssignmentWaitingRequestedCommand,
+  type Level15WaitingReason,
+  type Level15WaitingStage,
+} from './level15-assignment-waiting-requested.command';
 export { RECIPIENT_ROLES } from './notification-recipient';
 export type {
   NotificationRecipient,

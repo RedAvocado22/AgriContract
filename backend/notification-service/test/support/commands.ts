@@ -3,6 +3,7 @@ import type {
   ContractActivationFailedRequestedCommand,
   ContractAnchorRequestedCommand,
   ContractTerminatedRequestedCommand,
+  Level15AssignmentWaitingRequestedCommand,
   NotificationRecipient,
   UserKycResultRequestedCommand,
   UserLockChangedRequestedCommand,
@@ -443,5 +444,61 @@ export function lockCommand(): UserLockChangedRequestedCommand {
     action: 'LOCKED',
     effectiveUntil: '2026-12-11T04:00:00Z',
     reasonCode: 'STRATEGIC_ABANDONMENT',
+  };
+}
+
+/*
+ * `notification.level1_5_assignment_waiting_requested`, as inspection-service
+ * is to write it (#439, D49) when a Level 1.5 request finds no inspector: the
+ * first command of a wait, WAITING_STARTED. No recipient: it goes to the
+ * configured operator address.
+ */
+export const WAITING_CONTRACT_ID = '5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d';
+export const WAITING_MILESTONE_ID = '8c7d6e5f-4a3b-4c2d-9e1f-0a9b8c7d6e5f';
+export const OPERATOR_EMAIL = 'operator@agricontract.test';
+const WAITING_EVENT_ID = '2c1d0e9f-8a7b-4c6d-9e5f-4a3b2c1d0e9f';
+
+export function waitingEnvelope(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    eventId: WAITING_EVENT_ID,
+    eventType: 'notification.level1_5_assignment_waiting_requested',
+    eventVersion: 1,
+    occurredAt: '2026-11-16T03:00:00.250Z',
+    producer: 'inspection-service',
+    aggregateId: WAITING_MILESTONE_ID,
+    correlationId: '7e6d5c4b-3a2f-4e1d-8c0b-9a8f7e6d5c4b',
+    causationId: '4f3e2d1c-0b9a-4876-9543-210fedcba987',
+    payload: waitingPayload(),
+    ...overrides,
+  };
+}
+
+export function waitingPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    contractId: WAITING_CONTRACT_ID,
+    milestoneId: WAITING_MILESTONE_ID,
+    reason: 'NO_ELIGIBLE',
+    waitingSince: '2026-11-16T03:00:00Z',
+    stage: 'WAITING_STARTED',
+    ...overrides,
+  };
+}
+
+export const waitingBody = (overrides: Record<string, unknown> = {}): Buffer =>
+  Buffer.from(JSON.stringify(waitingEnvelope(overrides)));
+
+/** The command the parser is expected to produce from `waitingEnvelope()`. */
+export function waitingCommand(): Level15AssignmentWaitingRequestedCommand {
+  return {
+    eventId: WAITING_EVENT_ID,
+    contractId: WAITING_CONTRACT_ID,
+    milestoneId: WAITING_MILESTONE_ID,
+    reason: 'NO_ELIGIBLE',
+    waitingSince: '2026-11-16T03:00:00Z',
+    stage: 'WAITING_STARTED',
   };
 }

@@ -24,6 +24,10 @@ import {
   terminatedBody,
   terminatedCommand,
   terminatedPayload,
+  WAITING_MILESTONE_ID,
+  waitingBody,
+  waitingCommand,
+  waitingPayload,
 } from '../../../test/support/commands';
 import {
   parseActivationCancelRequested,
@@ -36,6 +40,8 @@ import {
   USER_KYC_RESULT_REQUIRED,
   parseUserLockChangedRequested,
   USER_LOCK_CHANGED_REQUIRED,
+  LEVEL15_ASSIGNMENT_WAITING_FIELDS,
+  parseLevel15AssignmentWaitingRequested,
 } from './notification-command.parsers';
 
 /** Delivers a message built from `overrides` on the envelope. */
@@ -612,5 +618,87 @@ describe('parseUserLockChangedRequested', () => {
     expect(message(() => parseUserLockChangedRequested(kycBody()))).toContain(
       "is not this queue's command",
     );
+  });
+});
+
+describe('parseLevel15AssignmentWaitingRequested', () => {
+  const parseWaiting = (payload: Record<string, unknown> = waitingPayload()) =>
+    parseLevel15AssignmentWaitingRequested(waitingBody({ payload }));
+
+  it('reads the envelope eventId and every payload field', () => {
+    expect(parseWaiting()).toEqual(waitingCommand());
+  });
+
+  it.each([
+    ['a wait that goes on', { stage: 'STILL_WAITING' }],
+    ['an assignment at last', { stage: 'ASSIGNED' }],
+    ['a re-pick with everyone excluded', { reason: 'ALL_EXCLUDED' }],
+    [
+      'an instant with an offset',
+      { waitingSince: '2026-11-16T10:00:00+07:00' },
+    ],
+  ])('accepts %s, as the contract does', (_case, patch) => {
+    expect(parseWaiting(waitingPayload(patch))).toMatchObject(patch);
+  });
+
+  it.each([
+    [
+      'stage',
+      'DONE',
+      'field "stage" must be one of WAITING_STARTED, STILL_WAITING, ASSIGNED',
+    ],
+    ['stage', 'assigned', 'field "stage" must be one of'],
+    [
+      'reason',
+      'NO_INSPECTOR',
+      'field "reason" must be one of NO_ELIGIBLE, ALL_EXCLUDED',
+    ],
+    ['reason', null, 'field "reason" must be one of'],
+    ['waitingSince', '2026-11-16', 'RFC 3339'],
+    ['contractId', 'contract-1', 'field "contractId" must be a UUID'],
+    ['milestoneId', 42, 'field "milestoneId" must be a non-empty string'],
+    [
+      'inspectorId',
+      WAITING_MILESTONE_ID,
+      'unknown payload property "inspectorId"',
+    ],
+  ])(
+    'rejects %s = %p as an invalid payload, without retrying',
+    (field, value, reason) => {
+      const text = message(() =>
+        parseWaiting(waitingPayload({ [field]: value })),
+      );
+
+      expect(text).toContain(
+        'Malformed notification.level1_5_assignment_waiting_requested',
+      );
+      expect(text).toContain(reason);
+    },
+  );
+
+  it.each(LEVEL15_ASSIGNMENT_WAITING_FIELDS)(
+    'rejects a missing %s',
+    (field) => {
+      const payload = waitingPayload();
+      delete payload[field];
+
+      expect(message(() => parseWaiting(payload))).toContain(`"${field}"`);
+    },
+  );
+
+  it('rejects a command from another producer', () => {
+    expect(
+      message(() =>
+        parseLevel15AssignmentWaitingRequested(
+          waitingBody({ producer: 'contract-service' }),
+        ),
+      ),
+    ).toContain('producer must be "inspection-service"');
+  });
+
+  it('rejects the lock-changed command, whose eventType is not this queue’s', () => {
+    expect(
+      message(() => parseLevel15AssignmentWaitingRequested(lockBody())),
+    ).toContain("is not this queue's command");
   });
 });
