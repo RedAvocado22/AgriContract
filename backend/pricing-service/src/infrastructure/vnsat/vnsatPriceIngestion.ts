@@ -4,6 +4,7 @@ import type { ManualPriceDeps } from '../../application/usecase/recordManualPric
 import { COMMODITY, slugify, type PriceQuote } from '../../domain/priceQuote';
 import type { VnsatRow } from './vnsatTable';
 import { toVnsatPrice } from './vnsatPrice';
+import { DEFAULT_VNSAT_URL } from './vnsatScraper';
 
 /** Testable ingestion boundary: validate the whole batch before append, then cache only committed rows. */
 export async function runVnsatPriceIngestion(
@@ -12,6 +13,8 @@ export async function runVnsatPriceIngestion(
   scrape: () => Promise<VnsatRow[]>,
   now = new Date(),
   newId = randomUUID,
+  /** The page actually scraped (config vnsat.url), stored as each row's referenceSource. */
+  sourceUrl: string = DEFAULT_VNSAT_URL,
 ): Promise<{ rows: number; inserted: number }> {
   try {
     const rows = await scrape();
@@ -37,7 +40,7 @@ export async function runVnsatPriceIngestion(
           source: 'VNSAT_SCRAPE',
           capturedAt: mapped.capturedAt,
           ingestedAt,
-          referenceSource: 'https://thitruongnongsan.gov.vn/vn/nguonwmy.aspx',
+          referenceSource: sourceUrl,
           reason: null,
           recordedBy: null,
         },
