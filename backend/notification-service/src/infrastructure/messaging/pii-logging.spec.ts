@@ -17,8 +17,8 @@ import {
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
   NotifyContractAnchorUseCase,
-  NotifyEscrowLockedUseCase,
-  NotifyEscrowReleasedUseCase,
+  NotifyCategoryApprovedUseCase,
+  NotifyCategoryRejectedUseCase,
 } from '../../application/use-cases';
 import { validate, type AppConfig } from '../../config/env.validation';
 import { NodemailerEmailAdapter } from '../email/nodemailer-email.adapter';
@@ -38,7 +38,7 @@ import {
   lockPayload,
 } from '../../../test/support/commands';
 import { commandRoutes } from './command-routes';
-import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
+import { legacyRoutes } from './legacy-routes';
 import { NotificationEventConsumer } from './notification-event.consumer';
 
 const BUYER = 'buyer.nguyen@example.test';
@@ -68,9 +68,9 @@ async function harness(sendMail: jest.Mock) {
     email,
   );
   const routes = legacyRoutes({
-    escrowReleased: new NotifyEscrowReleasedUseCase(sender),
-    escrowLocked: new NotifyEscrowLockedUseCase(sender),
-  } as unknown as NotificationUseCases);
+    categoryApproved: new NotifyCategoryApprovedUseCase(sender),
+    categoryRejected: new NotifyCategoryRejectedUseCase(sender),
+  });
 
   let ready!: ChannelReadyCallback;
   const amqp = {
@@ -133,13 +133,13 @@ describe('no personal data in the logs', () => {
     const { deliver, nacks } = await harness(sendMail);
 
     deliver(
-      'notification-svc.escrow.released',
+      'notification-svc.category.rejected',
       JSON.stringify({
         eventId: 'evt-smtp-1',
-        escrowId: 'esc-1',
-        buyerEmail: BUYER,
-        sellerEmail: SELLER,
-        buyerName: NAME,
+        name: 'Ca Phe',
+        proposedByEmail: BUYER,
+        rejectionReason: `Trung ten voi danh muc cua ${NAME}`,
+        proposedByName: NAME,
       }),
     );
     await jest.advanceTimersByTimeAsync(5_000); // 3 attempts, 1s + 2s backoff
@@ -161,15 +161,17 @@ describe('no personal data in the logs', () => {
     const { deliver, nacks } = await harness(jest.fn());
 
     deliver(
-      'notification-svc.escrow.locked',
-      `{"eventId":"evt-json-1","sellerEmail":"${SELLER}","sellerName":"${NAME}",`,
+      'notification-svc.category.approved',
+      `{"eventId":"evt-json-1","proposedByEmail":"${SELLER}","proposedByName":"${NAME}",`,
     );
     await jest.advanceTimersByTimeAsync(0);
 
     expect(nacks).toEqual([false]);
     const log = lines.join('\n');
-    expect(log).toContain('Malformed escrow.locked payload: not valid JSON');
-    for (const secret of [SELLER, NAME, 'sellerName']) {
+    expect(log).toContain(
+      'Malformed category.approved payload: not valid JSON',
+    );
+    for (const secret of [SELLER, NAME, 'proposedByName']) {
       expect(log).not.toContain(secret);
     }
   });
@@ -369,12 +371,12 @@ describe('no personal data in the logs', () => {
       );
 
     deliver(
-      'notification-svc.escrow.released',
+      'notification-svc.category.rejected',
       JSON.stringify({
         eventId: 'evt-bug-1',
-        escrowId: 'e',
-        buyerEmail: BUYER,
-        sellerEmail: SELLER,
+        name: 'Ca Phe',
+        proposedByEmail: BUYER,
+        rejectionReason: 'Trung ten',
       }),
     );
     await jest.advanceTimersByTimeAsync(5_000);

@@ -1,16 +1,10 @@
 import type {
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
-  NotifyEscrowLockedUseCase,
-  NotifyEscrowPenalizedUseCase,
-  NotifyEscrowReleasedUseCase,
 } from '../../application/use-cases';
 import {
   parseCategoryApproved,
   parseCategoryRejected,
-  parseEscrowLocked,
-  parseEscrowPenalized,
-  parseEscrowReleased,
 } from './legacy-payload.parsers';
 import type { LegacyRoutingKey } from './topology';
 
@@ -23,9 +17,6 @@ export type LegacyRoutes = Record<
 >;
 
 export interface NotificationUseCases {
-  escrowLocked: NotifyEscrowLockedUseCase;
-  escrowReleased: NotifyEscrowReleasedUseCase;
-  escrowPenalized: NotifyEscrowPenalizedUseCase;
   categoryApproved: NotifyCategoryApprovedUseCase;
   categoryRejected: NotifyCategoryRejectedUseCase;
 }
@@ -37,10 +28,6 @@ export interface NotificationUseCases {
  */
 export function legacyRoutes(u: NotificationUseCases): LegacyRoutes {
   return {
-    'escrow.locked': (b) => u.escrowLocked.execute(parseEscrowLocked(b)),
-    'escrow.released': (b) => u.escrowReleased.execute(parseEscrowReleased(b)),
-    'escrow.penalized': (b) =>
-      u.escrowPenalized.execute(parseEscrowPenalized(b)),
     'category.approved': (b) =>
       u.categoryApproved.execute(parseCategoryApproved(b)),
     'category.rejected': (b) =>

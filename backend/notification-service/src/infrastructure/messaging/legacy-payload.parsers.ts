@@ -2,9 +2,6 @@ import { NonRetryableError } from '@agricontract/eventing';
 import type {
   CategoryApprovedCommand,
   CategoryRejectedCommand,
-  EscrowLockedCommand,
-  EscrowPenalizedCommand,
-  EscrowReleasedCommand,
 } from '../../application/commands';
 
 /*
@@ -19,9 +16,6 @@ import type {
  * converted. Optional fields may be absent or null, but if present must be
  * strings.
  *
- *   escrow.locked       eventId escrowId sellerEmail
- *   escrow.released     eventId escrowId buyerEmail sellerEmail
- *   escrow.penalized    eventId escrowId penalizedParty + buyerEmail (BUYER) or sellerEmail (otherwise)
  *   category.approved   eventId name proposedByEmail                 [categoryId]
  *   category.rejected   eventId name proposedByEmail rejectionReason [categoryId]
  *
@@ -102,47 +96,6 @@ function describe(value: unknown): string {
   if (Array.isArray(value)) return 'an array';
   if (value === '') return 'an empty string';
   return typeof value;
-}
-
-export function parseEscrowLocked(body: Buffer | string): EscrowLockedCommand {
-  const p = read('escrow.locked', body);
-  return {
-    eventId: p.required('eventId'),
-    escrowId: p.required('escrowId'),
-    sellerEmail: p.required('sellerEmail'),
-  };
-}
-
-export function parseEscrowReleased(
-  body: Buffer | string,
-): EscrowReleasedCommand {
-  const p = read('escrow.released', body);
-  return {
-    eventId: p.required('eventId'),
-    escrowId: p.required('escrowId'),
-    buyerEmail: p.required('buyerEmail'),
-    sellerEmail: p.required('sellerEmail'),
-  };
-}
-
-/**
- * Java: `"BUYER".equals(penalizedParty) ? buyerEmail : sellerEmail`. escrow-service
- * only sends BUYER or SELLER; any other value still means the seller, as in Java.
- */
-export function parseEscrowPenalized(
-  body: Buffer | string,
-): EscrowPenalizedCommand {
-  const p = read('escrow.penalized', body);
-  const eventId = p.required('eventId');
-  const escrowId = p.required('escrowId');
-  const penalizedParty = p.required('penalizedParty');
-  return {
-    eventId,
-    escrowId,
-    penalizedPartyEmail: p.required(
-      penalizedParty === 'BUYER' ? 'buyerEmail' : 'sellerEmail',
-    ),
-  };
 }
 
 export function parseCategoryApproved(

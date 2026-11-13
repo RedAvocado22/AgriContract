@@ -64,16 +64,16 @@ describe('NodemailerEmailAdapter', () => {
     });
 
     await adapter.send({
-      to: 'buyer@example.test',
-      subject: '[AgriContract] Escrow locked — proceed with delivery',
-      body: 'Escrow esc-1 has been successfully locked.',
+      to: 'seller@example.test',
+      subject: '[AgriContract] Category proposal approved',
+      body: 'Your proposed category "Cà phê Robusta" has been approved.',
     });
 
     expect(sendMail).toHaveBeenCalledWith({
       from: 'noreply@example.test',
-      to: 'buyer@example.test',
-      subject: '[AgriContract] Escrow locked — proceed with delivery',
-      text: 'Escrow esc-1 has been successfully locked.',
+      to: 'seller@example.test',
+      subject: '[AgriContract] Category proposal approved',
+      text: 'Your proposed category "Cà phê Robusta" has been approved.',
     });
     expect(
       (sendMail.mock.calls[0] as [Record<string, unknown>])[0],

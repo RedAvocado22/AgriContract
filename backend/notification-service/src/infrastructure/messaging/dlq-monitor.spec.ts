@@ -54,14 +54,14 @@ describe('DlqMonitor', () => {
   it('warns for each DLQ that holds messages', async () => {
     const { monitor } = monitorWith({
       'notification-svc.notification.contract_anchor_requested.dlq': 2,
-      'notification-svc.escrow.penalized.dlq': 1,
+      'notification-svc.category.rejected.dlq': 1,
     });
 
     await monitor.checkDlqDepth();
 
     expect(warn.mock.calls.map(([m]) => m as string)).toEqual([
       'DLQ notification-svc.notification.contract_anchor_requested.dlq has 2 message(s) — need manual fix',
-      'DLQ notification-svc.escrow.penalized.dlq has 1 message(s) — need manual fix',
+      'DLQ notification-svc.category.rejected.dlq has 1 message(s) — need manual fix',
     ]);
   });
 
