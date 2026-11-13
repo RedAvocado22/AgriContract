@@ -11,6 +11,8 @@ import {
   FAILED_LEGS,
   FUND_TYPES,
   KYC_RESULTS,
+  LEVEL15_WAITING_REASONS,
+  LEVEL15_WAITING_STAGES,
   LOCK_ACTIONS,
   PARTY_ROLES,
   RECIPIENT_ROLES,
@@ -22,6 +24,7 @@ import {
   type ContractTerminatedRequestedCommand,
   type RemedyLeg,
   type ContractAnchorRequestedCommand,
+  type Level15AssignmentWaitingRequestedCommand,
   type NotificationRecipient,
   type RecipientRole,
   type UserKycResultRequestedCommand,
@@ -688,6 +691,44 @@ export function parseUserLockChangedRequested(
     action: payload.enumValue('action', LOCK_ACTIONS),
     effectiveUntil: payload.optionalNullableDateTime('effectiveUntil'),
     reasonCode: payload.text('reasonCode'),
+  };
+}
+
+export const LEVEL15_ASSIGNMENT_WAITING_REQUESTED =
+  'notification.level1_5_assignment_waiting_requested';
+
+/** Payload properties of `level15AssignmentWaitingRequested`, all required. */
+export const LEVEL15_ASSIGNMENT_WAITING_FIELDS = [
+  'contractId',
+  'milestoneId',
+  'reason',
+  'waitingSince',
+  'stage',
+] as const;
+
+/**
+ * inspection-service's staff alert (D49): no recipient in the payload, the
+ * address is this service's own `notification.operatorEmail`. Nothing in it
+ * is personal data, but the errors still quote field names and enum values
+ * only, as everywhere else.
+ */
+export function parseLevel15AssignmentWaitingRequested(
+  body: Buffer,
+): Level15AssignmentWaitingRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    LEVEL15_ASSIGNMENT_WAITING_REQUESTED,
+    'inspection-service',
+  );
+  payload.only(LEVEL15_ASSIGNMENT_WAITING_FIELDS);
+
+  return {
+    eventId: envelope.eventId,
+    contractId: payload.uuid('contractId'),
+    milestoneId: payload.uuid('milestoneId'),
+    reason: payload.enumValue('reason', LEVEL15_WAITING_REASONS),
+    waitingSince: payload.dateTime('waitingSince'),
+    stage: payload.enumValue('stage', LEVEL15_WAITING_STAGES),
   };
 }
 
