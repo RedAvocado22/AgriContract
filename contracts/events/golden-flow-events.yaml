@@ -1143,7 +1143,7 @@ $defs:
             properties:
               userId: {$ref: "#/$defs/uuid"}
               lockedUntil: {type: string, format: date-time}
-              reasonCode: {type: string}
+              reasonCode: {$ref: "#/$defs/breachReasonCode"}
               lockRevision: {type: integer, minimum: 1}
               occurredAt: {type: string, format: date-time}
         x-publisher: reputation-service
@@ -1163,7 +1163,7 @@ $defs:
             properties:
               userId: {$ref: "#/$defs/uuid"}
               effectiveLockedUntil: {oneOf: [{type: string, format: date-time}, {type: "null"}]}
-              reasonCode: {type: string}
+              reasonCode: {enum: [EXPIRED, UNLOCKED_EARLY]}
               lockRevision: {type: integer, minimum: 1}
               occurredAt: {type: string, format: date-time}
         x-publisher: reputation-service

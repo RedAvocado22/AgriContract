@@ -38,10 +38,10 @@ Không tách 3 vai trò này thành 3 service riêng trong Phase 2 (over-enginee
 | `contractId` | UUID | |
 | `userId` | UUID | Người bị khoá (buyer hoặc seller, tuỳ `penalizedRole`) |
 | `penalizedRole` | Enum (`BUYER`, `SELLER`) | 1 event duy nhất phân biệt qua field này, không tách 2 event riêng — công thức `lockDurationDays` áp dụng y hệt cho cả 2 bên, chỉ đổi input rate |
-| `baseDays` | Int | Mặc định 30 |
+| `baseDays` | Int | 30 cho vi phạm cố ý; **3** cho `QUALITY_BELOW_COMMITTED`/`SHORTFALL` (13/11/2026, D52 — §4.3) |
 | `repeatOffenseMultiplier` | Decimal | 1x/2x/3x — chỉ đếm vi phạm trong cửa sổ `repeatOffenseLookbackMonths` gần nhất, xem §4.2 |
 | `trackRecordMultiplier` | Decimal | 0.7x/1.0x/1.3x, gated ngưỡng 5 hợp đồng, KHÔNG có time window, xem §4.1 |
-| `lockDurationDays` | Int | = `baseDays × repeatOffenseMultiplier × trackRecordMultiplier`, snapshot lúc tính |
+| `lockDurationDays` | Int | = `ceil(baseDays × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier)` (làm tròn lên — 13/11/2026, D52), snapshot lúc tính |
 | `lockedUntil` | Timestamp | |
 | `createdAt` | Timestamp | |
 
@@ -55,7 +55,7 @@ CREATE TABLE lock_entry (
     contract_id              CHAR(36) NOT NULL,
     user_id                  CHAR(36) NOT NULL,
     penalized_role           VARCHAR(10) NOT NULL,   -- BUYER | SELLER
-    base_days                INT NOT NULL DEFAULT 30,
+    base_days                INT NOT NULL,           -- 30 | 3 theo breachReasonCode (§4, D52 13/11/2026)
     repeat_offense_multiplier DECIMAL(3,2) NOT NULL,
     track_record_multiplier  DECIMAL(3,2) NOT NULL,
     zero_progress_multiplier DECIMAL(3,2) NOT NULL,  -- SỬA 18/07/2026: công thức §5 có 4 input mà snapshot
@@ -88,6 +88,17 @@ CREATE TABLE lock_override_event (
 );
 -- Effective lock của user = MAX(locked_until) trên các lock_entry chưa hết hạn
 -- và KHÔNG có override hợp lệ.
+
+-- BỔ SUNG 13/11/2026 (D53): trạng thái khoá hiệu lực per user — projection được UPDATE, KHÔNG thuộc
+-- ledger insert-only (DB user có UPDATE trên bảng này, không có trên lock_entry/lock_override_event).
+-- Giữ lockRevision bền qua restart (thay cách "đếm event đã phát") và là mốc cho job tự gỡ khoá (§7).
+CREATE TABLE user_lock_state (
+    user_id                 CHAR(36) PRIMARY KEY,
+    lock_revision           BIGINT NOT NULL,          -- revision của event lock/unlock gần nhất đã ghi outbox
+    effective_locked_until  TIMESTAMP NULL,           -- MAX(locked_until) các lock còn hiệu lực; NULL = không khoá
+    updated_at              TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_user_lock_state_until ON user_lock_state(effective_locked_until);
 
 -- Maker-checker có model thật (18/07/2026 — trước chỉ có prose governance §5.3):
 CREATE TABLE governance_action_request (
@@ -161,15 +172,15 @@ Truy vấn (completion count, clean rate, tỷ lệ flag-rồi-thua) tính từ 
 **⟢ SOURCE OF TRUTH cho công thức `lockDurationDays` là mục này (reputation-service §4).** Trước đây công thức được "chốt" ở `milestone-escrow-phase2-design.md` §6.1 và copy sang đây — nay đảo lại đúng chủ sở hữu: `reputation-service` là nơi tính và implement công thức này, nên nó chốt số ở đây. `milestone-escrow` §6.3.1 (số mục mới 19/07/2026, cũ §6.1) chỉ giữ **input/trigger**: `remedy.finalized` với `reputationEligible = true` sau final attribution, vì sao tách penalty debt khỏi số ngày khoá, và tham chiếu về mục này cho baseline. Nếu 2 file lệch nhau về con số → bản ở đây thắng.
 
 ```
-lockDurationDays = baseDays(30) × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier
+lockDurationDays = ceil(baseDays × repeatOffenseMultiplier × trackRecordMultiplier × zeroProgressMultiplier)
 ```
 
 | Multiplier | Giá trị | Điều kiện |
 |---|---|---|
-| `baseDays` | 30 | Cố định |
+| `baseDays` | 30 / 3 | **Sửa 13/11/2026 (D52):** 30 cho nhóm strategic (§4.3); 3 cho `QUALITY_BELOW_COMMITTED`/`SHORTFALL` — seller đã chịu đủ hậu quả tiền, 30 ngày gần như hết mùa vụ; khoá ngắn vẫn để dấu trên score (score đếm số lock, không đếm ngày) và chặn đăng bán lại ngay lô vừa bị loại. Làm tròn: `ceil` cho mọi lock (3 × 0.7 = 2.1 → 3). |
 | `repeatOffenseMultiplier` | 1x / 2x / 3x | Lần vi phạm thứ mấy trong `repeatOffenseLookbackMonths` gần nhất (§4.2) |
 | `trackRecordMultiplier` | 0.7x / 1.0x / 1.3x | Dưới 5 hợp đồng hoàn thành: mặc định 1.0x. Đủ 5 trở lên: tính theo % sạch thật (0.7x nếu track record tốt, 1.3x nếu kém) — không time window (§4.1) |
-| `zeroProgressMultiplier` | 1.5x / 1.0x | **Mới (08/07/2026); siết điều kiện 19/07/2026:** 1.5x khi breach lúc **0 milestone nào từng `SETTLED`** **VÀ** `breachReasonCode` thuộc nhóm strategic (§4.3) — ký xong bỏ ngay *một cách cố ý* mới là tín hiệu xấu nhất + ma sát disintermediation. **KHÔNG áp** khi zero-progress do mutual/FM/activation-failure/buyer-caused (những đường này vốn không tạo `lock_entry` cho bên kia — §3, §4.3). 1.0x cho mọi trường hợp còn lại. Trigger chốt tại `milestone-escrow-phase2-design.md` §6.3.1. |
+| `zeroProgressMultiplier` | 1.5x / 1.0x | **Mới (08/07/2026); siết điều kiện 19/07/2026:** 1.5x khi breach lúc **0 milestone nào từng `SETTLED`** **VÀ** `breachReasonCode` thuộc nhóm strategic (§4.3) — ký xong bỏ ngay *một cách cố ý* mới là tín hiệu xấu nhất + ma sát disintermediation. **KHÔNG áp** khi zero-progress do mutual/FM/activation-failure/buyer-caused (những đường này vốn không tạo `lock_entry` cho bên kia — §3, §4.3). 1.0x cho mọi trường hợp còn lại, kể cả `QUALITY_BELOW_COMMITTED`/`SHORTFALL` (đã giao hàng, không phải ký xong bỏ — D52). Danh sách strategic chốt ở §4.3. Trigger chốt tại `milestone-escrow-phase2-design.md` §6.3.1. |
 
 ### 4.1 `trackRecordMultiplier` — KHÔNG có time window
 
@@ -185,10 +196,13 @@ Lý do tồn tại của gate: cùng một *kết quả* (không giao / giao thi
 
 | `breachReasonCode` (từ `remedy.finalized`) | Tạo `lock_entry`? |
 |---|---|
-| `SIDE_SELLING`, `NON_DELIVERY` (cố ý), `LATE_DELIVERY` (không lý do), `WRONGFUL_REJECTION`, `FUNDING_FAILURE` (buyer, sau cure window), `FAILURE_TO_RECEIVE`, `LATE_PAYMENT` | **Có** — đúng role bị kết luận |
+| `SIDE_SELLING`, `NON_DELIVERY` (cố ý), `LATE_DELIVERY` (không lý do), `WRONGFUL_REJECTION`, `FUNDING_FAILURE` (buyer, sau cure window), `FAILURE_TO_RECEIVE`, `LATE_PAYMENT` | **Có** — đúng role bị kết luận. Đây là **nhóm strategic**: `baseDays = 30`, được áp `zeroProgressMultiplier` 1.5x |
+| `QUALITY_BELOW_COMMITTED` (disposition `NON_CONFORMING`), `SHORTFALL` (thiếu không do mất mùa: kẹt vốn, lỗi nội bộ HTX) | **Có, nhẹ** (13/11/2026, D52) — `baseDays = 3`, `zeroProgressMultiplier` luôn 1.0x; repeat/track record áp bình thường. Làm không tới nhưng không chứng minh được cố ý; seller đã mất tiền phần hỏng/thiếu + phạt + cọc. Frozen contract bắt `NON_CONFORMING` → `reputationEligible = true` |
 | `PRODUCTION_SHOCK_NON_FM` | **KHÔNG lock** (`reputationEligible = false` luôn) — sốc sản lượng chưa đủ FM pháp lý nhưng không phải cố ý phá. Penalty tiền là chuyện riêng của flag `penaltyEligible` (LegalProfile/phán quyết quyết, milestone-escrow §6.4.1) — 2 quyết định độc lập, reputation không suy từ việc có/không có penalty |
 | `FORCE_MAJEURE`, `MUTUAL_EXIT`, `ACTIVATION_FAILURE` | **KHÔNG** — no-fault, `finalBreachingRole = NULL`, event không tới được tầng này |
 | Allegation bị bác (case `RESOLVED` với `finalBreachingRole = NULL`) | **KHÔNG** cho bên bị cáo buộc; tỷ lệ flag-rồi-thua của bên cáo buộc vẫn đếm qua `milestone.dispute_resolved` (§6.1b) |
+
+**Có lock hay không vẫn chỉ theo flag `reputationEligible`** (§3, §7) — bảng trên giải thích cách contract-service đặt flag. Reputation đọc `breachReasonCode` **chỉ** để chọn `baseDays` và `zeroProgressMultiplier` (13/11/2026, D52). Reason nằm ngoài cả 2 nhóm mà flag vẫn `true` → coi như strategic và log WARN (không đoán nhẹ tay).
 
 ---
 
@@ -275,8 +289,9 @@ Thiết kế:
 
 ## 7. Use Case Changes
 
-- **`ProcessLockoutUseCase`** — consume **`remedy.finalized` DUY NHẤT** (**sửa 19/07 lần 4** — bản trước còn ghi "/ `contract.terminated`", mâu thuẫn trực tiếp với §3 đã gỡ terminated khỏi input chế tài); chỉ chạy khi `reputationEligible = true` (không tự suy từ reason — §4.3); idempotent theo `remedyDecisionId` (`remedy_decision_id UNIQUE`, §2.1); tính `repeatOffenseMultiplier` + `trackRecordMultiplier` + `zeroProgressMultiplier`, ghi `lock_entry` mới (insert-only), publish `reputation.locked`.
-- **`UnlockEarlyUseCase`** — chạy khi `governance_action_request` được APPROVE (two-person rule §7-schema): **INSERT `lock_override_event`** (không UPDATE `lock_entry` — sửa 18/07/2026, bảng đó bất biến), **tính lại effective lock còn lại của user từ các `lock_entry` chưa hết hạn và chưa có override**, rồi publish `reputation.unlocked {eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}` — `lockRevision` (18/07/2026) là sequence tăng dần per user do reputation cấp (đếm event lock/unlock đã phát cho user), user-service persist để ordering sống qua restart; `reputation.locked` cũng mang field này. **Sửa 17/07/2026:** payload cũ chỉ mang `unlockedAt`, khiến projection bên user-service "clear" mù và mở khoá nhầm khi user có nhiều lock chồng nhau — source of truth phải tự tính, projection chỉ set theo (xem `user-service-phase2-design.md` §2.2). `reputation.locked` cũng thêm `occurredAt` cùng lý do ordering. Dùng cho nhánh 2, 3 ở §5. **Maker-checker (18/07/2026, governance §5.3):** unlock sớm không còn đơn phương — OPERATOR propose (reason bắt buộc, trạng thái `PROPOSED`) → ARBITRATOR approve/reject (sửa 12/10/2026 — trước là ADMIN); `proposedBy != approvedBy` vẫn enforce. Payload thêm `proposedByOperatorId` + `approvedByArbitratorId`; cả propose lẫn approve vào audit chain.
+- **`ProcessLockoutUseCase`** — consume **`remedy.finalized` DUY NHẤT** (**sửa 19/07 lần 4** — bản trước còn ghi "/ `contract.terminated`", mâu thuẫn trực tiếp với §3 đã gỡ terminated khỏi input chế tài); chỉ chạy khi `reputationEligible = true` (không tự suy từ reason — §4.3); idempotent theo `remedyDecisionId` (`remedy_decision_id UNIQUE`, §2.1); chọn `baseDays` theo reason (§4.3), tính `repeatOffenseMultiplier` + `trackRecordMultiplier` + `zeroProgressMultiplier`, `ceil`, ghi `lock_entry` mới (insert-only), cập nhật `user_lock_state` (`SELECT … FOR UPDATE`, effective = MAX, revision + 1) và ghi outbox `reputation.locked` trong cùng transaction. **Payload (13/11/2026, D53):** `lockedUntil` = effective lock của user (MAX), không phải hạn riêng của entry mới; `reasonCode` = `breachReasonCode` của `remedy.finalized`.
+- **`UnlockEarlyUseCase`** — chạy khi `governance_action_request` được APPROVE (two-person rule §7-schema): **INSERT `lock_override_event`** (không UPDATE `lock_entry` — sửa 18/07/2026, bảng đó bất biến), **tính lại effective lock còn lại của user từ các `lock_entry` chưa hết hạn và chưa có override**, rồi publish `reputation.unlocked {eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}` — `lockRevision` (18/07/2026) là sequence tăng dần per user do reputation cấp (đếm event lock/unlock đã phát cho user), user-service persist để ordering sống qua restart; `reputation.locked` cũng mang field này. **Sửa 17/07/2026:** payload cũ chỉ mang `unlockedAt`, khiến projection bên user-service "clear" mù và mở khoá nhầm khi user có nhiều lock chồng nhau — source of truth phải tự tính, projection chỉ set theo (xem `user-service-phase2-design.md` §2.2). `reputation.locked` cũng thêm `occurredAt` cùng lý do ordering. Dùng cho nhánh 2, 3 ở §5. **13/11/2026 (D53):** `reasonCode = UNLOCKED_EARLY`; **luôn** phát event kể cả khi effective không đổi (gỡ 1 lock không phải MAX) — là quyết định đã duyệt, user được báo; cập nhật `user_lock_state` cùng transaction với outbox. **Maker-checker (18/07/2026, governance §5.3):** unlock sớm không còn đơn phương — OPERATOR propose (reason bắt buộc, trạng thái `PROPOSED`) → ARBITRATOR approve/reject (sửa 12/10/2026 — trước là ADMIN); `proposedBy != approvedBy` vẫn enforce. Payload thêm `proposedByOperatorId` + `approvedByArbitratorId`; cả propose lẫn approve vào audit chain.
+- **`ExpireLocksJob`** (mới 13/11/2026, D53) — `@Scheduled`, quét `user_lock_state` có `effective_locked_until <= now()`. Mỗi user một transaction: `SELECT … FOR UPDATE`, tính lại effective từ `lock_entry` (chưa hết hạn, không override); vẫn `<= now()` → set `NULL`, revision + 1, ghi outbox `reputation.unlocked {effectiveLockedUntil: null, reasonCode: EXPIRED}`. Vì sao chỉ một event: effective = MAX, nên lock không phải MAX hết hạn không đổi effective (không phát gì); lock MAX hết hạn thì mọi lock khác đã hết trước → về `NULL`; set `NULL` xong lần quét sau không chọn lại. Row lock chặn race với lock mới tới cùng lúc. user-service không phụ thuộc event này để enforce (gate so `lockedUntil` với clock) — event để đồng bộ projection + gửi email hết khoá.
 - **`CheckLockStatusUseCase`** — expose cho `user-service` gọi qua Feign (§6.1), trả `lockedUntil` hiện tại của 1 `userId`.
 - **`GetCreditExportUseCase`** — seller tự trigger (consent-based, §6.3), check counterparty diversity gate trước khi trả JSON export.
 - **`FlagSuspiciousPatternUseCase`** — tính composite fraud score (§8), theo cặp buyer-seller/account, publish event hold khi vượt ngưỡng. **Cập nhật (06/07/2026):** tách 2 nhóm — tín hiệu tương đối (cần lịch sử, hold giao dịch kế tiếp) và tín hiệu tuyệt đối (ngưỡng luật định 500 triệu, hold ngay trên chính giao dịch, kể cả giao dịch đầu tiên của account mới). **Sửa (08/07/2026):** consume thêm `bank.large_transaction_flagged` (`bank-service-phase2-design.md` §3.4) làm 1 input, không phải trigger hold độc lập — hold chỉ kích hoạt khi ngưỡng tuyệt đối **đi kèm** ≥1 tín hiệu hành vi khác (track record mỏng / zero-variance / counterparty mới), tránh hold thuần theo giá trị giết happy path — xem §8 mục 2.
@@ -381,4 +396,4 @@ Reputation-service — **ĐÓNG SESSION HOÀN TOÀN, sẵn sàng đưa vào Arch
 
 ---
 
-*Design session: 04/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Cập nhật: 08/07/2026 (rà soát end-to-end: hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service — A5; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse — B4) · Cập nhật: 13/07/2026 (KI-3 ghi rõ thành must-fix ở user-service, không block; VICOFA lever giữ ở Known Limitation §9) · Cập nhật 17/07/2026 (effectiveLockedUntil + occurredAt trên lock events; reputation.elevated_risk_cleared cho audit chain; public-summary authenticated) · Review pass 18/07/2026 (lock_entry bất biến thật + lock_override_event; zero_progress_multiplier vào snapshot; governance_action_request + pair_risk_state; lockRevision; KI-3/dispute_resolved đánh dấu RESOLVED) · Cập nhật 19/07/2026 (đợt 6 — `remedy.finalized` là input negative duy nhất theo `AttributionDecision`; gate `reputationEligible`; persist immutable facts + `remedy_decision_id` UNIQUE) · Bổ sung 12/10/2026 (response contract `public-summary`: score nullable + công thức baseline, field `lockHistory`, bỏ 404 — §6.1b) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.***
+*Design session: 04/07/2026 · Sync role SRS v1.6: 12/10/2026 ·  Cập nhật: 04/07/2026 (đóng KI-1, note ưu tiên circuit breaker `sign()`, xác nhận lại giới hạn AML hold) · Cập nhật: 06/07/2026 (thêm nhóm tín hiệu AML tuyệt đối — ngưỡng luật định 500 triệu, trigger hold ngay trên giao dịch đầu tiên, §7/§8/§9) · Cập nhật: 08/07/2026 (rà soát end-to-end: hold tuyệt đối cần đi kèm tín hiệu hành vi, detection dời sang bank-service — A5; đối xứng hoá reputation buyer/seller + tín hiệu chống flag-abuse — B4) · Cập nhật: 13/07/2026 (KI-3 ghi rõ thành must-fix ở user-service, không block; VICOFA lever giữ ở Known Limitation §9) · Cập nhật 17/07/2026 (effectiveLockedUntil + occurredAt trên lock events; reputation.elevated_risk_cleared cho audit chain; public-summary authenticated) · Review pass 18/07/2026 (lock_entry bất biến thật + lock_override_event; zero_progress_multiplier vào snapshot; governance_action_request + pair_risk_state; lockRevision; KI-3/dispute_resolved đánh dấu RESOLVED) · Cập nhật 19/07/2026 (đợt 6 — `remedy.finalized` là input negative duy nhất theo `AttributionDecision`; gate `reputationEligible`; persist immutable facts + `remedy_decision_id` UNIQUE) · Bổ sung 12/10/2026 (response contract `public-summary`: score nullable + công thức baseline, field `lockHistory`, bỏ 404 — §6.1b) · Chưa code · **Sẵn sàng đưa vào Architecture/SDS/TechnicalSpec chính thức.** · Cập nhật 13/11/2026 (D52: `baseDays` 3 cho `QUALITY_BELOW_COMMITTED`/`SHORTFALL`, `ceil`, danh sách strategic §4.3; D53: `user_lock_state`, `ExpireLocksJob`, `reasonCode` lock/unlock §7)*

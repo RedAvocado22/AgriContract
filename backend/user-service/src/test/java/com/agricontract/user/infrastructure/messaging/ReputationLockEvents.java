@@ -17,7 +17,7 @@ final class ReputationLockEvents {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userId", userId);
         payload.put("lockedUntil", lockedUntil.toString());
-        payload.put("reasonCode", "CONTRACT_BREACH");
+        payload.put("reasonCode", "SIDE_SELLING");
         payload.put("lockRevision", lockRevision);
         payload.put("occurredAt", "2026-11-01T03:00:00Z");
         return envelope("reputation.locked", userId, payload);
@@ -27,7 +27,7 @@ final class ReputationLockEvents {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userId", userId);
         payload.put("effectiveLockedUntil", effectiveLockedUntil == null ? null : effectiveLockedUntil.toString());
-        payload.put("reasonCode", "UNLOCK_EARLY");
+        payload.put("reasonCode", "UNLOCKED_EARLY");
         payload.put("lockRevision", lockRevision);
         payload.put("occurredAt", "2026-11-01T04:00:00Z");
         return envelope("reputation.unlocked", userId, payload);

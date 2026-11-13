@@ -91,7 +91,7 @@ class ApplyLockChangeUseCaseImplTest {
 
     private static ApplyLockChangeCommand command(LockAction action, Instant until, long revision) {
         return new ApplyLockChangeCommand("0b6f5c3e-9d1a-4e2b-8c7d-6a5b4c3d2e1f",
-                "0b6f5c3e-9d1a-4e2b-8c7d-6a5b4c3d2e1f", USER_ID, action, until, "CONTRACT_BREACH", revision);
+                "0b6f5c3e-9d1a-4e2b-8c7d-6a5b4c3d2e1f", USER_ID, action, until, "SIDE_SELLING", revision);
     }
 
     private static UserProfile profile(Instant lockedUntil) {

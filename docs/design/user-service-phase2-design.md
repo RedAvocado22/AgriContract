@@ -148,8 +148,8 @@ Chỉ service identity (mTLS/service token; Phase 2 có thể dùng `SERVICE_INT
 | Event | Publisher | Consumer | Payload tối thiểu |
 |---|---|---|---|
 | `notification.user_kyc_result_requested` | user-service | notification-service | `{eventId, userId, recipientEmail, organizationName, result: VERIFIED\|REJECTED, reason?, decidedAt}` |
-| `reputation.locked` | reputation-service | user-service | `{eventId, userId, lockedUntil, reasonCode, lockRevision, occurredAt}`; không mang email |
-| `reputation.unlocked` | reputation-service | user-service | `{eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}`; **sửa 17/07/2026** — mang effective lock còn lại do reputation tính lại (đóng edge case nhiều lock chồng nhau); không mang email |
+| `reputation.locked` | reputation-service | user-service | `{eventId, userId, lockedUntil, reasonCode, lockRevision, occurredAt}`; `reasonCode` = `breachReasonCode` gây lock (13/11/2026, D53); không mang email |
+| `reputation.unlocked` | reputation-service | user-service | `{eventId, userId, effectiveLockedUntil (nullable), reasonCode, lockRevision, occurredAt}`; `reasonCode` ∈ `EXPIRED`/`UNLOCKED_EARLY` (13/11/2026, D53); **sửa 17/07/2026** — mang effective lock còn lại do reputation tính lại (đóng edge case nhiều lock chồng nhau); không mang email |
 | `notification.user_lock_changed_requested` | user-service | notification-service | `{eventId, sourceEventId, userId, recipientEmail, action: LOCKED\|UNLOCKED, effectiveUntil?, reasonCode}` |
 
 Email trong event là routing data nội bộ RabbitMQ, không được expose qua API/log plaintext ngoài nhu cầu vận hành.

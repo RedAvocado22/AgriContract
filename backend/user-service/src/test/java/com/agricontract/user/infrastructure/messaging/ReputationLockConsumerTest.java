@@ -46,7 +46,7 @@ class ReputationLockConsumerTest {
         assertThat(command.userId()).isEqualTo(USER_ID);
         assertThat(command.until()).isEqualTo(UNTIL);
         assertThat(command.lockRevision()).isEqualTo(4);
-        assertThat(command.reasonCode()).isEqualTo("CONTRACT_BREACH");
+        assertThat(command.reasonCode()).isEqualTo("SIDE_SELLING");
         assertThat(command.sourceEventId()).isEqualTo(event.eventId().toString());
         assertThat(command.correlationId()).isEqualTo(event.correlationId());
     }

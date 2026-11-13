@@ -67,7 +67,7 @@ class OutboxLockChangePublisherTest {
                 .containsEntry("recipientEmail", "seller@example.com")
                 .containsEntry("action", "LOCKED")
                 .containsEntry("effectiveUntil", STORED_UNTIL.toString())
-                .containsEntry("reasonCode", "CONTRACT_BREACH");
+                .containsEntry("reasonCode", "SIDE_SELLING");
     }
 
     @Test
@@ -89,7 +89,7 @@ class OutboxLockChangePublisherTest {
 
     private static ApplyLockChangeCommand command(LockAction action, Instant until) {
         return new ApplyLockChangeCommand(SOURCE_EVENT_ID, CORRELATION_ID, USER_ID, action, until,
-                "CONTRACT_BREACH", 2);
+                "SIDE_SELLING", 2);
     }
 
     private static UserProfile profile(Instant lockedUntil) {
