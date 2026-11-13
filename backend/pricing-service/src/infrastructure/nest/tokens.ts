@@ -8,3 +8,5 @@ export const CACHE_HANDLE = 'PRICING_CACHE_HANDLE';
 export const MANUAL_PRICE_DEPS = 'PRICING_MANUAL_PRICE_DEPS';
 /** Settings of the public read API (design §2 stale threshold), separate from the manual-price use case. */
 export const PRICE_READ_CONFIG = 'PRICING_PRICE_READ_CONFIG';
+/** The ReferencePriceSource the ingestion job reads (VNSAT scraper adapter in production). */
+export const VNSAT_SOURCE = 'PRICING_VNSAT_SOURCE';

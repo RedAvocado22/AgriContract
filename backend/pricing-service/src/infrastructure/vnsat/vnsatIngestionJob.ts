@@ -1,13 +1,14 @@
-import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
-import type { Logger } from '../../application/port';
+import type { Logger, ReferencePriceSource } from '../../application/port';
+import { ingestVnsatPrices } from '../../application/usecase/ingestVnsatPrices';
 import type { ManualPriceDeps } from '../../application/usecase/recordManualPrice';
 import type { Config } from '../config';
-import { CONFIG, LOGGER, MANUAL_PRICE_DEPS } from '../nest/tokens';
-import { runVnsatPriceIngestion } from './vnsatPriceIngestion';
-import { scrapeVnsatCoffee } from './vnsatScraper';
+import { CONFIG, LOGGER, MANUAL_PRICE_DEPS, VNSAT_SOURCE } from '../nest/tokens';
 
-/** Daily, non-blocking VNSAT ingestion. A failed source never removes a stored or cached quote. */
+/**
+ * Scheduler only (design §3.3): runs the ingestVnsatPrices use case at start-up and then every interval,
+ * without blocking start-up. A run that is still going is never overlapped by the next tick.
+ */
 @Injectable()
 export class VnsatPriceIngestionJob implements OnApplicationBootstrap, OnApplicationShutdown {
   private timer: NodeJS.Timeout | undefined;
@@ -17,6 +18,7 @@ export class VnsatPriceIngestionJob implements OnApplicationBootstrap, OnApplica
     @Inject(CONFIG) private readonly config: Config,
     @Inject(MANUAL_PRICE_DEPS) private readonly deps: ManualPriceDeps,
     @Inject(LOGGER) private readonly logger: Logger,
+    @Inject(VNSAT_SOURCE) private readonly source: ReferencePriceSource,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -32,18 +34,16 @@ export class VnsatPriceIngestionJob implements OnApplicationBootstrap, OnApplica
     if (this.timer) clearInterval(this.timer);
   }
 
-  async run(): Promise<void> {
-    if (this.running) return;
+  /** Returns false when skipped because the previous run has not finished. */
+  async run(): Promise<boolean> {
+    if (this.running) {
+      this.logger.warn('VNSAT ingestion still running; skipping this tick');
+      return false;
+    }
     this.running = true;
     try {
-      await runVnsatPriceIngestion(
-        this.deps,
-        this.logger,
-        () => scrapeVnsatCoffee({ url: this.config.vnsat.url, timeoutMs: this.config.vnsat.timeoutMs }),
-        new Date(),
-        randomUUID,
-        this.config.vnsat.url,
-      );
+      await ingestVnsatPrices({ ...this.deps, logger: this.logger, source: this.source });
+      return true;
     } finally {
       this.running = false;
     }
