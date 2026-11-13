@@ -48,7 +48,18 @@ describe('VNSAT price ingestion', () => {
     assert.equal(repo.rows.length, 1);
     assert.equal(repo.rows[0]?.quote.price, '88500.00');
     assert.equal(repo.rows[0]?.quote.source, 'VNSAT_SCRAPE');
+    assert.equal(repo.rows[0]?.quote.referenceSource, 'https://thitruongnongsan.gov.vn/vn/nguonwmy.aspx');
     assert.equal(cache.stored.length, 1);
+  });
+
+  it('stores the configured VNSAT URL as the reference source', async () => {
+    const repo = new InMemoryPriceHistory();
+    const scrape = async () => [{ itemName: 'Cà phê Robusta nhân xô', province: 'Đắk Lắk', date: '10-11-2026', price: '88.500' }];
+    await runVnsatPriceIngestion(
+      { repository: repo, cache: new FakeCache(), logger: memoryLogger() }, memoryLogger(), scrape,
+      new Date('2026-11-12T00:00:00.000Z'), () => '00000000-0000-4000-8000-000000000003', 'https://mirror.example/vnsat.aspx',
+    );
+    assert.equal(repo.rows[0]?.quote.referenceSource, 'https://mirror.example/vnsat.aspx');
   });
 
   it('a DB error in the middle of a batch commits none of it, keeps the old quote and records a failure', async () => {
