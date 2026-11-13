@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Logger } from '../../application/port';
 import type { ManualPriceDeps } from '../../application/usecase/recordManualPrice';
-import { DuplicateIdempotencyKeyError } from '../../domain/priceHistoryRepository';
 import { COMMODITY, slugify, type PriceQuote } from '../../domain/priceQuote';
 import type { VnsatRow } from './vnsatTable';
 import { toVnsatPrice } from './vnsatPrice';
@@ -45,49 +44,20 @@ export async function runVnsatPriceIngestion(
       };
     });
 
-    let inserted = 0;
-    for (const { quote, identity } of quotes) {
-      try {
-        await deps.repository.append({ quote, idempotencyKey: identity, requestHash: identity, sourceIdentity: identity });
-        inserted += 1;
-        try {
-          await deps.cache.putLatest(quote);
-        } catch (err) {
-          logger.warn('Redis update failed after VNSAT price write; MySQL remains the source of truth', {
-            priceId: quote.id,
-            error: errorMessage(err),
-          });
-        }
-      } catch (err) {
-        if (err instanceof DuplicateIdempotencyKeyError) {
-          // A prior scrape may have committed MySQL but lost its Redis write before the process stopped.
-          const latest = await deps.repository.findLatest(COMMODITY, quote.provinceSlug, quote.itemSlug);
-          if (latest) {
-            try {
-              const cached = await deps.cache.getLatest(quote.provinceSlug, quote.itemSlug);
-              if (cached?.id !== latest.id) await deps.cache.putLatest(latest);
-            } catch (cacheErr) {
-              logger.warn('Redis repair failed while replaying an existing VNSAT row', {
-                priceId: latest.id,
-                error: errorMessage(cacheErr),
-              });
-              try {
-                await deps.cache.putLatest(latest);
-              } catch (putErr) {
-                logger.warn('Redis update failed after replaying an existing VNSAT row', {
-                  priceId: latest.id,
-                  error: errorMessage(putErr),
-                });
-              }
-            }
-          }
-          continue;
-        }
-        throw err;
-      }
+    // One transaction for the whole batch (design §4): a DB error leaves none of it committed.
+    // Rows already stored (same sourceIdentity) are skipped, so the next run fills any gap.
+    const inserted = await deps.repository.appendScrapedBatch(
+      quotes.map(({ quote, identity }) => ({ quote, idempotencyKey: identity, requestHash: identity, sourceIdentity: identity })),
+    );
+
+    // Redis only after commit. Refresh every province/item of the batch from MySQL, which also repairs a
+    // cache write lost by an earlier run whose rows were committed.
+    const keys = new Map(quotes.map(({ quote }) => [`${quote.provinceSlug}|${quote.itemSlug}`, quote]));
+    for (const { provinceSlug, itemSlug } of keys.values()) {
+      await refreshCache(deps, logger, provinceSlug, itemSlug);
     }
-    logger.info('VNSAT coffee price ingestion completed', { rows: rows.length, inserted });
-    return { rows: rows.length, inserted };
+    logger.info('VNSAT coffee price ingestion completed', { rows: rows.length, inserted: inserted.length });
+    return { rows: rows.length, inserted: inserted.length };
   } catch (err) {
     const reason = errorMessage(err);
     logger.error('VNSAT coffee price ingestion failed; existing prices were kept', { error: reason });
@@ -97,6 +67,21 @@ export async function runVnsatPriceIngestion(
       logger.error('Could not persist VNSAT ingestion failure', { error: errorMessage(recordErr) });
     }
     return { rows: 0, inserted: 0 };
+  }
+}
+
+/** Puts the latest committed quote of one province/item into Redis. Redis errors are logged, never thrown. */
+async function refreshCache(deps: ManualPriceDeps, logger: Logger, provinceSlug: string, itemSlug: string): Promise<void> {
+  const latest = await deps.repository.findLatest(COMMODITY, provinceSlug, itemSlug);
+  if (!latest) return;
+  try {
+    const cached = await deps.cache.getLatest(provinceSlug, itemSlug).catch(() => undefined);
+    if (cached?.id !== latest.id) await deps.cache.putLatest(latest);
+  } catch (err) {
+    logger.warn('Redis update failed after VNSAT price write; MySQL remains the source of truth', {
+      priceId: latest.id,
+      error: errorMessage(err),
+    });
   }
 }
 
