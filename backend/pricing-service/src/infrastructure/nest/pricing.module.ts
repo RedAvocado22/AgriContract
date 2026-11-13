@@ -11,10 +11,13 @@ import { ProblemFilter } from '../http/problem.filter';
 import { jsonLogger } from '../logger';
 import { MysqlPriceHistoryRepository, createMysqlPool, type MysqlPoolLike } from '../persistence/mysqlPriceHistoryRepository';
 import { VnsatPriceIngestionJob } from '../vnsat/vnsatIngestionJob';
-import { CACHE_HANDLE, CONFIG, GATEWAY_SECRET, LOGGER, MANUAL_PRICE_DEPS, MYSQL_POOL } from './tokens';
+import type { PriceReadConfig } from '../http/prices.controller';
+import { CACHE_HANDLE, CONFIG, GATEWAY_SECRET, LOGGER, MANUAL_PRICE_DEPS, MYSQL_POOL, PRICE_READ_CONFIG } from './tokens';
 
 export interface AppDeps extends ManualPriceDeps {
   gatewaySecret: string;
+  /** Read API stale threshold; production takes it from PRICING_COFFEE_STALE_THRESHOLD_DAYS. */
+  staleThresholdDays?: number;
 }
 
 /** Closes the MySQL pool and the Redis connection when Nest shuts down (SIGTERM / SIGINT / app.close()). */
@@ -74,13 +77,17 @@ export class PricingModule {
         },
         {
           provide: MANUAL_PRICE_DEPS,
-          useFactory: (pool: MysqlPoolLike, cache: RedisCacheHandle, logger: Logger, config: Config): ManualPriceDeps => ({
+          useFactory: (pool: MysqlPoolLike, cache: RedisCacheHandle, logger: Logger): ManualPriceDeps => ({
             repository: new MysqlPriceHistoryRepository(pool),
             cache: cache.cache,
             logger,
-            staleThresholdDays: config.pricing.coffeeStaleThresholdDays,
           }),
-          inject: [MYSQL_POOL, CACHE_HANDLE, LOGGER, CONFIG],
+          inject: [MYSQL_POOL, CACHE_HANDLE, LOGGER],
+        },
+        {
+          provide: PRICE_READ_CONFIG,
+          useFactory: (config: Config): PriceReadConfig => ({ staleThresholdDays: config.pricing.coffeeStaleThresholdDays }),
+          inject: [CONFIG],
         },
         VnsatPriceIngestionJob,
         PricingShutdown,
@@ -97,6 +104,7 @@ export class PricingModule {
         { provide: LOGGER, useValue: deps.logger },
         { provide: GATEWAY_SECRET, useValue: deps.gatewaySecret },
         { provide: MANUAL_PRICE_DEPS, useValue: deps },
+        { provide: PRICE_READ_CONFIG, useValue: { staleThresholdDays: deps.staleThresholdDays ?? 14 } satisfies PriceReadConfig },
       ],
     };
   }

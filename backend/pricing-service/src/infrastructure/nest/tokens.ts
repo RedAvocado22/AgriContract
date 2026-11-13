@@ -6,3 +6,5 @@ export const MYSQL_POOL = 'PRICING_MYSQL_POOL';
 export const CACHE_HANDLE = 'PRICING_CACHE_HANDLE';
 /** repository + cache + logger (+ clock and id source) used by the use case. */
 export const MANUAL_PRICE_DEPS = 'PRICING_MANUAL_PRICE_DEPS';
+/** Settings of the public read API (design §2 stale threshold), separate from the manual-price use case. */
+export const PRICE_READ_CONFIG = 'PRICING_PRICE_READ_CONFIG';

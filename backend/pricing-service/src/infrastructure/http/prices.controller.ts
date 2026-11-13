@@ -3,16 +3,25 @@ import type { ServerResponse } from 'node:http';
 import { recordManualPrice, type ManualPriceDeps } from '../../application/usecase/recordManualPrice';
 import { COMMODITY, type PriceQuote } from '../../domain/priceQuote';
 import { isStale } from '../../domain/staleness';
-import { MANUAL_PRICE_DEPS } from '../nest/tokens';
+import { MANUAL_PRICE_DEPS, PRICE_READ_CONFIG } from '../nest/tokens';
 import { HttpError } from './errors';
 import { ManualPriceGuard, type ActorRequest } from './manualPrice.guard';
 import { headerValue, readJsonBody, traceIdOf } from './request';
 import { MANUAL_PRICE_PATH } from './routes';
 
+/** Settings of the public read API only (design §2). */
+export interface PriceReadConfig {
+  /** A quote older than this many days (Vietnam date) is returned with stale = true. */
+  staleThresholdDays: number;
+}
+
 /** Public advisory read endpoints plus the OPERATOR-only manual fallback write. */
 @Controller()
 export class PricesController {
-  constructor(@Inject(MANUAL_PRICE_DEPS) private readonly deps: ManualPriceDeps) {}
+  constructor(
+    @Inject(MANUAL_PRICE_DEPS) private readonly deps: ManualPriceDeps,
+    @Inject(PRICE_READ_CONFIG) private readonly readConfig: PriceReadConfig,
+  ) {}
 
   /** Frozen contract (listPriceItems): 200 only. An unknown commodity or province simply has no items. */
   @Get('/api/v1/prices/:commodity/:province/items')
@@ -70,7 +79,6 @@ export class PricesController {
       }
     }
 
-    const thresholdDays = this.deps.staleThresholdDays ?? 14;
     return {
       id: quote.id,
       commodity: quote.commodity,
@@ -84,7 +92,7 @@ export class PricesController {
       ingestedAt: quote.ingestedAt,
       referenceSource: quote.referenceSource,
       reason: quote.reason,
-      stale: isStale(quote.capturedAt, this.deps.now?.() ?? new Date(), thresholdDays),
+      stale: isStale(quote.capturedAt, this.deps.now?.() ?? new Date(), this.readConfig.staleThresholdDays),
     };
   }
 
