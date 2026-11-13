@@ -185,6 +185,36 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
   `test/contract/user-lock-changed-requested.contract.spec.ts` checks the parser against the contract in both
   directions.
 
+### Level 1.5 inspection waiting for an inspector (Phase 2, `notification.level1_5_assignment_waiting_requested`, D49)
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.level1_5_assignment_waiting_requested` (DLX `notification-svc.inspection.dlx`) |
+| Exchange, routing key | `agricontract.inspection`, `notification.level1_5_assignment_waiting_requested` |
+| Recipients | `OPERATOR_EMAIL` (design §7 `notification.operatorEmail`) alone: the command names nobody |
+| Row per email | one kind per `stage`, `recipient_user_id` null (an address, not an account): |
+| | `WAITING_STARTED` → `LEVEL1_5_WAITING_STARTED`, `level1-5-waiting-started/v1` |
+| | `STILL_WAITING` → `LEVEL1_5_STILL_WAITING`, `level1-5-still-waiting/v1` |
+| | `ASSIGNED` → `LEVEL1_5_ASSIGNED_AFTER_WAIT`, `level1-5-assigned-after-wait/v1` |
+
+- inspection-service publishes it (#439) when a Level 1.5 request finds no inspector: once when the wait starts,
+  at most once per business day while it lasts, once when an inspector is assigned. Each is its own command, so
+  each is its own email; a replayed `eventId` sends once.
+- The body gives `contractId`, `milestoneId`, the `reason` in plain words (`NO_ELIGIBLE`: no inspector is
+  eligible; `ALL_EXCLUDED`: every eligible inspector already had this milestone) and `waitingSince` in Vietnam
+  time and UTC. While waiting, it tells the Operator to ask an Admin for more INSPECTOR accounts and never to pick
+  an inspector by hand. No stage names an inspector.
+- **`OPERATOR_EMAIL` unset or blank**: the service starts with a warning, and every one of these commands is
+  dead-lettered at once (no retry) with `OPERATOR_EMAIL is not set, so this operator alert has no recipient`.
+  Set the variable, restart, and move the DLQ messages back. Compose defaults it to
+  `operator@agricontract.local`, which MailHog catches.
+- `agricontract.inspection` follows the `agricontract.<service>` convention: inspection-service has no outbox
+  yet, and #439 must publish there and declare this queue, its DLQ and the DLX ahead with these exact names and
+  options. Until then nothing arrives here.
+- Same claim, dedup, redelivery and dead-letter rules as the signed-contract email; lines stay within 76
+  characters, so the mail goes out as 7bit. `test/contract/level15-assignment-waiting-requested.contract.spec.ts`
+  checks the parser against the contract in both directions.
+
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
@@ -278,6 +308,7 @@ startup with a list of every invalid variable. `.env` files are not read.
 | `MAIL_FROM` | `noreply@agricontract.com` |
 | `SERVER_PORT` | `8085` |
 | `SERVICE_INTERNAL_SECRET` | `changeme-internal` (same default as contract-service; compose requires it in `.env`) |
+| `OPERATOR_EMAIL` | none: unset or blank is allowed, and the Operator alerts are then dead-lettered; a value that is not an address stops the startup. Compose: `operator@agricontract.local` |
 
 ## Run with compose
 
