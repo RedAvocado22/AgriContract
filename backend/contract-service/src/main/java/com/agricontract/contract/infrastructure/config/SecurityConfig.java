@@ -1,5 +1,9 @@
 package com.agricontract.contract.infrastructure.config;
 
+import org.springframework.security.web.util.matcher.DispatcherTypeRequestMatcher;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.AndRequestMatcher;
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,6 +39,11 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // The servlet container re-dispatches sendError (400 missing header, 404, 405) to /error as an ERROR
+                        // dispatch without the request's authentication; let only that through so the client gets the real
+                        // status instead of an empty 403 (#429). An ordinary request or forward to /error keeps the rules below.
+                        .requestMatchers(new AndRequestMatcher(new DispatcherTypeRequestMatcher(DispatcherType.ERROR),
+                                new AntPathRequestMatcher("/error"))).permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
