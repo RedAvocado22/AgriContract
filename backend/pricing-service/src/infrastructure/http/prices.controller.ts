@@ -2,6 +2,7 @@ import { Controller, Get, HttpCode, Inject, Param, Post, Query, Req, Res, UseGua
 import type { ServerResponse } from 'node:http';
 import { recordManualPrice, type ManualPriceDeps } from '../../application/usecase/recordManualPrice';
 import { COMMODITY, type PriceQuote } from '../../domain/priceQuote';
+import { isStale } from '../../domain/staleness';
 import { MANUAL_PRICE_DEPS } from '../nest/tokens';
 import { HttpError } from './errors';
 import { ManualPriceGuard, type ActorRequest } from './manualPrice.guard';
@@ -106,10 +107,4 @@ function isSlug(value: string): boolean {
 
 function notFound(): HttpError {
   return new HttpError(404, 'PRICE_NOT_FOUND', 'No reference price is available');
-}
-
-function isStale(capturedAt: string, now: Date, thresholdDays: number): boolean {
-  const captured = Date.parse(`${capturedAt}T00:00:00Z`);
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return !Number.isFinite(captured) || Math.floor((today - captured) / 86_400_000) > thresholdDays;
 }

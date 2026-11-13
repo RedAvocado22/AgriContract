@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { businessToday, requestHash, validateManualPrice } from '../src/domain/manualPrice';
 import { DuplicateIdempotencyKeyError } from '../src/domain/priceHistoryRepository';
 import { slugify, type PriceQuote } from '../src/domain/priceQuote';
+import { isStale } from '../src/domain/staleness';
 import { RedisPriceCache, cacheKey, type RedisClientLike } from '../src/infrastructure/cache/redisPriceCache';
 import { loadConfig } from '../src/infrastructure/config';
 import { migrationFiles } from '../src/infrastructure/persistence/migrate';
@@ -55,6 +56,21 @@ describe('businessToday (Asia/Ho_Chi_Minh)', () => {
   it('rolls over at midnight ICT, not UTC', () => {
     assert.equal(businessToday(new Date('2026-10-12T16:59:59Z')), '2026-10-12');
     assert.equal(businessToday(new Date('2026-10-12T17:00:00Z')), '2026-10-13');
+  });
+});
+
+describe('isStale (Vietnam calendar date)', () => {
+  // 2026-10-25 01:30 ICT = 2026-10-24 18:30 UTC: the UTC date is still the 24th.
+  const earlyMorningIct = new Date('2026-10-24T18:30:00.000Z');
+
+  it('counts days against the Vietnam date, not the UTC date', () => {
+    // captured 2026-10-10 is 15 days before 25/10 ICT (stale) but only 14 before the UTC date.
+    assert.equal(isStale('2026-10-10', earlyMorningIct, 14), true);
+    assert.equal(isStale('2026-10-11', earlyMorningIct, 14), false);
+  });
+
+  it('treats a missing or malformed date as stale', () => {
+    assert.equal(isStale('not-a-date', earlyMorningIct, 14), true);
   });
 });
 
