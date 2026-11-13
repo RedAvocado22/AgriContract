@@ -434,8 +434,11 @@ services:
       SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
       REPUTATION_SERVICE_URL: http://reputation-service:8088
       USER_SERVICE_URL: http://user-service:8081
+      RABBITMQ_HOST: rabbitmq
     depends_on:
       product-db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       keycloak:
         condition: service_healthy
