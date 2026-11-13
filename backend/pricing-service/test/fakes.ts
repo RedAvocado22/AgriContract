@@ -71,9 +71,12 @@ export class InMemoryPriceHistory implements PriceHistoryRepository {
 export class FakeCache implements PriceCache {
   stored: PriceQuote[] = [];
   fail = false;
+  /** When true, getLatest throws (Redis down on read). */
+  failReads = false;
   constructor(private readonly events?: string[]) {}
 
   async getLatest(provinceSlug: string, itemSlug: string): Promise<PriceQuote | undefined> {
+    if (this.failReads) throw new Error('redis read timeout');
     return structuredClone(this.stored.filter((q) => q.provinceSlug === provinceSlug && q.itemSlug === itemSlug)
       .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.ingestedAt.localeCompare(a.ingestedAt))[0]);
   }
