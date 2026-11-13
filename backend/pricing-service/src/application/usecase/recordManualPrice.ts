@@ -13,8 +13,6 @@ export interface ManualPriceDeps {
   repository: PriceHistoryRepository;
   cache: PriceCache;
   logger: Logger;
-  /** Used only to label public reference quotes as stale; defaults to 14 days. */
-  staleThresholdDays?: number;
   now?: () => Date;
   newId?: () => string;
 }
