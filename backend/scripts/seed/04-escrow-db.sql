@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 -- ==============================================================
 -- DEV SEED: escrow_db — 6 escrow accounts (SIGNED → DISPUTED)
 --

@@ -11,7 +11,7 @@ SEED_DIR="$(cd "$(dirname "$0")/seed" && pwd)"
 run_sql() {
   local container="$1" db="$2" file="$3"
   echo "→ Seeding $db..."
-  docker exec -i "$container" mysql -uroot -p"${DB_PASS}" "$db" < "$file"
+  docker exec -i "$container" mysql --default-character-set=utf8mb4 -uroot -p"${DB_PASS}" "$db" < "$file"
 }
 
 run_sql "product-db"  "product_db"  "$SEED_DIR/01-product-db.sql"
