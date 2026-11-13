@@ -25,6 +25,7 @@ oneOf:
   - {$ref: "#/$defs/userKycResultRequested"}
   - {$ref: "#/$defs/userLockChangedRequested"}
   - {$ref: "#/$defs/verifierKeyAnchorRequested"}
+  - {$ref: "#/$defs/level15AssignmentWaitingRequested"}
 $defs:
   uuid: {type: string, format: uuid}
   nullableUuid:
@@ -477,3 +478,27 @@ $defs:
             properties:
               recipientEmail: {type: string, format: email}
               publicKeyFingerprint: {type: string, minLength: 1}
+  level15AssignmentWaitingRequested:
+    x-publisher: inspection-service
+    x-consumers: [notification-service]
+    x-semantics: >-
+      Staff-only operational alert (inspection design §2.5, D49). The command carries no recipients:
+      notification-service sends to its own notification.operatorEmail. One command per stage:
+      WAITING_STARTED once when the wait begins, STILL_WAITING at most once per business day while
+      still waiting, ASSIGNED once when an inspector was finally assigned. No inspector identity.
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.level1_5_assignment_waiting_requested}
+          producer: {const: inspection-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, reason, waitingSince, stage]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              reason: {enum: [NO_ELIGIBLE, ALL_EXCLUDED]}
+              waitingSince: {type: string, format: date-time}
+              stage: {enum: [WAITING_STARTED, STILL_WAITING, ASSIGNED]}
