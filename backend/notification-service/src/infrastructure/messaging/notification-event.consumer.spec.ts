@@ -21,6 +21,8 @@ import {
   terminatedCommand,
   terminatedEnvelope,
   terminatedPayload,
+  waitingCommand,
+  waitingEnvelope,
 } from '../../../test/support/commands';
 import { commandRoutes, type CommandUseCases } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
@@ -71,6 +73,7 @@ const HANDLERS = [
   'contractTerminated',
   'userKycResult',
   'userLockChanged',
+  'level15AssignmentWaiting',
   'categoryApproved',
   'categoryRejected',
 ] as const;
@@ -415,6 +418,48 @@ describe('NotificationEventConsumer', () => {
     expect(service.userLockChanged).not.toHaveBeenCalled();
     expect(service.userKycResult).not.toHaveBeenCalled();
     expect(channel.nacked).toHaveLength(1);
+  });
+
+  it('runs the Level 1.5 waiting use case on its own queue, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.level1_5_assignment_waiting_requested',
+      waitingEnvelope(),
+    );
+    await flush();
+
+    expect(service.level15AssignmentWaiting).toHaveBeenCalledTimes(1);
+    expect(service.level15AssignmentWaiting.mock.calls[0][0]).toEqual(
+      waitingCommand(),
+    );
+    for (const other of HANDLERS.filter(
+      (h) => h !== 'level15AssignmentWaiting',
+    )) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('dead-letters a lock-changed command delivered to the Level 1.5 waiting queue', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.level1_5_assignment_waiting_requested',
+      lockEnvelope(),
+    );
+    await flush();
+
+    expect(service.level15AssignmentWaiting).not.toHaveBeenCalled();
+    expect(service.userLockChanged).not.toHaveBeenCalled();
+    expect(channel.nacked).toEqual([{ msg, requeue: false }]);
   });
 
   it('dead-letters a contract command delivered to the KYC-result queue', async () => {

@@ -33,6 +33,14 @@ export const TOPOLOGY = [
       'notification.user_lock_changed_requested',
     ],
   },
+  {
+    // inspection-service's outbox exchange, by the agricontract.<service>
+    // convention of the other publishers: inspection-service has no outbox
+    // yet (#439), so it must publish here for this binding to route.
+    exchange: 'agricontract.inspection',
+    dlx: 'notification-svc.inspection.dlx',
+    routingKeys: ['notification.level1_5_assignment_waiting_requested'],
+  },
 ] as const;
 
 export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
@@ -72,6 +80,13 @@ export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
  * `notification.user_lock_changed_requested` tells a user their reputation
  * lock changed, once user-service has applied it; same exchange, same row,
  * same DLX, and likewise declared by no one else.
+ *
+ * `notification.level1_5_assignment_waiting_requested` (D49) tells the
+ * Operator a Level 1.5 inspection request is waiting for an inspector, and
+ * when it got one. It rides inspection-service's exchange,
+ * agricontract.inspection, in a row of its own with its own DLX.
+ * inspection-service is to declare this queue ahead as well (#439), so the
+ * names and options here are the ones it must copy byte for byte.
  */
 export const COMMAND_ROUTING_KEYS = [
   'notification.contract_anchor_requested',
@@ -80,6 +95,7 @@ export const COMMAND_ROUTING_KEYS = [
   'notification.contract_terminated_requested',
   'notification.user_kyc_result_requested',
   'notification.user_lock_changed_requested',
+  'notification.level1_5_assignment_waiting_requested',
 ] as const;
 
 export type CommandRoutingKey = (typeof COMMAND_ROUTING_KEYS)[number];

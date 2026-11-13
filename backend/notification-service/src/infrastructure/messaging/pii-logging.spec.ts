@@ -16,6 +16,7 @@ import {
   NotifyContractTerminatedUseCase,
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
+  NotifyLevel15AssignmentWaitingUseCase,
   NotifyContractAnchorUseCase,
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
@@ -36,6 +37,7 @@ import {
   kycPayload,
   lockEnvelope,
   lockPayload,
+  waitingEnvelope,
 } from '../../../test/support/commands';
 import { commandRoutes } from './command-routes';
 import { legacyRoutes } from './legacy-routes';
@@ -60,7 +62,10 @@ function captureLogs(): string[] {
 }
 
 /** Wires the real delivery path with a fake broker channel and a fake SMTP transport. */
-async function harness(sendMail: jest.Mock) {
+async function harness(
+  sendMail: jest.Mock,
+  operatorEmail: string | null = 'ops@agricontract.test',
+) {
   const config = new ConfigService<AppConfig, true>(validate({}));
   const email = new NodemailerEmailAdapter(config, () => ({ sendMail }));
   const sender = new NotificationSender(
@@ -101,6 +106,10 @@ async function harness(sendMail: jest.Mock) {
     contractTerminated: new NotifyContractTerminatedUseCase(sender),
     userKycResult: new NotifyUserKycResultUseCase(sender),
     userLockChanged: new NotifyUserLockChangedUseCase(sender),
+    level15AssignmentWaiting: new NotifyLevel15AssignmentWaitingUseCase(
+      sender,
+      operatorEmail,
+    ),
   });
   const consumer = new NotificationEventConsumer(amqp, routes, commands);
   await consumer.onModuleInit();
@@ -357,6 +366,24 @@ describe('no personal data in the logs', () => {
     expect(log).not.toContain(BUYER);
     expect(log).not.toContain(SELLER);
     expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it('a Level 1.5 waiting alert with OPERATOR_EMAIL unset: dead-lettered at once, the log names the variable', async () => {
+    const lines = captureLogs();
+    const sendMail = jest.fn().mockResolvedValue({});
+    const { deliver, nacks } = await harness(sendMail, null);
+
+    deliver(
+      'notification-svc.notification.level1_5_assignment_waiting_requested',
+      JSON.stringify(waitingEnvelope()),
+    );
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(nacks).toEqual([false]); // no retry: none could find an address
+    expect(sendMail).not.toHaveBeenCalled();
+    expect(lines.join('\n')).toContain(
+      'OPERATOR_EMAIL is not set, so this operator alert has no recipient',
+    );
   });
 
   it('an unexpected error with personal data in its message is reduced to its code', async () => {

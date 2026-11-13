@@ -1,9 +1,12 @@
+import { NonRetryableError } from '@agricontract/eventing';
+import { OperatorEmailNotConfiguredError } from '../../application/notification-errors';
 import {
   unsupportedTermination,
   type NotifyActivationCancelRequestedUseCase,
   type NotifyContractActivationFailedUseCase,
   type NotifyContractAnchorUseCase,
   type NotifyContractTerminatedUseCase,
+  type NotifyLevel15AssignmentWaitingUseCase,
   type NotifyUserKycResultUseCase,
   type NotifyUserLockChangedUseCase,
 } from '../../application/use-cases';
@@ -13,6 +16,7 @@ import {
   parseContractActivationFailedRequested,
   parseContractAnchorRequested,
   parseContractTerminatedRequested,
+  parseLevel15AssignmentWaitingRequested,
   parseUserKycResultRequested,
   parseUserLockChangedRequested,
   unsupportedCommand,
@@ -34,6 +38,7 @@ export interface CommandUseCases {
   contractTerminated: NotifyContractTerminatedUseCase;
   userKycResult: NotifyUserKycResultUseCase;
   userLockChanged: NotifyUserLockChangedUseCase;
+  level15AssignmentWaiting: NotifyLevel15AssignmentWaitingUseCase;
 }
 
 /**
@@ -68,5 +73,18 @@ export function commandRoutes(u: CommandUseCases): CommandRoutes {
       u.userKycResult.execute(parseUserKycResultRequested(b)),
     'notification.user_lock_changed_requested': (b) =>
       u.userLockChanged.execute(parseUserLockChangedRequested(b)),
+    'notification.level1_5_assignment_waiting_requested': async (b) => {
+      const command = parseLevel15AssignmentWaitingRequested(b);
+      try {
+        await u.level15AssignmentWaiting.execute(command);
+      } catch (err) {
+        // No retry can find an address before OPERATOR_EMAIL is set and the
+        // service restarted: straight to the DLQ, with the message that says so.
+        if (err instanceof OperatorEmailNotConfiguredError) {
+          throw new NonRetryableError(err.message);
+        }
+        throw err;
+      }
+    },
   };
 }

@@ -9,3 +9,4 @@ export {
 } from './notify-contract-terminated.use-case';
 export { NotifyUserKycResultUseCase } from './notify-user-kyc-result.use-case';
 export { NotifyUserLockChangedUseCase } from './notify-user-lock-changed.use-case';
+export { NotifyLevel15AssignmentWaitingUseCase } from './notify-level15-assignment-waiting.use-case';

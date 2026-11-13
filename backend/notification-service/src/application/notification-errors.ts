@@ -47,6 +47,21 @@ export class NotificationDeliveryError extends NotificationError {
   }
 }
 
+/**
+ * A staff alert arrived but `notification.operatorEmail` (OPERATOR_EMAIL) is
+ * not set, so there is nobody to send it to. Not a silent drop: the route
+ * dead-letters the message at once with this text, since a redelivery cannot
+ * succeed before the variable is set and the service restarted, and the
+ * message then waits in the DLQ to be moved back.
+ */
+export class OperatorEmailNotConfiguredError extends NotificationError {
+  constructor(readonly eventId: string) {
+    super(
+      `Event ${eventId}: OPERATOR_EMAIL is not set, so this operator alert has no recipient`,
+    );
+  }
+}
+
 const SAFE_CODE = /^[A-Za-z][A-Za-z0-9_/.-]{0,63}$/;
 
 /**
