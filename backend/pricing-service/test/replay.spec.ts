@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import mysql from 'mysql2/promise';
+import { DuplicateIdempotencyKeyError } from '../src/domain/priceHistoryRepository';
 import type { PriceQuote } from '../src/domain/priceQuote';
 import { RedisPriceCache, cacheKey, type RedisClientLike } from '../src/infrastructure/cache/redisPriceCache';
 import { applyMigrations } from '../src/infrastructure/persistence/migrate';
@@ -185,4 +186,77 @@ const MYSQL_URL = process.env.PRICING_TEST_MYSQL_URL;
       deepEqual(replay.json, first.json);
     });
   }
+
+  describe('VNSAT ingestion SQL (V2)', () => {
+    // A province slug of its own per run, so reruns against the same database never see older rows.
+    const province = `it-${randomUUID().slice(0, 8)}`;
+    const vnsatRow = (item: string, capturedAt: string, price = '88500.00') => {
+      const quote: PriceQuote = {
+        id: randomUUID(), commodity: 'COFFEE', itemName: `Cà phê ${item}`, itemSlug: `ca-phe-${item}`,
+        province: 'Integration', provinceSlug: province, price, source: 'VNSAT_SCRAPE', capturedAt,
+        ingestedAt: '2026-11-12T00:00:00.123Z', referenceSource: 'https://thitruongnongsan.gov.vn/vn/nguonwmy.aspx',
+        reason: null, recordedBy: null,
+      };
+      const identity = randomUUID().replace(/-/g, '').padEnd(64, '0');
+      return { quote, idempotencyKey: identity, requestHash: identity, sourceIdentity: identity };
+    };
+    const countRows = async (): Promise<number> => {
+      const [rows] = await pool.query('SELECT COUNT(*) AS n FROM price_history WHERE province_slug = ?', [province]);
+      return Number((rows as Array<{ n: number }>)[0]!.n);
+    };
+
+    it('appendScrapedBatch commits the batch and skips a row whose source_identity is already stored', async () => {
+      const repo = new MysqlPriceHistoryRepository(pool);
+      const a = vnsatRow('robusta', '2026-11-01');
+      const b = vnsatRow('arabica', '2026-11-01');
+      deepEqual((await repo.appendScrapedBatch([a])).map((q) => q.id), [a.quote.id]);
+      const replayOfA = { ...vnsatRow('robusta', '2026-11-01'), sourceIdentity: a.sourceIdentity };
+      deepEqual((await repo.appendScrapedBatch([replayOfA, b])).map((q) => q.id), [b.quote.id]);
+      assert.equal(await countRows(), 2);
+    });
+
+    it('appendScrapedBatch rolls the whole batch back when one row fails', async () => {
+      const repo = new MysqlPriceHistoryRepository(pool);
+      const before = await countRows();
+      const ok = vnsatRow('excelsa', '2026-11-02');
+      const tooBig = vnsatRow('liberica', '2026-11-02', '12345678901.00'); // over DECIMAL(10,2): strict mode rejects it
+      await assert.rejects(repo.appendScrapedBatch([ok, tooBig]));
+      assert.equal(await countRows(), before);
+    });
+
+    it('append maps a duplicate source_identity to DuplicateIdempotencyKeyError', async () => {
+      const repo = new MysqlPriceHistoryRepository(pool);
+      const row = vnsatRow('moka', '2026-11-03');
+      await repo.append(row);
+      await assert.rejects(
+        repo.append({ ...vnsatRow('moka', '2026-11-03'), sourceIdentity: row.sourceIdentity }),
+        DuplicateIdempotencyKeyError,
+      );
+    });
+
+    it('findLatest returns the newest captured date and listItems groups canonical items', async () => {
+      const repo = new MysqlPriceHistoryRepository(pool);
+      const older = vnsatRow('culi', '2026-10-01', '80000.00');
+      const newer = vnsatRow('culi', '2026-10-20', '81000.00');
+      await repo.appendScrapedBatch([newer, older]);
+      const latest = await repo.findLatest('COFFEE', province, 'ca-phe-culi');
+      assert.equal(latest?.id, newer.quote.id);
+      assert.equal(latest?.price, '81000.00');
+      assert.equal(latest?.capturedAt, '2026-10-20');
+      assert.equal(latest?.ingestedAt, '2026-11-12T00:00:00.123Z');
+      const items = await repo.listItems('COFFEE', province);
+      assert.equal(items.filter((i) => i.itemSlug === 'ca-phe-culi').length, 1);
+    });
+
+    it('recordIngestionFailure writes one row to price_ingestion_failure', async () => {
+      const reason = `layout changed ${randomUUID()}`;
+      await new MysqlPriceHistoryRepository(pool).recordIngestionFailure('COFFEE', reason);
+      const [rows] = await pool.query(
+        'SELECT commodity, detected_at FROM price_ingestion_failure WHERE failure_reason = ?', [reason],
+      );
+      const found = rows as Array<{ commodity: string; detected_at: string }>;
+      assert.equal(found.length, 1);
+      assert.equal(found[0]!.commodity, 'COFFEE');
+    });
+  });
 });
