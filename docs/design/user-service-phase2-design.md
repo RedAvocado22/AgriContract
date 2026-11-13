@@ -23,7 +23,7 @@ Phase 1 có `UserProfile` tối giản (`organizationName`, `role`, contact info
 | Field | Loại | Ghi chú |
 |---|---|---|
 | `userId` | String/UUID | Keycloak `sub`, identity ổn định |
-| `organizationName` | VARCHAR | Tên pháp nhân/HTX |
+| `organizationName` | VARCHAR | Tên ghi trên giấy phép: pháp nhân, HTX, hoặc hộ kinh doanh/cá nhân (**sửa 13/11/2026, D46** — cá nhân/hộ kinh doanh cũng được đăng ký, vẫn phải upload giấy phép để KYC) |
 | `role` | `BUYER \| SELLER \| ADMIN \| INSPECTOR \| OPERATOR \| ARBITRATOR` | Role nguồn từ Keycloak; Phase 1 cần mở enum cho INSPECTOR; **OPERATOR mới 18/07/2026** — vận hành hằng ngày (KYC, review, moderate, retry activation); **ARBITRATOR mới 12/10/2026** (SRS v1.6) — phán xử breach/FM, khởi tạo Level 2, approve maker-checker reputation. Matrix ở `data-governance-phase2-design.md` §5. API gán role **reject** tổ hợp `OPERATOR` + `ARBITRATOR` trên cùng account (chống tự propose rồi tự approve) |
 | `contactInfo` | VO | Email, phone, address; dữ liệu riêng tư |
 | `verificationStatus` | `PENDING \| VERIFIED \| REJECTED` | State KYC hiện tại |
@@ -55,6 +55,25 @@ REGISTER → PENDING ──verify──▶ VERIFIED
 - Sau khi apply thành công, user-service publish notification command đã enrich contact info (`notification.user_lock_changed_requested`); reputation-service không cần và không được gọi ngược để lấy email.
 - Reconciliation endpoint nội bộ của reputation-service là fallback vận hành, không được gọi trên mọi request nghiệp vụ.
 
+### 2.3 Luồng đăng ký, email và tài khoản chưa xác minh (chốt 13/11/2026, D45/D46/D47)
+
+**Luồng (D47):**
+
+1. **Trang đăng ký Keycloak** (theme Keycloakify): email, mật khẩu, chọn **người mua / người bán**. Keycloak gắn realm role `BUYER`/`SELLER` ngay lúc tạo tài khoản, nên token đầu tiên đã có role (chọn role ở React thì phải gắn role rồi bắt user đăng nhập lại). Keycloak 24 không tự gắn realm role theo ô người dùng chọn: cần một event-listener SPI nhỏ (jar trong `/opt/keycloak/providers`) bắt sự kiện `REGISTER`, đọc thuộc tính chọn role (validator chỉ nhận `BUYER|SELLER`, thuộc tính chỉ admin sửa được sau khi tạo) và gắn role tương ứng. Không ai tự đăng ký được role staff.
+2. **Tự đăng nhập, về React `/onboarding`**: tên trên giấy phép (`organizationName`, D46), số điện thoại, upload giấy phép. Ô email **điền sẵn từ token và khoá**: email đăng nhập Keycloak = email hồ sơ. Gửi form = `POST /api/v1/users/register`; user-service vẫn lấy email từ body và không so với token (gateway không chuyển email, api-gateway design §2) — gọi API thẳng với email khác chỉ tự hại mình vì vẫn phải nhập mã gửi về đó.
+3. **Nhập mã OTP** gửi về email (§4.4): mã được gửi ngay khi hồ sơ được tạo; màn nhập mã hiện rõ "Mã đã gửi tới <email>" kèm nút "Sai email? Đăng xuất và đăng ký lại".
+4. **Chờ Operator duyệt KYC.**
+
+**KYC chỉ sau khi email đã xác minh (D45):** hồ sơ và giấy phép được lưu ngay lúc gửi form, nhưng hàng chờ KYC (§4.2) chỉ liệt kê hồ sơ đã xác minh email; `verify`/`reject` hồ sơ chưa xác minh email → 409. Không tách "xác minh email trước rồi mới upload" (phải tách register thành 2 lần gọi + thêm trạng thái hồ sơ thiếu giấy tờ). Lý do: Operator không tốn công duyệt hồ sơ có email chưa ai chứng minh — mail kết quả KYC không tới được, và contract-service vẫn chặn tài khoản chưa xác minh email.
+
+**Không có tính năng đổi email:** ai chiếm được tài khoản mà đổi được email là khoá được chủ thật ra ngoài. Realm đặt thuộc tính email chỉ admin sửa (người dùng không sửa trên account console Keycloak). Gõ sai email lúc đăng ký: đăng ký lại tài khoản mới (không cho sửa email trước khi xác minh, vì phải đồng bộ cả Keycloak). Tính năng đổi email đúng nghĩa (OTP tới địa chỉ mới + cập nhật Keycloak) là hướng phát triển, §8.
+
+**Tài khoản chưa xác minh email bị xoá sau 24 giờ:** Keycloak không cho trùng email (`duplicateEmailsAllowed: false`), nên một tài khoản gõ nhầm hoặc cố tình chiếm `a@gmail` sẽ chặn chủ thật đăng ký. Job định kỳ ở user-service xoá **toàn bộ** tài khoản tạo quá 24 giờ mà chưa xác minh email (profile demo ngắn hơn, vd 10 phút): tài khoản Keycloak, hồ sơ user-service, file giấy phép. Tài khoản đã xác minh không bao giờ tự xoá. Cách làm:
+- user-service có client quản trị Keycloak riêng (service account, chỉ quyền xem/xoá user);
+- nhập đúng OTP → user-service đặt `emailVerified = true` cho user đó bên Keycloak;
+- job hỏi Keycloak các user `emailVerified = false` tạo trước mốc cắt → bắt được cả người bỏ ngang trước onboarding (chưa có hồ sơ bên user-service);
+- trang đăng ký Keycloak báo khi trùng email: "Email này đang chờ xác minh bởi một đăng ký khác. Nếu đây là email của bạn, thử lại sau 24 giờ."
+
 ## 3. Enforcement Matrix
 
 | Hành động | KYC/thẩm quyền | Reputation lock | Failure policy |
@@ -83,7 +102,7 @@ Reputation công khai không nhét vào DTO này; client gọi `GET /api/v1/repu
 
 | Method | Path | Ý nghĩa |
 |---|---|---|
-| `GET` | `/api/v1/admin/users?verificationStatus=PENDING` | Hàng đợi duyệt — chỉ `userId`, `organizationName`, `role`, `verificationStatus`; không contact, không metadata quyết định (**19/10/2026, #155**) |
+| `GET` | `/api/v1/admin/users?verificationStatus=PENDING` | Hàng đợi duyệt — chỉ `userId`, `organizationName`, `role`, `verificationStatus`; không contact, không metadata quyết định (**19/10/2026, #155**). Chỉ liệt kê hồ sơ **đã xác minh email**; `verify`/`reject` hồ sơ chưa xác minh → 409 (**13/11/2026, D45**, §2.3) |
 | `GET` | `/api/v1/admin/users/{userId}` | Xem đầy đủ hồ sơ KYC — **mỗi lần gọi ghi 1 dòng read-audit** (governance §8) trước khi trả data; ghi audit lỗi → không trả data. Không tìm thấy → 404, không ghi audit (**19/10/2026, #155**) |
 | `POST` | `/api/v1/admin/users/{userId}/verify` | Body **bắt buộc có key** `authorizationExpiresAt` — giá trị là instant theo giấy thật hoặc `null` tường minh (vô thời hạn). Thiếu key → 400 (**bổ sung 12/10/2026**, phát hiện ở PR #151: body `{}` từng được hiểu là vô thời hạn — Operator quên nhập thành cấp quyền vĩnh viễn) |
 | `POST` | `/api/v1/admin/users/{userId}/reject` | Body chứa `reason` bắt buộc |
@@ -176,6 +195,8 @@ Không thêm credential, password hoặc Keycloak token vào `user_db`.
 - Tự động đối soát giấy phép/đăng ký doanh nghiệp với cơ sở dữ liệu Nhà nước ngoài scope; Operator duyệt thủ công.
 - `lockedUntil` là eventually consistent projection; cửa sổ trễ event nhỏ vẫn tồn tại. Hành động rủi ro cao `sign()` có sync check/fail-closed để thu hẹp.
 - mTLS là hướng production; scope đồ án có thể dùng internal secret trong network cô lập.
+- **Không có tính năng đổi email (13/11/2026, D47).** Người dùng không tự đổi được; gõ sai lúc đăng ký thì đăng ký lại. Đổi email đúng nghĩa cần OTP tới địa chỉ mới và đồng bộ Keycloak — hướng phát triển (§2.3).
+- **Tài khoản chưa xác minh giữ tối đa 24 giờ.** Trong khoảng đó chủ thật của địa chỉ bị chiếm chỗ không đăng ký được; họ được báo thử lại sau 24 giờ (§2.3).
 
 ## 9. Status — User-service Design
 
