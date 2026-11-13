@@ -41,6 +41,68 @@ paths:
         "400": { description: Validation failure }
         "403": { description: Role/ownership denied }
         "503": { description: Dependency (user eligibility) unavailable }
+    get:
+      operationId: listMyPlots
+      summary: List the calling seller's own plot registry entries (pick plots for a listing)
+      description: >-
+        Source product-service design §2.1 and §4 (CreateListing/UpdateListing pick plots from the
+        registry). Returns only entries whose sellerId is the caller; there is no parameter to read
+        another seller's plots. The geometry itself is not returned (a list for picking plots does not
+        need it); geoVerificationStatus tells the client which plots can back a listing (not PENDING).
+        Newest import first.
+      x-owner: product-service
+      x-auth: SELLER
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 10000, default: 0 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        "200":
+          description: One page of the caller's plots
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlotRegistryPage' }
+        "400": { description: "Validation failure: page or size out of range" }
+        "403": { description: Caller is not a SELLER }
+
+  /api/v1/categories:
+    get:
+      operationId: listApprovedCategories
+      summary: List approved categories (pick a category when creating a product)
+      description: >-
+        Source product-service design §9 and api-gateway design §3.2 ("đọc danh mục"). Returns
+        APPROVED categories only, ordered by name; PENDING and REJECTED categories are never listed
+        here. commodity is null for a legacy category not mapped by the Operator; only a category
+        with commodity COFFEE can back a new Phase 2 product. Not paged: the catalog is small.
+      x-owner: product-service
+      x-auth: JWT
+      responses:
+        "200":
+          description: Approved categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CategorySummary' }
+        "401": { description: No signed-in caller }
+
+  /api/v1/products/{productId}:
+    get:
+      operationId: getProduct
+      summary: Read one product (public catalog detail)
+      description: >-
+        Source product-service design §2.6 and §8c. Public, matching the existing gateway
+        rule for GET /api/v1/products/{productId}. Read-only fields only; no seller or plot data.
+      x-owner: product-service
+      x-auth: public
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        "404": { description: Unknown productId }
 
   /api/v1/listings:
     post:
@@ -410,6 +472,51 @@ paths:
 
 components:
   schemas:
+    CategorySummary:
+      type: object
+      additionalProperties: false
+      required: [categoryId, name, commodity]
+      properties:
+        categoryId: { type: string, format: uuid }
+        name: { type: string, minLength: 1 }
+        commodity: { type: ['string', 'null'], enum: [COFFEE, null], description: Null for a legacy category the Operator has not mapped. }
+    PlotRegistryItem:
+      type: object
+      additionalProperties: false
+      required: [registryEntryId, householdLabel, geometryType, areaHectares, source, declaredProvince, geoVerificationStatus, geoRiskLevel, importedAt]
+      properties:
+        registryEntryId: { type: string, format: uuid }
+        householdLabel: { type: string, minLength: 1 }
+        geometryType: { enum: [POINT, POLYGON] }
+        areaHectares: { type: ['number', 'null'], minimum: 0, description: Null for a POINT entry. }
+        source: { enum: [KML_IMPORT, MANUAL_PIN] }
+        declaredProvince: { type: ['string', 'null'], description: Province the seller declared; null when not declared. }
+        geoVerificationStatus: { enum: [PENDING, CHECKED, UNVERIFIED], description: PENDING cannot back a listing. }
+        geoRiskLevel: { type: ['string', 'null'], enum: [LOW_RISK, HIGH_RISK, INCONCLUSIVE, null], description: Null while PENDING. }
+        importedAt: { type: string, format: date-time }
+    PlotRegistryPage:
+      type: object
+      additionalProperties: false
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content: { type: array, items: { $ref: '#/components/schemas/PlotRegistryItem' } }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalElements: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    ProductResponse:
+      type: object
+      additionalProperties: false
+      required: [productId, name, unit, categoryId, images, cropYear, harvestSeason, certifications]
+      properties:
+        productId: { type: string, format: uuid }
+        name: { type: string, minLength: 1 }
+        unit: { const: kg, description: Canonical kilogram (product design §8b). }
+        categoryId: { type: string, format: uuid }
+        images: { type: array, minItems: 1, maxItems: 5, items: { type: string, format: uri } }
+        cropYear: { type: ['integer', 'null'] }
+        harvestSeason: { type: ['string', 'null'] }
+        certifications: { type: ['array', 'null'], items: { type: string }, description: Seller-provided free-text commitments; not verified. }
     ErrorEnvelope:
       description: Shared error envelope, identical to golden-flow (timestamp,status,error,code,message,path,traceId).
       type: object
