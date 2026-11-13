@@ -29,6 +29,24 @@ export class InMemoryPriceHistory implements PriceHistoryRepository {
     this.events.push(`append:${row.quote.id}`);
   }
 
+  /** When set, appendScrapedBatch throws a DB error on this (0-based) row, after the earlier rows were written. */
+  failBatchAtRow: number | undefined;
+
+  /** All-or-nothing like the MySQL transaction: works on a copy and keeps it only if every row succeeds. */
+  async appendScrapedBatch(rows: NewPriceRow[]): Promise<PriceQuote[]> {
+    const staged = [...this.rows];
+    const inserted: PriceQuote[] = [];
+    rows.forEach((row, index) => {
+      if (index === this.failBatchAtRow) throw new Error('ER_LOCK_WAIT_TIMEOUT');
+      if (row.sourceIdentity && staged.some((r) => r.sourceIdentity === row.sourceIdentity)) return;
+      staged.push(structuredClone(row));
+      inserted.push(structuredClone(row.quote));
+    });
+    this.rows = staged;
+    for (const q of inserted) this.events.push(`append:${q.id}`);
+    return inserted;
+  }
+
   async findByIdempotencyKey(recordedBy: string, key: string): Promise<StoredManualPrice | undefined> {
     const r = this.rows.find((x) => x.quote.recordedBy === recordedBy && x.idempotencyKey === key);
     return r ? { quote: structuredClone(r.quote), requestHash: r.requestHash } : undefined;

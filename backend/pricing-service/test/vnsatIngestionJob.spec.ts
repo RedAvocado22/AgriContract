@@ -50,4 +50,40 @@ describe('VNSAT price ingestion', () => {
     assert.equal(repo.rows[0]?.quote.source, 'VNSAT_SCRAPE');
     assert.equal(cache.stored.length, 1);
   });
+
+  it('a DB error in the middle of a batch commits none of it, keeps the old quote and records a failure', async () => {
+    const repo = new InMemoryPriceHistory();
+    const cache = new FakeCache();
+    await repo.append({ quote: lastQuote, idempotencyKey: 'manual-1', requestHash: 'hash-1' });
+    await cache.putLatest(lastQuote);
+    repo.failBatchAtRow = 1;
+    const scrape = async () => [
+      { itemName: 'Cà phê Robusta nhân xô', province: 'Đắk Lắk', date: '10-11-2026', price: '88.500' },
+      { itemName: 'Cà phê Robusta nhân xô', province: 'Gia Lai', date: '10-11-2026', price: '88.200' },
+    ];
+
+    const result = await runVnsatPriceIngestion(
+      { repository: repo, cache, logger: memoryLogger() }, memoryLogger(), scrape, new Date('2026-11-12T00:00:00.000Z'),
+    );
+
+    assert.deepEqual(result, { rows: 0, inserted: 0 });
+    assert.deepEqual(repo.rows.map((r) => r.quote.id), [lastQuote.id]);
+    assert.deepEqual(cache.stored, [lastQuote]);
+    assert.deepEqual(repo.failures, [{ commodity: 'COFFEE', reason: 'ER_LOCK_WAIT_TIMEOUT' }]);
+  });
+
+  it('repairs Redis from MySQL when a batch row was already committed by an earlier run', async () => {
+    const repo = new InMemoryPriceHistory();
+    const cache = new FakeCache();
+    const scrape = async () => [{ itemName: 'Cà phê Robusta nhân xô', province: 'Đắk Lắk', date: '10-11-2026', price: '88.500' }];
+    const deps = { repository: repo, cache, logger: memoryLogger() };
+    cache.fail = true; // first run: MySQL commits, the Redis write is lost
+    await runVnsatPriceIngestion(deps, memoryLogger(), scrape, new Date('2026-11-12T00:00:00.000Z'), () => '00000000-0000-4000-8000-0000000000c1');
+    cache.fail = false;
+
+    const second = await runVnsatPriceIngestion(deps, memoryLogger(), scrape, new Date('2026-11-13T00:00:00.000Z'), () => '00000000-0000-4000-8000-0000000000c2');
+
+    assert.deepEqual(second, { rows: 1, inserted: 0 });
+    assert.deepEqual(cache.stored.map((q) => q.id), ['00000000-0000-4000-8000-0000000000c1']);
+  });
 });
