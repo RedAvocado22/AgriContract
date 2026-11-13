@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 -- ==============================================================
 -- DEV SEED: user_db
 -- Cập nhật 4 biến dưới đây trước khi chạy:

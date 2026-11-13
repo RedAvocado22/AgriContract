@@ -1,3 +1,4 @@
+SET NAMES utf8mb4;
 -- ==============================================================
 -- DEV SEED: contract_db — 8 contracts bao phủ mọi state
 --   buyer_penalty_rate = 0.20 (20%), seller_deposit_rate = 0.10 (10%)
