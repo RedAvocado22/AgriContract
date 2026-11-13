@@ -1,5 +1,5 @@
 import { STATUS_CODES } from 'node:http';
-import { IdempotencyConflict, IdempotencyKeyRequired, ValidationFailed } from '../../application/errors';
+import { IdempotencyConflict, IdempotencyKeyRequired, PriceNotFound, ValidationFailed } from '../../application/errors';
 
 /**
  * Shared AgriContract error envelope (docs/contracts/error-catalog.md,
@@ -35,6 +35,8 @@ export function toHttpError(err: unknown): HttpError | undefined {
   if (err instanceof HttpError) return err;
   if (err instanceof IdempotencyKeyRequired) return new HttpError(400, 'IDEMPOTENCY_KEY_REQUIRED', err.message);
   if (err instanceof ValidationFailed) return new HttpError(400, 'VALIDATION_FAILED', err.message);
+  // getPriceQuote declares only 200/404 in the frozen contract.
+  if (err instanceof PriceNotFound) return new HttpError(404, 'PRICE_NOT_FOUND', err.message);
   // *_STATE_CONFLICT family (error-catalog.md): do not retry the unchanged request.
   if (err instanceof IdempotencyConflict) return new HttpError(409, 'IDEMPOTENCY_KEY_STATE_CONFLICT', err.message);
   return undefined;
