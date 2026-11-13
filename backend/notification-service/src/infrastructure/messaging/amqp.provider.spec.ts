@@ -157,7 +157,7 @@ describe('AmqpService', () => {
     expect(service.isHealthy()).toBe(true);
     expect(logs.warn).toHaveBeenCalledTimes(1);
     expect(logs.warn).toHaveBeenCalledWith(
-      'Deleted retired queue notification-svc.contract.signed.dlq with 7 message(s) (#398)',
+      'Deleted retired queue notification-svc.contract.signed.dlq with 7 message(s) (#398, #421)',
     );
     await service.onApplicationShutdown();
   });

@@ -24,9 +24,6 @@ import {
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
   NotifyContractAnchorUseCase,
-  NotifyEscrowLockedUseCase,
-  NotifyEscrowPenalizedUseCase,
-  NotifyEscrowReleasedUseCase,
 } from '../../application/use-cases';
 import { validate } from '../../config/env.validation';
 import { MysqlNotificationLogRepository } from '../persistence/notification-log.mysql-repository';
@@ -87,9 +84,6 @@ describe('shutdown park on real MySQL', () => {
       { logger: { error: () => undefined } },
     );
     const routes = legacyRoutes({
-      escrowLocked: new NotifyEscrowLockedUseCase(sender),
-      escrowReleased: new NotifyEscrowReleasedUseCase(sender),
-      escrowPenalized: new NotifyEscrowPenalizedUseCase(sender),
       categoryApproved: new NotifyCategoryApprovedUseCase(sender),
       categoryRejected: new NotifyCategoryRejectedUseCase(sender),
     });
@@ -127,18 +121,19 @@ describe('shutdown park on real MySQL', () => {
     await consumer.onModuleInit();
     await ready(channel as unknown as Channel);
 
-    consumers.get('notification-svc.escrow.released')?.({
+    consumers.get('notification-svc.category.rejected')?.({
       content: Buffer.from(
         JSON.stringify({
           eventId,
-          escrowId: 'e-it',
-          buyerEmail: 'buyer@it.test',
-          sellerEmail: 'seller@it.test',
+          name: 'Ca Phe',
+          proposedByEmail: 'seller@it.test',
+          rejectionReason: 'Trung ten',
         }),
       ),
-      fields: { routingKey: 'escrow.released' },
+      fields: { routingKey: 'category.rejected' },
     });
-    // Attempt 1: seller claimed, send fails, FAILED recorded, 1s backoff starts.
+    // Attempt 1: the recipient is claimed, the send fails, FAILED is recorded,
+    // and the 1s backoff starts.
     for (let i = 0; i < 50 && sendAttempts.length === 0; i++) {
       await new Promise((r) => setTimeout(r, 20));
     }

@@ -12,9 +12,6 @@ import {
   NotifyContractActivationFailedUseCase,
   NotifyContractAnchorUseCase,
   NotifyContractTerminatedUseCase,
-  NotifyEscrowLockedUseCase,
-  NotifyEscrowPenalizedUseCase,
-  NotifyEscrowReleasedUseCase,
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
 } from './application/use-cases';
@@ -54,15 +51,12 @@ const useCaseOf = (useCase: SenderUseCase): Provider => ({
 });
 
 const USE_CASES = {
-  escrowLocked: NotifyEscrowLockedUseCase,
-  escrowReleased: NotifyEscrowReleasedUseCase,
-  escrowPenalized: NotifyEscrowPenalizedUseCase,
   categoryApproved: NotifyCategoryApprovedUseCase,
   categoryRejected: NotifyCategoryRejectedUseCase,
 } as const;
 
 /**
- * Phase 1 notifications (5 flat events) and the Phase 2 notification commands:
+ * Phase 1 notifications (2 flat category events) and the Phase 2 commands:
  * one RabbitMQ consumer per queue -> use case -> email + notification_logs.
  */
 @Module({
@@ -88,9 +82,6 @@ const USE_CASES = {
           shutdown: shutdown.signal,
         }),
     },
-    useCaseOf(NotifyEscrowLockedUseCase),
-    useCaseOf(NotifyEscrowReleasedUseCase),
-    useCaseOf(NotifyEscrowPenalizedUseCase),
     useCaseOf(NotifyCategoryApprovedUseCase),
     useCaseOf(NotifyCategoryRejectedUseCase),
     useCaseOf(NotifyContractAnchorUseCase),

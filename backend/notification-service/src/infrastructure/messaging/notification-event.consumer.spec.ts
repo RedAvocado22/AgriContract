@@ -71,9 +71,6 @@ const HANDLERS = [
   'contractTerminated',
   'userKycResult',
   'userLockChanged',
-  'escrowLocked',
-  'escrowReleased',
-  'escrowPenalized',
   'categoryApproved',
   'categoryRejected',
 ] as const;
@@ -123,29 +120,6 @@ const PAYLOADS: Record<
   string,
   { handler: (typeof HANDLERS)[number]; payload: Record<string, unknown> }
 > = {
-  'notification-svc.escrow.locked': {
-    handler: 'escrowLocked',
-    payload: { eventId: 'e5', escrowId: 'x', sellerEmail: 's@x.test' },
-  },
-  'notification-svc.escrow.released': {
-    handler: 'escrowReleased',
-    payload: {
-      eventId: 'e6',
-      escrowId: 'x',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-    },
-  },
-  'notification-svc.escrow.penalized': {
-    handler: 'escrowPenalized',
-    payload: {
-      eventId: 'e7',
-      escrowId: 'x',
-      penalizedParty: 'SELLER',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-    },
-  },
   'notification-svc.category.approved': {
     handler: 'categoryApproved',
     payload: { eventId: 'e8', name: 'n', proposedByEmail: 'p@x.test' },
@@ -485,10 +459,10 @@ describe('NotificationEventConsumer', () => {
     const channel = new FakeChannel();
     await open(channel);
 
-    const msg = channel.deliver('notification-svc.escrow.released', '{oops');
+    const msg = channel.deliver('notification-svc.category.rejected', '{oops');
     await flush();
 
-    expect(service.escrowReleased).not.toHaveBeenCalled();
+    expect(service.categoryRejected).not.toHaveBeenCalled();
     expect(channel.nacked).toEqual([{ msg, requeue: false }]);
     expect(channel.acked).toEqual([]);
   });
@@ -499,13 +473,13 @@ describe('NotificationEventConsumer', () => {
     const channel = new FakeChannel();
     await open(channel);
     let finish!: () => void;
-    service.escrowLocked.mockImplementation(
+    service.categoryApproved.mockImplementation(
       () => new Promise<void>((resolve) => (finish = resolve)),
     );
 
     const msg = channel.deliver(
-      'notification-svc.escrow.locked',
-      PAYLOADS['notification-svc.escrow.locked'].payload,
+      'notification-svc.category.approved',
+      PAYLOADS['notification-svc.category.approved'].payload,
     );
     await flush();
     expect(consumer.inFlightCount).toBe(1);
@@ -518,7 +492,7 @@ describe('NotificationEventConsumer', () => {
 
     expect(channel.cancel).toHaveBeenCalledTimes(queueNames().length);
     expect(channel.cancel).toHaveBeenCalledWith(
-      'tag:notification-svc.escrow.locked',
+      'tag:notification-svc.category.approved',
     );
     expect(drained).toBe(false); // still waiting for the message
     expect(channel.acked).toEqual([]);
@@ -538,19 +512,19 @@ describe('NotificationEventConsumer', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
 
-    /** One escrow.locked message in flight whose handler runs until `finish()`. */
+    /** One category.approved message in flight whose handler runs until `finish()`. */
     async function oneInFlight() {
       const { consumer, service, open } = setup();
       await consumer.onModuleInit();
       const channel = new FakeChannel();
       await open(channel);
       let finish!: () => void;
-      service.escrowLocked.mockImplementation(
+      service.categoryApproved.mockImplementation(
         () => new Promise<void>((resolve) => (finish = resolve)),
       );
       const msg = channel.deliver(
-        'notification-svc.escrow.locked',
-        PAYLOADS['notification-svc.escrow.locked'].payload,
+        'notification-svc.category.approved',
+        PAYLOADS['notification-svc.category.approved'].payload,
       );
       await jest.advanceTimersByTimeAsync(0);
       let drained = false;
@@ -617,7 +591,7 @@ describe('NotificationEventConsumer', () => {
 });
 
 describe('NotificationEventConsumer at shutdown: no new attempt starts (fake timers)', () => {
-  const QUEUE = 'notification-svc.escrow.released';
+  const QUEUE = 'notification-svc.category.rejected';
   const PAYLOAD = PAYLOADS[QUEUE].payload;
   let log: jest.SpyInstance;
 
@@ -650,7 +624,7 @@ describe('NotificationEventConsumer at shutdown: no new attempt starts (fake tim
     return {
       consumer,
       channel,
-      handler: service.escrowReleased,
+      handler: service.categoryRejected,
       shutdown,
       shutdownSignal,
       drained: () => drained,
