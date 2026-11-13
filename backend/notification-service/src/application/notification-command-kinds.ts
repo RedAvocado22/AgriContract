@@ -54,4 +54,23 @@ export const COMMAND_KINDS = {
     notificationType: 'USER_LOCK_CHANGED',
     templateVersion: 'user-lock-changed/v1',
   },
+  // notification.level1_5_assignment_waiting_requested (D49): one kind per
+  // stage, each its own template, all to the configured operator address.
+  // Every stage is a new command with its own eventId, so the kinds do not
+  // need to differ for dedup; they differ because the texts do.
+  level15WaitingStarted: {
+    eventType: 'notification.level1_5_assignment_waiting_requested',
+    notificationType: 'LEVEL1_5_WAITING_STARTED',
+    templateVersion: 'level1-5-waiting-started/v1',
+  },
+  level15StillWaiting: {
+    eventType: 'notification.level1_5_assignment_waiting_requested',
+    notificationType: 'LEVEL1_5_STILL_WAITING',
+    templateVersion: 'level1-5-still-waiting/v1',
+  },
+  level15AssignedAfterWait: {
+    eventType: 'notification.level1_5_assignment_waiting_requested',
+    notificationType: 'LEVEL1_5_ASSIGNED_AFTER_WAIT',
+    templateVersion: 'level1-5-assigned-after-wait/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;

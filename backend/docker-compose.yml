@@ -622,6 +622,9 @@ services:
       MAIL_PORT: ${MAIL_PORT:-1025}
       # X-Internal-Secret of POST /internal/v1/notifications/otp-email (contract-service).
       SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
+      # notification.operatorEmail: staff alerts with no recipient of their own (Level 1.5 waiting for an
+      # inspector, D49). Dev default lands in MailHog; unset in the app = those alerts are dead-lettered.
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:-operator@agricontract.local}
     # Local only, for Bruno and manual tests of the OTP endpoint; the gateway never routes /internal/**.
     ports:
       - "8085:8085"

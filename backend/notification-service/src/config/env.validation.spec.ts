@@ -19,8 +19,25 @@ describe('validate (env)', () => {
       mail: { host: 'localhost', port: 1025, from: 'noreply@agricontract.com' },
       serverPort: 8085,
       serviceInternalSecret: 'changeme-internal',
+      operatorEmail: null,
     });
   });
+
+  it('reads OPERATOR_EMAIL, trimmed, and leaves a blank one unset', () => {
+    expect(
+      validate({ OPERATOR_EMAIL: ' ops@agricontract.test ' }).operatorEmail,
+    ).toBe('ops@agricontract.test');
+    expect(validate({ OPERATOR_EMAIL: '  ' }).operatorEmail).toBeNull();
+  });
+
+  it.each(['operator', 'ops@', 'a b@agricontract.test'])(
+    'rejects OPERATOR_EMAIL "%s" at startup',
+    (value) => {
+      expect(() => validate({ OPERATOR_EMAIL: value })).toThrow(
+        'OPERATOR_EMAIL must be an email address',
+      );
+    },
+  );
 
   it('reads SERVICE_INTERNAL_SECRET and rejects an empty one', () => {
     expect(

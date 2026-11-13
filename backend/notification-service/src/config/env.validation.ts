@@ -25,7 +25,18 @@ export interface AppConfig {
    * serviceAuth), the same SERVICE_INTERNAL_SECRET as the Java services.
    */
   serviceInternalSecret: string;
+  /**
+   * `notification.operatorEmail` (design §7): where the staff alerts go,
+   * which name no recipient of their own (Level 1.5 inspection waiting for an
+   * inspector, D49). Null when OPERATOR_EMAIL is absent or blank: the service
+   * still starts, since every other email works without it, and each staff
+   * alert is dead-lettered with a message that names the variable.
+   */
+  operatorEmail: string | null;
 }
+
+/** As loose as the address check of the command parsers: `format: email` decides the rest. */
+const EMAIL = /^[^\s@]+@[^\s@]+$/;
 
 /**
  * `ConfigModule.forRoot({ validate })` hook. A missing variable takes its
@@ -58,6 +69,23 @@ export function validate(env: Record<string, unknown>): AppConfig {
     return parsed;
   };
 
+  /** Absent or blank is null; anything else must look like one address. */
+  const optionalEmail = (name: string): string | null => {
+    const value = env[name];
+    if (value === undefined) return null;
+    if (typeof value !== 'string') {
+      errors.push(`${name} must be an email address`);
+      return null;
+    }
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    if (!EMAIL.test(trimmed)) {
+      errors.push(`${name} must be an email address`);
+      return null;
+    }
+    return trimmed;
+  };
+
   const config: AppConfig = {
     db: {
       host: text('DB_HOST', 'localhost'),
@@ -81,6 +109,7 @@ export function validate(env: Record<string, unknown>): AppConfig {
     // Same default as contract-service and user-service, so a local run
     // without .env still authenticates; compose requires it in .env.
     serviceInternalSecret: text('SERVICE_INTERNAL_SECRET', 'changeme-internal'),
+    operatorEmail: optionalEmail('OPERATOR_EMAIL'),
   };
 
   if (errors.length > 0) {

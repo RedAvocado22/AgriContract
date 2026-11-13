@@ -1,5 +1,7 @@
 import { Logger, Module, type Provider } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NotificationSender } from './application/notification-sender';
+import type { AppConfig } from './config/env.validation';
 import { EMAIL_PORT, type EmailPort } from './application/ports/email.port';
 import {
   NOTIFICATION_LOG_REPOSITORY,
@@ -12,6 +14,7 @@ import {
   NotifyContractActivationFailedUseCase,
   NotifyContractAnchorUseCase,
   NotifyContractTerminatedUseCase,
+  NotifyLevel15AssignmentWaitingUseCase,
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
 } from './application/use-cases';
@@ -91,6 +94,22 @@ const USE_CASES = {
     useCaseOf(NotifyUserKycResultUseCase),
     useCaseOf(NotifyUserLockChangedUseCase),
     {
+      provide: NotifyLevel15AssignmentWaitingUseCase,
+      inject: [NotificationSender, ConfigService],
+      useFactory: (
+        sender: NotificationSender,
+        config: ConfigService<AppConfig, true>,
+      ) => {
+        const operatorEmail = config.get('operatorEmail', { infer: true });
+        if (operatorEmail === null) {
+          new Logger(NotifyLevel15AssignmentWaitingUseCase.name).warn(
+            'OPERATOR_EMAIL is not set: operator alerts (Level 1.5 inspection waiting for an inspector) will be dead-lettered',
+          );
+        }
+        return new NotifyLevel15AssignmentWaitingUseCase(sender, operatorEmail);
+      },
+    },
+    {
       provide: COMMAND_ROUTES,
       inject: [
         NotifyContractAnchorUseCase,
@@ -99,6 +118,7 @@ const USE_CASES = {
         NotifyContractTerminatedUseCase,
         NotifyUserKycResultUseCase,
         NotifyUserLockChangedUseCase,
+        NotifyLevel15AssignmentWaitingUseCase,
       ],
       useFactory: (
         contractAnchor: NotifyContractAnchorUseCase,
@@ -107,6 +127,7 @@ const USE_CASES = {
         contractTerminated: NotifyContractTerminatedUseCase,
         userKycResult: NotifyUserKycResultUseCase,
         userLockChanged: NotifyUserLockChangedUseCase,
+        level15AssignmentWaiting: NotifyLevel15AssignmentWaitingUseCase,
       ) =>
         commandRoutes({
           contractAnchor,
@@ -115,6 +136,7 @@ const USE_CASES = {
           contractTerminated,
           userKycResult,
           userLockChanged,
+          level15AssignmentWaiting,
         }),
     },
     {
