@@ -17,6 +17,28 @@ export interface PriceCache {
   putLatest(quote: PriceQuote): Promise<void>;
 }
 
+/** One coffee price row read from the external reference source (design §3.1), in price_history formats. */
+export interface ScrapedPrice {
+  /** Source item name, e.g. "Cà phê Robusta nhân xô". */
+  itemName: string;
+  /** Source province, e.g. "Đắk Lắk". */
+  province: string;
+  /** VND/kg with 2 decimals, e.g. "87333.00". */
+  price: string;
+  /** Date the price applies (Vietnam calendar date), YYYY-MM-DD. */
+  capturedAt: string;
+}
+
+/**
+ * The automated reference-price source. Today the VNSAT scraper; the use case does not know how the
+ * rows are fetched. Throws when the source cannot be read or no longer looks as expected.
+ */
+export interface ReferencePriceSource {
+  /** Stored as referenceSource on every row from this source. */
+  readonly url: string;
+  fetchCoffeePrices(): Promise<ScrapedPrice[]>;
+}
+
 export interface Logger {
   info(message: string, meta?: Record<string, unknown>): void;
   warn(message: string, meta?: Record<string, unknown>): void;
