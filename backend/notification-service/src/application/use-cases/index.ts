@@ -7,8 +7,5 @@ export {
   NotifyContractTerminatedUseCase,
   unsupportedTermination,
 } from './notify-contract-terminated.use-case';
-export { NotifyEscrowLockedUseCase } from './notify-escrow-locked.use-case';
-export { NotifyEscrowPenalizedUseCase } from './notify-escrow-penalized.use-case';
-export { NotifyEscrowReleasedUseCase } from './notify-escrow-released.use-case';
 export { NotifyUserKycResultUseCase } from './notify-user-kyc-result.use-case';
 export { NotifyUserLockChangedUseCase } from './notify-user-lock-changed.use-case';

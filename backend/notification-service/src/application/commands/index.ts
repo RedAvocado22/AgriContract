@@ -39,9 +39,6 @@ export {
   type LockAction,
   type UserLockChangedRequestedCommand,
 } from './user-lock-changed-requested.command';
-export type { EscrowLockedCommand } from './escrow-locked.command';
-export type { EscrowPenalizedCommand } from './escrow-penalized.command';
-export type { EscrowReleasedCommand } from './escrow-released.command';
 export { RECIPIENT_ROLES } from './notification-recipient';
 export type {
   NotificationRecipient,

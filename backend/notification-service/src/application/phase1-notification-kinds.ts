@@ -11,23 +11,12 @@ import type { NotificationKind } from '../domain/notification-log';
  * ProcessNotificationUseCaseImpl and frozen by test/fixtures/java-templates.json:
  * changing one of those texts is a new version, not an edit of this value.
  * These values are stored in notification_logs: do not rename them.
+ *
+ * ESCROW_LOCKED, _RELEASED and _PENALIZED went with their queues (#421):
+ * escrow-service publishes none of those events any more. Rows already stored
+ * keep those values, so the names must not be reused for anything else.
  */
 export const PHASE1_KINDS = {
-  escrowLocked: {
-    eventType: 'escrow.locked',
-    notificationType: 'ESCROW_LOCKED',
-    templateVersion: 'escrow-locked/p1',
-  },
-  escrowReleased: {
-    eventType: 'escrow.released',
-    notificationType: 'ESCROW_RELEASED',
-    templateVersion: 'escrow-released/p1',
-  },
-  escrowPenalized: {
-    eventType: 'escrow.penalized',
-    notificationType: 'ESCROW_PENALIZED',
-    templateVersion: 'escrow-penalized/p1',
-  },
   categoryApproved: {
     eventType: 'category.approved',
     notificationType: 'CATEGORY_APPROVED',

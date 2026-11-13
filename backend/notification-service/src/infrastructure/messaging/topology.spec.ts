@@ -39,9 +39,6 @@ const EXPECTED_QUEUES = [
   'notification-svc.notification.activation_cancel_requested',
   'notification-svc.notification.contract_activation_failed_requested',
   'notification-svc.notification.contract_terminated_requested',
-  'notification-svc.escrow.locked',
-  'notification-svc.escrow.released',
-  'notification-svc.escrow.penalized',
   'notification-svc.category.approved',
   'notification-svc.category.rejected',
   'notification-svc.notification.user_kyc_result_requested',
@@ -51,19 +48,18 @@ const EXPECTED_QUEUES = [
 /** The exchange row a queue belongs to, from the routing key in its name. */
 const dlxOf = (queue: string): string => {
   const key = queue.replace('notification-svc.', '').replace(/\.dlq$/, '');
-  if (key.startsWith('escrow.')) return 'notification-svc.escrow.dlx';
   if (key.startsWith('category.')) return 'notification-svc.events.dlx';
   if (key.startsWith('notification.user_')) return 'notification-svc.user.dlx';
   return 'notification-svc.contracts.dlx';
 };
 
 describe('topology (must match the Java RabbitMQConfig)', () => {
-  it('names the 11 queues and 11 DLQs', () => {
+  it('names the 8 queues and 8 DLQs', () => {
     expect(queueNames()).toEqual(EXPECTED_QUEUES);
     expect(dlqNames()).toEqual(EXPECTED_QUEUES.map((q) => `${q}.dlq`));
   });
 
-  it('declares exactly 8 durable, non auto-delete exchanges', async () => {
+  it('declares exactly 6 durable, non auto-delete exchanges', async () => {
     const { channel, exchanges } = recordingChannel();
     await declareTopology(channel);
 
@@ -71,8 +67,6 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     expect(exchanges).toEqual([
       ['agricontract.contracts', 'topic', durable],
       ['notification-svc.contracts.dlx', 'direct', durable],
-      ['agricontract.escrow', 'topic', durable],
-      ['notification-svc.escrow.dlx', 'direct', durable],
       ['agricontract.events', 'topic', durable],
       ['notification-svc.events.dlx', 'direct', durable],
       // user-service declares agricontract.user with the same options
@@ -82,11 +76,11 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     ]);
   });
 
-  it('declares 22 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
+  it('declares 16 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
     const { channel, queues } = recordingChannel();
     await declareTopology(channel);
 
-    expect(queues).toHaveLength(22);
+    expect(queues).toHaveLength(16);
 
     for (const q of EXPECTED_QUEUES) {
       // toEqual on the whole options object also fails on any extra option
@@ -116,7 +110,7 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, bindings } = recordingChannel();
     await declareTopology(channel);
 
-    expect(bindings).toHaveLength(22);
+    expect(bindings).toHaveLength(16);
     // user-service publishes the KYC command to its own exchange and declares
     // nothing for us, so this binding is the only route it has.
     expect(bindings).toContainEqual([
@@ -182,16 +176,6 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
       'notification.contract_activation_failed_requested',
     ]);
     expect(bindings).toContainEqual([
-      'notification-svc.escrow.penalized',
-      'agricontract.escrow',
-      'escrow.penalized',
-    ]);
-    expect(bindings).toContainEqual([
-      'notification-svc.escrow.penalized.dlq',
-      'notification-svc.escrow.dlx',
-      'escrow.penalized',
-    ]);
-    expect(bindings).toContainEqual([
       'notification-svc.category.rejected',
       'agricontract.events',
       'category.rejected',
@@ -207,19 +191,22 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
   });
 
   /*
-   * #398: the Phase 1 contract events are no longer consumed. A broker that
-   * already has their queues keeps them bound and filling until they are
-   * deleted, so every start deletes them, after the current topology.
+   * #398 (contract events) and #421 (escrow events): neither is consumed any
+   * more, and nothing publishes them. A broker that already has their queues
+   * keeps them bound and filling until they are deleted, so every start deletes
+   * them, after the current topology.
    */
-  describe('retired Phase 1 contract queues', () => {
-    const RETIRED = ['signed', 'delivered', 'cancelled', 'disputed'].flatMap(
-      (event) => [
-        `notification-svc.contract.${event}`,
-        `notification-svc.contract.${event}.dlq`,
-      ],
-    );
+  describe('retired Phase 1 queues', () => {
+    const RETIRED = [
+      ...['signed', 'delivered', 'cancelled', 'disputed'].map(
+        (event) => `notification-svc.contract.${event}`,
+      ),
+      ...['locked', 'released', 'penalized'].map(
+        (event) => `notification-svc.escrow.${event}`,
+      ),
+    ].flatMap((queue) => [queue, `${queue}.dlq`]);
 
-    it('are exactly the four contract queues and their DLQs', () => {
+    it('are exactly the four contract and three escrow queues, with their DLQs', () => {
       expect([...RETIRED_QUEUES].sort()).toEqual([...RETIRED].sort());
     });
 
@@ -282,7 +269,7 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
 
       expect(warn.mock.calls).toEqual([
         [
-          'Deleted retired queue notification-svc.contract.signed.dlq with 3 message(s) (#398)',
+          'Deleted retired queue notification-svc.contract.signed.dlq with 3 message(s) (#398, #421)',
         ],
       ]);
     });

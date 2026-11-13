@@ -2,9 +2,6 @@ import { NonRetryableError, isNonRetryable } from '@agricontract/eventing';
 import {
   parseCategoryApproved,
   parseCategoryRejected,
-  parseEscrowLocked,
-  parseEscrowPenalized,
-  parseEscrowReleased,
 } from './legacy-payload.parsers';
 
 type Parser = (body: Buffer | string) => unknown;
@@ -20,54 +17,6 @@ interface Case {
 const BASE = { eventType: 'x.y', occurredAt: '2026-10-17T00:00:00Z' };
 
 const CASES: Record<string, Case> = {
-  'escrow.locked': {
-    parse: parseEscrowLocked,
-    payload: {
-      ...BASE,
-      eventId: 'evt-5',
-      escrowId: 'esc-5',
-      contractId: 'ctr-5',
-      sellerEmail: 's@x.test',
-      buyerEmail: 'b@x.test',
-    },
-    expected: { eventId: 'evt-5', escrowId: 'esc-5', sellerEmail: 's@x.test' },
-    required: ['eventId', 'escrowId', 'sellerEmail'],
-  },
-  'escrow.released': {
-    parse: parseEscrowReleased,
-    payload: {
-      ...BASE,
-      eventId: 'evt-6',
-      escrowId: 'esc-6',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-    },
-    expected: {
-      eventId: 'evt-6',
-      escrowId: 'esc-6',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-    },
-    required: ['eventId', 'escrowId', 'buyerEmail', 'sellerEmail'],
-  },
-  'escrow.penalized': {
-    parse: parseEscrowPenalized,
-    payload: {
-      ...BASE,
-      eventId: 'evt-7',
-      escrowId: 'esc-7',
-      penalizedParty: 'BUYER',
-      buyerEmail: 'b@x.test',
-      sellerEmail: 's@x.test',
-      penaltyAmount: { amount: 1, currency: 'VND' },
-    },
-    expected: {
-      eventId: 'evt-7',
-      escrowId: 'esc-7',
-      penalizedPartyEmail: 'b@x.test',
-    },
-    required: ['eventId', 'escrowId', 'penalizedParty', 'buyerEmail'],
-  },
   'category.approved': {
     parse: parseCategoryApproved,
     payload: {
@@ -120,6 +69,59 @@ function expectDeadLetter(run: () => unknown, pattern: RegExp) {
   expect((error as Error).message).toMatch(pattern);
 }
 
+/*
+ * Both parsers read their fields through the one PayloadReader, so required(),
+ * optional() and the body checks in read() are the same code for either of
+ * them: each of those rules is checked once here, against one field of one
+ * parser. What stays per parser below is what actually differs — its field
+ * list, the command it builds and its optional field.
+ */
+describe('the shared PayloadReader rules, on one field of one parser', () => {
+  const c = CASES['category.rejected'];
+  const FIELD = 'proposedByEmail';
+  const without = () => {
+    const copy = { ...c.payload };
+    delete copy[FIELD];
+    return copy;
+  };
+
+  it.each<[string, () => Record<string, unknown>]>([
+    ['missing', without],
+    ['null', () => ({ ...c.payload, [FIELD]: null })],
+    ['empty', () => ({ ...c.payload, [FIELD]: '' })],
+    ['a number', () => ({ ...c.payload, [FIELD]: 12345 })],
+    ['an object', () => ({ ...c.payload, [FIELD]: { value: 'x' } })],
+  ])(
+    'a required field that is %s dead-letters the message',
+    (_label, payload) => {
+      expectDeadLetter(
+        () => c.parse(json(payload())),
+        new RegExp(
+          `Malformed category\\.rejected payload: field "${FIELD}" must be a non-empty string`,
+        ),
+      );
+    },
+  );
+
+  // Only '' is empty: required() does not trim, so whitespace is a value.
+  it('a required field of only whitespace is kept as it is', () => {
+    expect(c.parse(json({ ...c.payload, [FIELD]: '   ' }))).toEqual({
+      ...c.expected,
+      [FIELD]: '   ',
+    });
+  });
+
+  it.each([
+    ['broken JSON', Buffer.from('{"eventId": "evt-1",')],
+    ['an array', json([c.payload])],
+    ['null', json(null)],
+    ['a number', json(42)],
+    ['a string', json('evt-1')],
+  ])('a body that is %s dead-letters the message', (_label, body) => {
+    expectDeadLetter(() => c.parse(body), /Malformed .* payload: /);
+  });
+});
+
 describe.each(Object.entries(CASES))('%s parser', (eventType, c) => {
   it('maps a flat payload to the command and ignores extra fields', () => {
     expect(c.parse(json(c.payload))).toEqual(c.expected);
@@ -138,37 +140,18 @@ describe.each(Object.entries(CASES))('%s parser', (eventType, c) => {
     expect(Object.values(result)).toContain('  x  ');
   });
 
-  describe.each(c.required)('required field %s', (field) => {
-    const without = () => {
-      const copy = { ...c.payload };
-      delete copy[field];
-      return copy;
-    };
+  // One case per required field: that this parser reads the field at all. The
+  // five ways a value can be bad are the shared rule tested above.
+  it.each(c.required)('dead-letters a payload without %s', (field) => {
+    const payload = { ...c.payload };
+    delete payload[field];
 
-    it.each<[string, () => Record<string, unknown>]>([
-      ['missing', without],
-      ['null', () => ({ ...c.payload, [field]: null })],
-      ['empty', () => ({ ...c.payload, [field]: '' })],
-      ['a number', () => ({ ...c.payload, [field]: 12345 })],
-      ['an object', () => ({ ...c.payload, [field]: { value: 'x' } })],
-    ])('dead-letters when %s', (_label, payload) => {
-      expectDeadLetter(
-        () => c.parse(json(payload())),
-        new RegExp(
-          `Malformed ${eventType.replace('.', '\\.')} payload: field "${field}"`,
-        ),
-      );
-    });
-  });
-
-  it.each([
-    ['broken JSON', Buffer.from('{"eventId": "evt-1",')],
-    ['an array', json([c.payload])],
-    ['null', json(null)],
-    ['a number', json(42)],
-    ['a string', json('evt-1')],
-  ])('dead-letters %s', (_label, body) => {
-    expectDeadLetter(() => c.parse(body), /Malformed .* payload: /);
+    expectDeadLetter(
+      () => c.parse(json(payload)),
+      new RegExp(
+        `Malformed ${eventType.replace('.', '\\.')} payload: field "${field}" must be a non-empty string`,
+      ),
+    );
   });
 });
 
@@ -197,52 +180,13 @@ describe('optional fields', () => {
   });
 });
 
-describe('escrow.penalized recipient (Java: BUYER ? buyerEmail : sellerEmail)', () => {
-  const payload = CASES['escrow.penalized'].payload;
-
-  it('BUYER picks the buyer email', () => {
-    expect(
-      parseEscrowPenalized(json({ ...payload, penalizedParty: 'BUYER' }))
-        .penalizedPartyEmail,
-    ).toBe('b@x.test');
-  });
-
-  it('SELLER picks the seller email', () => {
-    expect(
-      parseEscrowPenalized(json({ ...payload, penalizedParty: 'SELLER' }))
-        .penalizedPartyEmail,
-    ).toBe('s@x.test');
-  });
-
-  it('any other value picks the seller email, as in Java', () => {
-    expect(
-      parseEscrowPenalized(json({ ...payload, penalizedParty: 'buyer' }))
-        .penalizedPartyEmail,
-    ).toBe('s@x.test');
-  });
-
-  it('only the chosen party email is required', () => {
-    const { sellerEmail: _s, ...buyerOnly } = payload;
-    void _s;
-    expect(
-      parseEscrowPenalized(json({ ...buyerOnly, penalizedParty: 'BUYER' }))
-        .penalizedPartyEmail,
-    ).toBe('b@x.test');
-    expectDeadLetter(
-      () =>
-        parseEscrowPenalized(json({ ...buyerOnly, penalizedParty: 'SELLER' })),
-      /field "sellerEmail" must be a non-empty string/,
-    );
-  });
-});
-
 it('error messages name the field type, never the value', () => {
   expectDeadLetter(
     () =>
-      parseEscrowReleased(
-        json({ ...CASES['escrow.released'].payload, buyerEmail: 99 }),
+      parseCategoryRejected(
+        json({ ...CASES['category.rejected'].payload, proposedByEmail: 99 }),
       ),
-    /field "buyerEmail" must be a non-empty string, got number \(event evt-6\)$/,
+    /field "proposedByEmail" must be a non-empty string, got number \(event evt-9\)$/,
   );
 });
 
@@ -252,7 +196,7 @@ describe('error messages never carry payload text (review #172)', () => {
   function messageOf(body: string): string {
     let error: unknown;
     try {
-      parseEscrowReleased(body);
+      parseCategoryRejected(body);
     } catch (err) {
       error = err;
     }
@@ -262,24 +206,24 @@ describe('error messages never carry payload text (review #172)', () => {
 
   it('broken JSON that contains personal data reports only "not valid JSON"', () => {
     const message = messageOf(
-      `{"buyerEmail":"${PII[0]}","buyerName":"${PII[1]}","phone":"${PII[2]}",`,
+      `{"proposedByEmail":"${PII[0]}","proposedByName":"${PII[1]}","phone":"${PII[2]}",`,
     );
 
-    expect(message).toBe('Malformed escrow.released payload: not valid JSON');
+    expect(message).toBe('Malformed category.rejected payload: not valid JSON');
   });
 
   it('a missing field names the field and the event id, not other values', () => {
     const message = messageOf(
       JSON.stringify({
         eventId: 'evt-42',
-        escrowId: 'e',
-        buyerEmail: PII[0],
-        buyerName: PII[1],
+        name: 'Ca Phe',
+        proposedByEmail: PII[0],
+        proposedByName: PII[1],
       }),
     );
 
     expect(message).toBe(
-      'Malformed escrow.released payload: field "sellerEmail" must be a non-empty string, got undefined (event evt-42)',
+      'Malformed category.rejected payload: field "rejectionReason" must be a non-empty string, got undefined (event evt-42)',
     );
     for (const value of PII) expect(message).not.toContain(value);
   });
