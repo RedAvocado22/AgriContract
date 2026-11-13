@@ -294,16 +294,25 @@ describe('public reference price read API', () => {
     assert.equal(items.status, 200);
     assert.equal(itemsJson.items.length, 2);
     const ambiguous = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
-    assert.equal(ambiguous.status, 400);
+    assert.equal(ambiguous.status, 404); // frozen contract: getPriceQuote declares only 200/404
+    assert.equal((await ambiguous.json()).code, 'PRICE_NOT_FOUND');
     const selected = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak?item=ca-phe-arabica`);
     assert.equal(selected.status, 200);
     assert.equal((await selected.json()).itemSlug, 'ca-phe-arabica');
   });
 
-  it('returns 404 when no reference quote exists and rejects non-COFFEE commodities', async () => {
-    const missing = await fetch(`${app.baseUrl}/api/v1/prices/COFFEE/dak-lak`);
-    assert.equal(missing.status, 404);
-    const unsupported = await fetch(`${app.baseUrl}/api/v1/prices/RICE/dak-lak`);
-    assert.equal(unsupported.status, 400);
+  it('answers only the status codes the frozen contract declares (getPriceQuote 200/404, listPriceItems 200)', async () => {
+    await postManual(app, validBody());
+    const quoteCases = ['COFFEE/gia-lai', 'RICE/dak-lak', 'COFFEE/Dak_Lak', 'COFFEE/dak-lak?item=Not%20A%20Slug'];
+    for (const path of quoteCases) {
+      const res = await fetch(`${app.baseUrl}/api/v1/prices/${path}`);
+      assert.equal(res.status, 404, path);
+      assert.equal((await res.json()).code, 'PRICE_NOT_FOUND', path);
+    }
+    for (const path of ['RICE/dak-lak', 'COFFEE/Dak_Lak', 'COFFEE/gia-lai']) {
+      const res = await fetch(`${app.baseUrl}/api/v1/prices/${path}/items`);
+      assert.equal(res.status, 200, path);
+      deepEqual((await res.json()).items, []);
+    }
   });
 });
