@@ -13,29 +13,36 @@ import { MANUAL_PRICE_PATH } from './routes';
 export class PricesController {
   constructor(@Inject(MANUAL_PRICE_DEPS) private readonly deps: ManualPriceDeps) {}
 
+  /** Frozen contract (listPriceItems): 200 only. An unknown commodity or province simply has no items. */
   @Get('/api/v1/prices/:commodity/:province/items')
   async listItems(@Param('commodity') commodity: string, @Param('province') province: string): Promise<unknown> {
-    assertCommodity(commodity);
-    assertSlug(province, 'province');
-    const items = await this.deps.repository.listItems(COMMODITY, province);
-    return { commodity: COMMODITY, province, items };
+    const items = commodity === COMMODITY && isSlug(province)
+      ? await this.deps.repository.listItems(COMMODITY, province)
+      : [];
+    return { commodity, province, items };
   }
 
+  /**
+   * Frozen contract (getPriceQuote): 200 or 404. Anything that cannot name exactly one stored quote,
+   * whether a non-COFFEE commodity, a malformed slug or several items with no ?item=, is a 404.
+   */
   @Get('/api/v1/prices/:commodity/:province')
   async getPrice(
     @Param('commodity') commodity: string,
     @Param('province') province: string,
     @Query('item') requestedItem?: string,
   ): Promise<unknown> {
-    assertCommodity(commodity);
-    assertSlug(province, 'province');
-    if (requestedItem !== undefined) assertSlug(requestedItem, 'item');
+    if (commodity !== COMMODITY || !isSlug(province) || (requestedItem !== undefined && !isSlug(requestedItem))) {
+      throw notFound();
+    }
 
     let item = requestedItem;
     if (!item) {
       const available = await this.deps.repository.listItems(COMMODITY, province);
-      if (available.length === 0) throw new HttpError(404, 'PRICE_NOT_FOUND', 'No reference price is available');
-      if (available.length > 1) throw new HttpError(400, 'PRICE_ITEM_REQUIRED', 'Specify the item query parameter');
+      if (available.length === 0) throw notFound();
+      if (available.length > 1) {
+        throw new HttpError(404, 'PRICE_NOT_FOUND', 'Several items have prices for this province; pass ?item= (see /items)');
+      }
       item = available[0]!.itemSlug;
     }
 
@@ -51,7 +58,7 @@ export class PricesController {
     }
     if (!quote) {
       quote = await this.deps.repository.findLatest(COMMODITY, province, item);
-      if (!quote) throw new HttpError(404, 'PRICE_NOT_FOUND', 'No reference price is available');
+      if (!quote) throw notFound();
       try {
         await this.deps.cache.putLatest(quote);
       } catch (err) {
@@ -93,14 +100,12 @@ export class PricesController {
   }
 }
 
-function assertCommodity(value: string): void {
-  if (value !== COMMODITY) throw new HttpError(400, 'UNSUPPORTED_COMMODITY', 'Only COFFEE reference prices are supported');
+function isSlug(value: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
 }
 
-function assertSlug(value: string, field: string): void {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
-    throw new HttpError(400, 'VALIDATION_FAILED', `${field} must be a lowercase slug`);
-  }
+function notFound(): HttpError {
+  return new HttpError(404, 'PRICE_NOT_FOUND', 'No reference price is available');
 }
 
 function isStale(capturedAt: string, now: Date, thresholdDays: number): boolean {
