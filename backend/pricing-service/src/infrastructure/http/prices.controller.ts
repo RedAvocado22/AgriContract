@@ -1,8 +1,9 @@
 import { Controller, Get, HttpCode, Inject, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { ServerResponse } from 'node:http';
+import { getPriceQuote, type PublicPriceQuote } from '../../application/usecase/getPriceQuote';
+import { listPriceItems } from '../../application/usecase/listPriceItems';
 import { recordManualPrice, type ManualPriceDeps } from '../../application/usecase/recordManualPrice';
-import { COMMODITY, type PriceQuote } from '../../domain/priceQuote';
-import { isStale } from '../../domain/staleness';
+import type { PriceQuote } from '../../domain/priceQuote';
 import { MANUAL_PRICE_DEPS, PRICE_READ_CONFIG } from '../nest/tokens';
 import { HttpError } from './errors';
 import { ManualPriceGuard, type ActorRequest } from './manualPrice.guard';
@@ -15,7 +16,10 @@ export interface PriceReadConfig {
   staleThresholdDays: number;
 }
 
-/** Public advisory read endpoints plus the OPERATOR-only manual fallback write. */
+/**
+ * HTTP mapping only: path/query in, use-case result out. The rules live in application/usecase
+ * (getPriceQuote, listPriceItems, recordManualPrice); errors become HTTP in errors.ts.
+ */
 @Controller()
 export class PricesController {
   constructor(
@@ -23,77 +27,20 @@ export class PricesController {
     @Inject(PRICE_READ_CONFIG) private readonly readConfig: PriceReadConfig,
   ) {}
 
-  /** Frozen contract (listPriceItems): 200 only. An unknown commodity or province simply has no items. */
+  /** Contract listPriceItems: 200 only. */
   @Get('/api/v1/prices/:commodity/:province/items')
   async listItems(@Param('commodity') commodity: string, @Param('province') province: string): Promise<unknown> {
-    const items = commodity === COMMODITY && isSlug(province)
-      ? await this.deps.repository.listItems(COMMODITY, province)
-      : [];
-    return { commodity, province, items };
+    return { commodity, province, items: await listPriceItems(this.deps, commodity, province) };
   }
 
-  /**
-   * Frozen contract (getPriceQuote): 200 or 404. Anything that cannot name exactly one stored quote,
-   * whether a non-COFFEE commodity, a malformed slug or several items with no ?item=, is a 404.
-   */
+  /** Contract getPriceQuote: 200, or 404 PRICE_NOT_FOUND. */
   @Get('/api/v1/prices/:commodity/:province')
-  async getPrice(
+  getPrice(
     @Param('commodity') commodity: string,
     @Param('province') province: string,
-    @Query('item') requestedItem?: string,
-  ): Promise<unknown> {
-    if (commodity !== COMMODITY || !isSlug(province) || (requestedItem !== undefined && !isSlug(requestedItem))) {
-      throw notFound();
-    }
-
-    let item = requestedItem;
-    if (!item) {
-      const available = await this.deps.repository.listItems(COMMODITY, province);
-      if (available.length === 0) throw notFound();
-      if (available.length > 1) {
-        throw new HttpError(404, 'PRICE_NOT_FOUND', 'Several items have prices for this province; pass ?item= (see /items)');
-      }
-      item = available[0]!.itemSlug;
-    }
-
-    let quote: PriceQuote | undefined;
-    try {
-      quote = await this.deps.cache.getLatest(province, item);
-    } catch (err) {
-      this.deps.logger.warn('Redis read failed; using MySQL price history', {
-        province,
-        item,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    if (!quote) {
-      quote = await this.deps.repository.findLatest(COMMODITY, province, item);
-      if (!quote) throw notFound();
-      try {
-        await this.deps.cache.putLatest(quote);
-      } catch (err) {
-        this.deps.logger.warn('Redis cache repair failed; MySQL price history remains available', {
-          priceId: quote.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
-    return {
-      id: quote.id,
-      commodity: quote.commodity,
-      itemName: quote.itemName,
-      itemSlug: quote.itemSlug,
-      province: quote.province,
-      provinceSlug: quote.provinceSlug,
-      price: quote.price,
-      source: quote.source,
-      capturedAt: quote.capturedAt,
-      ingestedAt: quote.ingestedAt,
-      referenceSource: quote.referenceSource,
-      reason: quote.reason,
-      stale: isStale(quote.capturedAt, this.deps.now?.() ?? new Date(), this.readConfig.staleThresholdDays),
-    };
+    @Query('item') item?: string,
+  ): Promise<PublicPriceQuote> {
+    return getPriceQuote({ ...this.deps, staleThresholdDays: this.readConfig.staleThresholdDays }, commodity, province, item);
   }
 
   @Post(MANUAL_PRICE_PATH)
@@ -107,12 +54,4 @@ export class PricesController {
     if (result.replayed) res.setHeader('Idempotent-Replayed', 'true');
     return result.quote;
   }
-}
-
-function isSlug(value: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
-}
-
-function notFound(): HttpError {
-  return new HttpError(404, 'PRICE_NOT_FOUND', 'No reference price is available');
 }

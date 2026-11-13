@@ -27,3 +27,10 @@ export class IdempotencyConflict extends ApplicationError {
     super('This Idempotency-Key was already used with a different request body');
   }
 }
+
+/** No single stored quote matches the request (unknown commodity/province/item, or several items and none chosen). */
+export class PriceNotFound extends ApplicationError {
+  constructor(message = 'No reference price is available') {
+    super(message);
+  }
+}

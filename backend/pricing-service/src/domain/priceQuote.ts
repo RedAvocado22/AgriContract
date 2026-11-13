@@ -22,6 +22,11 @@ export interface PriceQuote {
   recordedBy: string | null;
 }
 
+/** A slug as slugify() produces it: lowercase letters and digits joined by single dashes. */
+export function isSlug(value: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+
 /**
  * Design §2: itemSlug = itemName without diacritics, lowercase, spaces -> dashes.
  * "Cà phê Robusta nhân xô" -> "ca-phe-robusta-nhan-xo"; "Đắk Lắk" -> "dak-lak".
