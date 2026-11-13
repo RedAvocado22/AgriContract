@@ -252,6 +252,7 @@ describe('POST /api/v1/prices/manual', () => {
           append: async () => {
             throw new Error('Access denied for user root@10.0.0.5');
           },
+          appendScrapedBatch: async () => [],
           findByIdempotencyKey: async () => undefined,
           findLatest: async () => undefined,
           listItems: async () => [],

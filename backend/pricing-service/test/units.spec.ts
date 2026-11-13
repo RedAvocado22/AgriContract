@@ -191,6 +191,47 @@ describe('MysqlPriceHistoryRepository', () => {
     deepEqual(await repo.listItems('COFFEE', 'dak-lak'), [{ itemName: q.itemName, itemSlug: q.itemSlug }]);
   });
 
+  describe('appendScrapedBatch', () => {
+    class TxPool extends RecordingPool {
+      log: string[] = [];
+      failOnInsert = new Map<number, unknown>();
+      private inserts = 0;
+      async getConnection() {
+        const conn = {
+          query: async (sql: string) => {
+            const n = this.inserts++;
+            this.log.push(`insert:${n}`);
+            const err = this.failOnInsert.get(n);
+            if (err) throw err;
+            return [{ affectedRows: 1 }, []] as [unknown, unknown];
+          },
+          beginTransaction: async () => void this.log.push('begin'),
+          commit: async () => void this.log.push('commit'),
+          rollback: async () => void this.log.push('rollback'),
+          release: () => void this.log.push('release'),
+        };
+        return conn;
+      }
+    }
+    const vnsat = (id: string): PriceQuote => ({ ...q, id, source: 'VNSAT_SCRAPE', recordedBy: null, reason: null });
+    const row = (id: string) => ({ quote: vnsat(id), idempotencyKey: id, requestHash: id, sourceIdentity: id });
+
+    it('writes the whole batch inside one transaction, skipping rows that already exist', async () => {
+      const pool = new TxPool();
+      pool.failOnInsert.set(1, Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', errno: 1062 }));
+      const inserted = await new MysqlPriceHistoryRepository(pool).appendScrapedBatch([row('a'), row('b'), row('c')]);
+      deepEqual(inserted.map((x) => x.id), ['a', 'c']);
+      deepEqual(pool.log, ['begin', 'insert:0', 'insert:1', 'insert:2', 'commit', 'release']);
+    });
+
+    it('rolls the whole batch back on any other DB error', async () => {
+      const pool = new TxPool();
+      pool.failOnInsert.set(1, Object.assign(new Error('timeout'), { code: 'ER_LOCK_WAIT_TIMEOUT' }));
+      await assert.rejects(new MysqlPriceHistoryRepository(pool).appendScrapedBatch([row('a'), row('b'), row('c')]), /timeout/);
+      deepEqual(pool.log, ['begin', 'insert:0', 'insert:1', 'rollback', 'release']);
+    });
+  });
+
   it('is append-only: the repository source contains no UPDATE or DELETE', () => {
     const src = readFileSync(resolve(here, '../src/infrastructure/persistence/mysqlPriceHistoryRepository.ts'), 'utf8');
     assert.doesNotMatch(src, /\b(UPDATE|DELETE)\s/);
