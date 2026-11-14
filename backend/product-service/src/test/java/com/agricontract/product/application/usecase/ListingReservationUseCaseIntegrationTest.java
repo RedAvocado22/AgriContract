@@ -3,6 +3,7 @@ package com.agricontract.product.application.usecase;
 import com.agricontract.product.application.dto.ReleaseListingReservationRequest;
 import com.agricontract.product.application.dto.ReservationResult;
 import com.agricontract.product.application.dto.ReserveListingQuantityRequest;
+import com.agricontract.product.common.exception.InventoryInvariantViolationException;
 import com.agricontract.product.common.exception.ListingNotFoundException;
 import com.agricontract.product.common.exception.ReservationConflictException;
 import com.agricontract.product.common.exception.ReservationNotFoundException;
@@ -14,6 +15,7 @@ import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperI
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapperImpl;
 import com.agricontract.product.testsupport.GoodsFixtures;
 import com.agricontract.product.testsupport.PlotFixtures;
+import com.agricontract.product.infrastructure.persistence.SpringTransactionRunner;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapperImpl;
 import com.agricontract.product.infrastructure.persistence.repository.ListingRepositoryImpl;
 import com.agricontract.product.infrastructure.persistence.repository.ReservationRepositoryImpl;
@@ -50,7 +52,7 @@ import static org.assertj.core.api.Assertions.*;
 @Import({ListingRepositoryImpl.class, ReservationRepositoryImpl.class,
         ListingMapperImpl.class, ReservationMapperImpl.class, PlotRegistryMapperImpl.class,
         ReserveListingQuantityUseCaseImpl.class, ReleaseListingReservationUseCaseImpl.class,
-        ReservationReleaser.class})
+        ReservationReleaser.class, SpringTransactionRunner.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Testcontainers(disabledWithoutDocker = true)
 class ListingReservationUseCaseIntegrationTest {
@@ -261,6 +263,20 @@ class ListingReservationUseCaseIntegrationTest {
     @Test
     void release_unknownReservation_isNotFound() {
         assertThatThrownBy(() -> release("contract-x", "40")).isInstanceOf(ReservationNotFoundException.class);
+    }
+
+    // status and counter commit together: a failed restore must not leave the reservation RELEASED
+    @Test
+    void release_failedCounterRestore_rollsBackTheStatus() {
+        reserve("contract-1", "40");
+        // restoring 40 onto a full listing would exceed what it offers
+        jdbcTemplate.update("UPDATE listings SET quantity_available = 100 WHERE listing_id = ?", LISTING_ID.value());
+
+        assertThatThrownBy(() -> release("contract-1", "40")).isInstanceOf(InventoryInvariantViolationException.class);
+
+        assertThat(reservationRepository.findByContractId(new ContractId("contract-1")).orElseThrow().getStatus())
+                .isEqualTo(ReservationStatus.RESERVED);
+        assertThat(available()).isEqualByComparingTo("100");
     }
 
     // ---------- helpers ----------
