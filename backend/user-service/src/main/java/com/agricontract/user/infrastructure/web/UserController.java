@@ -7,7 +7,6 @@ import com.agricontract.user.application.dto.UserProfileResponse;
 import com.agricontract.user.application.usecase.GetUserInfoUseCase;
 import com.agricontract.user.application.usecase.GetUserProfileUseCase;
 import com.agricontract.user.application.usecase.RegisterUserUseCase;
-import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.infrastructure.web.dto.RegisterUserRequest;
 import jakarta.validation.Valid;
@@ -27,7 +26,7 @@ public class UserController {
     private final GetUserInfoUseCase getUserInfoUseCase;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserProfileResponse>> register(
+    public ResponseEntity<UserProfileResponse> register(
             @RequestBody @Valid RegisterUserRequest req,
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-User-Role") String rawRoles
@@ -44,24 +43,24 @@ public class UserController {
         );
 
         return result.isNew()
-                ? ResponseEntity.status(201).body(ApiResponse.ok(result.profile()))
-                : ResponseEntity.ok(ApiResponse.ok(result.profile()));
+                ? ResponseEntity.status(201).body(result.profile())
+                : ResponseEntity.ok(result.profile());
     }
 
     // The owner is the authenticated principal set by HeaderAuthenticationFilter, never the raw X-User-Id header:
     // an internal-secret call carries no principal and must not read a full profile by sending any X-User-Id.
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserProfileResponse>> getMyProfile(
+    public ResponseEntity<UserProfileResponse> getMyProfile(
             @AuthenticationPrincipal String userId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(getUserProfileUseCase.execute(userId)));
+        return ResponseEntity.ok(getUserProfileUseCase.execute(userId));
     }
 
     @GetMapping("/{userId}")
-    public ResponseEntity<ApiResponse<PublicUserResponse>> getProfile(
+    public ResponseEntity<PublicUserResponse> getProfile(
             @PathVariable String userId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(getUserInfoUseCase.execute(userId)));
+        return ResponseEntity.ok(getUserInfoUseCase.execute(userId));
     }
 
 }

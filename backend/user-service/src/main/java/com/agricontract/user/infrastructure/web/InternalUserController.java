@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 // Service-to-service only: HeaderAuthenticationFilter requires X-Internal-Secret and the gateway never routes /internal/**.
-// The body is the bare DTO, not ApiResponse, because callers read the fields at the top level.
+// The body is the bare DTO, because callers read the fields at the top level.
 @RestController
 @RequestMapping("/internal/v1/users")
 @RequiredArgsConstructor

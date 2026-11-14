@@ -121,7 +121,7 @@ class AdminUserControllerTest {
         mockMvc.perform(viaGateway(post(VERIFY_URL), "BUYER,default-roles-agricontract")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.success").value(false));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         verifyNoInteractions(verifyUserUseCase);
     }
 
@@ -161,10 +161,10 @@ class AdminUserControllerTest {
         mockMvc.perform(viaGateway(post(VERIFY_URL), "default-roles-agricontract,OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content(VERIFY_BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.verificationStatus").value("VERIFIED"))
-                .andExpect(jsonPath("$.data.verifiedByActorId").value(ACTOR_ID))
-                .andExpect(jsonPath("$.data.email").doesNotExist())
-                .andExpect(jsonPath("$.data.phone").doesNotExist());
+                .andExpect(jsonPath("$.verificationStatus").value("VERIFIED"))
+                .andExpect(jsonPath("$.verifiedByActorId").value(ACTOR_ID))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.phone").doesNotExist());
 
         ArgumentCaptor<VerifyUserCommand> captor = ArgumentCaptor.forClass(VerifyUserCommand.class);
         verify(verifyUserUseCase).execute(captor.capture());
@@ -193,7 +193,7 @@ class AdminUserControllerTest {
         mockMvc.perform(viaGateway(post(REJECT_URL), "OPERATOR")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Thieu giay phep\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.verificationStatus").value("REJECTED"));
+                .andExpect(jsonPath("$.verificationStatus").value("REJECTED"));
 
         verify(rejectUserUseCase).execute(new RejectUserCommand(TARGET_ID, ACTOR_ID, "Thieu giay phep"));
     }
@@ -207,16 +207,16 @@ class AdminUserControllerTest {
         mockMvc.perform(viaGateway(get("/api/v1/admin/users")
                         .param("verificationStatus", "PENDING").param("page", "1").param("size", "2"), "OPERATOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].userId").value(TARGET_ID))
-                .andExpect(jsonPath("$.data.content[0].email").doesNotExist())
-                .andExpect(jsonPath("$.data.content[0].phone").doesNotExist())
-                .andExpect(jsonPath("$.data.content[0].rejectionReason").doesNotExist())
-                .andExpect(jsonPath("$.data.page").value(1))
-                .andExpect(jsonPath("$.data.size").value(2))
-                .andExpect(jsonPath("$.data.totalElements").value(3))
-                .andExpect(jsonPath("$.data.totalPages").value(2))
-                .andExpect(jsonPath("$.data.first").value(false))
-                .andExpect(jsonPath("$.data.last").value(true));
+                .andExpect(jsonPath("$.content[0].userId").value(TARGET_ID))
+                .andExpect(jsonPath("$.content[0].email").doesNotExist())
+                .andExpect(jsonPath("$.content[0].phone").doesNotExist())
+                .andExpect(jsonPath("$.content[0].rejectionReason").doesNotExist())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.first").value(false))
+                .andExpect(jsonPath("$.last").value(true));
     }
 
     // --- KYC detail read (#155) ---
@@ -227,9 +227,9 @@ class AdminUserControllerTest {
 
         mockMvc.perform(viaGateway(get(DETAIL_URL), "default-roles-agricontract,OPERATOR,offline_access"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.userId").value(TARGET_ID))
-                .andExpect(jsonPath("$.data.email").value("seller@agricontract.test"))
-                .andExpect(jsonPath("$.data.phone").value("0901234567"));
+                .andExpect(jsonPath("$.userId").value(TARGET_ID))
+                .andExpect(jsonPath("$.email").value("seller@agricontract.test"))
+                .andExpect(jsonPath("$.phone").value("0901234567"));
 
         verify(getKycProfileUseCase).execute(new GetKycProfileCommand(TARGET_ID, ACTOR_ID, "OPERATOR"));
     }
@@ -262,8 +262,30 @@ class AdminUserControllerTest {
     void detail_userNotFound_notFound() throws Exception {
         when(getKycProfileUseCase.execute(any())).thenThrow(new NoSuchElementException("User not found: " + TARGET_ID));
 
-        mockMvc.perform(viaGateway(get(DETAIL_URL), "OPERATOR"))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(viaGateway(get(DETAIL_URL), "OPERATOR")
+                        .header("X-Correlation-Id", "trace-404"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"))
+                .andExpect(jsonPath("$.path").value(DETAIL_URL))
+                .andExpect(jsonPath("$.traceId").value("trace-404"))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.success").doesNotExist());
+    }
+
+    // Filter rejections never reach the controller advice but must still render the shared envelope.
+    @Test
+    void filterRejection_rendersErrorEnvelope() throws Exception {
+        mockMvc.perform(get(DETAIL_URL)
+                        .header("X-User-Id", ACTOR_ID)
+                        .header("X-User-Role", "OPERATOR"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.path").value(DETAIL_URL))
+                .andExpect(jsonPath("$.traceId").isNotEmpty())
+                .andExpect(jsonPath("$.timestamp").isString());
     }
 
     @Test
@@ -273,8 +295,8 @@ class AdminUserControllerTest {
 
         mockMvc.perform(viaGateway(get(DETAIL_URL), "OPERATOR"))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.data").doesNotExist());
+                .andExpect(jsonPath("$.code").value("READ_AUDIT_UNAVAILABLE"))
+                .andExpect(jsonPath("$.userId").doesNotExist());
     }
 
     @Test
@@ -284,7 +306,7 @@ class AdminUserControllerTest {
 
         mockMvc.perform(viaGateway(get("/api/v1/admin/users"), "OPERATOR"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.empty").value(true));
+                .andExpect(jsonPath("$.empty").value(true));
 
         verify(listUsersByVerificationStatusUseCase).execute(new ListUsersByVerificationStatusCommand(null, 0, 20));
     }
@@ -513,7 +535,7 @@ class AdminUserControllerTest {
         mockMvc.perform(viaGateway(put(ROLE_URL), "default-roles-agricontract,ADMIN")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ARBITRATOR\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("ARBITRATOR"));
+                .andExpect(jsonPath("$.role").value("ARBITRATOR"));
 
         verify(assignUserRoleUseCase).execute(new AssignUserRoleCommand(TARGET_ID, ACTOR_ID, Role.ARBITRATOR));
     }
@@ -542,7 +564,7 @@ class AdminUserControllerTest {
         mockMvc.perform(viaGateway(put(ROLE_URL), "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"ARBITRATOR\"}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("ROLE_SEPARATION_VIOLATION")));
+                .andExpect(jsonPath("$.code").value("ROLE_SEPARATION_VIOLATION"));
     }
 
     @Test

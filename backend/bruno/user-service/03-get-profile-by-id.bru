@@ -19,35 +19,35 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
+  test("body is not wrapped in ApiResponse", function() {
+    expect(res.getBody().data).to.equal(undefined);
   });
 
   test("userId matches", function() {
-    expect(res.getBody().data.userId).to.equal(bru.getEnvVar("registered_user_id"));
+    expect(res.getBody().userId).to.equal(bru.getEnvVar("registered_user_id"));
   });
 
   test("organizationName is set", function() {
-    expect(res.getBody().data.organizationName).to.be.a("string");
+    expect(res.getBody().organizationName).to.be.a("string");
   });
 
   test("role is present", function() {
-    expect(res.getBody().data.role).to.be.a("string");
+    expect(res.getBody().role).to.be.a("string");
   });
 
   test("verificationStatus is present", function() {
-    expect(res.getBody().data.verificationStatus).to.be.a("string");
+    expect(res.getBody().verificationStatus).to.be.a("string");
   });
 
   test("email is not exposed (#108, services use /internal/v1/users)", function() {
-    expect(res.getBody().data.email).to.equal(undefined);
+    expect(res.getBody().email).to.equal(undefined);
   });
 
   test("phone is not exposed (IDOR fix)", function() {
-    expect(res.getBody().data.phone).to.equal(undefined);
+    expect(res.getBody().phone).to.equal(undefined);
   });
 
   test("address is not exposed (IDOR fix)", function() {
-    expect(res.getBody().data.address).to.equal(undefined);
+    expect(res.getBody().address).to.equal(undefined);
   });
 }

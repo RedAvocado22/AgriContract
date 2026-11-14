@@ -19,16 +19,16 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
+  test("body is not wrapped in ApiResponse", function() {
+    expect(res.getBody().data).to.equal(undefined);
   });
 
   test("userId matches registered_user_id", function() {
-    expect(res.getBody().data.userId).to.equal(bru.getEnvVar("registered_user_id"));
+    expect(res.getBody().userId).to.equal(bru.getEnvVar("registered_user_id"));
   });
 
   test("full profile includes phone and address", function() {
-    expect(res.getBody().data.phone).to.be.a("string");
-    expect(res.getBody().data.address).to.be.a("string");
+    expect(res.getBody().phone).to.be.a("string");
+    expect(res.getBody().address).to.be.a("string");
   });
 }
