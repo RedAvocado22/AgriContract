@@ -3,6 +3,7 @@ package com.agricontract.user.application.usecase;
 import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.RejectUserCommand;
 import com.agricontract.user.application.port.KycResultPublisher;
+import com.agricontract.user.testsupport.DirectTransactionRunner;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.model.UserProfile;
@@ -42,7 +43,8 @@ class RejectUserUseCaseImplTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new RejectUserUseCaseImpl(userProfileRepository, kycResultPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
+        useCase = new RejectUserUseCaseImpl(userProfileRepository, kycResultPublisher, Clock.fixed(NOW, ZoneOffset.UTC),
+                new DirectTransactionRunner());
     }
 
     private UserProfile pendingProfile() {

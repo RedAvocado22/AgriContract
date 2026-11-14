@@ -2,6 +2,7 @@ package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
 import com.agricontract.user.application.dto.AssignUserRoleCommand;
+import com.agricontract.user.testsupport.DirectTransactionRunner;
 import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.SelfRoleChangeException;
 import com.agricontract.user.domain.model.RoleChangeAuditEntry;
@@ -43,7 +44,7 @@ class AssignUserRoleUseCaseImplTest {
     @BeforeEach
     void setUp() {
         useCase = new AssignUserRoleUseCaseImpl(userProfileRepository, roleChangeAuditRepository,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC), new DirectTransactionRunner());
     }
 
     private UserProfile profileWithRole(String userId, Role role) {
