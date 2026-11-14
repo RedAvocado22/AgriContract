@@ -1,5 +1,6 @@
 package com.agricontract.product.application.usecase;
 
+import com.agricontract.product.application.port.TransactionRunner;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
 import com.agricontract.product.domain.model.vo.ContractLifecycleEventType;
@@ -10,7 +11,6 @@ import com.agricontract.product.domain.repository.ReservationRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -29,13 +29,13 @@ public class ReapOrphanReservationsUseCaseImpl implements ReapOrphanReservations
     private final ReservationRepository reservationRepository;
     private final ProcessedContractEventRepository processedContractEventRepository;
     private final ReservationReleaser reservationReleaser;
-    private final TransactionTemplate transactionTemplate;
+    private final TransactionRunner transactionRunner;
     private final int batchSize;
 
     public ReapOrphanReservationsUseCaseImpl(ReservationRepository reservationRepository,
                                              ProcessedContractEventRepository processedContractEventRepository,
                                              ReservationReleaser reservationReleaser,
-                                             TransactionTemplate transactionTemplate,
+                                             TransactionRunner transactionRunner,
                                              @Value("${reservation.orphan-reaper-batch-size:100}") int batchSize) {
         if (batchSize < 1) {
             throw new IllegalArgumentException("reservation.orphan-reaper-batch-size must be at least 1");
@@ -43,7 +43,7 @@ public class ReapOrphanReservationsUseCaseImpl implements ReapOrphanReservations
         this.reservationRepository = reservationRepository;
         this.processedContractEventRepository = processedContractEventRepository;
         this.reservationReleaser = reservationReleaser;
-        this.transactionTemplate = transactionTemplate;
+        this.transactionRunner = transactionRunner;
         this.batchSize = batchSize;
     }
 
@@ -66,7 +66,7 @@ public class ReapOrphanReservationsUseCaseImpl implements ReapOrphanReservations
 
     private boolean reap(ContractId contractId) {
         try {
-            Reservation reaped = transactionTemplate.execute(status -> reapIfStillOrphan(contractId));
+            Reservation reaped = transactionRunner.inTransaction(() -> reapIfStillOrphan(contractId));
             if (reaped == null) {
                 return false;
             }

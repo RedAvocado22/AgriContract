@@ -1,6 +1,7 @@
 package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.ContractCreatedCommand;
+import com.agricontract.product.application.port.TransactionRunner;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
 import com.agricontract.product.domain.model.vo.ContractLifecycleEventType;
@@ -11,7 +12,6 @@ import com.agricontract.product.domain.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Optional;
 
@@ -29,11 +29,11 @@ public class ConfirmContractCreatedUseCaseImpl implements ConfirmContractCreated
 
     private final ReservationRepository reservationRepository;
     private final ProcessedContractEventRepository processedContractEventRepository;
-    private final TransactionTemplate transactionTemplate;
+    private final TransactionRunner transactionRunner;
 
     @Override
     public void execute(ContractCreatedCommand command) {
-        transactionTemplate.executeWithoutResult(status -> confirm(command));
+        transactionRunner.inTransaction(() -> confirm(command));
     }
 
     private void confirm(ContractCreatedCommand command) {

@@ -14,7 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
 
@@ -75,10 +74,10 @@ class ProposeCategoryUseCaseImplTest {
     }
 
     @Test
-    void execute_concurrentDuplicateRace_dbConstraintMappedToDuplicateException() {
+    void execute_concurrentDuplicateRace_repositoryDuplicatePropagates() {
         when(categoryRepository.findByNormalizedName("ca phe")).thenReturn(Optional.empty());
         when(userContactPort.getEmail("seller-1")).thenReturn("seller@test.com");
-        when(categoryRepository.save(any())).thenThrow(new DataIntegrityViolationException("uq_categories_normalized_name"));
+        when(categoryRepository.save(any())).thenThrow(new DuplicateCategoryException("Ca Phe"));
 
         assertThatThrownBy(() -> useCase.execute(new ProposeCategoryRequest(null, "Ca Phe"), "seller-1"))
                 .isInstanceOf(DuplicateCategoryException.class);

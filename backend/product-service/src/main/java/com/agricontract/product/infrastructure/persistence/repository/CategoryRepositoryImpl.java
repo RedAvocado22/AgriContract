@@ -35,7 +35,8 @@ public class CategoryRepositoryImpl implements CategoryRepository {
                 .ifPresent(existing -> entity.setId(existing.getId()));
 
         try {
-            categoryJpaRepository.save(entity);
+            // flush so uq_categories_normalized_name trips here, not at commit
+            categoryJpaRepository.saveAndFlush(entity);
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateCategoryException(category.getName());
         }

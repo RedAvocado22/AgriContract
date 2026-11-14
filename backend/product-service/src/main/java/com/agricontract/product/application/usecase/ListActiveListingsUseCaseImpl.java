@@ -13,8 +13,8 @@ import com.agricontract.product.common.exception.ReputationSignInRequiredExcepti
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.ListingStatus;
 import com.agricontract.product.domain.repository.ListingRepository;
+import com.agricontract.product.domain.repository.PageQuery;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashSet;
@@ -38,10 +38,10 @@ public class ListActiveListingsUseCaseImpl implements ListActiveListingsUseCase 
         if (query.viewer() == null && query.minSellerScore() != null) {
             throw new ReputationSignInRequiredException();
         }
-        Pageable pageable = query.pageable();
-        List<Listing> listings = listingRepository.findByStatus(ListingStatus.ACTIVE, pageable);
+        PageQuery page = query.page();
+        List<Listing> listings = listingRepository.findByStatus(ListingStatus.ACTIVE, page);
         long total = listingRepository.countByStatus(ListingStatus.ACTIVE);
-        int totalPages = (int) Math.ceil((double) total / pageable.getPageSize());
+        int totalPages = (int) Math.ceil((double) total / page.size());
 
         if (query.viewer() == null) {
             List<ListingSearchItem> items = listings.stream()

@@ -16,6 +16,7 @@ import com.agricontract.product.domain.model.vo.Money;
 import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.model.vo.Quantity;
 import com.agricontract.product.domain.repository.ListingRepository;
+import com.agricontract.product.domain.repository.PageQuery;
 import com.agricontract.product.testsupport.GoodsFixtures;
 import com.agricontract.product.testsupport.PlotFixtures;
 import org.junit.jupiter.api.Test;
@@ -23,8 +24,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,7 +38,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ListActiveListingsUseCaseImplTest {
-    private static final Pageable PAGE = PageRequest.of(0, 20);
+    private static final PageQuery PAGE = PageQuery.of(0, 20);
     private static final ReputationViewer BUYER = new ReputationViewer("buyer-1", List.of("BUYER"));
 
     @Mock private ListingRepository listingRepository;

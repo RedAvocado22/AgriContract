@@ -7,6 +7,7 @@ import com.agricontract.product.domain.model.vo.*;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.infrastructure.config.ClockConfig;
+import com.agricontract.product.infrastructure.persistence.SpringTransactionRunner;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperImpl;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapperImpl;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapperImpl;
@@ -53,7 +54,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import({ListingRepositoryImpl.class, ReservationRepositoryImpl.class, ProcessedContractEventRepositoryImpl.class,
         ListingMapperImpl.class, ReservationMapperImpl.class, PlotRegistryMapperImpl.class, ClockConfig.class,
         ReserveListingQuantityUseCaseImpl.class, ReservationReleaser.class,
-        ReapOrphanReservationsUseCaseImpl.class, ConfirmContractCreatedUseCaseImpl.class})
+        ReapOrphanReservationsUseCaseImpl.class, ConfirmContractCreatedUseCaseImpl.class,
+        SpringTransactionRunner.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Testcontainers(disabledWithoutDocker = true)
 @ExtendWith(OutputCaptureExtension.class)

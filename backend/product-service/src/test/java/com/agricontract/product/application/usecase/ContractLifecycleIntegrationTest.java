@@ -4,11 +4,13 @@ import com.agricontract.product.application.dto.ContractLifecycleCommand;
 import com.agricontract.product.application.dto.ReleaseListingReservationRequest;
 import com.agricontract.product.application.dto.ReserveListingQuantityRequest;
 import com.agricontract.product.application.exception.ReservationNotReadyException;
+import com.agricontract.product.common.exception.InventoryInvariantViolationException;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.*;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.infrastructure.config.ClockConfig;
+import com.agricontract.product.infrastructure.persistence.SpringTransactionRunner;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperImpl;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapperImpl;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapperImpl;
@@ -55,7 +57,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import({ListingRepositoryImpl.class, ReservationRepositoryImpl.class, ProcessedContractEventRepositoryImpl.class,
         ListingMapperImpl.class, ReservationMapperImpl.class, PlotRegistryMapperImpl.class, ClockConfig.class,
         ReserveListingQuantityUseCaseImpl.class, ReleaseListingReservationUseCaseImpl.class, ReservationReleaser.class,
-        ApplyContractLifecycleEventUseCaseImpl.class})
+        ApplyContractLifecycleEventUseCaseImpl.class, SpringTransactionRunner.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Testcontainers(disabledWithoutDocker = true)
 @ExtendWith(OutputCaptureExtension.class)
@@ -233,6 +235,27 @@ class ContractLifecycleIntegrationTest {
                 LISTING_ID.value(), new BigDecimal("40")));
 
         assertThat(output.getAll()).contains("event=contract_signed_without_reservation alert=OPERATOR");
+    }
+
+    // transition, counter restore and the processed-event row commit together or not at all
+    @Test
+    void failedRelease_rollsBackTransitionAndDedupRow_soRedeliveryApplies() {
+        UUID eventId = UUID.randomUUID();
+        // restoring 40 onto a full listing would exceed what it offers
+        jdbcTemplate.update("UPDATE listings SET quantity_available = 100 WHERE listing_id = ?", LISTING_ID.value());
+
+        assertThatThrownBy(() -> lifecycle.execute(command(eventId, CONTRACT_WITHDRAWN, "40")))
+                .isInstanceOf(InventoryInvariantViolationException.class);
+
+        assertThat(status()).isEqualTo(ReservationStatus.RESERVED);
+        assertThat(recorded(eventId)).isZero();
+
+        jdbcTemplate.update("UPDATE listings SET quantity_available = 60 WHERE listing_id = ?", LISTING_ID.value());
+        lifecycle.execute(command(eventId, CONTRACT_WITHDRAWN, "40"));
+
+        assertThat(status()).isEqualTo(ReservationStatus.RELEASED);
+        assertThat(available()).isEqualByComparingTo("100");
+        assertThat(recorded(eventId)).isEqualTo(1);
     }
 
     @Test

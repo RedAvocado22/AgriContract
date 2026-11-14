@@ -1,5 +1,6 @@
 package com.agricontract.product.infrastructure.persistence.repository;
 
+import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
 import com.agricontract.product.domain.model.vo.OrphanCandidate;
@@ -7,6 +8,7 @@ import com.agricontract.product.domain.model.vo.ReservationStatus;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.infrastructure.persistence.mapper.ReservationMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,8 +33,13 @@ public class ReservationRepositoryImpl implements ReservationRepository {
     @Transactional
     public Reservation create(Reservation reservation) {
         // saveAndFlush so a duplicate contractId fails here, inside the caller's transaction
-        return reservationMapper.toDomain(
-                reservationJpaRepository.saveAndFlush(reservationMapper.toJpaEntity(reservation)));
+        try {
+            return reservationMapper.toDomain(
+                    reservationJpaRepository.saveAndFlush(reservationMapper.toJpaEntity(reservation)));
+        } catch (DataIntegrityViolationException e) {
+            throw new WriteConflictException("Reservation for contract " + reservation.getContractId().value()
+                    + " could not be written", e);
+        }
     }
 
     @Override

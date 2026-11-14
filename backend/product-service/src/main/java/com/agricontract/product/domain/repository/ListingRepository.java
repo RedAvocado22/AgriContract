@@ -3,7 +3,6 @@ package com.agricontract.product.domain.repository;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ListingStatus;
-import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,10 +14,10 @@ public interface ListingRepository {
 
     Optional<Listing> findById(ListingId listingId);
 
-    List<Listing> findByStatus(ListingStatus status, Pageable pageable);
+    List<Listing> findByStatus(ListingStatus status, PageQuery page);
     long countByStatus(ListingStatus status);
 
-    List<Listing> findBySellerId(String sellerId, Pageable pageable);
+    List<Listing> findBySellerId(String sellerId, PageQuery page);
     long countBySellerId(String sellerId);
 
     List<Listing> findActiveExpiredBefore(LocalDate date);
