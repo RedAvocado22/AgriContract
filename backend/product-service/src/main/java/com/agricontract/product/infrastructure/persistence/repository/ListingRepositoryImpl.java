@@ -40,16 +40,22 @@ public class ListingRepositoryImpl implements ListingRepository {
     private final PlotRegistryMapper plotRegistryMapper;
 
     @Override
-    @Transactional
+    @Transactional // a self-call does not go through the proxy, so this needs its own annotation
     public Listing save(Listing listing) {
+        return save(listing, null);
+    }
+
+    @Override
+    @Transactional
+    public Listing save(Listing listing, String createIdempotencyKey) {
         try {
-            return persist(listing);
+            return persist(listing, createIdempotencyKey);
         } catch (DataIntegrityViolationException e) {
             throw new WriteConflictException("Listing " + listing.getListingId().value() + " could not be written", e);
         }
     }
 
-    private Listing persist(Listing listing) {
+    private Listing persist(Listing listing, String createIdempotencyKey) {
         Optional<ListingJpaEntity> current = listingJpaRepository.findByListingId(listing.getListingId().value());
         ListingJpaEntity entity = current
                 .map(existing -> {
@@ -58,7 +64,11 @@ public class ListingRepositoryImpl implements ListingRepository {
                     existing.setStatus(listing.getStatus());
                     return existing;
                 })
-                .orElseGet(() -> listingMapper.toJpaEntity(listing));
+                .orElseGet(() -> {
+                    ListingJpaEntity created = listingMapper.toJpaEntity(listing);
+                    created.setCreateIdempotencyKey(createIdempotencyKey);
+                    return created;
+                });
 
         // flush so @PreUpdate has stamped updatedAt before the version token is read back
         ListingJpaEntity saved = listingJpaRepository.saveAndFlush(entity);
@@ -75,6 +85,12 @@ public class ListingRepositoryImpl implements ListingRepository {
     @Override
     public Optional<Listing> findById(ListingId listingId) {
         return listingJpaRepository.findByListingId(listingId.value())
+                .map(this::toDomain);
+    }
+
+    @Override
+    public Optional<Listing> findBySellerIdAndCreateIdempotencyKey(String sellerId, String createIdempotencyKey) {
+        return listingJpaRepository.findBySellerIdAndCreateIdempotencyKey(sellerId, createIdempotencyKey)
                 .map(this::toDomain);
     }
 

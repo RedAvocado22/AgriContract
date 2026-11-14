@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Service-to-service only (contract-service); HeaderAuthenticationFilter rejects /internal/** without
- * X-Internal-Secret. Bare body per the supplementary API, not ApiResponse-wrapped.
+ * X-Internal-Secret. Bare body per the supplementary API.
  */
 @RestController
 @RequiredArgsConstructor

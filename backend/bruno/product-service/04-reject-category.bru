@@ -1,19 +1,19 @@
 meta {
-  name: PUT /api/v1/categories/:categoryId/reject
+  name: PUT /api/v1/admin/categories/:categoryId/reject
   type: http
   seq: 4
 }
 
 put {
-  url: {{product_service_url}}/api/v1/categories/{{category_id_reject}}/reject
+  url: {{product_service_url}}/api/v1/admin/categories/{{category_id_reject}}/reject
   body: json
   auth: none
 }
 
 headers {
   X-Gateway-Secret: {{gateway_secret}}
-  X-User-Id: admin-1
-  X-User-Role: ADMIN
+  X-User-Id: operator-1
+  X-User-Role: OPERATOR
 }
 
 body:json {
@@ -28,10 +28,10 @@ tests {
   });
 
   test("status should be REJECTED", function() {
-    expect(res.getBody().data.status).to.equal("REJECTED");
+    expect(res.getBody().status).to.equal("REJECTED");
   });
 
   test("rejectionReason should be set", function() {
-    expect(res.getBody().data.rejectionReason).to.equal("Tên không rõ ràng, đề nghị đặt lại");
+    expect(res.getBody().rejectionReason).to.equal("Tên không rõ ràng, đề nghị đặt lại");
   });
 }

@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * Service-to-service only (contract-service); HeaderAuthenticationFilter rejects /internal/** without
- * X-Internal-Secret. Bodies are bare DTOs per the frozen supplementary API, not ApiResponse-wrapped.
+ * X-Internal-Secret. Bodies are bare DTOs per the frozen supplementary API.
  */
 @RestController
 @RequestMapping("/internal/v1/listing-reservations")

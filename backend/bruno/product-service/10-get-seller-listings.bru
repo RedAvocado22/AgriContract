@@ -1,7 +1,7 @@
 meta {
   name: GET /api/v1/listings/seller (seller's own listings)
   type: http
-  seq: 11
+  seq: 13
 }
 
 get {
@@ -26,17 +26,13 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
-  });
-
   test("content is an array", function() {
-    expect(res.getBody().data.content).to.be.an("array");
+    expect(res.getBody().content).to.be.an("array");
   });
 
   test("all listings belong to this seller", function() {
     const sellerId = bru.getEnvVar("seller1_sub");
-    res.getBody().data.content.forEach(function(listing) {
+    res.getBody().content.forEach(function(listing) {
       expect(listing.sellerId).to.equal(sellerId);
     });
   });
