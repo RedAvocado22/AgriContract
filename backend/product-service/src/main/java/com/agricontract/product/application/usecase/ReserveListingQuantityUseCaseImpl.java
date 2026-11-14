@@ -3,8 +3,10 @@ package com.agricontract.product.application.usecase;
 import com.agricontract.product.application.dto.ListingReservationResponse;
 import com.agricontract.product.application.dto.ReservationResult;
 import com.agricontract.product.application.dto.ReserveListingQuantityRequest;
+import com.agricontract.product.application.port.TransactionRunner;
 import com.agricontract.product.common.exception.ListingNotFoundException;
 import com.agricontract.product.common.exception.ReservationConflictException;
+import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
@@ -14,9 +16,7 @@ import com.agricontract.product.domain.model.vo.ReservationStatus;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -34,7 +34,7 @@ public class ReserveListingQuantityUseCaseImpl implements ReserveListingQuantity
 
     private final ListingRepository listingRepository;
     private final ReservationRepository reservationRepository;
-    private final TransactionTemplate transactionTemplate;
+    private final TransactionRunner transactionRunner;
 
     @Override
     public ReservationResult execute(ReserveListingQuantityRequest request) {
@@ -48,10 +48,10 @@ public class ReserveListingQuantityUseCaseImpl implements ReserveListingQuantity
         }
 
         try {
-            ListingReservationResponse reserved = transactionTemplate.execute(status ->
+            ListingReservationResponse reserved = transactionRunner.inTransaction(() ->
                     reserveAtomically(contractId, listingId, quantity, request.listingVersionToken()));
             return new ReservationResult(reserved, true);
-        } catch (DataIntegrityViolationException e) {
+        } catch (WriteConflictException e) {
             // a concurrent reserve with the same contractId committed first; our decrement was rolled back
             return replay(contractId, listingId, quantity).orElseThrow(() -> e);
         } catch (ReserveRejected e) {

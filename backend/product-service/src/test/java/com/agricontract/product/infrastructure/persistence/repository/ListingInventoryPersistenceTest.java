@@ -1,5 +1,6 @@
 package com.agricontract.product.infrastructure.persistence.repository;
 
+import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.*;
@@ -211,7 +212,8 @@ class ListingInventoryPersistenceTest {
 
         assertThatThrownBy(() -> reservationRepository.create(
                 Reservation.create(contractId, LISTING_ID, new BigDecimal("10"))))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .isInstanceOf(WriteConflictException.class)
+                .hasCauseInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM listing_reservations", Integer.class))
                 .isEqualTo(1);
     }

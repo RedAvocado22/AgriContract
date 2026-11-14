@@ -191,7 +191,7 @@ class PlotRegistryPersistenceTest {
         }
 
         List<Listing> page = listingRepository.findBySellerId("seller-1",
-                org.springframework.data.domain.PageRequest.of(0, 10));
+                com.agricontract.product.domain.repository.PageQuery.of(0, 10));
 
         assertThat(page).hasSize(2).allSatisfy(listing -> assertThat(listing.getPlots()).hasSize(1));
         assertThat(page).extracting(l -> l.getListingId().value() + "=" + l.getPlots().get(0).sourceRegistryEntryId().value())
