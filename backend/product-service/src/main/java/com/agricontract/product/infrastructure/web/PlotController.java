@@ -6,8 +6,8 @@ import com.agricontract.product.application.dto.PlotResponse;
 import com.agricontract.product.application.dto.RegisteredPlot;
 import com.agricontract.product.application.usecase.AddPlotManuallyUseCase;
 import com.agricontract.product.application.usecase.ImportPlotsFromKmlUseCase;
-import com.agricontract.product.common.ApiResponse;
 import com.agricontract.product.domain.model.vo.Province;
+import com.agricontract.web.error.ApiException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.stream.Collectors;
 
 /**
  * registerPlot (supplementary contract): one path, two inputs told apart by Content-Type —
@@ -39,13 +40,13 @@ public class PlotController {
     private final AddPlotManuallyUseCase addPlotManuallyUseCase;
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApiResponse<PlotResponse>> addPlotManually(
+    public ResponseEntity<PlotResponse> addPlotManually(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AddPlotRequest request,
             @AuthenticationPrincipal String sellerId) {
         RegisteredPlot result = addPlotManuallyUseCase.execute(sellerId, request);
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
-                .body(ApiResponse.ok(result.plot()));
+                .body(result.plot());
     }
 
     /**
@@ -53,21 +54,25 @@ public class PlotController {
      * 400 when no placemark could be stored. Rejected placemarks are always listed by name.
      */
     @PostMapping(consumes = {KML, MediaType.APPLICATION_XML_VALUE})
-    public ResponseEntity<ApiResponse<PlotImportResult>> importKml(
+    public ResponseEntity<PlotImportResult> importKml(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestParam Province declaredProvince,
             InputStream body,
             @AuthenticationPrincipal String sellerId) throws IOException {
         PlotImportResult result = importPlotsFromKmlUseCase.execute(sellerId, readLimited(body), declaredProvince);
-        HttpStatus status = !result.created().isEmpty() ? HttpStatus.CREATED
-                : !result.updated().isEmpty() ? HttpStatus.OK
-                : HttpStatus.BAD_REQUEST;
-        boolean stored = status != HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(ApiResponse.<PlotImportResult>builder()
-                .success(stored)
-                .error(stored ? null : "No placemark could be imported")
-                .data(result)
-                .build());
+        if (result.created().isEmpty() && result.updated().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "NO_PLACEMARK_IMPORTED", rejectionMessage(result));
+        }
+        return ResponseEntity.status(result.created().isEmpty() ? HttpStatus.OK : HttpStatus.CREATED).body(result);
+    }
+
+    // An error is an ErrorEnvelope (D32), so the per-placemark reasons travel in its message.
+    private static String rejectionMessage(PlotImportResult result) {
+        String reasons = result.rejected().stream()
+                .map(r -> r.placemark() + ": " + r.reason())
+                .collect(Collectors.joining("; "));
+        return reasons.isEmpty() ? "No placemark could be imported"
+                : "No placemark could be imported. " + reasons;
     }
 
     // read at most MAX_KML_BYTES + 1 so an oversized upload is refused without buffering all of it

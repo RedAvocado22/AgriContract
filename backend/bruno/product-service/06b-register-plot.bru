@@ -29,7 +29,7 @@ body:json {
 }
 
 script:post-response {
-  const plotId = res.getBody()?.data?.registryEntryId;
+  const plotId = res.getBody()?.registryEntryId;
   if (plotId) {
     bru.setEnvVar("plot_id", plotId);
   }
@@ -42,12 +42,12 @@ tests {
   });
 
   test("plot is a POINT registry entry", function() {
-    expect(res.getBody().data.registryEntryId).to.be.a("string");
-    expect(res.getBody().data.geometryType).to.equal("POINT");
-    expect(res.getBody().data.source).to.equal("MANUAL_PIN");
+    expect(res.getBody().registryEntryId).to.be.a("string");
+    expect(res.getBody().geometryType).to.equal("POINT");
+    expect(res.getBody().source).to.equal("MANUAL_PIN");
   });
 
   test("geometryHash is a SHA-256 hex", function() {
-    expect(res.getBody().data.geometryHash).to.match(/^[a-f0-9]{64}$/);
+    expect(res.getBody().geometryHash).to.match(/^[a-f0-9]{64}$/);
   });
 }

@@ -1,0 +1,50 @@
+meta {
+  name: POST /api/v1/listings (same Idempotency-Key replayed)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{product_service_url}}/api/v1/listings
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: {{seller1_sub}}
+  X-User-Role: SELLER
+  Idempotency-Key: {{create_listing_key}}
+}
+
+body:json {
+  {
+    "productId": "{{product_id}}",
+    "quantity": 500,
+    "quantityUnit": "kg",
+    "priceFloor": 15000.00,
+    "currency": "VND",
+    "deliveryDeadline": "2026-09-30",
+    "registryEntryIds": ["{{plot_id}}"],
+    "regionText": "Buon Ma Thuot, Dak Lak",
+    "declaredQualitySpec": {
+      "commodity": "COFFEE",
+      "type": "ROBUSTA",
+      "moisturePercent": 12.5,
+      "foreignMatterPercent": 0.5,
+      "blackBrokenBeansPercent": 5.0
+    },
+    "packagingDeclaration": "Bao day 60 kg"
+  }
+}
+
+tests {
+  // same key and body as 07: the first listing comes back, no second one is created
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("returns the listing 07 created", function() {
+    expect(res.getBody().listingId).to.equal(bru.getEnvVar("listing_id"));
+  });
+}

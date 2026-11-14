@@ -23,7 +23,7 @@ body:json {
 }
 
 script:post-response {
-  const categoryId = res.getBody()?.data?.categoryId;
+  const categoryId = res.getBody()?.categoryId;
   if (categoryId) {
     bru.setEnvVar("category_id_reject", categoryId);
   }
@@ -35,6 +35,6 @@ tests {
   });
 
   test("status should be PENDING", function() {
-    expect(res.getBody().data.status).to.equal("PENDING");
+    expect(res.getBody().status).to.equal("PENDING");
   });
 }

@@ -1,7 +1,10 @@
 package com.agricontract.product.common.exception;
 
-public class CategoryNotApprovedException extends RuntimeException {
+import com.agricontract.web.error.ApiException;
+import org.springframework.http.HttpStatus;
+
+public class CategoryNotApprovedException extends ApiException {
     public CategoryNotApprovedException(String categoryId) {
-        super("Category is not APPROVED: " + categoryId);
+        super(HttpStatus.BAD_REQUEST, "CATEGORY_NOT_APPROVED", "Category is not APPROVED: " + categoryId);
     }
 }

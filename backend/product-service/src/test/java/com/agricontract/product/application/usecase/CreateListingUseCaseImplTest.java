@@ -2,11 +2,13 @@ package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.CoffeeQualitySpecDto;
 import com.agricontract.product.application.dto.CreateListingRequest;
+import com.agricontract.product.application.dto.CreatedListing;
 import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.application.dto.UserEligibility;
 import com.agricontract.product.application.port.UserEligibilityPort;
 import com.agricontract.product.common.exception.ActorNotEligibleException;
 import com.agricontract.product.common.exception.EligibilityUnavailableException;
+import com.agricontract.product.common.exception.IdempotencyKeyReusedException;
 import com.agricontract.product.common.exception.PlotNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotOwnedException;
 import com.agricontract.product.domain.model.Category;
@@ -38,6 +40,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -49,12 +52,14 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CreateListingUseCaseImplTest {
 
     private static final String SELLER = "seller-1";
+    private static final String KEY = "key-1";
 
     @Mock private ListingRepository listingRepository;
     @Mock private ProductRepository productRepository;
@@ -93,6 +98,10 @@ class CreateListingUseCaseImplTest {
                         CategoryStatus.APPROVED, null, "seller-1", "seller@test", commodity)));
     }
 
+    private ListingResponse create(CreateListingRequest request) {
+        return useCase.execute(SELLER, KEY, request).listing();
+    }
+
     private static CreateListingRequest request(List<String> registryEntryIds) {
         return request(registryEntryIds, SPEC);
     }
@@ -115,9 +124,9 @@ class CreateListingUseCaseImplTest {
         when(plotRegistryRepository.findAllById(any())).thenReturn(List.of(
                 plot("plot-1", SELLER, GeoVerificationStatus.UNVERIFIED),
                 plot("plot-2", SELLER, GeoVerificationStatus.UNVERIFIED)));
-        when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(listingRepository.save(any(), any())).thenAnswer(inv -> inv.getArgument(0));
 
-        ListingResponse response = useCase.execute(SELLER, request(List.of("plot-1", "plot-2")));
+        ListingResponse response = create(request(List.of("plot-1", "plot-2")));
 
         assertThat(response.coverImageUrl()).isEqualTo("https://cdn.test/cover.jpg");
         assertThat(response.quantityAvailable()).isEqualByComparingTo("100");
@@ -125,7 +134,7 @@ class CreateListingUseCaseImplTest {
         assertThat(response.registryEntryIds()).containsExactly("plot-1", "plot-2");
 
         ArgumentCaptor<Listing> saved = ArgumentCaptor.forClass(Listing.class);
-        verify(listingRepository).save(saved.capture());
+        verify(listingRepository).save(saved.capture(), eq(KEY));
         assertThat(saved.getValue().getPlots()).extracting(p -> p.householdLabel())
                 .containsExactly("Ho plot-1", "Ho plot-2");
         assertThat(saved.getValue().getPlots().get(0).geometry()).isEqualTo(PlotFixtures.point());
@@ -136,9 +145,9 @@ class CreateListingUseCaseImplTest {
         productExists();
         when(plotRegistryRepository.findAllById(any()))
                 .thenReturn(List.of(plot("plot-1", SELLER, GeoVerificationStatus.UNVERIFIED)));
-        when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(listingRepository.save(any(), any())).thenAnswer(inv -> inv.getArgument(0));
 
-        ListingResponse response = useCase.execute(SELLER, request(List.of("plot-1")));
+        ListingResponse response = create(request(List.of("plot-1")));
 
         assertThat(response.categoryId()).isEqualTo("category-1");
         assertThat(response.commodity()).isEqualTo(Commodity.COFFEE);
@@ -159,7 +168,7 @@ class CreateListingUseCaseImplTest {
     void execute_categoryApprovedBeforeCommodityExisted_isRejectedAsNotCoffee() {
         productExistsIn(null);
 
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-1"))))
+        assertThatThrownBy(() -> create(request(List.of("plot-1"))))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("COFFEE");
         verify(listingRepository, never()).save(any());
         verifyNoInteractions(plotRegistryRepository);
@@ -173,7 +182,7 @@ class CreateListingUseCaseImplTest {
         CoffeeQualitySpecDto precise = new CoffeeQualitySpecDto(Commodity.COFFEE, CoffeeType.ROBUSTA,
                 new BigDecimal("12.555"), new BigDecimal("0.5"), new BigDecimal("5"));
 
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-1"), precise)))
+        assertThatThrownBy(() -> create(request(List.of("plot-1"), precise)))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("2 decimals");
         verify(listingRepository, never()).save(any());
     }
@@ -184,7 +193,7 @@ class CreateListingUseCaseImplTest {
         when(plotRegistryRepository.findAllById(any()))
                 .thenReturn(List.of(plot("plot-1", "seller-2", GeoVerificationStatus.CHECKED)));
 
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-1"))))
+        assertThatThrownBy(() -> create(request(List.of("plot-1"))))
                 .isInstanceOf(PlotNotOwnedException.class);
         verify(listingRepository, never()).save(any());
     }
@@ -194,7 +203,7 @@ class CreateListingUseCaseImplTest {
         productExists();
         when(plotRegistryRepository.findAllById(any())).thenReturn(List.of());
 
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-404"))))
+        assertThatThrownBy(() -> create(request(List.of("plot-404"))))
                 .isInstanceOf(PlotNotOwnedException.class);
         verify(listingRepository, never()).save(any());
     }
@@ -206,7 +215,7 @@ class CreateListingUseCaseImplTest {
                 plot("plot-1", SELLER, GeoVerificationStatus.CHECKED),
                 plot("plot-2", SELLER, GeoVerificationStatus.PENDING)));
 
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-1", "plot-2"))))
+        assertThatThrownBy(() -> create(request(List.of("plot-1", "plot-2"))))
                 .isInstanceOf(PlotNotEligibleException.class)
                 .hasMessageContaining("plot-2");
         verify(listingRepository, never()).save(any());
@@ -216,7 +225,7 @@ class CreateListingUseCaseImplTest {
     void execute_samePlotTwice_isRejected() {
         productExists();
 
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-1", "plot-1"))))
+        assertThatThrownBy(() -> create(request(List.of("plot-1", "plot-1"))))
                 .isInstanceOf(IllegalArgumentException.class);
         verify(listingRepository, never()).save(any());
     }
@@ -237,15 +246,88 @@ class CreateListingUseCaseImplTest {
         // 12.5 replayed as 12.50 is the same declared value
         CoffeeQualitySpecDto sameSpec = new CoffeeQualitySpecDto(Commodity.COFFEE, CoffeeType.ROBUSTA,
                 new BigDecimal("12.50"), new BigDecimal("0.50"), new BigDecimal("5.00"));
-        assertThat(useCase.execute(SELLER, request(List.of(PlotFixtures.PLOT_ID), sameSpec)).listingId())
+        assertThat(create(request(List.of(PlotFixtures.PLOT_ID), sameSpec)).listingId())
                 .isEqualTo("listing-1");
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-2"))))
+        assertThatThrownBy(() -> create(request(List.of("plot-2"))))
                 .isInstanceOf(IllegalStateException.class);
         CoffeeQualitySpecDto arabica = new CoffeeQualitySpecDto(Commodity.COFFEE, CoffeeType.ARABICA,
                 new BigDecimal("12.5"), new BigDecimal("0.5"), new BigDecimal("5"));
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of(PlotFixtures.PLOT_ID), arabica)))
+        assertThatThrownBy(() -> create(request(List.of(PlotFixtures.PLOT_ID), arabica)))
                 .isInstanceOf(IllegalStateException.class);
         verify(listingRepository, never()).save(any());
+    }
+
+    // ---- Idempotency-Key (#424) ----
+
+    // what request(List.of(PLOT_ID)) declares, as the first call stored it
+    private static Listing storedForKey() {
+        ListingGoods stored = new ListingGoods(new CategoryId("category-1"), Commodity.COFFEE, 2026, "Nien vu 2026/27",
+                List.of("4C (cam ket)"), "Buon Ma Thuot, Dak Lak", SPEC.toDomain(), "Bao day 60 kg", null,
+                LocalDate.of(2026, 12, 1), null);
+        return Listing.create(new ListingId("listing-1"), SELLER,
+                new ProductId("product-1"), "Ca phe Robusta", "https://cdn.test/cover.jpg",
+                new Quantity(new BigDecimal("100"), "kg"),
+                new BigDecimal("10"), new Money(new BigDecimal("50000"), "VND"),
+                LocalDate.now().plusDays(10), PlotFixtures.onePlot(), stored);
+    }
+
+    @Test
+    void execute_sameKeyAndBody_returnsTheFirstListing_withoutASecondInsert() {
+        when(listingRepository.findBySellerIdAndCreateIdempotencyKey(SELLER, KEY))
+                .thenReturn(Optional.of(storedForKey()));
+
+        CreatedListing result = useCase.execute(SELLER, KEY, request(List.of(PlotFixtures.PLOT_ID)));
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.listing().listingId()).isEqualTo("listing-1");
+        verify(listingRepository, never()).save(any(), any());
+    }
+
+    @Test
+    void execute_sameKeyWithADifferentBody_isIdempotencyKeyReused() {
+        when(listingRepository.findBySellerIdAndCreateIdempotencyKey(SELLER, KEY))
+                .thenReturn(Optional.of(storedForKey()));
+
+        assertThatThrownBy(() -> useCase.execute(SELLER, KEY, request(List.of("plot-2"))))
+                .isInstanceOf(IdempotencyKeyReusedException.class)
+                .extracting(e -> ((IdempotencyKeyReusedException) e).getCode())
+                .isEqualTo("IDEMPOTENCY_KEY_REUSED");
+        verify(listingRepository, never()).save(any(), any());
+    }
+
+    @Test
+    void execute_concurrentInsertWithTheSameKey_returnsTheWinner() {
+        productExists();
+        when(plotRegistryRepository.findAllById(any())).thenReturn(List.of(
+                plot(PlotFixtures.PLOT_ID, SELLER, GeoVerificationStatus.UNVERIFIED)));
+        when(listingRepository.findBySellerIdAndCreateIdempotencyKey(SELLER, KEY))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(storedForKey()));
+        when(listingRepository.save(any(), eq(KEY))).thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        CreatedListing result = useCase.execute(SELLER, KEY, request(List.of(PlotFixtures.PLOT_ID)));
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.listing().listingId()).isEqualTo("listing-1");
+    }
+
+    @Test
+    void execute_blankOrOversizedKey_isRejectedBeforeAnyLookup() {
+        assertThatThrownBy(() -> useCase.execute(SELLER, " ", request(List.of("plot-1"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> useCase.execute(SELLER, "k".repeat(256), request(List.of("plot-1"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(listingRepository, userEligibilityPort);
+    }
+
+    @Test
+    void execute_newKey_isCreated() {
+        productExists();
+        when(plotRegistryRepository.findAllById(any())).thenReturn(List.of(
+                plot("plot-1", SELLER, GeoVerificationStatus.UNVERIFIED)));
+        when(listingRepository.save(any(), any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(useCase.execute(SELLER, KEY, request(List.of("plot-1"))).created()).isTrue();
     }
 
     // ---- fail-closed eligibility gate (user-service design §3, matrix 21f) ----
@@ -257,7 +339,7 @@ class CreateListingUseCaseImplTest {
 
     // Nothing is read, so an idempotent replay of an existing listing cannot bypass the gate either.
     private void assertRejectedBeforeAnyLookup(Class<? extends Throwable> expected) {
-        assertThatThrownBy(() -> useCase.execute(SELLER, request(List.of("plot-1"))))
+        assertThatThrownBy(() -> create(request(List.of("plot-1"))))
                 .isInstanceOf(expected);
         verifyNoInteractions(listingRepository, productRepository, plotRegistryRepository, categoryRepository);
     }
@@ -280,9 +362,9 @@ class CreateListingUseCaseImplTest {
         productExists();
         when(plotRegistryRepository.findAllById(any())).thenReturn(List.of(
                 plot("plot-1", SELLER, GeoVerificationStatus.UNVERIFIED)));
-        when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(listingRepository.save(any(), any())).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThat(useCase.execute(SELLER, request(List.of("plot-1"))).listingId()).isEqualTo("listing-1");
+        assertThat(create(request(List.of("plot-1"))).listingId()).isEqualTo("listing-1");
     }
 
     @Test

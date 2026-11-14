@@ -65,7 +65,7 @@ public class UserServiceClient implements UserContactPort {
         return body.email();
     }
 
-    // GET /internal/v1/users/{userId} returns the bare InternalUserInfoResponse, not an ApiResponse envelope.
+    // GET /internal/v1/users/{userId} returns the bare InternalUserInfoResponse, no envelope.
     record InternalUserInfo(String userId, String email) {
     }
 }

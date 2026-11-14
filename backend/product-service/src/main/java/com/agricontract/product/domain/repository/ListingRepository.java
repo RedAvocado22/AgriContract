@@ -13,7 +13,15 @@ import java.util.Optional;
 public interface ListingRepository {
     Listing save(Listing listing);
 
+    /**
+     * Like {@link #save(Listing)}; on insert it also records the createListing Idempotency-Key, unique per seller.
+     * A concurrent insert with the same seller and key fails with DataIntegrityViolationException.
+     */
+    Listing save(Listing listing, String createIdempotencyKey);
+
     Optional<Listing> findById(ListingId listingId);
+
+    Optional<Listing> findBySellerIdAndCreateIdempotencyKey(String sellerId, String createIdempotencyKey);
 
     List<Listing> findByStatus(ListingStatus status, Pageable pageable);
     long countByStatus(ListingStatus status);

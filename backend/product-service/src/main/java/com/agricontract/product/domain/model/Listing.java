@@ -164,16 +164,6 @@ public class Listing {
     }
 
     /**
-     * Called from contract-service via OpenFeign when contract is SIGNED
-     */
-    public void close() {
-        if (this.status != ListingStatus.ACTIVE) {
-            throw new IllegalStateException("Listing status must be ACTIVE");
-        }
-        this.status = ListingStatus.CLOSED;
-    }
-
-    /**
      * Called from scheduled job when deliveryDeadline has passed
      */
     public void expire() {

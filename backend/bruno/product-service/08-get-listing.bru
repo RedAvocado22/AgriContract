@@ -1,7 +1,7 @@
 meta {
   name: GET /api/v1/listings/:listingId
   type: http
-  seq: 9
+  seq: 11
 }
 
 get {
@@ -19,15 +19,11 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
-  });
-
   test("listingId matches", function() {
-    expect(res.getBody().data.listingId).to.equal(bru.getEnvVar("listing_id"));
+    expect(res.getBody().listingId).to.equal(bru.getEnvVar("listing_id"));
   });
 
   test("status is ACTIVE", function() {
-    expect(res.getBody().data.status).to.equal("ACTIVE");
+    expect(res.getBody().status).to.equal("ACTIVE");
   });
 }

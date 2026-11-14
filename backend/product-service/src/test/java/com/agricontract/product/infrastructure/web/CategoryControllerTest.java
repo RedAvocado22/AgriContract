@@ -34,7 +34,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CategoryControllerTest {
 
     private static final String COFFEE = "{\"commodity\":\"COFFEE\"}";
-    private static final String APPROVE = "/api/v1/categories/cat-1/approve";
+    private static final String APPROVE = "/api/v1/admin/categories/cat-1/approve";
+    private static final String REJECT = "/api/v1/admin/categories/cat-1/reject";
+    private static final String OLD_APPROVE = "/api/v1/categories/cat-1/approve";
+    private static final String OLD_REJECT = "/api/v1/categories/cat-1/reject";
     private static final String ASSIGN = "/api/v1/admin/categories/cat-1/commodity";
 
     @Autowired private MockMvc mockMvc;
@@ -54,35 +57,70 @@ class CategoryControllerTest {
                 .proposedBy("seller-1").commodity(Commodity.COFFEE).build();
     }
 
-    // ---------- approve (legacy path, still ADMIN) ----------
+    // ---------- approve / reject (admin prefix, OPERATOR only) ----------
 
     @Test
     void approve_withCommodity_is200() throws Exception {
         when(approveCategoryUseCase.execute("cat-1", Commodity.COFFEE)).thenReturn(approvedCoffee());
 
-        mockMvc.perform(as("ADMIN", put(APPROVE)).content(COFFEE))
+        mockMvc.perform(as("OPERATOR", put(APPROVE)).content(COFFEE))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("APPROVED"))
-                .andExpect(jsonPath("$.data.commodity").value("COFFEE"));
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.commodity").value("COFFEE"));
     }
 
     @Test
     void approve_withoutBody_is400() throws Exception {
-        mockMvc.perform(as("ADMIN", put(APPROVE)))
+        mockMvc.perform(as("OPERATOR", put(APPROVE)))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(approveCategoryUseCase);
     }
 
     @Test
     void approve_missingOrUnknownCommodity_is400() throws Exception {
-        mockMvc.perform(as("ADMIN", put(APPROVE)).content("{}"))
+        mockMvc.perform(as("OPERATOR", put(APPROVE)).content("{}"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(as("ADMIN", put(APPROVE)).content("{\"commodity\":\"RICE\"}"))
+        mockMvc.perform(as("OPERATOR", put(APPROVE)).content("{\"commodity\":\"RICE\"}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(approveCategoryUseCase);
     }
 
+    @Test
+    void approveOrReject_asAdminOrSeller_is403() throws Exception {
+        for (String role : new String[]{"ADMIN", "SELLER"}) {
+            mockMvc.perform(as(role, put(APPROVE)).content(COFFEE))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+            mockMvc.perform(as(role, put(REJECT)).content("{\"reason\":\"duplicate\"}"))
+                    .andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(approveCategoryUseCase, rejectCategoryUseCase);
+    }
+
+    @Test
+    void reject_asOperator_is200() throws Exception {
+        when(rejectCategoryUseCase.execute("cat-1", "duplicate")).thenReturn(CategoryResponse.builder()
+                .categoryId("cat-1").status(CategoryStatus.REJECTED).build());
+
+        mockMvc.perform(as("OPERATOR", put(REJECT)).content("{\"reason\":\"duplicate\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+    }
+
+    @Test
+    void phase1Paths_areGone() throws Exception {
+        for (String role : new String[]{"ADMIN", "OPERATOR"}) {
+            mockMvc.perform(as(role, put(OLD_APPROVE)).content(COFFEE))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+            mockMvc.perform(as(role, put(OLD_REJECT)).content("{\"reason\":\"duplicate\"}"))
+                    .andExpect(status().isNotFound());
+        }
+        verifyNoInteractions(approveCategoryUseCase, rejectCategoryUseCase);
+    }
+
     // ---------- assign commodity (admin prefix, OPERATOR) ----------
+
 
     @Test
     void assign_asOperator_is200() throws Exception {
@@ -90,7 +128,7 @@ class CategoryControllerTest {
 
         mockMvc.perform(as("OPERATOR", put(ASSIGN)).content(COFFEE))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.commodity").value("COFFEE"));
+                .andExpect(jsonPath("$.commodity").value("COFFEE"));
     }
 
     @Test

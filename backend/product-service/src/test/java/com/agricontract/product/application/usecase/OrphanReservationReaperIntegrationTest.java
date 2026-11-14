@@ -143,17 +143,17 @@ class OrphanReservationReaperIntegrationTest {
     }
 
     @Test
-    void reap_sellerClosedListing_restoresCounterButStaysClosed() {
+    void reap_expiredListing_restoresCounterButStaysExpired() {
         reserve("contract-1", "40");
         Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.close();
+        listing.expire();
         listingRepository.save(listing);
         age("contract-1", GRACE.plusMinutes(1));
 
         assertThat(reap()).isEqualTo(1);
 
         Listing after = listingRepository.findById(LISTING_ID).orElseThrow();
-        assertThat(after.getStatus()).isEqualTo(ListingStatus.CLOSED);
+        assertThat(after.getStatus()).isEqualTo(ListingStatus.EXPIRED);
         assertThat(after.getQuantityAvailable()).isEqualByComparingTo("100");
     }
 
