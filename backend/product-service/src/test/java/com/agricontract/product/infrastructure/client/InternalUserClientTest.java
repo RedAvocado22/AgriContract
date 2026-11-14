@@ -2,6 +2,8 @@ package com.agricontract.product.infrastructure.client;
 
 import com.agricontract.product.application.dto.UserEligibility;
 import com.agricontract.product.common.exception.EligibilityUnavailableException;
+import com.agricontract.product.common.exception.UserProfileNotFoundException;
+import com.agricontract.product.common.exception.UserServiceUnavailableException;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.*;
 
-class InternalUserEligibilityClientTest {
+class InternalUserClientTest {
     private static final String ID = "9b0c8f0e-2f43-4a51-9d8c-1d6f3f1e7a10";
     private static final String VALID = """
             {"userId":"%s","organizationName":"HTX Ea Tu","email":"private@example.test","role":"SELLER",
@@ -26,7 +28,7 @@ class InternalUserEligibilityClientTest {
             """.formatted(ID);
 
     private HttpServer server;
-    private InternalUserEligibilityClient client;
+    private InternalUserClient client;
     private volatile int status = 200;
     private volatile String body = VALID;
     private volatile String contentType = "application/json";
@@ -55,7 +57,7 @@ class InternalUserEligibilityClientTest {
             }
         });
         server.start();
-        client = new InternalUserEligibilityClient(RestClient.builder(),
+        client = new InternalUserClient(RestClient.builder(),
                 "http://127.0.0.1:" + server.getAddress().getPort(), "test-service-secret", 500, 300);
     }
 
@@ -134,7 +136,56 @@ class InternalUserEligibilityClientTest {
 
     @Test
     void constructor_blankSecret_isRejected() {
-        assertThatThrownBy(() -> new InternalUserEligibilityClient(RestClient.builder(), "http://127.0.0.1:1", " ",
+        assertThatThrownBy(() -> new InternalUserClient(RestClient.builder(), "http://127.0.0.1:1", " ",
                 500, 500)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // UserContactPort: same endpoint, same fail-closed read, mapped to the contact port's exceptions.
+
+    @Test
+    void getEmail_found_readsTheInternalEndpointWithTheServiceSecret() {
+        assertThat(client.getEmail(ID)).isEqualTo("private@example.test");
+        assertThat(requestedPath.get()).isEqualTo("/internal/v1/users/" + ID);
+        assertThat(internalSecret.get()).isEqualTo("test-service-secret");
+    }
+
+    @Test
+    void getEmail_noProfile_throwsUserProfileNotFound() {
+        status = 404;
+        body = "{\"timestamp\":\"2026-11-14T00:00:00Z\",\"status\":404,\"code\":\"USER_NOT_FOUND\"}";
+
+        assertThatThrownBy(() -> client.getEmail(ID)).isInstanceOf(UserProfileNotFoundException.class);
+    }
+
+    @Test
+    void getEmail_slowUserService_timesOutAsUnavailable() {
+        delayMs = 1_000;
+        assertThatThrownBy(() -> client.getEmail(ID)).isInstanceOf(UserServiceUnavailableException.class);
+    }
+
+    @Test
+    void getEmail_userServiceDown_isUnavailable() {
+        server.stop(0);
+        assertThatThrownBy(() -> client.getEmail(ID)).isInstanceOf(UserServiceUnavailableException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 500, 503})
+    void getEmail_otherErrorStatus_isUnavailable(int code) {
+        status = code;
+        assertThatThrownBy(() -> client.getEmail(ID)).isInstanceOf(UserServiceUnavailableException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "not json",
+            "[]",
+            "{\"userId\":\"" + ID + "\",\"email\":null}",
+            "{\"userId\":\"" + ID + "\",\"email\":\" \"}",
+            "{\"userId\":\"someone-else\",\"email\":\"other@example.test\"}"
+    })
+    void getEmail_malformedMissingOrMismatchedBody_isUnavailable(String malformed) {
+        body = malformed;
+        assertThatThrownBy(() -> client.getEmail(ID)).isInstanceOf(UserServiceUnavailableException.class);
     }
 }
