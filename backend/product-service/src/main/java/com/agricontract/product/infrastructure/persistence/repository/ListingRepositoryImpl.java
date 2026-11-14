@@ -2,6 +2,8 @@ package com.agricontract.product.infrastructure.persistence.repository;
 
 import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Listing;
+import com.agricontract.product.domain.model.vo.CoffeeQualitySpec;
+import com.agricontract.product.domain.model.vo.ListingGoods;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ListingPlot;
 import com.agricontract.product.domain.model.vo.ListingStatus;
@@ -21,19 +23,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor
 public class ListingRepositoryImpl implements ListingRepository {
+    private static final List<ListingStatus> OPEN_FOR_RESERVATION =
+            List.of(ListingStatus.AVAILABLE, ListingStatus.PARTIALLY_COMMITTED);
+
     private final ListingMapper listingMapper;
     private final ListingJpaRepository listingJpaRepository;
     private final ListingPlotJpaRepository listingPlotJpaRepository;
@@ -55,31 +63,86 @@ public class ListingRepositoryImpl implements ListingRepository {
         }
     }
 
+    // Insert only: a listing changes afterwards through saveEdit and the inventory queries, never an entity save.
     private Listing persist(Listing listing, String createIdempotencyKey) {
-        Optional<ListingJpaEntity> current = listingJpaRepository.findByListingId(listing.getListingId().value());
-        ListingJpaEntity entity = current
-                .map(existing -> {
-                    // only syncs status — extend here if new mutable fields are added to Listing.
-                    // quantityAvailable is deliberately not synced: it only changes via the conditional updates below.
-                    existing.setStatus(listing.getStatus());
-                    return existing;
-                })
-                .orElseGet(() -> {
-                    ListingJpaEntity created = listingMapper.toJpaEntity(listing);
-                    created.setCreateIdempotencyKey(createIdempotencyKey);
-                    return created;
-                });
-
-        // flush so @PreUpdate has stamped updatedAt before the version token is read back
-        ListingJpaEntity saved = listingJpaRepository.saveAndFlush(entity);
-        if (current.isEmpty()) {
-            // plot copies are written once, with the listing, and never touched again
-            Instant declaredAt = Instant.now();
-            listingPlotJpaRepository.saveAllAndFlush(listing.getPlots().stream()
-                    .map(plot -> plotRegistryMapper.toJpaEntity(saved.getListingId(), plot, declaredAt))
-                    .toList());
+        if (listingJpaRepository.findByListingId(listing.getListingId().value()).isPresent()) {
+            throw new WriteConflictException("Listing " + listing.getListingId().value() + " already exists", null);
         }
+        ListingJpaEntity entity = listingMapper.toJpaEntity(listing);
+        entity.setCreateIdempotencyKey(createIdempotencyKey);
+
+        // flush so @PrePersist has stamped updatedAt before the version token is read back
+        ListingJpaEntity saved = listingJpaRepository.saveAndFlush(entity);
+        insertPlots(saved.getListingId(), listing.getPlots());
         return toDomain(saved);
+    }
+
+    @Override
+    public Optional<Listing> lockForEdit(ListingId listingId) {
+        return listingJpaRepository.lockByListingId(listingId.value()).map(this::toDomain);
+    }
+
+    @Override
+    public Listing saveEdit(Listing listing) {
+        String listingId = listing.getListingId().value();
+        ListingGoods goods = listing.getGoods();
+        CoffeeQualitySpec spec = goods.declaredQualitySpec();
+        int updated = listingJpaRepository.applyEdit(listingId,
+                listing.getOfferedQuantity(),
+                listing.getQuantityAvailable(),
+                listing.getMinOrderQuantity(),
+                listing.getAskingUnitPrice(),
+                listing.getStatus(),
+                listing.getCloseReason() == null ? null : listing.getCloseReason().name(),
+                goods.regionText(),
+                spec.type(),
+                spec.moisturePercent(),
+                spec.foreignMatterPercent(),
+                spec.blackBrokenBeansPercent(),
+                goods.packagingDeclaration(),
+                goods.warehouseLocation(),
+                goods.estimatedAvailabilityDate(),
+                goods.traceabilityEvidencePackageId(),
+                nextUpdatedAt(listing.getUpdatedAt()));
+        if (updated != 1) {
+            throw new IllegalStateException("Listing " + listingId + " was not locked for edit");
+        }
+
+        // Plots the seller kept keep their original copy; unticked ones go, newly ticked ones are copied now.
+        Set<String> wanted = listing.getPlots().stream()
+                .map(plot -> plot.sourceRegistryEntryId().value()).collect(Collectors.toSet());
+        List<ListingPlotJpaEntity> stored = listingPlotJpaRepository
+                .findByListingIdInOrderByListingIdAscHouseholdLabelAsc(List.of(listingId));
+        Set<String> kept = new HashSet<>();
+        for (ListingPlotJpaEntity plot : stored) {
+            if (wanted.contains(plot.getSourceRegistryEntryId())) {
+                kept.add(plot.getSourceRegistryEntryId());
+            } else {
+                listingPlotJpaRepository.delete(plot);
+            }
+        }
+        listingPlotJpaRepository.flush();
+        insertPlots(listingId, listing.getPlots().stream()
+                .filter(plot -> !kept.contains(plot.sourceRegistryEntryId().value())).toList());
+
+        return listingJpaRepository.findByListingId(listingId).map(this::toDomain).orElseThrow();
+    }
+
+    private void insertPlots(String listingId, List<ListingPlot> plots) {
+        Instant declaredAt = Instant.now();
+        listingPlotJpaRepository.saveAllAndFlush(plots.stream()
+                .map(plot -> plotRegistryMapper.toJpaEntity(listingId, plot, declaredAt))
+                .toList());
+    }
+
+    // The version token must change on every edit, even one landing in the same microsecond as the last write.
+    private static LocalDateTime nextUpdatedAt(Instant previous) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
+        if (previous == null) {
+            return now;
+        }
+        LocalDateTime floor = LocalDateTime.ofInstant(previous, ZoneOffset.UTC).plus(1, ChronoUnit.MICROS);
+        return now.isBefore(floor) ? floor : now;
     }
 
     @Override
@@ -95,13 +158,13 @@ public class ListingRepositoryImpl implements ListingRepository {
     }
 
     @Override
-    public List<Listing> findByStatus(ListingStatus status, PageQuery page) {
-        return toDomain(listingJpaRepository.findByStatus(status, toPageable(page)).getContent());
+    public List<Listing> findOpenForReservation(PageQuery page) {
+        return toDomain(listingJpaRepository.findByStatusIn(OPEN_FOR_RESERVATION, toPageable(page)).getContent());
     }
 
     @Override
-    public long countByStatus(ListingStatus status) {
-        return listingJpaRepository.countByStatus(status);
+    public long countOpenForReservation() {
+        return listingJpaRepository.countByStatusIn(OPEN_FOR_RESERVATION);
     }
 
     @Override
@@ -112,11 +175,6 @@ public class ListingRepositoryImpl implements ListingRepository {
     @Override
     public long countBySellerId(String sellerId) {
         return listingJpaRepository.countBySellerId(sellerId);
-    }
-
-    @Override
-    public List<Listing> findActiveExpiredBefore(LocalDate date) {
-        return toDomain(listingJpaRepository.findByStatusAndDeliveryDeadlineBefore(ListingStatus.ACTIVE, date));
     }
 
     @Override

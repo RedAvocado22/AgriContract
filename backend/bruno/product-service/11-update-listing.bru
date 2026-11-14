@@ -1,0 +1,67 @@
+meta {
+  name: PUT /api/v1/listings/:listingId (seller edits the offer, D48)
+  type: http
+  seq: 14
+}
+
+put {
+  url: {{product_service_url}}/api/v1/listings/{{listing_id}}
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: {{seller1_sub}}
+  X-User-Role: SELLER
+  Idempotency-Key: {{update_listing_key}}
+}
+
+body:json {
+  {
+    "productId": "{{product_id}}",
+    "productName": "Ca phe Robusta Dak Lak",
+    "unitOfMeasure": "KG",
+    "offeredQuantity": 600,
+    "minOrderQuantity": 100,
+    "askingUnitPrice": "15500.00",
+    "registryEntryIds": ["{{plot_id}}"],
+    "regionText": "Buon Ma Thuot, Dak Lak",
+    "declaredQualitySpec": {
+      "commodity": "COFFEE",
+      "type": "ROBUSTA",
+      "moisturePercent": 12.5,
+      "foreignMatterPercent": 0.5,
+      "blackBrokenBeansPercent": 5.0
+    },
+    "packagingDeclaration": "Bao day 60 kg"
+  }
+}
+
+script:pre-request {
+  // one key per run; 11b replays it
+  bru.setVar("update_listing_key", "listing-edit-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+}
+
+script:post-response {
+  bru.setVar("edited_listing_version_token", res.getBody()?.listingVersionToken);
+}
+
+tests {
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  // nothing is reserved on this listing yet, so all of the new offer is available
+  test("offer and price are edited, quantityAvailable = offered - reserved", function() {
+    const data = res.getBody();
+    expect(data.offeredQuantity).to.equal(600);
+    expect(data.quantityAvailable).to.equal(600);
+    expect(data.askingUnitPrice).to.equal("15500.00");
+    expect(data.status).to.equal("AVAILABLE");
+  });
+
+  test("the edit issues a new listingVersionToken", function() {
+    expect(res.getBody().listingVersionToken).to.be.a("string").and.not.equal("");
+  });
+}

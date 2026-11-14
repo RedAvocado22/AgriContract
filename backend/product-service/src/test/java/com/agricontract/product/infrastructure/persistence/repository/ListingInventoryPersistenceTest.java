@@ -63,9 +63,8 @@ class ListingInventoryPersistenceTest {
         PlotFixtures.deletePlotsAndListings(jdbcTemplate);
         PlotFixtures.insertRegistryEntry(jdbcTemplate, PlotFixtures.PLOT_ID, "seller-1");
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
-                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new BigDecimal("100"), new BigDecimal("10"),
+                new BigDecimal("50000.00"), PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
     }
 
     @Test
@@ -80,9 +79,9 @@ class ListingInventoryPersistenceTest {
     void legacyListingWithoutGoods_staysReadable_andReportsTheMissingQualitySpec() {
         jdbcTemplate.update("""
                 INSERT INTO listings (listing_id, seller_id, product_id, product_name, cover_image_url, quantity,
-                    quantity_unit, price_floor, currency, delivery_deadline, status, created_at, updated_at)
-                VALUES ('legacy-1', 'seller-1', 'product-1', 'Gao ST25', '', 50, 'kg', 10000, 'VND', '2026-12-31',
-                    'ACTIVE', UTC_TIMESTAMP(), UTC_TIMESTAMP(6))""");
+                    quantity_unit, price_floor, currency, status, created_at, updated_at)
+                VALUES ('legacy-1', 'seller-1', 'product-1', 'Gao ST25', '', 50, 'kg', 10000, 'VND',
+                    'AVAILABLE', UTC_TIMESTAMP(), UTC_TIMESTAMP(6))""");
 
         Listing legacy = listingRepository.findById(new ListingId("legacy-1")).orElseThrow();
 
@@ -258,10 +257,30 @@ class ListingInventoryPersistenceTest {
     }
 
     @Test
-    void reserve_notActive_changesNothing() {
-        jdbcTemplate.update("UPDATE listings SET status = 'EXPIRED' WHERE listing_id = ?", LISTING_ID.value());
-
+    void reserve_pausedOrSellerClosed_changesNothing() {
+        jdbcTemplate.update("UPDATE listings SET status = 'PAUSED' WHERE listing_id = ?", LISTING_ID.value());
         assertThat(reserve(BigDecimal.ONE)).isFalse();
+
+        jdbcTemplate.update("UPDATE listings SET status = 'CLOSED', close_reason = 'SELLER_CLOSED' WHERE listing_id = ?",
+                LISTING_ID.value());
+        assertThat(reserve(BigDecimal.ONE)).isFalse();
+        assertThat(available()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void reserveAndRelease_moveAvailablePartiallyCommittedClosedAndBack() {
+        assertThat(statusAndReason()).isEqualTo("AVAILABLE/null");
+
+        assertThat(reserve(new BigDecimal("40"))).isTrue();
+        assertThat(statusAndReason()).isEqualTo("PARTIALLY_COMMITTED/null");
+        assertThat(reserve(new BigDecimal("60"))).isTrue();
+        assertThat(statusAndReason()).isEqualTo("CLOSED/INVENTORY_EXHAUSTED");
+
+        assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("60"))).isTrue();
+        assertThat(statusAndReason()).isEqualTo("PARTIALLY_COMMITTED/null");
+        assertThat(available()).isEqualByComparingTo("60");
+        assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
+        assertThat(statusAndReason()).isEqualTo("AVAILABLE/null");
         assertThat(available()).isEqualByComparingTo("100");
     }
 
@@ -271,39 +290,38 @@ class ListingInventoryPersistenceTest {
         assertThat(statusAndReason()).isEqualTo("CLOSED/INVENTORY_EXHAUSTED");
 
         assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("100"))).isTrue();
-        assertThat(statusAndReason()).isEqualTo("ACTIVE/null");
+        assertThat(statusAndReason()).isEqualTo("AVAILABLE/null");
         assertThat(available()).isEqualByComparingTo("100");
     }
 
     @Test
-    void release_preservesCloseThatWasNotInventoryExhaustion() {
-        reserve(new BigDecimal("40"));
-        Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.expire();
-        listingRepository.save(listing);
+    void release_keepsSellerCloseLegacyCloseAndPause_onlyTheCounterMoves() {
+        for (String state : List.of("CLOSED/SELLER_CLOSED", "CLOSED/LEGACY_EXPIRED", "CLOSED/null", "PAUSED/null")) {
+            String[] parts = state.split("/");
+            jdbcTemplate.update("UPDATE listings SET status = 'PARTIALLY_COMMITTED', close_reason = NULL, "
+                    + "quantity_available = 60 WHERE listing_id = ?", LISTING_ID.value());
+            jdbcTemplate.update("UPDATE listings SET status = ?, close_reason = ? WHERE listing_id = ?",
+                    parts[0], parts[1].equals("null") ? null : parts[1], LISTING_ID.value());
 
-        assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
-        assertThat(statusAndReason()).isEqualTo("EXPIRED/null");
-        assertThat(available()).isEqualByComparingTo("100");
+            assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
+            assertThat(statusAndReason()).as(state).isEqualTo(state);
+            assertThat(available()).isEqualByComparingTo("100");
+        }
     }
 
     @Test
-    void entitySave_neverWritesBackAStaleCounter() {
-        Listing stale = listingRepository.findById(LISTING_ID).orElseThrow(); // read at 100
-        reserve(new BigDecimal("40"));
-        stale.expire();
-        listingRepository.save(stale);
+    void save_isInsertOnly() {
+        Listing existing = listingRepository.findById(LISTING_ID).orElseThrow();
 
-        assertThat(available()).isEqualByComparingTo("60");
+        assertThatThrownBy(() -> listingRepository.save(existing)).isInstanceOf(WriteConflictException.class);
     }
 
     // ---- createListing Idempotency-Key (#424, V10) ----
 
     private Listing newListing(String listingId, String sellerId) {
         return Listing.create(new ListingId(listingId), sellerId, new ProductId("product-1"),
-                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods());
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new BigDecimal("100"), new BigDecimal("10"),
+                new BigDecimal("50000.00"), PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods());
     }
 
     @Test
@@ -326,16 +344,6 @@ class ListingInventoryPersistenceTest {
                 .isInstanceOf(WriteConflictException.class)
                 .hasCauseInstanceOf(DataIntegrityViolationException.class);
         assertThat(listingRepository.findById(new ListingId("listing-b"))).isEmpty();
-    }
-
-    @Test
-    void createIdempotencyKey_survivesALaterStatusUpdate() {
-        listingRepository.save(newListing("listing-a", "seller-1"), "key-1");
-        Listing listing = listingRepository.findById(new ListingId("listing-a")).orElseThrow();
-        listing.expire();
-        listingRepository.save(listing);
-
-        assertThat(listingRepository.findBySellerIdAndCreateIdempotencyKey("seller-1", "key-1")).isPresent();
     }
 
     private boolean reserve(BigDecimal quantity) {

@@ -3,6 +3,7 @@ package com.agricontract.product.infrastructure.persistence.repository;
 import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
+import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.OrphanCandidate;
 import com.agricontract.product.domain.model.vo.ReservationStatus;
 import com.agricontract.product.domain.repository.ReservationRepository;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -73,5 +75,10 @@ public class ReservationRepositoryImpl implements ReservationRepository {
             throw new IllegalArgumentException("Illegal reservation transition " + expected + " -> " + target);
         }
         return reservationJpaRepository.transition(contractId.value(), expected, target, LocalDateTime.now()) == 1;
+    }
+
+    @Override
+    public BigDecimal sumUnreleasedQuantity(ListingId listingId) {
+        return reservationJpaRepository.sumUnreleasedQuantity(listingId.value());
     }
 }

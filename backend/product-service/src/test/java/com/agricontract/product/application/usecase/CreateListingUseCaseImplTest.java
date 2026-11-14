@@ -17,17 +17,16 @@ import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.Product;
 import com.agricontract.product.domain.model.vo.CategoryId;
+import com.agricontract.product.domain.model.vo.ListingStatus;
 import com.agricontract.product.domain.model.vo.CategoryStatus;
 import com.agricontract.product.domain.model.vo.CoffeeType;
 import com.agricontract.product.domain.model.vo.Commodity;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.ListingGoods;
 import com.agricontract.product.domain.model.vo.ListingId;
-import com.agricontract.product.domain.model.vo.Money;
 import com.agricontract.product.domain.model.vo.PlotSource;
 import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.model.vo.Province;
-import com.agricontract.product.domain.model.vo.Quantity;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
 import com.agricontract.product.domain.model.vo.VerificationLevel;
 import com.agricontract.product.domain.repository.CategoryRepository;
@@ -77,8 +76,8 @@ class CreateListingUseCaseImplTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new CreateListingUseCaseImpl(listingRepository, productRepository, plotRegistryRepository,
-                categoryRepository, userEligibilityPort, clock);
+        useCase = new CreateListingUseCaseImpl(listingRepository, productRepository, categoryRepository,
+                new ListingPlotPicker(plotRegistryRepository), new SellerTradingGate(userEligibilityPort, clock));
         lenient().when(userEligibilityPort.load(SELLER)).thenReturn(Optional.of(
                 new UserEligibility(SELLER, "VERIFIED", null, null)));
     }
@@ -91,7 +90,6 @@ class CreateListingUseCaseImplTest {
         Product product = Product.create(new ProductId("product-1"), "Ca phe Robusta", "kg", "category-1",
                 List.of("https://cdn.test/cover.jpg", "https://cdn.test/2.jpg"), 2026, "Nien vu 2026/27",
                 List.of("4C (cam ket)"));
-        when(listingRepository.findById(any())).thenReturn(Optional.empty());
         when(productRepository.findById(new ProductId("product-1"))).thenReturn(Optional.of(product));
         when(categoryRepository.findById(new CategoryId("category-1"))).thenReturn(Optional.of(
                 Category.reconstruct(new CategoryId("category-1"), "Ca phe Robusta", "ca phe robusta",
@@ -107,9 +105,14 @@ class CreateListingUseCaseImplTest {
     }
 
     private static CreateListingRequest request(List<String> registryEntryIds, CoffeeQualitySpecDto spec) {
-        return new CreateListingRequest("listing-1", "product-1", new BigDecimal("100"), "kg", new BigDecimal("10"),
-                new BigDecimal("50000"), "VND", LocalDate.now().plusDays(10), registryEntryIds,
-                " Buon Ma Thuot, Dak Lak ", spec, "Bao day 60 kg", " ", LocalDate.of(2026, 12, 1), null);
+        return request(registryEntryIds, spec, "Ca phe Robusta", "50000.00");
+    }
+
+    private static CreateListingRequest request(List<String> registryEntryIds, CoffeeQualitySpecDto spec,
+                                                String productName, String askingUnitPrice) {
+        return new CreateListingRequest("product-1", productName, "KG", new BigDecimal("100"), new BigDecimal("10"),
+                askingUnitPrice, registryEntryIds, " Buon Ma Thuot, Dak Lak ", spec, "Bao day 60 kg", " ",
+                LocalDate.of(2026, 12, 1), null);
     }
 
     private static PlotRegistryEntry plot(String id, String owner, GeoVerificationStatus status) {
@@ -128,13 +131,17 @@ class CreateListingUseCaseImplTest {
 
         ListingResponse response = create(request(List.of("plot-1", "plot-2")));
 
-        assertThat(response.coverImageUrl()).isEqualTo("https://cdn.test/cover.jpg");
+        assertThat(response.unitOfMeasure()).isEqualTo("KG");
+        assertThat(response.offeredQuantity()).isEqualByComparingTo("100");
+        assertThat(response.askingUnitPrice()).isEqualTo("50000.00");
+        assertThat(response.status()).isEqualTo(ListingStatus.AVAILABLE);
         assertThat(response.quantityAvailable()).isEqualByComparingTo("100");
         assertThat(response.minOrderQuantity()).isEqualByComparingTo("10");
         assertThat(response.registryEntryIds()).containsExactly("plot-1", "plot-2");
 
         ArgumentCaptor<Listing> saved = ArgumentCaptor.forClass(Listing.class);
         verify(listingRepository).save(saved.capture(), eq(KEY));
+        assertThat(saved.getValue().getCoverImageUrl()).isEqualTo("https://cdn.test/cover.jpg");
         assertThat(saved.getValue().getPlots()).extracting(p -> p.householdLabel())
                 .containsExactly("Ho plot-1", "Ho plot-2");
         assertThat(saved.getValue().getPlots().get(0).geometry()).isEqualTo(PlotFixtures.point());
@@ -231,17 +238,9 @@ class CreateListingUseCaseImplTest {
     }
 
     @Test
-    void execute_replayWithDifferentPlotsOrQuality_isConflict() {
-        // what request(...) declares, as it was stored on the first call
-        ListingGoods stored = new ListingGoods(new CategoryId("category-1"), Commodity.COFFEE, 2026, "Nien vu 2026/27",
-                List.of("4C (cam ket)"), "Buon Ma Thuot, Dak Lak", SPEC.toDomain(), "Bao day 60 kg", null,
-                LocalDate.of(2026, 12, 1), null);
-        Listing existing = Listing.create(new ListingId("listing-1"), SELLER,
-                new ProductId("product-1"), "Ca phe Robusta", "https://cdn.test/cover.jpg",
-                new Quantity(new BigDecimal("100"), "kg"),
-                new BigDecimal("10"), new Money(new BigDecimal("50000"), "VND"),
-                LocalDate.now().plusDays(10), PlotFixtures.onePlot(), stored);
-        when(listingRepository.findById(any())).thenReturn(Optional.of(existing));
+    void execute_replayWithDifferentPlotsQualityOrPrice_isIdempotencyKeyReused() {
+        when(listingRepository.findBySellerIdAndCreateIdempotencyKey(SELLER, KEY))
+                .thenReturn(Optional.of(storedForKey()));
 
         // 12.5 replayed as 12.50 is the same declared value
         CoffeeQualitySpecDto sameSpec = new CoffeeQualitySpecDto(Commodity.COFFEE, CoffeeType.ROBUSTA,
@@ -249,12 +248,39 @@ class CreateListingUseCaseImplTest {
         assertThat(create(request(List.of(PlotFixtures.PLOT_ID), sameSpec)).listingId())
                 .isEqualTo("listing-1");
         assertThatThrownBy(() -> create(request(List.of("plot-2"))))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IdempotencyKeyReusedException.class);
         CoffeeQualitySpecDto arabica = new CoffeeQualitySpecDto(Commodity.COFFEE, CoffeeType.ARABICA,
                 new BigDecimal("12.5"), new BigDecimal("0.5"), new BigDecimal("5"));
         assertThatThrownBy(() -> create(request(List.of(PlotFixtures.PLOT_ID), arabica)))
-                .isInstanceOf(IllegalStateException.class);
-        verify(listingRepository, never()).save(any());
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+        assertThatThrownBy(() -> create(request(List.of(PlotFixtures.PLOT_ID), SPEC, "Ca phe Robusta", "50000.01")))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+        verify(listingRepository, never()).save(any(), any());
+    }
+
+    @Test
+    void execute_productNameNotTheProducts_isRejected() {
+        productExists();
+
+        assertThatThrownBy(() -> create(request(List.of("plot-1"), SPEC, "Ca phe Arabica", "50000.00")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("productName");
+        verify(listingRepository, never()).save(any(), any());
+    }
+
+    @Test
+    void execute_askingUnitPrice_isKeptExactly() {
+        productExists();
+        when(plotRegistryRepository.findAllById(any())).thenReturn(List.of(
+                plot("plot-1", SELLER, GeoVerificationStatus.UNVERIFIED)));
+        when(listingRepository.save(any(), any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // 0.1 + 0.2 style values are exact: parsed as a decimal string, never through double
+        ListingResponse response = create(request(List.of("plot-1"), SPEC, "Ca phe Robusta", "99999999.99"));
+
+        assertThat(response.askingUnitPrice()).isEqualTo("99999999.99");
+        ArgumentCaptor<Listing> saved = ArgumentCaptor.forClass(Listing.class);
+        verify(listingRepository).save(saved.capture(), eq(KEY));
+        assertThat(saved.getValue().getAskingUnitPrice()).isEqualTo(new BigDecimal("99999999.99"));
     }
 
     // ---- Idempotency-Key (#424) ----
@@ -266,9 +292,9 @@ class CreateListingUseCaseImplTest {
                 LocalDate.of(2026, 12, 1), null);
         return Listing.create(new ListingId("listing-1"), SELLER,
                 new ProductId("product-1"), "Ca phe Robusta", "https://cdn.test/cover.jpg",
-                new Quantity(new BigDecimal("100"), "kg"),
-                new BigDecimal("10"), new Money(new BigDecimal("50000"), "VND"),
-                LocalDate.now().plusDays(10), PlotFixtures.onePlot(), stored);
+                new BigDecimal("100"),
+                new BigDecimal("10"), new BigDecimal("50000.00"),
+                PlotFixtures.onePlot(), stored);
     }
 
     @Test
@@ -364,7 +390,7 @@ class CreateListingUseCaseImplTest {
                 plot("plot-1", SELLER, GeoVerificationStatus.UNVERIFIED)));
         when(listingRepository.save(any(), any())).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThat(create(request(List.of("plot-1"))).listingId()).isEqualTo("listing-1");
+        assertThat(create(request(List.of("plot-1"))).listingId()).isNotBlank();
     }
 
     @Test

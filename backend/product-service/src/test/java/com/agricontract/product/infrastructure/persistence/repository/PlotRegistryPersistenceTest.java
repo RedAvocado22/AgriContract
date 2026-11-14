@@ -162,9 +162,8 @@ class PlotRegistryPersistenceTest {
         PlotGeometry original = polygon(0.0015);
         PlotRegistryEntry plot = plotRegistryRepository.create(entry("plot-1", "seller-1", "Ho A", original, NOW));
         listingRepository.save(Listing.create(new ListingId("listing-1"), "seller-1", new ProductId("product-1"),
-                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                List.of(new ListingPlot(plot.getRegistryEntryId(), plot.getHouseholdLabel(), plot.getGeometry(),
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new BigDecimal("100"), new BigDecimal("10"),
+                new BigDecimal("50000.00"), List.of(new ListingPlot(plot.getRegistryEntryId(), plot.getHouseholdLabel(), plot.getGeometry(),
                         plot.getVerificationLevel())), GoodsFixtures.coffeeGoods()));
 
         PlotGeometry remeasured = polygon(0.002);
@@ -185,9 +184,8 @@ class PlotRegistryPersistenceTest {
         PlotFixtures.insertRegistryEntry(jdbcTemplate, "plot-b", "seller-1");
         for (String id : List.of("listing-a", "listing-b")) {
             listingRepository.save(Listing.create(new ListingId(id), "seller-1", new ProductId("product-1"),
-                    "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
-                    new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                    List.of(PlotFixtures.listingPlot(id.equals("listing-a") ? "plot-a" : "plot-b")), GoodsFixtures.coffeeGoods()));
+                    "Ca phe Robusta", "https://cdn.test/cover.jpg", new BigDecimal("100"), new BigDecimal("10"),
+                    new BigDecimal("50000.00"), List.of(PlotFixtures.listingPlot(id.equals("listing-a") ? "plot-a" : "plot-b")), GoodsFixtures.coffeeGoods()));
         }
 
         List<Listing> page = listingRepository.findBySellerId("seller-1",

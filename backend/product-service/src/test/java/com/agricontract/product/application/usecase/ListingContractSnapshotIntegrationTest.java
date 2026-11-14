@@ -65,9 +65,8 @@ class ListingContractSnapshotIntegrationTest {
         PlotFixtures.deletePlotsAndListings(jdbcTemplate);
         PlotFixtures.insertRegistryEntry(jdbcTemplate, PlotFixtures.PLOT_ID, "seller-1");
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
-                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new BigDecimal("100"), new BigDecimal("10"),
+                new BigDecimal("50000.00"), PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
         when(categoryRepository.findById(any())).thenReturn(Optional.of(Category.reconstruct(
                 new CategoryId("category-1"), "Ca phe nhan", "ca phe nhan", CategoryStatus.APPROVED, null,
                 "admin", "admin@test.com", Commodity.COFFEE)));

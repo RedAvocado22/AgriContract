@@ -11,7 +11,6 @@ import com.agricontract.product.application.dto.SellerReputation;
 import com.agricontract.product.application.port.SellerReputationPort;
 import com.agricontract.product.common.exception.ReputationSignInRequiredException;
 import com.agricontract.product.domain.model.Listing;
-import com.agricontract.product.domain.model.vo.ListingStatus;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.PageQuery;
 import lombok.RequiredArgsConstructor;
@@ -39,8 +38,8 @@ public class ListActiveListingsUseCaseImpl implements ListActiveListingsUseCase 
             throw new ReputationSignInRequiredException();
         }
         PageQuery page = query.page();
-        List<Listing> listings = listingRepository.findByStatus(ListingStatus.ACTIVE, page);
-        long total = listingRepository.countByStatus(ListingStatus.ACTIVE);
+        List<Listing> listings = listingRepository.findOpenForReservation(page);
+        long total = listingRepository.countOpenForReservation();
         int totalPages = (int) Math.ceil((double) total / page.size());
 
         if (query.viewer() == null) {

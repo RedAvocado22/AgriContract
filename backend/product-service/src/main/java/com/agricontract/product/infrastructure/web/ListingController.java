@@ -33,6 +33,7 @@ public class ListingController {
     private final ListActiveListingsUseCase listActiveListingsUseCase;
     private final CreateListingUseCase createListingUseCase;
     private final GetSellerListingsUseCase getSellerListingsUseCase;
+    private final UpdateListingUseCase updateListingUseCase;
 
     // Public search. A signed-in viewer also gets seller reputation and may filter by it (reputation design §6.2);
     // the viewer comes from the gateway-authenticated principal, never from a raw header.
@@ -86,5 +87,19 @@ public class ListingController {
             @RequestHeader("X-User-Id") String sellerId) {
         CreatedListing result = createListingUseCase.execute(sellerId, idempotencyKey, request);
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK).body(result.listing());
+    }
+
+    /**
+     * updateListing (supplementary contract, D48): the owning seller edits or republishes with the createListing body.
+     * Idempotency-Key is required; a replay of the same key and body returns the listing without a second change.
+     */
+    @PreAuthorize("hasRole('SELLER')")
+    @PutMapping("/{listingId}")
+    public ResponseEntity<ListingResponse> updateListing(
+            @PathVariable String listingId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestBody @Valid CreateListingRequest request,
+            @RequestHeader("X-User-Id") String sellerId) {
+        return ResponseEntity.ok(updateListingUseCase.execute(sellerId, listingId, idempotencyKey, request));
     }
 }

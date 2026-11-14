@@ -3,13 +3,12 @@ package com.agricontract.product.infrastructure.persistence.mapper;
 import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.CategoryId;
+import com.agricontract.product.domain.model.vo.CloseReason;
 import com.agricontract.product.domain.model.vo.CoffeeQualitySpec;
 import com.agricontract.product.domain.model.vo.ListingGoods;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ListingPlot;
-import com.agricontract.product.domain.model.vo.Money;
 import com.agricontract.product.domain.model.vo.ProductId;
-import com.agricontract.product.domain.model.vo.Quantity;
 import com.agricontract.product.infrastructure.persistence.entity.ListingJpaEntity;
 import org.mapstruct.Mapper;
 
@@ -21,6 +20,9 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface ListingMapper {
 
+    // askingUnitPrice is VND/kg (contract); the Phase 1 currency column is kept and always holds VND
+    String CURRENCY = "VND";
+
     default ListingJpaEntity toJpaEntity(Listing domain) {
         return ListingJpaEntity.builder()
                 .listingId(domain.getListingId().value())
@@ -28,13 +30,12 @@ public interface ListingMapper {
                 .productId(domain.getProductId().value())
                 .productName(domain.getProductName())
                 .coverImageUrl(domain.getCoverImageUrl())
-                .quantity(domain.getQuantity().value())
-                .quantityUnit(domain.getQuantity().unit())
+                .offeredQuantity(domain.getOfferedQuantity())
+                .quantityUnit(Listing.UNIT_OF_MEASURE)
                 .quantityAvailable(domain.getQuantityAvailable())
                 .minOrderQuantity(domain.getMinOrderQuantity())
-                .priceFloor(domain.getPriceFloor().amount())
-                .currency(domain.getPriceFloor().currency())
-                .deliveryDeadline(domain.getDeliveryDeadline())
+                .askingUnitPrice(domain.getAskingUnitPrice())
+                .currency(CURRENCY)
                 .status(domain.getStatus())
                 .categoryId(domain.getGoods().categoryId() == null ? null : domain.getGoods().categoryId().value())
                 .commodity(domain.getGoods().commodity())
@@ -68,12 +69,12 @@ public interface ListingMapper {
                 new ProductId(entity.getProductId()),
                 entity.getProductName(),
                 entity.getCoverImageUrl(),
-                new Quantity(entity.getQuantity(), entity.getQuantityUnit()),
+                entity.getOfferedQuantity(),
                 entity.getQuantityAvailable(),
                 entity.getMinOrderQuantity(),
-                new Money(entity.getPriceFloor(), entity.getCurrency()),
-                entity.getDeliveryDeadline(),
+                entity.getAskingUnitPrice(),
                 entity.getStatus(),
+                entity.getCloseReason() == null ? null : CloseReason.valueOf(entity.getCloseReason()),
                 entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().toInstant(ZoneOffset.UTC),
                 plots,
                 new ListingGoods(

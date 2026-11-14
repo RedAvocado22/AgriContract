@@ -75,9 +75,8 @@ class ListingReservationUseCaseIntegrationTest {
         PlotFixtures.deletePlotsAndListings(jdbcTemplate);
         PlotFixtures.insertRegistryEntry(jdbcTemplate, PlotFixtures.PLOT_ID, "seller-1");
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
-                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"),
-                new BigDecimal("10"), new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new BigDecimal("100"),
+                new BigDecimal("10"), new BigDecimal("50000.00"), PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
     }
 
     // ---------- reserve ----------
@@ -174,10 +173,9 @@ class ListingReservationUseCaseIntegrationTest {
     }
 
     @Test
-    void reserve_expiredListingWithStock_isListingStateConflict() {
-        Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.expire();
-        listingRepository.save(listing);
+    void reserve_sellerClosedListingWithStock_isListingStateConflict() {
+        jdbcTemplate.update("UPDATE listings SET status = 'CLOSED', close_reason = 'SELLER_CLOSED' WHERE listing_id = ?",
+                LISTING_ID.value());
 
         assertConflict(() -> reserve("contract-1", "40"), LISTING_STATE_CONFLICT);
     }
@@ -221,21 +219,21 @@ class ListingReservationUseCaseIntegrationTest {
         release("contract-1", "100");
 
         Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        assertThat(listing.getStatus()).isEqualTo(ListingStatus.ACTIVE);
+        assertThat(listing.getStatus()).isEqualTo(ListingStatus.AVAILABLE);
+        assertThat(listing.getCloseReason()).isNull();
         assertThat(listing.getQuantityAvailable()).isEqualByComparingTo("100");
     }
 
     @Test
-    void release_keepsAnExpiredListingExpired() {
+    void release_keepsASellerClosedListingClosed() {
         reserve("contract-1", "40");
-        Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.expire();
-        listingRepository.save(listing);
+        jdbcTemplate.update("UPDATE listings SET status = 'CLOSED', close_reason = 'SELLER_CLOSED' WHERE listing_id = ?",
+                LISTING_ID.value());
 
         release("contract-1", "40");
 
         Listing after = listingRepository.findById(LISTING_ID).orElseThrow();
-        assertThat(after.getStatus()).isEqualTo(ListingStatus.EXPIRED);
+        assertThat(after.getStatus()).isEqualTo(ListingStatus.CLOSED);
         assertThat(after.getQuantityAvailable()).isEqualByComparingTo("100");
     }
 
