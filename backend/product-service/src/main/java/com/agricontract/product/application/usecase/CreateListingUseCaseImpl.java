@@ -1,9 +1,11 @@
 package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.CreateListingRequest;
+import com.agricontract.product.application.dto.CreatedListing;
 import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.application.port.UserEligibilityPort;
 import com.agricontract.product.common.exception.ActorNotEligibleException;
+import com.agricontract.product.common.exception.IdempotencyKeyReusedException;
 import com.agricontract.product.common.exception.PlotNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotOwnedException;
 import com.agricontract.product.common.exception.ProductNotFoundException;
@@ -52,9 +54,17 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
     private final UserEligibilityPort userEligibilityPort;
     private final Clock clock;
 
+    static final int MAX_IDEMPOTENCY_KEY_LENGTH = 255;
+
     @Override
-    public ListingResponse execute(String sellerId, CreateListingRequest request) {
+    public CreatedListing execute(String sellerId, String idempotencyKey, CreateListingRequest request) {
+        requireIdempotencyKey(idempotencyKey);
         assertSellerEligible(sellerId);
+
+        Optional<ListingResponse> replayed = replayOf(sellerId, idempotencyKey, request);
+        if (replayed.isPresent()) {
+            return new CreatedListing(replayed.get(), false);
+        }
 
         ListingId listingId = (request.listingId() != null && !request.listingId().isBlank())
                 ? new ListingId(request.listingId())
@@ -62,7 +72,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
 
         Optional<ListingResponse> matched = assertSameRequestOrConflict(listingId, sellerId, request);
         if (matched.isPresent()) {
-            return matched.get();
+            return new CreatedListing(matched.get(), false);
         }
 
         Product product = productRepository.findById(new ProductId(request.productId()))
@@ -97,12 +107,44 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
 
         Listing saved;
         try {
-            saved = listingRepository.save(listing);
+            saved = listingRepository.save(listing, idempotencyKey);
         } catch (DataIntegrityViolationException e) {
-            return assertSameRequestOrConflict(listingId, sellerId, request).orElseThrow(() -> e);
+            // a concurrent request with the same key (or the same listingId) committed first
+            Optional<ListingResponse> winner = replayOf(sellerId, idempotencyKey, request)
+                    .or(() -> assertSameRequestOrConflict(listingId, sellerId, request));
+            return new CreatedListing(winner.orElseThrow(() -> e), false);
         }
 
-        return toResponse(saved);
+        return new CreatedListing(toResponse(saved), true);
+    }
+
+    // @RequestHeader already turns a missing header into 400; a blank or oversized one is refused the same way.
+    private static void requireIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("Idempotency-Key must not be blank");
+        }
+        if (idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Idempotency-Key must be at most " + MAX_IDEMPOTENCY_KEY_LENGTH + " characters");
+        }
+    }
+
+    /**
+     * The listing this seller already created with this key: returned again when the body is the same, 409 when
+     * the key is reused for a different body. The key is per seller, so another seller's listing never matches.
+     */
+    private Optional<ListingResponse> replayOf(String sellerId, String idempotencyKey, CreateListingRequest request) {
+        Listing existing = listingRepository.findBySellerIdAndCreateIdempotencyKey(sellerId, idempotencyKey)
+                .orElse(null);
+        if (existing == null) {
+            return Optional.empty();
+        }
+        boolean sameListingId = request.listingId() == null || request.listingId().isBlank()
+                || existing.getListingId().value().equals(request.listingId());
+        if (sameListingId && sameRequest(existing, sellerId, request)) {
+            return Optional.of(toResponse(existing));
+        }
+        throw new IdempotencyKeyReusedException();
     }
 
     /**
@@ -123,17 +165,21 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
         if (existing == null) {
             return Optional.empty();
         }
-        if (existing.getSellerId().equals(sellerId) &&
+        if (sameRequest(existing, sellerId, request)) {
+            return Optional.of(toResponse(existing));
+        }
+        throw new IllegalStateException("Listing " + listingId.value() + " already exists with different attributes");
+    }
+
+    private static boolean sameRequest(Listing existing, String sellerId, CreateListingRequest request) {
+        return existing.getSellerId().equals(sellerId) &&
                 existing.getProductId().equals(new ProductId(request.productId())) &&
                 existing.getQuantity().equals(new Quantity(request.quantity(), request.quantityUnit())) &&
                 existing.getPriceFloor().equals(new Money(request.priceFloor(), request.currency())) &&
                 existing.getDeliveryDeadline().equals(request.deliveryDeadline()) &&
                 sameQuantity(existing.getMinOrderQuantity(), request.minOrderQuantity()) &&
                 samePlots(existing, request.registryEntryIds()) &&
-                sameDeclaredGoods(existing.getGoods(), request)) {
-            return Optional.of(toResponse(existing));
-        }
-        throw new IllegalStateException("Listing " + listingId.value() + " already exists with different attributes");
+                sameDeclaredGoods(existing.getGoods(), request);
     }
 
     /**

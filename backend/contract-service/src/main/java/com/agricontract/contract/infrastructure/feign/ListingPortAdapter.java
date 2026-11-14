@@ -26,7 +26,7 @@ public class ListingPortAdapter implements ListingPort {
     @Override
     public ListingResponse getListing(String listingId) {
         try {
-            return productServiceClient.getListing(listingId).getData();
+            return productServiceClient.getListing(listingId);
         } catch (FeignException.NotFound missing) {
             throw new ListingNotFoundException(listingId);
         } catch (FeignException failed) {

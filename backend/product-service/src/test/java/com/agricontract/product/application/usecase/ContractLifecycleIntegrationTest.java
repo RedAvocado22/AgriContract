@@ -174,15 +174,15 @@ class ContractLifecycleIntegrationTest {
     }
 
     @Test
-    void withdrawn_onASellerClosedListing_restoresTheCounterButKeepsItClosed() {
+    void withdrawn_onAnExpiredListing_restoresTheCounterButKeepsItExpired() {
         Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.close();
+        listing.expire();
         listingRepository.save(listing);
 
         apply(CONTRACT_WITHDRAWN);
 
         Listing after = listingRepository.findById(LISTING_ID).orElseThrow();
-        assertThat(after.getStatus()).isEqualTo(ListingStatus.CLOSED);
+        assertThat(after.getStatus()).isEqualTo(ListingStatus.EXPIRED);
         assertThat(after.getQuantityAvailable()).isEqualByComparingTo("100");
     }
 

@@ -277,11 +277,11 @@ class ListingInventoryPersistenceTest {
     void release_preservesCloseThatWasNotInventoryExhaustion() {
         reserve(new BigDecimal("40"));
         Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.close();
+        listing.expire();
         listingRepository.save(listing);
 
         assertThat(listingRepository.releaseAvailable(LISTING_ID, new BigDecimal("40"))).isTrue();
-        assertThat(statusAndReason()).isEqualTo("CLOSED/null");
+        assertThat(statusAndReason()).isEqualTo("EXPIRED/null");
         assertThat(available()).isEqualByComparingTo("100");
     }
 
@@ -289,10 +289,50 @@ class ListingInventoryPersistenceTest {
     void entitySave_neverWritesBackAStaleCounter() {
         Listing stale = listingRepository.findById(LISTING_ID).orElseThrow(); // read at 100
         reserve(new BigDecimal("40"));
-        stale.close();
+        stale.expire();
         listingRepository.save(stale);
 
         assertThat(available()).isEqualByComparingTo("60");
+    }
+
+    // ---- createListing Idempotency-Key (#424, V10) ----
+
+    private Listing newListing(String listingId, String sellerId) {
+        return Listing.create(new ListingId(listingId), sellerId, new ProductId("product-1"),
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), null,
+                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
+                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods());
+    }
+
+    @Test
+    void createIdempotencyKey_isFoundPerSeller_andTwoSellersMayUseTheSameKey() {
+        listingRepository.save(newListing("listing-a", "seller-1"), "key-1");
+        listingRepository.save(newListing("listing-b", "seller-2"), "key-1");
+
+        assertThat(listingRepository.findBySellerIdAndCreateIdempotencyKey("seller-1", "key-1"))
+                .get().extracting(l -> l.getListingId().value()).isEqualTo("listing-a");
+        assertThat(listingRepository.findBySellerIdAndCreateIdempotencyKey("seller-2", "key-1"))
+                .get().extracting(l -> l.getListingId().value()).isEqualTo("listing-b");
+        assertThat(listingRepository.findBySellerIdAndCreateIdempotencyKey("seller-3", "key-1")).isEmpty();
+    }
+
+    @Test
+    void createIdempotencyKey_secondInsertBySameSeller_isRejectedByTheUniqueKey() {
+        listingRepository.save(newListing("listing-a", "seller-1"), "key-1");
+
+        assertThatThrownBy(() -> listingRepository.save(newListing("listing-b", "seller-1"), "key-1"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(listingRepository.findById(new ListingId("listing-b"))).isEmpty();
+    }
+
+    @Test
+    void createIdempotencyKey_survivesALaterStatusUpdate() {
+        listingRepository.save(newListing("listing-a", "seller-1"), "key-1");
+        Listing listing = listingRepository.findById(new ListingId("listing-a")).orElseThrow();
+        listing.expire();
+        listingRepository.save(listing);
+
+        assertThat(listingRepository.findBySellerIdAndCreateIdempotencyKey("seller-1", "key-1")).isPresent();
     }
 
     private boolean reserve(BigDecimal quantity) {

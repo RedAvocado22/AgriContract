@@ -1,9 +1,14 @@
 package com.agricontract.product.infrastructure.config;
 
+import com.agricontract.web.error.ErrorEnvelope;
+import com.agricontract.web.error.ErrorEnvelopeExceptionHandler;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -12,11 +17,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
 
     private final String gatewaySecret;
     private final String serviceInternalSecret;
@@ -46,11 +55,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
         // /internal/** is service identity only: a gateway-authenticated end user must never reach it.
         if (isInternalPath(request)) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write(
-                    "{\"success\":false,\"message\":\"Unauthorized\",\"data\":null}"
-            );
+            writeError(request, response, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Unauthorized");
             return;
         }
 
@@ -58,11 +63,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
         if (headerSecret == null || !MessageDigest.isEqual(
                 headerSecret.getBytes(StandardCharsets.UTF_8), gatewaySecret.getBytes(StandardCharsets.UTF_8))) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType("application/json");
-            response.getWriter().write(
-                    "{\"success\":false,\"message\":\"Forbidden\",\"data\":null}"
-            );
+            writeError(request, response, HttpStatus.FORBIDDEN, "FORBIDDEN", "Forbidden");
             return;
         }
 
@@ -78,6 +79,19 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    // Rejected before any controller advice runs, so the shared ErrorEnvelope is written here (#424, D24).
+    private static void writeError(HttpServletRequest request, HttpServletResponse response, HttpStatus status,
+                                   String code, String message) throws IOException {
+        String correlationId = request.getHeader(ErrorEnvelopeExceptionHandler.CORRELATION_HEADER);
+        String traceId = correlationId == null || correlationId.isBlank()
+                ? UUID.randomUUID().toString() : correlationId;
+        response.setStatus(status.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        JSON.writeValue(response.getWriter(), new ErrorEnvelope(Instant.now(), status.value(),
+                status.getReasonPhrase(), code, message, request.getRequestURI(), traceId));
     }
 
     // The Spring Security firewall has already rejected encoded slashes and dot segments, so the raw URI is safe to match.

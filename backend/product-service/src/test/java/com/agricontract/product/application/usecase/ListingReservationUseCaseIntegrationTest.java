@@ -172,9 +172,9 @@ class ListingReservationUseCaseIntegrationTest {
     }
 
     @Test
-    void reserve_closedListingWithStock_isListingStateConflict() {
+    void reserve_expiredListingWithStock_isListingStateConflict() {
         Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.close();
+        listing.expire();
         listingRepository.save(listing);
 
         assertConflict(() -> reserve("contract-1", "40"), LISTING_STATE_CONFLICT);
@@ -224,16 +224,16 @@ class ListingReservationUseCaseIntegrationTest {
     }
 
     @Test
-    void release_keepsOtherwiseClosedListingClosed() {
+    void release_keepsAnExpiredListingExpired() {
         reserve("contract-1", "40");
         Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.close();
+        listing.expire();
         listingRepository.save(listing);
 
         release("contract-1", "40");
 
         Listing after = listingRepository.findById(LISTING_ID).orElseThrow();
-        assertThat(after.getStatus()).isEqualTo(ListingStatus.CLOSED);
+        assertThat(after.getStatus()).isEqualTo(ListingStatus.EXPIRED);
         assertThat(after.getQuantityAvailable()).isEqualByComparingTo("100");
     }
 

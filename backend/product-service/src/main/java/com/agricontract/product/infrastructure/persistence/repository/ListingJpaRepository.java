@@ -18,6 +18,8 @@ import java.util.Optional;
 public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, Long> {
     Optional<ListingJpaEntity> findByListingId(String listingId);
 
+    Optional<ListingJpaEntity> findBySellerIdAndCreateIdempotencyKey(String sellerId, String createIdempotencyKey);
+
     Page<ListingJpaEntity> findBySellerId(String sellerId, Pageable pageable);
     long countBySellerId(String sellerId);
 

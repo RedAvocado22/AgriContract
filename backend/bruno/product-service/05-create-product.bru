@@ -29,7 +29,7 @@ body:json {
 }
 
 script:post-response {
-  const productId = res.getBody()?.data?.productId;
+  const productId = res.getBody()?.productId;
   if (productId) {
     bru.setEnvVar("product_id", productId);
   }
@@ -40,23 +40,19 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
-  });
-
   test("should return productId", function() {
-    expect(res.getBody().data.productId).to.be.a("string");
+    expect(res.getBody().productId).to.be.a("string");
   });
 
   test("should return correct name", function() {
-    expect(res.getBody().data.name).to.equal("Ca phe Robusta Dak Lak");
+    expect(res.getBody().name).to.equal("Ca phe Robusta Dak Lak");
   });
 
   test("categoryId should match", function() {
-    expect(res.getBody().data.categoryId).to.equal(bru.getEnvVar("category_id"));
+    expect(res.getBody().categoryId).to.equal(bru.getEnvVar("category_id"));
   });
 
   test("images should have 2 entries", function() {
-    expect(res.getBody().data.images.length).to.equal(2);
+    expect(res.getBody().images.length).to.equal(2);
   });
 }

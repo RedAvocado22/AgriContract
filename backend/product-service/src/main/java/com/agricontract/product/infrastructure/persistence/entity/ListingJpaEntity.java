@@ -120,6 +120,11 @@ public class ListingJpaEntity {
     @Column(name = "close_reason", length = 30, insertable = false, updatable = false)
     private String closeReason;
 
+    // Idempotency-Key of the createListing request that inserted the row, unique per seller (V10); null on rows
+    // created before V10. Not part of the domain: only CreateListing's replay check reads it.
+    @Column(name = "create_idempotency_key", length = 255, updatable = false)
+    private String createIdempotencyKey;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

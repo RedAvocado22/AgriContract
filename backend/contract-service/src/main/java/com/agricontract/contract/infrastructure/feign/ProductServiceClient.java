@@ -17,8 +17,9 @@ import java.math.BigDecimal;
 @FeignClient(name = "product-service", url = "${product-service.url}", configuration = FeignConfig.class)
 public interface ProductServiceClient {
 
+    // Bare ListingResponse since product-service dropped ApiResponse (#424, D32).
     @GetMapping("/api/v1/listings/{listingId}")
-    ApiResponse<ListingResponse> getListing(@PathVariable("listingId") String listingId);
+    ListingResponse getListing(@PathVariable("listingId") String listingId);
 
     @PutMapping("/api/v1/listings/{listingId}/close")
     ApiResponse<Void> closeListing(@PathVariable("listingId") String listingId);

@@ -1,19 +1,19 @@
 meta {
-  name: PUT /api/v1/categories/:categoryId/approve
+  name: PUT /api/v1/admin/categories/:categoryId/approve
   type: http
   seq: 1
 }
 
 put {
-  url: {{product_service_url}}/api/v1/categories/{{category_id}}/approve
+  url: {{product_service_url}}/api/v1/admin/categories/{{category_id}}/approve
   body: json
   auth: none
 }
 
 headers {
   X-Gateway-Secret: {{gateway_secret}}
-  X-User-Id: admin-1
-  X-User-Role: ADMIN
+  X-User-Id: operator-1
+  X-User-Role: OPERATOR
 }
 
 body:json {
@@ -27,15 +27,11 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
-  });
-
   test("status should be APPROVED", function() {
-    expect(res.getBody().data.status).to.equal("APPROVED");
+    expect(res.getBody().status).to.equal("APPROVED");
   });
 
   test("approval stores the commodity the Operator assigned", function() {
-    expect(res.getBody().data.commodity).to.equal("COFFEE");
+    expect(res.getBody().commodity).to.equal("COFFEE");
   });
 }
