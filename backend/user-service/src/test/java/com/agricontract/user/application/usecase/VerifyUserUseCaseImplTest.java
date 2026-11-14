@@ -3,6 +3,7 @@ package com.agricontract.user.application.usecase;
 import com.agricontract.user.application.dto.KycDecisionResponse;
 import com.agricontract.user.application.dto.VerifyUserCommand;
 import com.agricontract.user.application.port.KycResultPublisher;
+import com.agricontract.user.testsupport.DirectTransactionRunner;
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
@@ -44,7 +45,8 @@ class VerifyUserUseCaseImplTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new VerifyUserUseCaseImpl(userProfileRepository, kycResultPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
+        useCase = new VerifyUserUseCaseImpl(userProfileRepository, kycResultPublisher, Clock.fixed(NOW, ZoneOffset.UTC),
+                new DirectTransactionRunner());
     }
 
     private UserProfile pendingProfile() {
@@ -97,7 +99,7 @@ class VerifyUserUseCaseImplTest {
     @Test
     void execute_truncatesDecisionTimeToDatabasePrecision() {
         useCase = new VerifyUserUseCaseImpl(userProfileRepository, kycResultPublisher,
-                Clock.fixed(Instant.parse("2026-10-07T03:00:00.123456789Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-10-07T03:00:00.123456789Z"), ZoneOffset.UTC), new DirectTransactionRunner());
         when(userProfileRepository.findById(new UserId(TARGET_ID))).thenReturn(Optional.of(pendingProfile()));
         when(userProfileRepository.update(any())).thenAnswer(inv -> inv.getArgument(0));
 

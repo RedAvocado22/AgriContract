@@ -2,6 +2,7 @@ package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.AdminUserResponse;
 import com.agricontract.user.application.dto.AssignUserRoleCommand;
+import com.agricontract.user.application.port.TransactionRunner;
 import com.agricontract.user.domain.model.RoleChangeAuditEntry;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.Role;
@@ -10,7 +11,6 @@ import com.agricontract.user.domain.repository.RoleChangeAuditRepository;
 import com.agricontract.user.domain.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -25,10 +25,14 @@ public class AssignUserRoleUseCaseImpl implements AssignUserRoleUseCase {
     private final UserProfileRepository userProfileRepository;
     private final RoleChangeAuditRepository roleChangeAuditRepository;
     private final Clock clock;
+    private final TransactionRunner transactionRunner;
 
     @Override
-    @Transactional
     public AdminUserResponse execute(AssignUserRoleCommand command) {
+        return transactionRunner.inTransaction(() -> assign(command));
+    }
+
+    private AdminUserResponse assign(AssignUserRoleCommand command) {
         UserProfile profile = userProfileRepository.findById(new UserId(command.targetUserId()))
                 .orElseThrow(() -> new NoSuchElementException("User not found: " + command.targetUserId()));
 

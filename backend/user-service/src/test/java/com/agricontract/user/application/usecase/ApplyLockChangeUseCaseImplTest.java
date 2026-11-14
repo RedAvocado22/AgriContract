@@ -3,6 +3,7 @@ package com.agricontract.user.application.usecase;
 import com.agricontract.user.application.dto.ApplyLockChangeCommand;
 import com.agricontract.user.application.dto.LockChangeOutcome;
 import com.agricontract.user.application.port.LockChangePublisher;
+import com.agricontract.user.testsupport.DirectTransactionRunner;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.ContactInfo;
 import com.agricontract.user.domain.model.vo.LockAction;
@@ -40,7 +41,7 @@ class ApplyLockChangeUseCaseImplTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new ApplyLockChangeUseCaseImpl(repository, publisher);
+        useCase = new ApplyLockChangeUseCaseImpl(repository, publisher, new DirectTransactionRunner());
     }
 
     @Test
