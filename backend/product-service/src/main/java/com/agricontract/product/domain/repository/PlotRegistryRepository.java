@@ -15,6 +15,11 @@ public interface PlotRegistryRepository {
 
     List<PlotRegistryEntry> findAllById(Collection<RegistryEntryId> registryEntryIds);
 
+    /** One page of the seller's own entries, newest import first; equal import times keep a stable order by id. */
+    List<PlotRegistryEntry> findBySellerIdNewestFirst(String sellerId, PageQuery page);
+
+    long countBySellerId(String sellerId);
+
     /**
      * Insert only — a concurrent insert of the same (sellerId, householdLabel) violates the unique key
      * and surfaces as DuplicatePlotHouseholdException; any other integrity error is not translated.

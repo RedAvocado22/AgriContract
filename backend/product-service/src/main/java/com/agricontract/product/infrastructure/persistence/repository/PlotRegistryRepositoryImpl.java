@@ -5,6 +5,7 @@ import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.vo.GeoRiskCheck;
 import com.agricontract.product.domain.model.vo.GeoVerificationStatus;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
+import com.agricontract.product.domain.repository.PageQuery;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import com.agricontract.product.infrastructure.persistence.entity.PlotGeoRiskCheckJpaEntity;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapper;
@@ -41,6 +42,18 @@ public class PlotRegistryRepositoryImpl implements PlotRegistryRepository {
     public List<PlotRegistryEntry> findAllById(Collection<RegistryEntryId> registryEntryIds) {
         return plotRegistryEntryJpaRepository.findAllById(registryEntryIds.stream().map(RegistryEntryId::value).toList())
                 .stream().map(plotRegistryMapper::toDomain).toList();
+    }
+
+    @Override
+    public List<PlotRegistryEntry> findBySellerIdNewestFirst(String sellerId, PageQuery page) {
+        return plotRegistryEntryJpaRepository.findBySellerIdOrderByImportedAtDescRegistryEntryIdAsc(sellerId,
+                        PageRequest.of(page.page(), page.size()))
+                .stream().map(plotRegistryMapper::toDomain).toList();
+    }
+
+    @Override
+    public long countBySellerId(String sellerId) {
+        return plotRegistryEntryJpaRepository.countBySellerId(sellerId);
     }
 
     @Override

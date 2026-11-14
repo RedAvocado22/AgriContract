@@ -4,6 +4,7 @@ import com.agricontract.product.application.dto.CreateProductRequest;
 import com.agricontract.product.application.dto.ProductResponse;
 import com.agricontract.product.application.dto.UpdateProductImagesRequest;
 import com.agricontract.product.application.usecase.CreateProductUseCase;
+import com.agricontract.product.application.usecase.GetProductUseCase;
 import com.agricontract.product.application.usecase.UpdateProductImagesUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,13 @@ public class ProductController {
 
     private final CreateProductUseCase createProductUseCase;
     private final UpdateProductImagesUseCase updateProductImagesUseCase;
+    private final GetProductUseCase getProductUseCase;
+
+    // getProduct: public (permitted in SecurityConfig, gateway forwards a UUID id anonymously).
+    @GetMapping("/{productId}")
+    public ResponseEntity<ProductResponse> getProduct(@PathVariable String productId) {
+        return ResponseEntity.ok(getProductUseCase.execute(productId));
+    }
 
     @PreAuthorize("hasRole('SELLER')")
     @PostMapping

@@ -4,6 +4,7 @@ import com.agricontract.product.common.exception.DuplicateCategoryException;
 import com.agricontract.product.domain.event.DomainEvent;
 import com.agricontract.product.domain.model.Category;
 import com.agricontract.product.domain.model.vo.CategoryId;
+import com.agricontract.product.domain.model.vo.CategoryStatus;
 import com.agricontract.product.domain.repository.CategoryRepository;
 import com.agricontract.product.infrastructure.persistence.entity.CategoryJpaEntity;
 import com.agricontract.product.infrastructure.persistence.entity.ProductDomainEventJpaEntity;
@@ -58,6 +59,13 @@ public class CategoryRepositoryImpl implements CategoryRepository {
     public Optional<Category> findByNormalizedName(String normalizedName) {
         return categoryJpaRepository.findByNormalizedName(normalizedName)
                 .map(categoryMapper::toDomain);
+    }
+
+    @Override
+    public List<Category> findAllApprovedOrderByName() {
+        return categoryJpaRepository.findByStatusOrderByNameAscCategoryIdAsc(CategoryStatus.APPROVED).stream()
+                .map(categoryMapper::toDomain)
+                .toList();
     }
 
     private ProductDomainEventJpaEntity toOutboxEntity(DomainEvent event, String aggregateId) {

@@ -18,6 +18,11 @@ public interface PlotRegistryEntryJpaRepository extends JpaRepository<PlotRegist
 
     Optional<PlotRegistryEntryJpaEntity> findBySellerIdAndHouseholdLabel(String sellerId, String householdLabel);
 
+    List<PlotRegistryEntryJpaEntity> findBySellerIdOrderByImportedAtDescRegistryEntryIdAsc(String sellerId,
+                                                                                          Pageable pageable);
+
+    long countBySellerId(String sellerId);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE PlotRegistryEntryJpaEntity p
