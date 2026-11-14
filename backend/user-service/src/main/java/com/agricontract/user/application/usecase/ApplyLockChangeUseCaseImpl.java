@@ -3,13 +3,13 @@ package com.agricontract.user.application.usecase;
 import com.agricontract.user.application.dto.ApplyLockChangeCommand;
 import com.agricontract.user.application.dto.LockChangeOutcome;
 import com.agricontract.user.application.port.LockChangePublisher;
+import com.agricontract.user.application.port.TransactionRunner;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.LockAction;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Lock projection (user-service-phase2-design.md §2.2). reputation-service decides; this only follows its latest
@@ -21,10 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class ApplyLockChangeUseCaseImpl implements ApplyLockChangeUseCase {
     private final UserProfileRepository userProfileRepository;
     private final LockChangePublisher lockChangePublisher;
+    private final TransactionRunner transactionRunner;
 
     @Override
-    @Transactional
     public LockChangeOutcome execute(ApplyLockChangeCommand command) {
+        // The projection update and its notification command (outbox row) commit together.
+        return transactionRunner.inTransaction(() -> apply(command));
+    }
+
+    private LockChangeOutcome apply(ApplyLockChangeCommand command) {
         UserId userId = new UserId(command.userId());
         boolean applied = command.action() == LockAction.LOCKED
                 ? userProfileRepository.applyLock(userId, command.until(), command.lockRevision())
