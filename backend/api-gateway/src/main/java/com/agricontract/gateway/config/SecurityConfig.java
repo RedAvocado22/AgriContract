@@ -98,10 +98,11 @@ public class SecurityConfig {
                                 "/api/v1/admin/users/*/verify",
                                 "/api/v1/admin/users/*/reject").hasRole("OPERATOR")
                         .pathMatchers("/api/v1/admin/users", "/api/v1/admin/users/**").hasRole("ADMIN")
-                        // INSPECTOR also decides breach cases (decisionSource INSPECTOR_L1_5/L2, OpenAPI x-roles).
+                        // Breach review/resolve decides fault: ARBITRATOR only (OpenAPI x-roles, D14). An inspector
+                        // only supplies findings, which reach attribution via the Level 1.5 report.
                         .pathMatchers(HttpMethod.POST,
                                 "/api/v1/contracts/*/breach-cases/*/review",
-                                "/api/v1/contracts/*/breach-cases/*/resolve").hasAnyRole("ARBITRATOR", "INSPECTOR")
+                                "/api/v1/contracts/*/breach-cases/*/resolve").hasRole("ARBITRATOR")
                         .pathMatchers(HttpMethod.POST,
                                 "/api/v1/contracts/*/milestones/*/force-majeure/resolve").hasRole("ARBITRATOR")
                         .pathMatchers(HttpMethod.POST,
