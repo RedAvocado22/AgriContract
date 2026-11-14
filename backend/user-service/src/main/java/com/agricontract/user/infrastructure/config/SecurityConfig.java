@@ -42,8 +42,8 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(ex -> ex
                         // No principal is an authentication failure (401); a principal without the role is 403.
-                        .authenticationEntryPoint((request, response, e) -> HeaderAuthenticationFilter.writeUnauthorized(response))
-                        .accessDeniedHandler((request, response, e) -> HeaderAuthenticationFilter.writeForbidden(response))
+                        .authenticationEntryPoint((request, response, e) -> HeaderAuthenticationFilter.writeUnauthorized(request, response))
+                        .accessDeniedHandler((request, response, e) -> HeaderAuthenticationFilter.writeForbidden(request, response))
                 )
                 .build();
     }

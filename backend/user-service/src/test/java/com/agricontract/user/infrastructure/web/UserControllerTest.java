@@ -70,13 +70,13 @@ class UserControllerTest {
 
         mockMvc.perform(viaGateway(get(PUBLIC_URL)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.userId").value(TARGET_ID))
-                .andExpect(jsonPath("$.data.organizationName").value("HTX Ca Phe"))
-                .andExpect(jsonPath("$.data.role").value("SELLER"))
-                .andExpect(jsonPath("$.data.verificationStatus").value("VERIFIED"))
-                .andExpect(jsonPath("$.data.email").doesNotExist())
-                .andExpect(jsonPath("$.data.phone").doesNotExist())
-                .andExpect(jsonPath("$.data.address").doesNotExist());
+                .andExpect(jsonPath("$.userId").value(TARGET_ID))
+                .andExpect(jsonPath("$.organizationName").value("HTX Ca Phe"))
+                .andExpect(jsonPath("$.role").value("SELLER"))
+                .andExpect(jsonPath("$.verificationStatus").value("VERIFIED"))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.phone").doesNotExist())
+                .andExpect(jsonPath("$.address").doesNotExist());
     }
 
     @Test
@@ -120,8 +120,8 @@ class UserControllerTest {
 
         mockMvc.perform(viaGateway(get("/api/v1/users/me")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.userId").value(CALLER_ID))
-                .andExpect(jsonPath("$.data.email").value("buyer@agricontract.test"));
+                .andExpect(jsonPath("$.userId").value(CALLER_ID))
+                .andExpect(jsonPath("$.email").value("buyer@agricontract.test"));
 
         verify(getUserProfileUseCase).execute(CALLER_ID);
     }
@@ -164,7 +164,7 @@ class UserControllerTest {
         mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
                         .content(registerBody("\"body@test.com\"")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.email").value("body@test.com"));
+                .andExpect(jsonPath("$.email").value("body@test.com"));
 
         ArgumentCaptor<RegisterUserCommand> command = ArgumentCaptor.forClass(RegisterUserCommand.class);
         verify(registerUserUseCase).execute(command.capture());
@@ -205,6 +205,6 @@ class UserControllerTest {
         mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
                         .content(registerBody("\"body@test.com\"")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.email").value("stored@test.com"));
+                .andExpect(jsonPath("$.email").value("stored@test.com"));
     }
 }

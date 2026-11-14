@@ -24,7 +24,7 @@ body:json {
 }
 
 script:post-response {
-  const userId = res.getBody()?.data?.userId;
+  const userId = res.getBody()?.userId;
   if (userId) {
     bru.setEnvVar("registered_user_id", userId);
   }
@@ -35,19 +35,19 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
+  test("body is not wrapped in ApiResponse", function() {
+    expect(res.getBody().data).to.equal(undefined);
   });
 
   test("should return userId", function() {
-    expect(res.getBody().data.userId).to.be.a("string");
+    expect(res.getBody().userId).to.be.a("string");
   });
 
   test("role should be SELLER", function() {
-    expect(res.getBody().data.role).to.equal("SELLER");
+    expect(res.getBody().role).to.equal("SELLER");
   });
 
   test("verificationStatus should be PENDING", function() {
-    expect(res.getBody().data.verificationStatus).to.equal("PENDING");
+    expect(res.getBody().verificationStatus).to.equal("PENDING");
   });
 }

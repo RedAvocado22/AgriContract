@@ -28,11 +28,11 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
+  test("body is not wrapped in ApiResponse", function() {
+    expect(res.getBody().data).to.equal(undefined);
   });
 
   test("userId is the same", function() {
-    expect(res.getBody().data.userId).to.equal(bru.getEnvVar("registered_user_id"));
+    expect(res.getBody().userId).to.equal(bru.getEnvVar("registered_user_id"));
   });
 }

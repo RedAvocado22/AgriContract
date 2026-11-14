@@ -14,7 +14,6 @@ import com.agricontract.user.application.usecase.GetKycProfileUseCase;
 import com.agricontract.user.application.usecase.ListUsersByVerificationStatusUseCase;
 import com.agricontract.user.application.usecase.RejectUserUseCase;
 import com.agricontract.user.application.usecase.VerifyUserUseCase;
-import com.agricontract.user.common.ApiResponse;
 import com.agricontract.user.common.PaginatedResponse;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.infrastructure.web.dto.AdminUserQueryRequest;
@@ -49,52 +48,52 @@ public class AdminUserController {
     private final AssignUserRoleUseCase assignUserRoleUseCase;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<PaginatedResponse<KycQueueItemResponse>>> listUsers(
+    public ResponseEntity<PaginatedResponse<KycQueueItemResponse>> listUsers(
             @ModelAttribute @Valid AdminUserQueryRequest request
     ) {
         PageResult<KycQueueItemResponse> result = listUsersByVerificationStatusUseCase.execute(
                 new ListUsersByVerificationStatusCommand(request.getVerificationStatus(), request.getPage(), request.getSize()));
-        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.of(
-                result.content(), result.page(), result.size(), result.totalElements())));
+        return ResponseEntity.ok(PaginatedResponse.of(
+                result.content(), result.page(), result.size(), result.totalElements()));
     }
 
     @GetMapping("/{userId}")
-    public ResponseEntity<ApiResponse<AdminUserResponse>> getKycProfile(
+    public ResponseEntity<AdminUserResponse> getKycProfile(
             @PathVariable String userId,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(getKycProfileUseCase.execute(
-                new GetKycProfileCommand(userId, authentication.getName(), appRoles(authentication)))));
+        return ResponseEntity.ok(getKycProfileUseCase.execute(
+                new GetKycProfileCommand(userId, authentication.getName(), appRoles(authentication))));
     }
 
     @PostMapping("/{userId}/verify")
-    public ResponseEntity<ApiResponse<KycDecisionResponse>> verify(
+    public ResponseEntity<KycDecisionResponse> verify(
             @PathVariable String userId,
             @RequestBody @Valid VerifyUserRequest req,
             @AuthenticationPrincipal String actorId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(verifyUserUseCase.execute(
-                new VerifyUserCommand(userId, actorId, req.authorizationExpiresAt()))));
+        return ResponseEntity.ok(verifyUserUseCase.execute(
+                new VerifyUserCommand(userId, actorId, req.authorizationExpiresAt())));
     }
 
     @PostMapping("/{userId}/reject")
-    public ResponseEntity<ApiResponse<KycDecisionResponse>> reject(
+    public ResponseEntity<KycDecisionResponse> reject(
             @PathVariable String userId,
             @RequestBody @Valid RejectUserRequest req,
             @AuthenticationPrincipal String actorId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(rejectUserUseCase.execute(
-                new RejectUserCommand(userId, actorId, req.reason()))));
+        return ResponseEntity.ok(rejectUserUseCase.execute(
+                new RejectUserCommand(userId, actorId, req.reason())));
     }
 
     @PutMapping("/{userId}/role")
-    public ResponseEntity<ApiResponse<AdminUserResponse>> assignRole(
+    public ResponseEntity<AdminUserResponse> assignRole(
             @PathVariable String userId,
             @RequestBody @Valid AssignUserRoleRequest req,
             @AuthenticationPrincipal String actorId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(assignUserRoleUseCase.execute(
-                new AssignUserRoleCommand(userId, actorId, req.role()))));
+        return ResponseEntity.ok(assignUserRoleUseCase.execute(
+                new AssignUserRoleCommand(userId, actorId, req.role())));
     }
 
     // Application roles from the token, sorted, without Keycloak defaults such as default-roles-agricontract.
