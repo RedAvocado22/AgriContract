@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -55,4 +56,11 @@ public interface ReservationJpaRepository extends JpaRepository<ReservationJpaEn
                    @Param("expected") ReservationStatus expected,
                    @Param("target") ReservationStatus target,
                    @Param("now") LocalDateTime now);
+
+    @Query("""
+            SELECT COALESCE(SUM(r.reservedQuantity), 0) FROM ReservationJpaEntity r
+            WHERE r.listingId = :listingId
+              AND r.status <> com.agricontract.product.domain.model.vo.ReservationStatus.RELEASED
+            """)
+    BigDecimal sumUnreleasedQuantity(@Param("listingId") String listingId);
 }

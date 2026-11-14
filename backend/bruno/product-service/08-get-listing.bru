@@ -23,7 +23,7 @@ tests {
     expect(res.getBody().listingId).to.equal(bru.getEnvVar("listing_id"));
   });
 
-  test("status is ACTIVE", function() {
-    expect(res.getBody().status).to.equal("ACTIVE");
+  test("status is AVAILABLE", function() {
+    expect(res.getBody().status).to.equal("AVAILABLE");
   });
 }

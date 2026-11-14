@@ -12,9 +12,7 @@ import com.agricontract.product.common.exception.ReputationSignInRequiredExcepti
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ListingStatus;
-import com.agricontract.product.domain.model.vo.Money;
 import com.agricontract.product.domain.model.vo.ProductId;
-import com.agricontract.product.domain.model.vo.Quantity;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.PageQuery;
 import com.agricontract.product.testsupport.GoodsFixtures;
@@ -47,13 +45,13 @@ class ListActiveListingsUseCaseImplTest {
 
     private static Listing listing(String id, String sellerId) {
         return Listing.create(new ListingId(id), sellerId, new ProductId("product-1"), "Ca phe Robusta", "",
-                new Quantity(new BigDecimal("100"), "kg"), null, new Money(new BigDecimal("50000"), "VND"),
-                LocalDate.of(2026, 12, 31), PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods());
+                new BigDecimal("100"), new BigDecimal("10"), new BigDecimal("50000.00"),
+                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods());
     }
 
     private void page(Listing... listings) {
-        when(listingRepository.findByStatus(ListingStatus.ACTIVE, PAGE)).thenReturn(List.of(listings));
-        when(listingRepository.countByStatus(ListingStatus.ACTIVE)).thenReturn(45L);
+        when(listingRepository.findOpenForReservation(PAGE)).thenReturn(List.of(listings));
+        when(listingRepository.countOpenForReservation()).thenReturn(45L);
     }
 
     private static List<String> ids(ListingSearchResult result) {

@@ -7,23 +7,22 @@ import com.agricontract.product.domain.model.vo.ListingStatus;
 import lombok.Builder;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 
+/** Contract ListingResponse (CoffeeListingResponse); no other field may appear (unevaluatedProperties: false). */
 @Builder
 public record ListingResponse(
         String listingId,
         String sellerId,
         String productId,
         String productName,    // snapshot field
-        String coverImageUrl,  // snapshot field
-        BigDecimal quantity,
-        String quantityUnit,
+        String unitOfMeasure,  // always KG
+        BigDecimal offeredQuantity,
         BigDecimal quantityAvailable,  // server-owned, null for legacy listings
-        BigDecimal minOrderQuantity,   // null = no seller minimum
-        BigDecimal priceFloor,
-        String currency,
-        LocalDate deliveryDeadline,
+        BigDecimal minOrderQuantity,
+        String askingUnitPrice,        // VND/kg, 2 decimals
         ListingStatus status,
         String listingVersionToken,    // opaque; contract-service echoes it to reserve
         List<String> registryEntryIds, // registry plots the goods come from; empty for legacy listings
@@ -49,14 +48,11 @@ public record ListingResponse(
                 .sellerId(listing.getSellerId())
                 .productId(listing.getProductId().value())
                 .productName(listing.getProductName())
-                .coverImageUrl(listing.getCoverImageUrl())
-                .quantity(listing.getQuantity().value())
-                .quantityUnit(listing.getQuantity().unit())
+                .unitOfMeasure(Listing.UNIT_OF_MEASURE)
+                .offeredQuantity(listing.getOfferedQuantity())
                 .quantityAvailable(listing.getQuantityAvailable())
                 .minOrderQuantity(listing.getMinOrderQuantity())
-                .priceFloor(listing.getPriceFloor().amount())
-                .currency(listing.getPriceFloor().currency())
-                .deliveryDeadline(listing.getDeliveryDeadline())
+                .askingUnitPrice(listing.getAskingUnitPrice().setScale(2, RoundingMode.UNNECESSARY).toPlainString())
                 .status(listing.getStatus())
                 .listingVersionToken(listing.getVersionToken())
                 .registryEntryIds(listing.getPlots().stream().map(p -> p.sourceRegistryEntryId().value()).toList())

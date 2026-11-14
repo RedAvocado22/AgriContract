@@ -11,6 +11,7 @@ import com.agricontract.product.application.dto.SellerReputation;
 import com.agricontract.product.application.usecase.CreateListingUseCase;
 import com.agricontract.product.application.usecase.GetListingUseCase;
 import com.agricontract.product.application.usecase.GetSellerListingsUseCase;
+import com.agricontract.product.application.usecase.UpdateListingUseCase;
 import com.agricontract.product.application.usecase.ListActiveListingsUseCase;
 import com.agricontract.product.common.exception.ReputationSignInRequiredException;
 import com.agricontract.product.infrastructure.config.SecurityConfig;
@@ -46,6 +47,7 @@ class ListingSearchControllerTest {
     @MockBean private GetListingUseCase getListingUseCase;
     @MockBean private CreateListingUseCase createListingUseCase;
     @MockBean private GetSellerListingsUseCase getSellerListingsUseCase;
+    @MockBean private UpdateListingUseCase updateListingUseCase;
 
     private static ListingSearchResult result(SellerReputation reputation, ReputationStatus status) {
         ListingResponse listing = ListingResponse.builder().listingId("listing-1").sellerId("seller-1")

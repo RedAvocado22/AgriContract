@@ -1,0 +1,50 @@
+meta {
+  name: PUT /api/v1/listings/:listingId (same Idempotency-Key replayed)
+  type: http
+  seq: 15
+}
+
+put {
+  url: {{product_service_url}}/api/v1/listings/{{listing_id}}
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: {{seller1_sub}}
+  X-User-Role: SELLER
+  Idempotency-Key: {{update_listing_key}}
+}
+
+body:json {
+  {
+    "productId": "{{product_id}}",
+    "productName": "Ca phe Robusta Dak Lak",
+    "unitOfMeasure": "KG",
+    "offeredQuantity": 600,
+    "minOrderQuantity": 100,
+    "askingUnitPrice": "15500.00",
+    "registryEntryIds": ["{{plot_id}}"],
+    "regionText": "Buon Ma Thuot, Dak Lak",
+    "declaredQualitySpec": {
+      "commodity": "COFFEE",
+      "type": "ROBUSTA",
+      "moisturePercent": 12.5,
+      "foreignMatterPercent": 0.5,
+      "blackBrokenBeansPercent": 5.0
+    },
+    "packagingDeclaration": "Bao day 60 kg"
+  }
+}
+
+tests {
+  // same key and body as 11: the listing comes back, the edit is not applied a second time
+  test("should return 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("version token unchanged: no second edit", function() {
+    expect(res.getBody().listingVersionToken).to.equal(bru.getVar("edited_listing_version_token"));
+  });
+}

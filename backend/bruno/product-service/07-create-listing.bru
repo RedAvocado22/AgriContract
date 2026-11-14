@@ -20,11 +20,11 @@ headers {
 body:json {
   {
     "productId": "{{product_id}}",
-    "quantity": 500,
-    "quantityUnit": "kg",
-    "priceFloor": 15000.00,
-    "currency": "VND",
-    "deliveryDeadline": "2026-09-30",
+    "productName": "Ca phe Robusta Dak Lak",
+    "unitOfMeasure": "KG",
+    "offeredQuantity": 500,
+    "minOrderQuantity": 100,
+    "askingUnitPrice": "15000.00",
     "registryEntryIds": ["{{plot_id}}"],
     "regionText": "Buon Ma Thuot, Dak Lak",
     "declaredQualitySpec": {
@@ -70,12 +70,19 @@ tests {
     expect(res.getBody().productName).to.equal("Ca phe Robusta Dak Lak");
   });
 
-  test("coverImageUrl snapshot should be product's first image", function() {
-    expect(res.getBody().coverImageUrl).to.equal("https://cdn.agricontract.test/products/ca-phe-robusta-1.jpg");
+  test("contract field names: kg quantities, 2-decimal VND/kg price, no Phase 1 fields", function() {
+    const data = res.getBody();
+    expect(data.unitOfMeasure).to.equal("KG");
+    expect(data.offeredQuantity).to.equal(500);
+    expect(data.quantityAvailable).to.equal(500);
+    expect(data.askingUnitPrice).to.equal("15000.00");
+    expect(data).to.not.have.property("priceFloor");
+    expect(data).to.not.have.property("deliveryDeadline");
+    expect(data).to.not.have.property("coverImageUrl");
   });
 
-  test("status should be ACTIVE", function() {
-    expect(res.getBody().status).to.equal("ACTIVE");
+  test("status should be AVAILABLE", function() {
+    expect(res.getBody().status).to.equal("AVAILABLE");
   });
 
   test("coffee goods: commodity from the category, season from the product, declared quality", function() {

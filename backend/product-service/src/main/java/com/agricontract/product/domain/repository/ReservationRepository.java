@@ -2,9 +2,11 @@ package com.agricontract.product.domain.repository;
 
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
+import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.OrphanCandidate;
 import com.agricontract.product.domain.model.vo.ReservationStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -39,4 +41,7 @@ public interface ReservationRepository {
      * @return true if this call performed the transition
      */
     boolean transition(ContractId contractId, ReservationStatus expected, ReservationStatus target);
+
+    /** Sum of the listing's reservations that are not RELEASED (RESERVED, SIGNED_RELEASABLE, COMMITTED); 0 if none. */
+    BigDecimal sumUnreleasedQuantity(ListingId listingId);
 }

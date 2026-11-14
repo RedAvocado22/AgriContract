@@ -7,9 +7,7 @@ import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.Reservation;
 import com.agricontract.product.domain.model.vo.ContractId;
 import com.agricontract.product.domain.model.vo.ListingId;
-import com.agricontract.product.domain.model.vo.Money;
 import com.agricontract.product.domain.model.vo.ProductId;
-import com.agricontract.product.domain.model.vo.Quantity;
 import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.ReservationRepository;
 import com.agricontract.product.testsupport.DirectTransactionRunner;
@@ -48,8 +46,8 @@ class ReserveListingQuantityUseCaseImplTest {
         useCase = new ReserveListingQuantityUseCaseImpl(listingRepository, reservationRepository,
                 new DirectTransactionRunner());
         listing = Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"), "Ca phe Robusta",
-                "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"), new BigDecimal("10"),
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31), PlotFixtures.onePlot(),
+                "https://cdn.test/cover.jpg", new BigDecimal("100"), new BigDecimal("10"),
+                new BigDecimal("50000.00"), PlotFixtures.onePlot(),
                 GoodsFixtures.coffeeGoods());
         when(listingRepository.findById(LISTING_ID)).thenReturn(Optional.of(listing));
         when(listingRepository.reserveAvailable(LISTING_ID, QUANTITY, "token")).thenReturn(true);

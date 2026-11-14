@@ -154,8 +154,8 @@ class GetListingContractSnapshotUseCaseImplTest {
 
     private void givenListing(ListingGoods goods, List<ListingPlot> plots) {
         Listing listing = Listing.reconstruct(new ListingId(LISTING_ID), "seller-1", new ProductId(PRODUCT_ID),
-                "Ca phe Robusta", null, new Quantity(new BigDecimal("100"), "kg"), new BigDecimal("100"), null,
-                new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31), ListingStatus.ACTIVE,
+                "Ca phe Robusta", null, new BigDecimal("100"), new BigDecimal("100"), null,
+                new BigDecimal("50000.00"), ListingStatus.AVAILABLE, null,
                 UPDATED_AT, plots, goods);
         when(listingRepository.findById(new ListingId(LISTING_ID))).thenReturn(Optional.of(listing));
     }

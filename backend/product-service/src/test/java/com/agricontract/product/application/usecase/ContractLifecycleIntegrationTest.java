@@ -83,9 +83,8 @@ class ContractLifecycleIntegrationTest {
         PlotFixtures.deletePlotsAndListings(jdbcTemplate);
         PlotFixtures.insertRegistryEntry(jdbcTemplate, PlotFixtures.PLOT_ID, "seller-1");
         listingRepository.save(Listing.create(LISTING_ID, "seller-1", new ProductId("product-1"),
-                "Ca phe Robusta", "https://cdn.test/cover.jpg", new Quantity(new BigDecimal("100"), "kg"),
-                new BigDecimal("10"), new Money(new BigDecimal("50000"), "VND"), LocalDate.of(2026, 12, 31),
-                PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
+                "Ca phe Robusta", "https://cdn.test/cover.jpg", new BigDecimal("100"),
+                new BigDecimal("10"), new BigDecimal("50000.00"), PlotFixtures.onePlot(), GoodsFixtures.coffeeGoods()));
         reserve(CONTRACT, "40");
     }
 
@@ -176,15 +175,15 @@ class ContractLifecycleIntegrationTest {
     }
 
     @Test
-    void withdrawn_onAnExpiredListing_restoresTheCounterButKeepsItExpired() {
-        Listing listing = listingRepository.findById(LISTING_ID).orElseThrow();
-        listing.expire();
-        listingRepository.save(listing);
+    void withdrawn_onASellerClosedListing_restoresTheCounterButKeepsItClosed() {
+        jdbcTemplate.update("UPDATE listings SET status = 'CLOSED', close_reason = 'SELLER_CLOSED' WHERE listing_id = ?",
+                LISTING_ID.value());
 
         apply(CONTRACT_WITHDRAWN);
 
         Listing after = listingRepository.findById(LISTING_ID).orElseThrow();
-        assertThat(after.getStatus()).isEqualTo(ListingStatus.EXPIRED);
+        assertThat(after.getStatus()).isEqualTo(ListingStatus.CLOSED);
+        assertThat(after.getCloseReason()).isEqualTo(CloseReason.SELLER_CLOSED);
         assertThat(after.getQuantityAvailable()).isEqualByComparingTo("100");
     }
 

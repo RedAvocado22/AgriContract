@@ -89,34 +89,37 @@ public class ListingJpaEntity {
     @Column(name = "cover_image_url", nullable = false, length = 1000)
     private String coverImageUrl;
 
-    @Column(nullable = false, precision = 15, scale = 3)
-    private BigDecimal quantity;
+    // kg; the column keeps its Phase 1 name (migrations stay additive)
+    @Column(name = "quantity", nullable = false, precision = 15, scale = 3)
+    private BigDecimal offeredQuantity;
 
+    // always KG for rows written since #433; older rows hold the Phase 1 free-text unit, which is never read
     @Column(name = "quantity_unit", nullable = false, length = 50)
     private String quantityUnit;
 
-    // Only written on insert; afterwards changed exclusively by conditional updates in ListingJpaRepository.
-    // updatable = false so an entity save (close/expire) can never write back a stale counter.
+    // Only written on insert; afterwards changed exclusively by the update queries in ListingJpaRepository.
+    // updatable = false so an entity save can never write back a stale counter.
     @Column(name = "quantity_available", precision = 15, scale = 3, updatable = false)
     private BigDecimal quantityAvailable;
 
     @Column(name = "min_order_quantity", precision = 15, scale = 3)
     private BigDecimal minOrderQuantity;
 
+    // VND/kg; the column keeps its Phase 1 name
     @Column(name = "price_floor", nullable = false, precision = 15, scale = 2)
-    private BigDecimal priceFloor;
+    private BigDecimal askingUnitPrice;
 
+    // always VND
     @Column(nullable = false, length = 10)
     private String currency;
 
-    @Column(name = "delivery_deadline", nullable = false)
-    private LocalDate deliveryDeadline;
+    // Phase 1 delivery_deadline is nullable since V11 and no longer written or read (#433).
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ListingStatus status;
 
-    // INVENTORY_EXHAUSTED when a reserve drained the listing; set/cleared only by conditional updates
+    // CloseReason name; set/cleared only by the update queries in ListingJpaRepository
     @Column(name = "close_reason", length = 30, insertable = false, updatable = false)
     private String closeReason;
 
