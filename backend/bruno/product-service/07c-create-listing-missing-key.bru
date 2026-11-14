@@ -1,0 +1,49 @@
+meta {
+  name: POST /api/v1/listings (no Idempotency-Key)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{product_service_url}}/api/v1/listings
+  body: json
+  auth: none
+}
+
+headers {
+  X-Gateway-Secret: {{gateway_secret}}
+  X-User-Id: {{seller1_sub}}
+  X-User-Role: SELLER
+}
+
+body:json {
+  {
+    "productId": "{{product_id}}",
+    "quantity": 500,
+    "quantityUnit": "kg",
+    "priceFloor": 15000.00,
+    "currency": "VND",
+    "deliveryDeadline": "2026-09-30",
+    "registryEntryIds": ["{{plot_id}}"],
+    "regionText": "Buon Ma Thuot, Dak Lak",
+    "declaredQualitySpec": {
+      "commodity": "COFFEE",
+      "type": "ROBUSTA",
+      "moisturePercent": 12.5,
+      "foreignMatterPercent": 0.5,
+      "blackBrokenBeansPercent": 5.0
+    },
+    "packagingDeclaration": "Bao day 60 kg"
+  }
+}
+
+tests {
+  test("should return 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("error body is the shared ErrorEnvelope", function() {
+    expect(res.getBody().code).to.equal("MALFORMED_REQUEST");
+    expect(res.getBody().traceId).to.be.a("string");
+  });
+}

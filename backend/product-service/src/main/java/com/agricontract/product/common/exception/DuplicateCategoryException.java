@@ -1,7 +1,10 @@
 package com.agricontract.product.common.exception;
 
-public class DuplicateCategoryException extends RuntimeException {
+import com.agricontract.web.error.ApiException;
+import org.springframework.http.HttpStatus;
+
+public class DuplicateCategoryException extends ApiException {
     public DuplicateCategoryException(String name) {
-        super("Category already proposed/exists with an equivalent name: " + name);
+        super(HttpStatus.CONFLICT, "DUPLICATE_CATEGORY", "Category already proposed/exists with an equivalent name: " + name);
     }
 }

@@ -74,9 +74,9 @@ class PlotControllerTest {
 
         mockMvc.perform(asSeller(post("/api/v1/plots")).contentType(MediaType.APPLICATION_JSON).content(PIN))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.registryEntryId").value("plot-1"))
-                .andExpect(jsonPath("$.data.geometryType").value("POINT"))
-                .andExpect(jsonPath("$.data.geoVerificationStatus").value("PENDING"));
+                .andExpect(jsonPath("$.registryEntryId").value("plot-1"))
+                .andExpect(jsonPath("$.geometryType").value("POINT"))
+                .andExpect(jsonPath("$.geoVerificationStatus").value("PENDING"));
 
         ArgumentCaptor<AddPlotRequest> request = ArgumentCaptor.forClass(AddPlotRequest.class);
         verify(addPlotManuallyUseCase).execute(eq("seller-1"), request.capture());
@@ -119,7 +119,7 @@ class PlotControllerTest {
 
         mockMvc.perform(asSeller(post("/api/v1/plots")).contentType(MediaType.APPLICATION_JSON).content(PIN))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Coordinate is outside Viet Nam"));
+                .andExpect(jsonPath("$.message").value("Coordinate is outside Viet Nam"));
     }
 
     @Test
@@ -171,9 +171,8 @@ class PlotControllerTest {
         mockMvc.perform(asSeller(post("/api/v1/plots")).param("declaredProvince", "GIA_LAI")
                         .contentType(PlotController.KML).content(KML_BODY))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.created[0].registryEntryId").value("plot-1"))
-                .andExpect(jsonPath("$.data.rejected[0].placemark").value("Ho X"));
+                .andExpect(jsonPath("$.created[0].registryEntryId").value("plot-1"))
+                .andExpect(jsonPath("$.rejected[0].placemark").value("Ho X"));
 
         ArgumentCaptor<byte[]> body = ArgumentCaptor.forClass(byte[].class);
         verify(importPlotsFromKmlUseCase).execute(eq("seller-1"), body.capture(), eq(Province.GIA_LAI));
@@ -193,8 +192,8 @@ class PlotControllerTest {
         mockMvc.perform(asSeller(post("/api/v1/plots")).param("declaredProvince", "DAK_LAK")
                         .contentType(PlotController.KML).content(KML_BODY))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.data.rejected[0].reason").value("bad"));
+                .andExpect(jsonPath("$.code").value("NO_PLACEMARK_IMPORTED"))
+                .andExpect(jsonPath("$.message").value("No placemark could be imported. Ho X: bad"));
     }
 
     @Test

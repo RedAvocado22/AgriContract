@@ -23,7 +23,7 @@ body:json {
 }
 
 script:post-response {
-  const categoryId = res.getBody()?.data?.categoryId;
+  const categoryId = res.getBody()?.categoryId;
   if (categoryId) {
     bru.setEnvVar("category_id", categoryId);
   }
@@ -34,15 +34,11 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
 
-  test("success flag is true", function() {
-    expect(res.getBody().success).to.equal(true);
-  });
-
   test("should return categoryId", function() {
-    expect(res.getBody().data.categoryId).to.be.a("string");
+    expect(res.getBody().categoryId).to.be.a("string");
   });
 
   test("status should be PENDING", function() {
-    expect(res.getBody().data.status).to.equal("PENDING");
+    expect(res.getBody().status).to.equal("PENDING");
   });
 }

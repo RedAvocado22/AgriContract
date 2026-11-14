@@ -30,7 +30,8 @@ tests {
     expect(res.getStatus()).to.equal(400);
   });
 
-  test("success flag is false", function() {
-    expect(res.getBody().success).to.equal(false);
+  test("error body is the shared ErrorEnvelope", function() {
+    expect(res.getBody().code).to.be.a("string");
+    expect(res.getBody().traceId).to.be.a("string");
   });
 }

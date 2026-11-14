@@ -8,7 +8,6 @@ import com.agricontract.product.application.dto.PagedResult;
 import com.agricontract.product.application.dto.ReputationStatus;
 import com.agricontract.product.application.dto.ReputationViewer;
 import com.agricontract.product.application.dto.SellerReputation;
-import com.agricontract.product.application.usecase.CloseListingUseCase;
 import com.agricontract.product.application.usecase.CreateListingUseCase;
 import com.agricontract.product.application.usecase.GetListingUseCase;
 import com.agricontract.product.application.usecase.GetSellerListingsUseCase;
@@ -45,7 +44,6 @@ class ListingSearchControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private ListActiveListingsUseCase listActiveListingsUseCase;
     @MockBean private GetListingUseCase getListingUseCase;
-    @MockBean private CloseListingUseCase closeListingUseCase;
     @MockBean private CreateListingUseCase createListingUseCase;
     @MockBean private GetSellerListingsUseCase getSellerListingsUseCase;
 
@@ -69,10 +67,10 @@ class ListingSearchControllerTest {
 
         mockMvc.perform(get("/api/v1/listings").header("X-Gateway-Secret", "gw-secret"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].listingId").value("listing-1"))
-                .andExpect(jsonPath("$.data.content[0].sellerReputation").isEmpty())
-                .andExpect(jsonPath("$.data.reputationStatus").value("SIGN_IN_REQUIRED"))
-                .andExpect(jsonPath("$.data.totalElements").value(1));
+                .andExpect(jsonPath("$.content[0].listingId").value("listing-1"))
+                .andExpect(jsonPath("$.content[0].sellerReputation").isEmpty())
+                .andExpect(jsonPath("$.reputationStatus").value("SIGN_IN_REQUIRED"))
+                .andExpect(jsonPath("$.totalElements").value(1));
 
         assertThat(captured().viewer()).isNull();
     }
@@ -86,15 +84,15 @@ class ListingSearchControllerTest {
                         .header("X-Gateway-Secret", "gw-secret")
                         .header("X-User-Id", "buyer-1").header("X-User-Role", "BUYER"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].listingId").value("listing-1"))
-                .andExpect(jsonPath("$.data.content[0].listingVersionToken").value("token-1"))
-                .andExpect(jsonPath("$.data.content[0].listing").doesNotExist())
-                .andExpect(jsonPath("$.data.content[0].sellerReputation.score").value(88))
-                .andExpect(jsonPath("$.data.content[0].sellerReputation.locked").value(false))
-                .andExpect(jsonPath("$.data.content[0].sellerReputation.lockHistory").doesNotExist())
-                .andExpect(jsonPath("$.data.reputationStatus").value("AVAILABLE"))
-                .andExpect(jsonPath("$.data.page").value(0))
-                .andExpect(jsonPath("$.data.size").value(10));
+                .andExpect(jsonPath("$.content[0].listingId").value("listing-1"))
+                .andExpect(jsonPath("$.content[0].listingVersionToken").value("token-1"))
+                .andExpect(jsonPath("$.content[0].listing").doesNotExist())
+                .andExpect(jsonPath("$.content[0].sellerReputation.score").value(88))
+                .andExpect(jsonPath("$.content[0].sellerReputation.locked").value(false))
+                .andExpect(jsonPath("$.content[0].sellerReputation.lockHistory").doesNotExist())
+                .andExpect(jsonPath("$.reputationStatus").value("AVAILABLE"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10));
 
         ListingSearchQuery query = captured();
         assertThat(query.viewer()).isEqualTo(new ReputationViewer("buyer-1", List.of("BUYER")));
@@ -109,8 +107,8 @@ class ListingSearchControllerTest {
                         .header("X-Gateway-Secret", "gw-secret")
                         .header("X-User-Id", "buyer-1").header("X-User-Role", "BUYER"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].listingId").value("listing-1"))
-                .andExpect(jsonPath("$.data.reputationStatus").value("UNAVAILABLE"));
+                .andExpect(jsonPath("$.content[0].listingId").value("listing-1"))
+                .andExpect(jsonPath("$.reputationStatus").value("UNAVAILABLE"));
     }
 
     @Test
