@@ -2,16 +2,25 @@ package com.agricontract.product.infrastructure.web;
 
 import com.agricontract.product.application.dto.AddPlotRequest;
 import com.agricontract.product.application.dto.PlotImportResult;
+import com.agricontract.product.application.dto.PlotRegistryItem;
+import com.agricontract.product.application.dto.PlotRegistryPage;
 import com.agricontract.product.application.dto.PlotResponse;
 import com.agricontract.product.application.dto.RegisteredPlot;
 import com.agricontract.product.application.usecase.AddPlotManuallyUseCase;
 import com.agricontract.product.application.usecase.ImportPlotsFromKmlUseCase;
+import com.agricontract.product.application.usecase.ListMyPlotsUseCase;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
+import com.agricontract.product.domain.model.vo.ForestBaselineAssessment;
 import com.agricontract.product.domain.model.vo.PlotSource;
 import com.agricontract.product.domain.model.vo.Province;
 import com.agricontract.product.domain.model.vo.RegistryEntryId;
+import com.agricontract.product.domain.repository.PageQuery;
+import com.agricontract.product.domain.service.PlotGeometries;
 import com.agricontract.product.infrastructure.config.SecurityConfig;
+import com.agricontract.product.infrastructure.contract.FrozenSchemas;
 import com.agricontract.product.testsupport.PlotFixtures;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +41,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -53,6 +64,8 @@ class PlotControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private AddPlotManuallyUseCase addPlotManuallyUseCase;
     @MockBean private ImportPlotsFromKmlUseCase importPlotsFromKmlUseCase;
+    @MockBean private ListMyPlotsUseCase listMyPlotsUseCase;
+    @Autowired private ObjectMapper objectMapper;
 
     private static MockHttpServletRequestBuilder asSeller(MockHttpServletRequestBuilder request) {
         return request.header("X-Gateway-Secret", "gw-secret")
@@ -220,5 +233,75 @@ class PlotControllerTest {
     void otherContentType_is415() throws Exception {
         mockMvc.perform(asSeller(post("/api/v1/plots")).contentType(MediaType.TEXT_PLAIN).content("x"))
                 .andExpect(status().isUnsupportedMediaType());
+    }
+
+    // ---------- listMyPlots ----------
+
+    private static PlotRegistryPage onePage() {
+        PlotRegistryEntry polygon = PlotRegistryEntry.register(
+                new RegistryEntryId("5b1e2c3d-4f5a-4b6c-8d7e-9f0a1b2c3d4e"), "seller-1", "Ho B",
+                PlotGeometries.polygon(List.of(new double[]{108.05, 12.66}, new double[]{108.05, 12.6615},
+                        new double[]{108.0515, 12.6615}, new double[]{108.0515, 12.66},
+                        new double[]{108.05, 12.66}), List.of()),
+                PlotSource.KML_IMPORT, null, Province.DAK_LAK, Instant.parse("2026-10-25T03:00:00Z"));
+        polygon.recordGeoCheck(new ForestBaselineAssessment("jrc-2020", List.of()),
+                Instant.parse("2026-10-25T04:00:00Z"));
+        PlotRegistryEntry point = PlotRegistryEntry.register(
+                new RegistryEntryId("6c2f3d4e-5a6b-4c7d-9e8f-0a1b2c3d4e5f"), "seller-1", "Ho A",
+                PlotFixtures.point(), PlotSource.MANUAL_PIN, new BigDecimal("8.5"), Province.DAK_LAK,
+                Instant.parse("2026-10-24T03:00:00Z"));
+        return new PlotRegistryPage(List.of(PlotRegistryItem.from(polygon), PlotRegistryItem.from(point)),
+                0, 20, 2, 1);
+    }
+
+    @Test
+    void listMyPlots_isFrozenPlotRegistryPage_withoutGeometry_ownerFromPrincipal() throws Exception {
+        when(listMyPlotsUseCase.execute(any(), any())).thenReturn(onePage());
+
+        // a sellerId in the query cannot widen the read: the owner is always the authenticated principal
+        String body = mockMvc.perform(asSeller(get("/api/v1/plots")).param("sellerId", "seller-2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].geometryType").value("POLYGON"))
+                .andExpect(jsonPath("$.content[0].geoRiskLevel").value("LOW_RISK"))
+                .andExpect(jsonPath("$.content[1].geoVerificationStatus").value("PENDING"))
+                .andExpect(jsonPath("$.content[1].areaHectares").value(nullValue()))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode page = objectMapper.readTree(body);
+        FrozenSchemas.assertApiSchema(FrozenSchemas.SUPPLEMENTARY_API, "PlotRegistryPage", page);
+        for (JsonNode item : page.get("content")) {
+            assertThat(item.has("geometryWkt")).isFalse();
+            assertThat(item.has("geometryHash")).isFalse();
+            assertThat(item.has("sellerId")).isFalse();
+        }
+        verify(listMyPlotsUseCase).execute("seller-1", PageQuery.of(0, 20));
+    }
+
+    @Test
+    void listMyPlots_pagingWithinBounds_isPassedThrough() throws Exception {
+        when(listMyPlotsUseCase.execute(any(), any())).thenReturn(new PlotRegistryPage(List.of(), 10000, 100, 0, 0));
+
+        mockMvc.perform(asSeller(get("/api/v1/plots")).param("page", "10000").param("size", "100"))
+                .andExpect(status().isOk());
+        verify(listMyPlotsUseCase).execute("seller-1", PageQuery.of(10000, 100));
+    }
+
+    @Test
+    void listMyPlots_pagingOutOfRange_is400() throws Exception {
+        String[][] bad = {{"page", "-1"}, {"page", "10001"}, {"size", "0"}, {"size", "101"}, {"page", "abc"}};
+        for (String[] param : bad) {
+            mockMvc.perform(asSeller(get("/api/v1/plots")).param(param[0], param[1]))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(400));
+        }
+        verifyNoInteractions(listMyPlotsUseCase);
+    }
+
+    @Test
+    void listMyPlots_asBuyer_is403() throws Exception {
+        mockMvc.perform(get("/api/v1/plots").header("X-Gateway-Secret", "gw-secret")
+                        .header("X-User-Id", "buyer-1").header("X-User-Role", "BUYER"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(listMyPlotsUseCase);
     }
 }

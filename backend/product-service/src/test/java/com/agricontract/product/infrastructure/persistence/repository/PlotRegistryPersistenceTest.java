@@ -5,6 +5,7 @@ import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
 import com.agricontract.product.domain.model.vo.*;
 import com.agricontract.product.domain.repository.ListingRepository;
+import com.agricontract.product.domain.repository.PageQuery;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import com.agricontract.product.domain.service.PlotGeometries;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapperImpl;
@@ -194,6 +195,32 @@ class PlotRegistryPersistenceTest {
         assertThat(page).hasSize(2).allSatisfy(listing -> assertThat(listing.getPlots()).hasSize(1));
         assertThat(page).extracting(l -> l.getListingId().value() + "=" + l.getPlots().get(0).sourceRegistryEntryId().value())
                 .containsExactlyInAnyOrder("listing-a=plot-a", "listing-b=plot-b");
+    }
+
+    @Test
+    void sellerPage_onlyTheSellersEntries_newestImportFirst_tiesById() {
+        Instant hourAgo = NOW.minus(1, ChronoUnit.HOURS);
+        plotRegistryRepository.create(entry("plot-1", "seller-1", "Ho A", PlotFixtures.point(), NOW.minus(2, ChronoUnit.HOURS)));
+        plotRegistryRepository.create(entry("plot-2", "seller-1", "Ho B", polygon(0.0015), hourAgo));
+        plotRegistryRepository.create(entry("plot-4", "seller-1", "Ho D", PlotFixtures.point(), NOW));
+        plotRegistryRepository.create(entry("plot-3", "seller-1", "Ho C", PlotFixtures.point(), NOW));
+        // another seller's newer entry never shows up in seller-1's pages or count
+        plotRegistryRepository.create(entry("plot-9", "seller-2", "Ho A", PlotFixtures.point(), NOW.plusSeconds(60)));
+
+        PageQuery first = PageQuery.of(0, 3);
+        assertThat(plotRegistryRepository.findBySellerIdNewestFirst("seller-1", first))
+                .extracting(e -> e.getRegistryEntryId().value())
+                .containsExactly("plot-3", "plot-4", "plot-2");
+        assertThat(plotRegistryRepository.findBySellerIdNewestFirst("seller-1", PageQuery.of(1, 3)))
+                .extracting(e -> e.getRegistryEntryId().value())
+                .containsExactly("plot-1");
+        assertThat(plotRegistryRepository.countBySellerId("seller-1")).isEqualTo(4);
+
+        assertThat(plotRegistryRepository.findBySellerIdNewestFirst("seller-2", first))
+                .extracting(e -> e.getRegistryEntryId().value())
+                .containsExactly("plot-9");
+        assertThat(plotRegistryRepository.countBySellerId("seller-2")).isEqualTo(1);
+        assertThat(plotRegistryRepository.findBySellerIdNewestFirst("seller-3", first)).isEmpty();
     }
 
     private static String sha256(String value) throws Exception {

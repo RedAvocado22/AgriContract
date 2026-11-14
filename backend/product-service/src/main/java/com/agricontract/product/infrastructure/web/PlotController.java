@@ -2,10 +2,13 @@ package com.agricontract.product.infrastructure.web;
 
 import com.agricontract.product.application.dto.AddPlotRequest;
 import com.agricontract.product.application.dto.PlotImportResult;
+import com.agricontract.product.application.dto.PlotPageRequest;
+import com.agricontract.product.application.dto.PlotRegistryPage;
 import com.agricontract.product.application.dto.PlotResponse;
 import com.agricontract.product.application.dto.RegisteredPlot;
 import com.agricontract.product.application.usecase.AddPlotManuallyUseCase;
 import com.agricontract.product.application.usecase.ImportPlotsFromKmlUseCase;
+import com.agricontract.product.application.usecase.ListMyPlotsUseCase;
 import com.agricontract.product.domain.model.vo.Province;
 import com.agricontract.web.error.ApiException;
 import jakarta.validation.Valid;
@@ -38,6 +41,15 @@ public class PlotController {
 
     private final ImportPlotsFromKmlUseCase importPlotsFromKmlUseCase;
     private final AddPlotManuallyUseCase addPlotManuallyUseCase;
+    private final ListMyPlotsUseCase listMyPlotsUseCase;
+
+    /** listMyPlots: the caller's own entries only; there is no parameter that names another seller. */
+    @GetMapping
+    public ResponseEntity<PlotRegistryPage> listMyPlots(
+            @ModelAttribute @Valid PlotPageRequest request,
+            @AuthenticationPrincipal String sellerId) {
+        return ResponseEntity.ok(listMyPlotsUseCase.execute(sellerId, request.toPageQuery()));
+    }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<PlotResponse> addPlotManually(
