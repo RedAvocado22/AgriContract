@@ -59,7 +59,7 @@ product:
 
 user-service:
   url: ${USER_SERVICE_URL:http://localhost:8081}
-  # CreateListing eligibility gate fails closed past these (user-service design §3, matrix 21f)
+  # InternalUserClient (eligibility gate and contact email) fails closed past these (user-service design §3, matrix 21f)
   connect-timeout-ms: 2000
   read-timeout-ms: 3000
 
