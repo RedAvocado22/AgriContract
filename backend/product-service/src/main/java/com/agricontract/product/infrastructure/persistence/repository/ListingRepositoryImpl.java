@@ -1,16 +1,21 @@
 package com.agricontract.product.infrastructure.persistence.repository;
 
+import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.ListingId;
 import com.agricontract.product.domain.model.vo.ListingPlot;
 import com.agricontract.product.domain.model.vo.ListingStatus;
 import com.agricontract.product.domain.repository.ListingRepository;
+import com.agricontract.product.domain.repository.PageQuery;
 import com.agricontract.product.infrastructure.persistence.entity.ListingJpaEntity;
 import com.agricontract.product.infrastructure.persistence.entity.ListingPlotJpaEntity;
 import com.agricontract.product.infrastructure.persistence.mapper.ListingMapper;
 import com.agricontract.product.infrastructure.persistence.mapper.PlotRegistryMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +42,14 @@ public class ListingRepositoryImpl implements ListingRepository {
     @Override
     @Transactional
     public Listing save(Listing listing) {
+        try {
+            return persist(listing);
+        } catch (DataIntegrityViolationException e) {
+            throw new WriteConflictException("Listing " + listing.getListingId().value() + " could not be written", e);
+        }
+    }
+
+    private Listing persist(Listing listing) {
         Optional<ListingJpaEntity> current = listingJpaRepository.findByListingId(listing.getListingId().value());
         ListingJpaEntity entity = current
                 .map(existing -> {
@@ -66,8 +79,8 @@ public class ListingRepositoryImpl implements ListingRepository {
     }
 
     @Override
-    public List<Listing> findByStatus(ListingStatus status, Pageable pageable) {
-        return toDomain(listingJpaRepository.findByStatus(status, pageable).getContent());
+    public List<Listing> findByStatus(ListingStatus status, PageQuery page) {
+        return toDomain(listingJpaRepository.findByStatus(status, toPageable(page)).getContent());
     }
 
     @Override
@@ -76,8 +89,8 @@ public class ListingRepositoryImpl implements ListingRepository {
     }
 
     @Override
-    public List<Listing> findBySellerId(String sellerId, Pageable pageable) {
-        return toDomain(listingJpaRepository.findBySellerId(sellerId, pageable).getContent());
+    public List<Listing> findBySellerId(String sellerId, PageQuery page) {
+        return toDomain(listingJpaRepository.findBySellerId(sellerId, toPageable(page)).getContent());
     }
 
     @Override
@@ -129,6 +142,14 @@ public class ListingRepositoryImpl implements ListingRepository {
         return listingPlotJpaRepository.findByListingIdInOrderByListingIdAscHouseholdLabelAsc(listingIds).stream()
                 .collect(Collectors.groupingBy(ListingPlotJpaEntity::getListingId, LinkedHashMap::new,
                         Collectors.mapping(plotRegistryMapper::toDomain, Collectors.toList())));
+    }
+
+    private static Pageable toPageable(PageQuery page) {
+        if (page.sortBy() == null) {
+            return PageRequest.of(page.page(), page.size());
+        }
+        Sort.Direction direction = page.descending() ? Sort.Direction.DESC : Sort.Direction.ASC;
+        return PageRequest.of(page.page(), page.size(), Sort.by(direction, page.sortBy()));
     }
 
     private static void requirePositive(BigDecimal quantity) {

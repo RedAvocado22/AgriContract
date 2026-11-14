@@ -7,6 +7,7 @@ import com.agricontract.product.common.exception.ActorNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotEligibleException;
 import com.agricontract.product.common.exception.PlotNotOwnedException;
 import com.agricontract.product.common.exception.ProductNotFoundException;
+import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Category;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.PlotRegistryEntry;
@@ -25,7 +26,6 @@ import com.agricontract.product.domain.repository.ListingRepository;
 import com.agricontract.product.domain.repository.PlotRegistryRepository;
 import com.agricontract.product.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -98,7 +98,7 @@ public class CreateListingUseCaseImpl implements CreateListingUseCase {
         Listing saved;
         try {
             saved = listingRepository.save(listing);
-        } catch (DataIntegrityViolationException e) {
+        } catch (WriteConflictException e) {
             return assertSameRequestOrConflict(listingId, sellerId, request).orElseThrow(() -> e);
         }
 

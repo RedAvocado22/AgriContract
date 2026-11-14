@@ -9,7 +9,6 @@ import com.agricontract.product.domain.model.Category;
 import com.agricontract.product.domain.model.vo.CategoryId;
 import com.agricontract.product.domain.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -39,15 +38,9 @@ public class ProposeCategoryUseCaseImpl implements ProposeCategoryUseCase {
 
         Category category = Category.propose(categoryId, request.name(), normalizedName, proposedBy, proposedByEmail);
 
-        Category saved;
-        try {
-            saved = categoryRepository.save(category);
-        } catch (DataIntegrityViolationException e) {
-            // uq_categories_normalized_name tripped by a concurrent propose of the same name.
-            throw new DuplicateCategoryException(request.name());
-        }
-
-        return toResponse(saved);
+        // a concurrent propose of the same name trips uq_categories_normalized_name; the repository reports it as
+        // DuplicateCategoryException
+        return toResponse(categoryRepository.save(category));
     }
 
     private CategoryResponse toResponse(Category category) {

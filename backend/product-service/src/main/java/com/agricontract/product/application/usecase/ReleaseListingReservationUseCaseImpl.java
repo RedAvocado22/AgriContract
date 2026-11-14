@@ -1,6 +1,7 @@
 package com.agricontract.product.application.usecase;
 
 import com.agricontract.product.application.dto.ReleaseListingReservationRequest;
+import com.agricontract.product.application.port.TransactionRunner;
 import com.agricontract.product.common.exception.ReservationConflictException;
 import com.agricontract.product.common.exception.ReservationNotFoundException;
 import com.agricontract.product.domain.model.Reservation;
@@ -11,7 +12,6 @@ import com.agricontract.product.domain.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import static com.agricontract.product.common.exception.ReservationConflictException.RESERVATION_STATE_CONFLICT;
 
@@ -26,7 +26,7 @@ public class ReleaseListingReservationUseCaseImpl implements ReleaseListingReser
 
     private final ReservationRepository reservationRepository;
     private final ReservationReleaser reservationReleaser;
-    private final TransactionTemplate transactionTemplate;
+    private final TransactionRunner transactionRunner;
 
     @Override
     public void execute(String contractIdValue, ReleaseListingReservationRequest request) {
@@ -44,8 +44,7 @@ public class ReleaseListingReservationUseCaseImpl implements ReleaseListingReser
             throw notCompensable(contractId, reservation.getStatus());
         }
 
-        boolean released = Boolean.TRUE.equals(
-                transactionTemplate.execute(status -> reservationReleaser.releaseReserved(reservation)));
+        boolean released = transactionRunner.inTransaction(() -> reservationReleaser.releaseReserved(reservation));
         if (released) {
             log.info("Released reservation for contract {} on listing {} ({})",
                     contractId.value(), reservation.getListingId().value(), reservation.getReservedQuantity());

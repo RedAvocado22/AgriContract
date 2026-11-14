@@ -4,6 +4,7 @@ import com.agricontract.product.application.dto.CreateProductRequest;
 import com.agricontract.product.application.dto.ProductResponse;
 import com.agricontract.product.common.exception.CategoryNotApprovedException;
 import com.agricontract.product.common.exception.CategoryNotFoundException;
+import com.agricontract.product.common.exception.WriteConflictException;
 import com.agricontract.product.domain.model.Category;
 import com.agricontract.product.domain.model.Product;
 import com.agricontract.product.domain.model.vo.CategoryId;
@@ -12,7 +13,6 @@ import com.agricontract.product.domain.model.vo.ProductId;
 import com.agricontract.product.domain.repository.CategoryRepository;
 import com.agricontract.product.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
@@ -45,7 +45,7 @@ public class CreateProductUseCaseImpl implements CreateProductUseCase {
         Product saved;
         try {
             saved = productRepository.save(product);
-        } catch (DataIntegrityViolationException e) {
+        } catch (WriteConflictException e) {
             return assertSameRequestOrConflict(productId, request).orElseThrow(() -> e);
         }
 
