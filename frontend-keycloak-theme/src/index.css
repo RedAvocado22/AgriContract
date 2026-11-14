@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@import "@fontsource/material-symbols-outlined/400.css";
+@import "@fontsource/be-vietnam-pro/400.css";
+@import "@fontsource/be-vietnam-pro/500.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@theme inline {
+  --font-sans: "Be Vietnam Pro", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-page-bg: #f8faf9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f4;
+
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;
+
+  --color-primary: #15803d;
+  --color-primary-tint: #dcfce7;
+
+  --color-success: #16a34a;
+  --color-success-tint: #dcfce7;
+  --color-success-strong: #14532d;
+
+  --color-warning: #d97706;
+  --color-warning-tint: #fef3c7;
+  --color-warning-strong: #92400e;
+
+  --color-danger: #dc2626;
+  --color-danger-tint: #fee2e2;
+  --color-danger-strong: #991b1b;
+
+  --color-info: #2563eb;
+  --color-info-tint: #dbeafe;
+  --color-info-strong: #1e40af;
+
+  --color-neutral: #94a3b8;
+  --color-neutral-tint: #f1f5f9;
+
+  /* Shadcn mappings */
+  --color-background: var(--color-page-bg);
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-text-primary);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-surface-muted);
+  --color-secondary-foreground: var(--color-text-secondary);
+  --color-muted: var(--color-surface-muted);
+  --color-muted-foreground: var(--color-text-muted);
+  --color-accent: var(--color-surface-muted);
+  --color-accent-foreground: var(--color-text-primary);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: #ffffff;
+  --color-ring: #15803d;
+  --color-input: var(--color-border);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  /* Custom Auth Layout Tokens */
+  --radius-auth-card: 20px;
+  --shadow-auth-card: 0 12px 40px rgba(15, 23, 42, 0.1);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-page-bg text-text-primary font-sans;
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-sans font-medium text-text-primary;
+  }
+
+  /* Material Symbols config */
+  .ms {
+    font-family: "Material Symbols Outlined";
+    font-weight: 400;
+    line-height: 1;
+    vertical-align: middle;
+    font-style: normal;
+  }
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}

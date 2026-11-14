@@ -11,24 +11,64 @@ import { MobileComponentShowcase } from "@/routes/mobile-component-showcase"
 import { PricesPage } from "@/routes/prices-page"
 import { PublicReputationPage } from "@/routes/public-reputation-page"
 import { ToastProvider } from "@/shared/ui/toast"
+import {
+  RequireAuth,
+  RequireRole,
+} from "@/features/auth/components/auth-guards"
+import { AccountPage } from "@/routes/account-page"
+import { APP_ROLES } from "@/shared/auth/auth-store"
+import { RequireOrganizationProfile } from "@/features/organization/components/organization-guards"
+import { OrganizationOnboardingPage } from "@/routes/organization-onboarding-page"
+import { ContractsPage } from "@/routes/contracts-page"
+import { ContractDetailPage } from "@/routes/contract-detail-page"
+import { CreateContractPage } from "@/routes/create-contract-page"
 
 function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
         <Routes>
+          <Route element={<RequireAuth />}>
+            <Route
+              path="/onboarding"
+              element={<OrganizationOnboardingPage />}
+            />
+            <Route element={<RequireOrganizationProfile />}>
+              <Route element={<RequireRole roles={["BUYER", "SELLER"]} />}>
+                <Route path="/contracts" element={<ContractsPage />} />
+                <Route path="/contracts/new" element={<CreateContractPage />} />
+                <Route path="/contracts/:id" element={<ContractDetailPage />} />
+              </Route>
+              <Route path="/account" element={<AccountPage />} />
+              <Route element={<RequireRole roles={APP_ROLES} />}>
+                <Route path="/workspace" element={<AccountPage />} />
+              </Route>
+            </Route>
+          </Route>
           <Route path="/" element={<HomePage />} />
           <Route path="/listing" element={<MarketplacePage />} />
           <Route path="/listings/:id" element={<ListingDetailPage />} />
           <Route path="/prices" element={<PricesPage />} />
-          <Route path="/reputation/:userId" element={<PublicReputationPage />} />
+          <Route
+            path="/reputation/:userId"
+            element={<PublicReputationPage />}
+          />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/escrow" element={<EscrowPage />} />
           <Route path="/login" element={<AuthPage />} />
-          <Route path="/register" element={<AuthPage defaultView="register" />} />
-          <Route path="/forgot-password" element={<AuthPage defaultView="forgot_password" />} />
+          <Route
+            path="/register"
+            element={<AuthPage defaultView="register" />}
+          />
+          <Route
+            path="/forgot-password"
+            element={<AuthPage defaultView="forgot_password" />}
+          />
           <Route path="/components" element={<ComponentShowcase />} />
-          <Route path="/components/mobile" element={<MobileComponentShowcase />} />
+          <Route
+            path="/components/mobile"
+            element={<MobileComponentShowcase />}
+          />
         </Routes>
       </BrowserRouter>
     </ToastProvider>
