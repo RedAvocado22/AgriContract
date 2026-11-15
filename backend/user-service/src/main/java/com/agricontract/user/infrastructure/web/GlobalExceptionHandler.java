@@ -31,24 +31,30 @@ public class GlobalExceptionHandler extends ErrorEnvelopeExceptionHandler {
         return envelope(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", ex.getMessage(), request);
     }
 
+    // Email verification 409s are all *_STATE_CONFLICT: the caller refreshes, then asks for a new code or stops.
     @ExceptionHandler(EmailAlreadyClaimedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleEmailAlreadyClaimed(EmailAlreadyClaimedException ex) {
-        return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
+    public ResponseEntity<ErrorEnvelope> handleEmailAlreadyClaimed(EmailAlreadyClaimedException ex,
+                                                                   HttpServletRequest request) {
+        return envelope(HttpStatus.CONFLICT, EmailAlreadyClaimedException.REASON, ex.getMessage(), request);
     }
 
     @ExceptionHandler(EmailVerificationConflictException.class)
-    public ResponseEntity<ApiResponse<Void>> handleEmailVerificationConflict(EmailVerificationConflictException ex) {
-        return ResponseEntity.status(409).body(ApiResponse.error(ex.getMessage()));
+    public ResponseEntity<ErrorEnvelope> handleEmailVerificationConflict(EmailVerificationConflictException ex,
+                                                                         HttpServletRequest request) {
+        return envelope(HttpStatus.CONFLICT, ex.getReason(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(InvalidVerificationCodeException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInvalidVerificationCode(InvalidVerificationCodeException ex) {
-        return ResponseEntity.status(400).body(ApiResponse.error(ex.getMessage()));
+    public ResponseEntity<ErrorEnvelope> handleInvalidVerificationCode(InvalidVerificationCodeException ex,
+                                                                       HttpServletRequest request) {
+        return envelope(HttpStatus.BAD_REQUEST, InvalidVerificationCodeException.REASON, ex.getMessage(), request);
     }
 
     @ExceptionHandler(VerificationEmailNotSentException.class)
-    public ResponseEntity<ApiResponse<Void>> handleVerificationEmailNotSent(VerificationEmailNotSentException ex) {
-        return ResponseEntity.status(503).body(ApiResponse.error("Verification email could not be sent; try again"));
+    public ResponseEntity<ErrorEnvelope> handleVerificationEmailNotSent(VerificationEmailNotSentException ex,
+                                                                        HttpServletRequest request) {
+        return envelope(HttpStatus.SERVICE_UNAVAILABLE, "VERIFICATION_EMAIL_NOT_SENT",
+                "Verification email could not be sent; try again", request);
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)

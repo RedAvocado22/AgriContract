@@ -225,7 +225,7 @@ class UserControllerTest {
 
         mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification")))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.data.expiresAt").exists());
+                .andExpect(jsonPath("$.expiresAt").exists());
     }
 
     @Test
@@ -243,7 +243,7 @@ class UserControllerTest {
         mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification/confirm"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"123456\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.emailVerified").value(true));
+                .andExpect(jsonPath("$.emailVerified").value(true));
     }
 
     @ParameterizedTest
@@ -262,7 +262,8 @@ class UserControllerTest {
 
         mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification/confirm"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"000000\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VERIFICATION_CODE_INVALID"));
     }
 
     @Test
@@ -272,6 +273,6 @@ class UserControllerTest {
         mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"organizationName\":\"HTX\",\"email\":\"taken@example.com\"}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("EMAIL_ALREADY_CLAIMED")));
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_CLAIMED"));
     }
 }
