@@ -13,7 +13,7 @@ public interface ReservationRepository {
 
     /**
      * Insert only — a second reservation for the same contractId violates the unique key
-     * and surfaces as DataIntegrityViolationException.
+     * and surfaces as {@link com.agricontract.product.common.exception.WriteConflictException}.
      */
     Reservation create(Reservation reservation);
 
