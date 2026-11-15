@@ -89,7 +89,7 @@ class ApplicationBoundaryTest {
         when(reads.lockHistory(buyer, time)).thenReturn(history);
         when(reads.publicSummaries(List.of(buyer), time)).thenReturn(List.of(new ReputationReadProjection(
                 buyer, ReputationReadProjection.score(4, 1), true)));
-        var result = new GetPublicReputationSummary(reads, Clock.fixed(time, ZoneOffset.UTC))
+        var result = new GetPublicReputationSummary(reads, Clock.fixed(time, ZoneOffset.UTC), new DirectTransactionRunner())
                 .execute(new PublicSummaryQuery(buyer));
         assertThat(result.userId()).isEqualTo(buyer);
         assertThat(result.score()).isEqualByComparingTo("80");
