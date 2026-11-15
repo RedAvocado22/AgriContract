@@ -35,3 +35,6 @@ backend/scripts/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# mpv screenshots
+mpv-shot*
