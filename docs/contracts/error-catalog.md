@@ -54,6 +54,12 @@ Current explicit `409` codes occupy these slots:
 | `SYSTEM_ALREADY_LOCKED` | `*_STATE_CONFLICT` |
 | `SYSTEM_NOT_LOCKED` | `*_STATE_CONFLICT` |
 | `ROLE_SEPARATION_VIOLATION` | `*_STATE_CONFLICT` |
+| `EMAIL_ALREADY_CLAIMED` | `*_STATE_CONFLICT` |
+| `EMAIL_ALREADY_VERIFIED` | `*_STATE_CONFLICT` |
+| `VERIFICATION_NOT_REQUESTED` | `*_STATE_CONFLICT` |
+| `VERIFICATION_EXPIRED` | `*_STATE_CONFLICT` |
+| `VERIFICATION_ATTEMPTS_EXHAUSTED` | `*_STATE_CONFLICT` |
+| `VERIFICATION_RESEND_TOO_SOON` | `*_STATE_CONFLICT` |
 
 All current catalog scenarios that can return `409` without naming a canonical code are `*_STATE_CONFLICT`: immutable terms after the first signature; stale or no-longer-acceptable price proposals; funding already requested; an adjustment already accepted; a milestone already `SETTLED` or `WITHDRAWN`; a case already resolved; OTP/challenge binding or superseded-challenge conflicts; reservation replay with different payload; pending supersede/refund transitions; maker-checker conflicts; and mandatory-inspection state conflicts. The same classification applies to any other state-transition or duplicate-with-different-state conflict in this catalog. If a `409` code is ambiguous, classify it as `*_STATE_CONFLICT`; refreshing instead of blindly retrying is the safer default.
 

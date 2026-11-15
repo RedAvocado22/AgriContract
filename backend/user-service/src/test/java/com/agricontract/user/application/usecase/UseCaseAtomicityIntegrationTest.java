@@ -126,8 +126,12 @@ class UseCaseAtomicityIntegrationTest {
 
     private String register(Role role) {
         String userId = UUID.randomUUID().toString();
-        userProfileRepository.save(UserProfile.create(new UserId(userId), "HTX Ca Phe", role,
-                new ContactInfo("u-" + userId.substring(0, 8) + "@example.com", null, null)));
+        String email = "u-" + userId.substring(0, 8) + "@example.com";
+        UserProfile profile = UserProfile.create(new UserId(userId), "HTX Ca Phe", role,
+                new ContactInfo(email, null, null));
+        // Only a verified address is notified (design §4.4), so the outbox command is written.
+        profile.markEmailVerified(email, Instant.parse("2026-10-01T00:00:00Z"));
+        userProfileRepository.save(profile);
         return userId;
     }
 

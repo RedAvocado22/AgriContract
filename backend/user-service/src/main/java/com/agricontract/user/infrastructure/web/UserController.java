@@ -64,18 +64,18 @@ public class UserController {
 
     // Emails a code to the caller's contact address (design §4.4).
     @PostMapping("/me/email-verification")
-    public ResponseEntity<ApiResponse<EmailVerificationSentResponse>> requestEmailVerification(
+    public ResponseEntity<EmailVerificationSentResponse> requestEmailVerification(
             @AuthenticationPrincipal String userId
     ) {
-        return ResponseEntity.status(202).body(ApiResponse.ok(requestEmailVerificationUseCase.execute(userId)));
+        return ResponseEntity.status(202).body(requestEmailVerificationUseCase.execute(userId));
     }
 
     @PostMapping("/me/email-verification/confirm")
-    public ResponseEntity<ApiResponse<UserProfileResponse>> confirmEmailVerification(
+    public ResponseEntity<UserProfileResponse> confirmEmailVerification(
             @AuthenticationPrincipal String userId,
             @RequestBody @Valid ConfirmEmailVerificationRequest req
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(confirmEmailVerificationUseCase.execute(userId, req.code())));
+        return ResponseEntity.ok(confirmEmailVerificationUseCase.execute(userId, req.code()));
     }
 
     @GetMapping("/{userId}")
