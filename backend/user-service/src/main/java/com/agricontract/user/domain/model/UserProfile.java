@@ -2,11 +2,11 @@ package com.agricontract.user.domain.model;
 
 import com.agricontract.user.domain.event.UserRegisteredEvent;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
-import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.exception.SelfRoleChangeException;
 import com.agricontract.user.domain.model.vo.ContactInfo;
 import com.agricontract.user.domain.model.vo.Role;
+import com.agricontract.user.domain.model.vo.RoleChangeOutcome;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import lombok.Getter;
@@ -124,9 +124,10 @@ public class UserProfile {
     }
 
     // One role per account. A direct OPERATOR <-> ARBITRATOR move would let one person propose and then approve
-    // the same maker-checker action, so it is refused. An actor never changes its own role, even to the role it
-    // already holds (checked before the no-op). Returns false when the role is already set (no-op).
-    public boolean assignRole(String actorId, Role newRole) {
+    // the same maker-checker action, so it is refused: the role stays and the outcome reports it, because the refusal
+    // is audited rather than only reported (#261). An actor never changes its own role, even to the role it already
+    // holds (checked before the no-op); that and invalid input are caller errors and still throw.
+    public RoleChangeOutcome assignRole(String actorId, Role newRole) {
         if (actorId == null || actorId.isBlank()) {
             throw new IllegalArgumentException("Role change actor must not be blank");
         }
@@ -137,13 +138,13 @@ public class UserProfile {
             throw new IllegalArgumentException("Role must not be null");
         }
         if (newRole == this.role) {
-            return false;
+            return RoleChangeOutcome.NO_CHANGE;
         }
         if (newRole.isSeparatedFrom(this.role)) {
-            throw new RoleSeparationViolationException(this.userId.value(), this.role, newRole);
+            return RoleChangeOutcome.REJECTED_ROLE_SEPARATION;
         }
         this.role = newRole;
-        return true;
+        return RoleChangeOutcome.APPLIED;
     }
 
     public void updateContactInfo(ContactInfo newInfo) {

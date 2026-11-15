@@ -2,11 +2,11 @@ package com.agricontract.user.domain.model;
 
 import com.agricontract.user.domain.event.UserRegisteredEvent;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
-import com.agricontract.user.domain.exception.RoleSeparationViolationException;
 import com.agricontract.user.domain.exception.SelfKycDecisionException;
 import com.agricontract.user.domain.exception.SelfRoleChangeException;
 import com.agricontract.user.domain.model.vo.ContactInfo;
 import com.agricontract.user.domain.model.vo.Role;
+import com.agricontract.user.domain.model.vo.RoleChangeOutcome;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -252,7 +252,7 @@ class UserProfileTest {
     void assignRole_newRole_changesRole() {
         UserProfile profile = withRole(Role.BUYER);
 
-        assertTrue(profile.assignRole(ACTOR_ID, Role.OPERATOR));
+        assertEquals(RoleChangeOutcome.APPLIED, profile.assignRole(ACTOR_ID, Role.OPERATOR));
         assertEquals(Role.OPERATOR, profile.getRole());
     }
 
@@ -260,23 +260,23 @@ class UserProfileTest {
     void assignRole_sameRole_noOp() {
         UserProfile profile = withRole(Role.ARBITRATOR);
 
-        assertFalse(profile.assignRole(ACTOR_ID, Role.ARBITRATOR));
+        assertEquals(RoleChangeOutcome.NO_CHANGE, profile.assignRole(ACTOR_ID, Role.ARBITRATOR));
         assertEquals(Role.ARBITRATOR, profile.getRole());
     }
 
     @Test
-    void assignRole_operatorToArbitrator_throwsAndKeepsRole() {
+    void assignRole_operatorToArbitrator_rejectedAndKeepsRole() {
         UserProfile profile = withRole(Role.OPERATOR);
 
-        assertThrows(RoleSeparationViolationException.class, () -> profile.assignRole(ACTOR_ID, Role.ARBITRATOR));
+        assertEquals(RoleChangeOutcome.REJECTED_ROLE_SEPARATION, profile.assignRole(ACTOR_ID, Role.ARBITRATOR));
         assertEquals(Role.OPERATOR, profile.getRole());
     }
 
     @Test
-    void assignRole_arbitratorToOperator_throwsAndKeepsRole() {
+    void assignRole_arbitratorToOperator_rejectedAndKeepsRole() {
         UserProfile profile = withRole(Role.ARBITRATOR);
 
-        assertThrows(RoleSeparationViolationException.class, () -> profile.assignRole(ACTOR_ID, Role.OPERATOR));
+        assertEquals(RoleChangeOutcome.REJECTED_ROLE_SEPARATION, profile.assignRole(ACTOR_ID, Role.OPERATOR));
         assertEquals(Role.ARBITRATOR, profile.getRole());
     }
 
@@ -284,7 +284,7 @@ class UserProfileTest {
     void assignRole_adminToArbitrator_allowed() {
         UserProfile profile = withRole(Role.ADMIN);
 
-        assertTrue(profile.assignRole(ACTOR_ID, Role.ARBITRATOR));
+        assertEquals(RoleChangeOutcome.APPLIED, profile.assignRole(ACTOR_ID, Role.ARBITRATOR));
         assertEquals(Role.ARBITRATOR, profile.getRole());
     }
 
