@@ -130,9 +130,26 @@ describe('analytics is not on the transaction critical path (Matrix 23)', () => 
     return out;
   }
 
+  // Only code and config count: a comment may name analytics-service (for example next to the analytics-svc queue
+  // that contract-service declares ahead, which is asynchronous). Block comments must open a line so that "/**" in a
+  // path pattern is kept; a line comment needs whitespace before "//" so that "http://" in a URL is kept.
+  function withoutComments(file: string, src: string): string {
+    if (/\.(yml|yaml|properties)$/.test(file)) return src.replace(/(^|\s)#.*$/gm, '$1');
+    return src.replace(/^\s*\/\*[\s\S]*?\*\//gm, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  }
+
+  it('the reference check ignores comments but still sees URLs in code and config', () => {
+    assert.equal(ANALYTICS_REFERENCE.test(withoutComments('A.java', '/**\n * analytics-service reads it\n */\nclass A {} // analytics-service')), false);
+    assert.equal(ANALYTICS_REFERENCE.test(withoutComments('a.yml', '# analytics-service\nkey: 1')), false);
+    assert.equal(ANALYTICS_REFERENCE.test(withoutComments('A.java', 'String url = "http://analytics-service:8093";')), true);
+    assert.equal(ANALYTICS_REFERENCE.test(withoutComments('A.java', 'matchers("/api/v1/analytics/**")')), true);
+    assert.equal(ANALYTICS_REFERENCE.test(withoutComments('a.yml', 'url: http://analytics-service:8093 # sync')), true);
+  });
+
   for (const service of ['contract-service', 'escrow-service']) {
     it(`${service} has no synchronous client, URL or route to analytics-service`, () => {
-      const offenders = files(join(repoRoot, 'backend', service)).filter((f) => ANALYTICS_REFERENCE.test(readFileSync(f, 'utf8')));
+      const offenders = files(join(repoRoot, 'backend', service))
+        .filter((f) => ANALYTICS_REFERENCE.test(withoutComments(f, readFileSync(f, 'utf8'))));
       deepEqual(offenders.map((f) => f.slice(repoRoot.length + 1)), []);
     });
   }
