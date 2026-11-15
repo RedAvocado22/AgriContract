@@ -11,7 +11,6 @@ import java.util.*;
 import java.util.random.RandomGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
 
 @Service
 @RequiredArgsConstructor
@@ -22,27 +21,30 @@ public class ManageLevel15Assignments {
     private final RandomGenerator random;
     private final AssignmentAlerts alerts;
     private final Clock clock;
+    private final TransactionRunner transactions;
 
-    @Transactional
     public void requested(Level15AssignmentRequestedCommand request) {
-        assignments.lock(request.contractId(), request.milestoneId());
-        if (assignments.active(request.contractId(), request.milestoneId()).isPresent()) return;
-        pick(request.contractId(), request.milestoneId(), request.reportDueBusinessDays(),
-                request.initiatedByActorId(), request.sourceEventId(), false, Set.of());
+        transactions.inTransaction(() -> {
+            assignments.lock(request.contractId(), request.milestoneId());
+            if (assignments.active(request.contractId(), request.milestoneId()).isPresent()) return;
+            pick(request.contractId(), request.milestoneId(), request.reportDueBusinessDays(),
+                    request.initiatedByActorId(), request.sourceEventId(), false, Set.of());
+        });
     }
 
-    @Transactional
     public void timeout(String commissionId) {
-        var initial = assignments.find(commissionId).orElseThrow();
-        assignments.lock(initial.contractId(), initial.milestoneId());
-        var current = assignments.active(initial.contractId(), initial.milestoneId());
-        Instant now = now();
-        if (current.isEmpty() || !current.get().commissionId().equals(commissionId)) return;
-        var old = current.get();
-        if (old.reportDueAt().isAfter(now)) return;
-        assignments.end(commissionId, old.reportDueAt());
-        pick(old.contractId(), old.milestoneId(), old.reportDueBusinessDays(), old.initiatedByActorId(),
-                commissionId, true, assignments.previousInspectors(old.contractId(), old.milestoneId()));
+        transactions.inTransaction(() -> {
+            var initial = assignments.find(commissionId).orElseThrow();
+            assignments.lock(initial.contractId(), initial.milestoneId());
+            var current = assignments.active(initial.contractId(), initial.milestoneId());
+            Instant now = now();
+            if (current.isEmpty() || !current.get().commissionId().equals(commissionId)) return;
+            var old = current.get();
+            if (old.reportDueAt().isAfter(now)) return;
+            assignments.end(commissionId, old.reportDueAt());
+            pick(old.contractId(), old.milestoneId(), old.reportDueBusinessDays(), old.initiatedByActorId(),
+                    commissionId, true, assignments.previousInspectors(old.contractId(), old.milestoneId()));
+        });
     }
 
     private void pick(String contract, String milestone, int days, String actor, String source,
@@ -63,16 +65,17 @@ public class ManageLevel15Assignments {
     /** #129 must call this inside its report confirmation transaction, after its authorization checks.
      * A stale/foreign assignment fails the whole confirmation transaction. No independent commit is allowed.
      */
-    @Transactional(propagation = Propagation.MANDATORY)
     public void closeConfirmed(String contract, String milestone, String commission, String inspector, Instant confirmedAt) {
-        assignments.lock(contract, milestone);
-        var active = assignments.active(contract, milestone).orElseThrow(() -> new IllegalStateException("No active assignment"));
-        if (!active.commissionId().equals(commission) || !active.inspectorId().equals(inspector)
-                || confirmedAt == null || confirmedAt.isBefore(active.assignedAt()) || confirmedAt.isAfter(clock.instant())
-                || !confirmedAt.isBefore(active.reportDueAt()))
-            throw new IllegalStateException("Report does not match active assignment");
-        if (!assignments.end(commission, confirmedAt))
-            throw new IllegalStateException("Assignment already ended");
+        transactions.inExistingTransaction(() -> {
+            assignments.lock(contract, milestone);
+            var active = assignments.active(contract, milestone).orElseThrow(() -> new IllegalStateException("No active assignment"));
+            if (!active.commissionId().equals(commission) || !active.inspectorId().equals(inspector)
+                    || confirmedAt == null || confirmedAt.isBefore(active.assignedAt()) || confirmedAt.isAfter(clock.instant())
+                    || !confirmedAt.isBefore(active.reportDueAt()))
+                throw new IllegalStateException("Report does not match active assignment");
+            if (!assignments.end(commission, confirmedAt))
+                throw new IllegalStateException("Assignment already ended");
+        });
     }
 
     private Instant now() { return clock.instant().truncatedTo(ChronoUnit.MICROS); }
