@@ -15,12 +15,27 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class BatchSummaryApplicationTest {
+    @Test
+    void bothUseCasesPropagateRepositoryFailuresWithoutSpring() {
+        var repository = mock(ReputationReadRepository.class);
+        var clock = Clock.systemUTC();
+        var failure = new IllegalStateException("repository failed");
+        when(repository.publicSummaries(any(), any()))
+                .thenThrow(failure);
+        var ids = List.of(UUID.randomUUID());
+        assertThatThrownBy(() -> new GetPublicReputationSummary(repository, clock, new DirectTransactionRunner())
+                .execute(new PublicSummaryQuery(ids.getFirst()))).isSameAs(failure);
+        assertThatThrownBy(() -> new GetPublicReputationSummaries(repository, clock, new DirectTransactionRunner())
+                .execute(new BatchSummaryQuery(ids))).isSameAs(failure);
+    }
+
     @Test
     void batchCallsOneRepositoryOperationAndCapturesClockOnce() {
         var repository = mock(ReputationReadRepository.class);
@@ -31,7 +46,7 @@ class BatchSummaryApplicationTest {
         when(repository.publicSummaries(ids, now)).thenReturn(List.of(
                 new ReputationReadProjection(ids.get(0), BigDecimal.valueOf(67), true),
                 new ReputationReadProjection(ids.get(1), null, false)));
-        var result = new GetPublicReputationSummaries(repository, clock).execute(new BatchSummaryQuery(ids));
+        var result = new GetPublicReputationSummaries(repository, clock, new DirectTransactionRunner()).execute(new BatchSummaryQuery(ids));
         assertThat(result.items()).hasSize(2);
         assertThat(result.items().getFirst().score()).isEqualByComparingTo("67");
         assertThat(result.items().get(1).score()).isNull();
@@ -51,7 +66,7 @@ class BatchSummaryApplicationTest {
         when(repository.publicSummaries(List.of(id), now)).thenReturn(List.of(
                 new ReputationReadProjection(id, BigDecimal.valueOf(80), true)));
         when(repository.lockHistory(id, now)).thenReturn(List.of());
-        var result = new GetPublicReputationSummary(repository, clock).execute(new PublicSummaryQuery(id));
+        var result = new GetPublicReputationSummary(repository, clock, new DirectTransactionRunner()).execute(new PublicSummaryQuery(id));
         assertThat(result.score()).isEqualByComparingTo("80");
         assertThat(result.locked()).isTrue();
         verify(repository).publicSummaries(List.of(id), now);
