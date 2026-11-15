@@ -28,6 +28,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.UnexpectedRollbackException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -72,6 +76,7 @@ class ScaffoldBoundaryTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired InspectionAssignmentRepository assignments;
     @Autowired InspectionAuthorization authorization;
+    @Autowired PlatformTransactionManager transactions;
     @MockBean InspectorEligibilityPort users;
 
     @BeforeEach
@@ -83,6 +88,56 @@ class ScaffoldBoundaryTest {
 
     @AfterEach
     void clearContext() { SecurityContextHolder.clearContext(); }
+
+    @Test
+    void authorizationKeepsReadOnlyTransactionAroundEligibilityAndAssignmentRead() throws Exception {
+        String commission = UUID.randomUUID().toString();
+        insert(commission, CONTRACT, MILESTONE, INSPECTOR_A, null);
+        when(users.load(INSPECTOR_A)).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+            assertThat(TransactionSynchronizationManager.isCurrentTransactionReadOnly()).isTrue();
+            return new InspectorEligibility(INSPECTOR_A, "INSPECTOR", "VERIFIED", null);
+        });
+        assertThat(authorize(commission, INSPECTOR_A, "INSPECTOR")).isEqualTo(200);
+        assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+    }
+
+    @Test
+    void readOnlyAuthorizationJoinsExistingWriteTransactionAndSeesUncommittedAssignment() {
+        String commission = UUID.randomUUID().toString();
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            insert(commission, CONTRACT, MILESTONE, INSPECTOR_A, null);
+            var callerConnection = jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class);
+            when(users.load(INSPECTOR_A)).thenAnswer(invocation -> {
+                assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+                assertThat(TransactionSynchronizationManager.isCurrentTransactionReadOnly()).isFalse();
+                assertThat(jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class)).isEqualTo(callerConnection);
+                return new InspectorEligibility(INSPECTOR_A, "INSPECTOR", "VERIFIED", null);
+            });
+            try {
+                assertThat(authorize(commission, INSPECTOR_A, "INSPECTOR")).isEqualTo(200);
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
+            status.setRollbackOnly();
+        });
+        assertThat(assignments.findByCommissionId(commission)).isEmpty();
+    }
+
+    @Test
+    void caughtAuthorizationDenialStillMarksCallerForRollback() {
+        String commission = UUID.randomUUID().toString();
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            insert(commission, CONTRACT, MILESTONE, INSPECTOR_A, null);
+            try {
+                assertThat(authorize(commission, INSPECTOR_B, "INSPECTOR")).isEqualTo(403);
+            } catch (Exception failure) {
+                throw new AssertionError(failure);
+            }
+            assertThat(status.isRollbackOnly()).isTrue();
+        })).isInstanceOf(UnexpectedRollbackException.class);
+        assertThat(assignments.findByCommissionId(commission)).isEmpty();
+    }
 
     @Autowired
     MockMvc mvc;

@@ -18,6 +18,7 @@ import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
 import com.agricontract.inspection.application.port.AssignmentAlerts;
+import com.agricontract.inspection.application.port.TransactionRunner;
 import com.agricontract.inspection.application.usecase.ManageLevel15Assignments;
 import com.agricontract.inspection.domain.model.TimedAssignment;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
@@ -34,6 +35,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -88,6 +91,7 @@ class AssignmentLifecycleIntegrationTest {
     @SpyBean Level15RequestedConsumer consumer;
     @Autowired EventEnvelopeCodec codec;
     @Autowired PlatformTransactionManager transactions;
+    @Autowired TransactionRunner transactionRunner;
     @Autowired RabbitTemplate rabbit;
     @MockBean InspectorEligibilityPort inspectors;
     @MockBean RandomGenerator random;
@@ -407,6 +411,73 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(rows()).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_event", Integer.class)).isZero();
     }
+    @Test void mandatoryRunnerRejectsMissingTransactionBeforeExecutingWork() {
+        var executed = new AtomicBoolean();
+        assertThatThrownBy(() -> transactionRunner.inExistingTransaction(() -> executed.set(true)))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(executed).isFalse();
+    }
+
+    @Test void mandatoryConfirmationUsesCallerConnectionAndDoesNotCommitIndependently() {
+        deliver(event());
+        var assignment = active();
+        var outboxEvent = event();
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            var callerConnection = jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class);
+            transactionRunner.inExistingTransaction(() -> {
+                assertThat(jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class)).isEqualTo(callerConnection);
+                lifecycle.closeConfirmed(contract, milestone, assignment.commissionId(), a, NOW);
+                new OutboxWriter(jdbc, codec).append(outboxEvent);
+            });
+            assertThat(assignments.find(assignment.commissionId()).orElseThrow().endedAt()).isEqualTo(NOW);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_outbox", Integer.class)).isEqualTo(1);
+            status.setRollbackOnly();
+        });
+        assertThat(active().endedAt()).isNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_outbox", Integer.class)).isZero();
+    }
+
+    @Test void caughtMandatoryFailureStillMarksCallerForRollback() {
+        deliver(event());
+        var assignment = active();
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            assertThatThrownBy(() -> lifecycle.closeConfirmed(contract, milestone, assignment.commissionId(), b, NOW))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThat(status.isRollbackOnly()).isTrue();
+        })).isInstanceOf(UnexpectedRollbackException.class);
+        assertThat(active().endedAt()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void callerFailureRollsBackAssignmentProcessedEventAndOutbox(boolean error) {
+        var request = event();
+        // No new outgoing business event is introduced: this models another participant in the caller's transaction.
+        assertThatThrownBy(() -> transactionRunner.inTransaction(() -> {
+            deliver(request);
+            new OutboxWriter(jdbc, codec).append(event());
+            assertThat(rows()).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_event", Integer.class)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_outbox", Integer.class)).isEqualTo(1);
+            if (error) throw new AssertionError("caller failed after outbox append");
+            throw new IllegalStateException("caller failed after outbox append");
+        })).isInstanceOf(error ? AssertionError.class : IllegalStateException.class)
+                .hasMessage("caller failed after outbox append");
+        assertThat(rows()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_event", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_outbox", Integer.class)).isZero();
+        deliver(request);
+        assertThat(rows()).isEqualTo(1);
+    }
+
+    @Test void requiredSupplierJoinsCallerAndReturnsResult() {
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            var callerConnection = jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class);
+            assertThat(transactionRunner.inTransaction(() -> jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class)))
+                    .isEqualTo(callerConnection);
+        });
+    }
+
     private void concurrent(Runnable one, Runnable two) throws Exception {
         var start = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(2)) {

@@ -5,6 +5,7 @@ import com.agricontract.inspection.application.exception.InspectionAssignmentAcc
 import com.agricontract.inspection.application.exception.InspectorNotEligibleException;
 import com.agricontract.inspection.domain.model.InspectionAssignment;
 import com.agricontract.inspection.domain.repository.InspectionAssignmentRepository;
+import com.agricontract.inspection.testsupport.DirectTransactionRunner;
 
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +18,8 @@ import static org.mockito.Mockito.*;
 class InspectionAuthorizationTest {
     private final InspectorEligibilityGate eligibility = mock(InspectorEligibilityGate.class);
     private final InspectionAssignmentRepository assignments = mock(InspectionAssignmentRepository.class);
-    private final InspectionAuthorization authorization = new InspectionAuthorization(eligibility, assignments);
+    private final InspectionAuthorization authorization = new InspectionAuthorization(
+            eligibility, assignments, new DirectTransactionRunner());
 
     @Test
     void eligibleAssignedInspectorCanAccessCommission() {
