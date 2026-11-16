@@ -30,12 +30,11 @@ public interface UserProfileJpaRepository extends JpaRepository<UserProfileJpaEn
     long countByVerificationStatus(VerificationStatus verificationStatus);
 
     // Native because locked_until is not updatable through the entity and last_lock_revision is not mapped at all:
-    // only these two statements write them. MySQL evaluates SET left to right, so the CASE still reads the old value.
+    // only these two statements write them.
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             UPDATE user_profiles
-               SET locked_until = CASE WHEN locked_until IS NULL OR locked_until < :lockedUntil
-                                       THEN :lockedUntil ELSE locked_until END,
+               SET locked_until = :lockedUntil,
                    last_lock_revision = :lockRevision
              WHERE user_id = :userId AND last_lock_revision < :lockRevision
             """, nativeQuery = true)

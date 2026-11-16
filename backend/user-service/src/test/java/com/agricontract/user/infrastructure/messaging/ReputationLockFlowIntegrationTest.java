@@ -116,9 +116,9 @@ class ReputationLockFlowIntegrationTest {
         Instant shorter = now.plus(30, ChronoUnit.DAYS);
 
         publish(ReputationLockEvents.locked(userId, longer, 1));
-        publish(ReputationLockEvents.locked(userId, shorter, 2));
+        // The shorter second lock arrives as the effective lock over both, which is still the longer one (D53).
+        publish(ReputationLockEvents.locked(userId, longer, 2));
         awaitRevision(userId, 2);
-        // A shorter new lock does not shorten the longer one already in force.
         assertThat(lockedUntil(userId)).isEqualTo(longer);
 
         publish(ReputationLockEvents.unlocked(userId, shorter, 3));
@@ -129,6 +129,32 @@ class ReputationLockFlowIntegrationTest {
         assertThat(commands).hasSize(3);
         assertThat(Instant.parse(commands.get(1).at("/payload/effectiveUntil").asText())).isEqualTo(longer);
         assertThat(Instant.parse(commands.get(2).at("/payload/effectiveUntil").asText())).isEqualTo(shorter);
+    }
+
+    // #469 / D53: reputation.locked carries the effective lock, so the newest revision wins even when it is shorter.
+    // rev2 (early unlock of the long lock) is delivered after rev3 and must stay ignored.
+    @Test
+    void outOfOrderLock_takesTheNewestEffectiveLockEvenWhenShorter() throws Exception {
+        String userId = register();
+        Instant longLock = now.plus(60, ChronoUnit.DAYS);
+        Instant shortLock = now.plus(10, ChronoUnit.DAYS);
+
+        publish(ReputationLockEvents.locked(userId, longLock, 1));
+        awaitRevision(userId, 1);
+        publish(ReputationLockEvents.locked(userId, shortLock, 3));
+        awaitRevision(userId, 3);
+        assertThat(lockedUntil(userId)).isEqualTo(shortLock);
+
+        EventEnvelope lateUnlock = ReputationLockEvents.unlocked(userId, null, 2);
+        publish(lateUnlock);
+        await().atMost(WAIT).until(() -> jdbc.queryForObject(
+                "SELECT COUNT(*) FROM processed_event WHERE event_id = ?", Integer.class,
+                lateUnlock.eventId().toString()) == 1);
+
+        assertThat(revision(userId)).isEqualTo(3);
+        assertThat(getInternalUserInfo.execute(userId).lockedUntil()).isEqualTo(shortLock);
+        assertThat(commands(userId)).extracting(c -> c.at("/payload/action").asText())
+                .containsExactly("LOCKED", "LOCKED");
     }
 
     // Matrix 21c + 26: the revision is read from the database, so an older event with a new eventId is ignored even
