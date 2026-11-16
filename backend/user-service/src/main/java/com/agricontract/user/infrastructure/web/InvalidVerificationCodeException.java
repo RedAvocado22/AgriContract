@@ -1,8 +1,9 @@
-package com.agricontract.user.domain.exception;
+package com.agricontract.user.infrastructure.web;
 
 import lombok.Getter;
 
-// 400: wrong code. The failed attempt is already counted when this is thrown.
+// 400 VERIFICATION_CODE_INVALID: thrown by the controller for a Rejected confirmation, after the counted attempt
+// has committed.
 @Getter
 public class InvalidVerificationCodeException extends RuntimeException {
     public static final String REASON = "VERIFICATION_CODE_INVALID";

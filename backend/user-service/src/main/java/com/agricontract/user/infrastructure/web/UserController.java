@@ -1,6 +1,8 @@
 package com.agricontract.user.infrastructure.web;
 
+import com.agricontract.user.application.dto.EmailVerificationConfirmation;
 import com.agricontract.user.application.dto.EmailVerificationSentResponse;
+import com.agricontract.user.infrastructure.web.dto.RegisterUserResponse;
 import com.agricontract.user.application.dto.RegisterUserCommand;
 import com.agricontract.user.application.usecase.ConfirmEmailVerificationUseCase;
 import com.agricontract.user.application.usecase.RequestEmailVerificationUseCase;
@@ -32,7 +34,7 @@ public class UserController {
     private final ConfirmEmailVerificationUseCase confirmEmailVerificationUseCase;
 
     @PostMapping("/register")
-    public ResponseEntity<UserProfileResponse> register(
+    public ResponseEntity<RegisterUserResponse> register(
             @RequestBody @Valid RegisterUserRequest req,
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader("X-User-Role") String rawRoles
@@ -48,9 +50,7 @@ public class UserController {
                 new RegisterUserCommand(userId, req.organizationName(), role, req.email(), req.phone(), req.address())
         );
 
-        return result.isNew()
-                ? ResponseEntity.status(201).body(result.profile())
-                : ResponseEntity.ok(result.profile());
+        return ResponseEntity.status(result.isNew() ? 201 : 200).body(RegisterUserResponse.from(result));
     }
 
     // The owner is the authenticated principal set by HeaderAuthenticationFilter, never the raw X-User-Id header:
@@ -62,7 +62,7 @@ public class UserController {
         return ResponseEntity.ok(getUserProfileUseCase.execute(userId));
     }
 
-    // Emails a code to the caller's contact address (design §4.4).
+    // Resends a code to the caller's contact address; register sends the first one (design §4.4).
     @PostMapping("/me/email-verification")
     public ResponseEntity<EmailVerificationSentResponse> requestEmailVerification(
             @AuthenticationPrincipal String userId
@@ -75,7 +75,12 @@ public class UserController {
             @AuthenticationPrincipal String userId,
             @RequestBody @Valid ConfirmEmailVerificationRequest req
     ) {
-        return ResponseEntity.ok(confirmEmailVerificationUseCase.execute(userId, req.code()));
+        // The wrong guess has already been counted and committed; only the response is an error.
+        return switch (confirmEmailVerificationUseCase.execute(userId, req.code())) {
+            case EmailVerificationConfirmation.Verified verified -> ResponseEntity.ok(verified.profile());
+            case EmailVerificationConfirmation.Rejected rejected ->
+                    throw new InvalidVerificationCodeException(rejected.attemptsLeft());
+        };
     }
 
     @GetMapping("/{userId}")

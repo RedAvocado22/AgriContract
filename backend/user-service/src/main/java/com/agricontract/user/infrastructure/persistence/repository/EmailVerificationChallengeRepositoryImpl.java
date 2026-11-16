@@ -6,6 +6,7 @@ import com.agricontract.user.infrastructure.persistence.mapper.EmailVerification
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Optional;
 
 @Repository
@@ -16,8 +17,8 @@ public class EmailVerificationChallengeRepositoryImpl implements EmailVerificati
     private final EmailVerificationChallengeMapper mapper;
 
     @Override
-    public Optional<EmailVerificationChallenge> findByUserId(String userId) {
-        return jpaRepository.findById(userId).map(mapper::toDomain);
+    public Optional<EmailVerificationChallenge> findByUserIdForUpdate(String userId) {
+        return jpaRepository.findByUserIdForUpdate(userId).map(mapper::toDomain);
     }
 
     @Override
@@ -29,5 +30,10 @@ public class EmailVerificationChallengeRepositoryImpl implements EmailVerificati
     @Override
     public void deleteByUserId(String userId) {
         jpaRepository.deleteById(userId);
+    }
+
+    @Override
+    public void expireIfCode(String userId, String codeHash, Instant now) {
+        jpaRepository.expireIfCode(userId, codeHash, now);
     }
 }
