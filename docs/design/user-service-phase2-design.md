@@ -92,8 +92,8 @@ Gate nằm tại use-case của `product-service`/`contract-service`, không n�
 
 | Method | Path | Quyền | Response/ý nghĩa |
 |---|---|---|---|
-| `POST` | `/api/v1/users/register` | Authenticated | Idempotent theo Keycloak `sub`; tạo `PENDING` nếu mới. Email lấy từ body, lưu **chưa verify** (§4.4); email đã có account khác verify → 409 `EMAIL_ALREADY_CLAIMED` (chỉ khi tạo mới) |
-| `POST` | `/api/v1/users/me/email-verification` | Chính chủ | Gửi OTP 6 số tới contact email → 202 `{expiresAt}` (§4.4) |
+| `POST` | `/api/v1/users/register` | Authenticated | Idempotent theo Keycloak `sub`; tạo `PENDING` nếu mới. Email lấy từ body, lưu **chưa verify** và **gửi OTP ngay** (§4.4) → 201 kèm `verificationEmailSent`, `expiresAt`; email đã có account khác verify → 409 `EMAIL_ALREADY_CLAIMED` (chỉ khi tạo mới) |
+| `POST` | `/api/v1/users/me/email-verification` | Chính chủ | **Gửi lại** OTP 6 số tới contact email → 202 `{expiresAt}` (§4.4) |
 | `POST` | `/api/v1/users/me/email-verification/confirm` | Chính chủ | Body `{code}`; đúng mã → 200 `UserProfileResponse` với `emailVerified: true` (§4.4) |
 | `GET` | `/api/v1/users/me` | Chính chủ | `UserProfileResponse` đầy đủ contact/KYC/authorization/lock, kèm `emailVerified` |
 | `GET` | `/api/v1/users/{userId}` | Authenticated | `PublicUserResponse`: `userId`, `organizationName`, `role`, `verificationStatus`; **không email/phone/address** |
@@ -134,6 +134,7 @@ Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào 
   "userId": "...",
   "organizationName": "...",
   "email": "...",
+  "emailVerified": true,
   "role": "BUYER",
   "verificationStatus": "VERIFIED",
   "authorizationExpiresAt": "2027-06-30T16:59:59.999Z",
@@ -145,21 +146,43 @@ Mọi quyết định ghi audit metadata; việc đưa quyết định KYC vào 
 
 Chỉ service identity (mTLS/service token; Phase 2 có thể dùng `SERVICE_INTERNAL_SECRET`) được gọi. Không tái dùng `UserInfoResponse` public cho Feign vì đó là nguyên nhân KI-3.
 
-**`email` = `null` khi user chưa verify email (11/11/2026, #344).** Caller coi email thiếu là "không gửi được": contract-service đã fail-closed (`SignerEligibility`, `CreateContractUseCase`), product-service `ProposeCategory` hiện báo `UserServiceUnavailableException` khi không có email (user chưa verify nhận lỗi 503, follow-up nếu cần mã lỗi riêng).
+**`emailVerified` + `email` = `null` khi user chưa verify email (13/11/2026, #344).** Response có thêm `"emailVerified": true|false`. Chưa verify → `emailVerified: false` và `email: null` (caller không bao giờ nhận địa chỉ chưa chứng minh). Caller dựa vào `emailVerified` để trả lỗi rõ ràng "email chưa xác minh", không suy từ email null. Hiện tại contract-service fail-closed với lỗi hồ sơ bên ký (`SignerEligibility`, `CreateContractUseCase`), product-service `ProposeCategory` trả 503; cả hai là follow-up.
 
-### 4.4 Xác minh email (chốt 11/11/2026, #344)
+### 4.4 Xác minh email (chốt 13/11/2026, #344; thay bản 11/11)
 
-Từ #314 email đăng ký đến từ body, không còn từ JWT, nên không có gì chứng minh địa chỉ thuộc về người gọi (realm `verifyEmail: false`, body cũng bỏ qua `duplicateEmailsAllowed: false` của realm). **Chọn OTP ở user-service**, không bật `verifyEmail` của Keycloak: user-service không thấy JWT, nên muốn đối chiếu email body với email Keycloak đã verify thì gateway phải inject lại một header email (đi ngược quyết định bỏ `X-User-Email`, api-gateway design §2) hoặc user-service phải gọi Keycloak admin API (chưa có client). Realm cũng chưa có SMTP.
+Từ #314 email đăng ký đến từ body, không còn từ JWT, nên không có gì chứng minh địa chỉ thuộc về người gọi. **Chọn OTP ở user-service** (quyết định team lead 13/11), không bật `verifyEmail` của Keycloak: user-service không thấy JWT, nên muốn đối chiếu email body với email Keycloak đã verify thì gateway phải inject lại header email (đi ngược quyết định bỏ `X-User-Email`, api-gateway design §2), và realm chưa có SMTP. #393 (lấy email từ token) bị thay bởi quyết định này.
 
-- `register` lưu email body vào `contactInfo` ở trạng thái **chưa verify**. Không gửi gì tự động; client gọi `POST /me/email-verification`.
-- **Gửi mã:** mã 6 số ngẫu nhiên (`SecureRandom`), lưu `HMAC-SHA256(code, pepper)` trong `email_verification_challenge` (mỗi user tối đa 1 dòng; yêu cầu mới thay dòng cũ), hết hạn sau `expiry-seconds` (600), tối đa `max-attempts` (5) lần nhập sai, cách nhau tối thiểu `resend-cooldown-seconds` (60) → 409 `VERIFICATION_RESEND_TOO_SOON`. Email gửi đồng bộ qua `POST /internal/v1/notifications/otp-email` với `purpose: VERIFY_EMAIL` (không `contractId`/`signedContentHash`), trong transaction: notification không nhận → 503, challenge rollback, user gửi lại. Log chỉ có `requestId`, không mã, không địa chỉ.
-- **Xác nhận:** sai mã → 400 `VERIFICATION_CODE_INVALID`, lần sai được commit (`noRollbackFor`); hết lượt → 409 `VERIFICATION_ATTEMPTS_EXHAUSTED`; hết hạn hoặc mã gửi tới địa chỉ khác contact email hiện tại → 409 `VERIFICATION_EXPIRED`; chưa xin mã → 409 `VERIFICATION_NOT_REQUESTED`; đã verify → 409 `EMAIL_ALREADY_VERIFIED`. Đúng mã → ghi `verified_email` + `email_verified_at`, xoá challenge.
-- **Địa chỉ đã có người verify:** `user_profiles.verified_email` UNIQUE (không phân biệt hoa thường theo collation). Nhiều user có thể *đăng ký* cùng địa chỉ chưa verify; **ai xác nhận trước thì sở hữu**. Sau đó: register mới với địa chỉ đó → 409 `EMAIL_ALREADY_CLAIMED`; xin mã hoặc xác nhận cho địa chỉ đó → 409 `EMAIL_ALREADY_CLAIMED` (unique key chặn cả hai confirm chạy song song). Message không lộ user nào đang giữ địa chỉ.
-- **Idempotent register không đổi:** profile đã tồn tại → trả nguyên profile (200), không kiểm tra email body.
-- **Đổi contact email** (`updateContactInfo`, chưa có endpoint) xoá trạng thái verify nếu địa chỉ khác.
-- **Không gửi tới địa chỉ chưa verify:** mọi recipient lấy từ `UserProfile.verifiedContactEmail()`. `notification.user_kyc_result_requested` và `notification.user_lock_changed_requested` **không được publish** khi chưa verify (quyết định KYC / lock vẫn áp dụng; user xem trên `/me`). Internal API trả `email: null` (§4.3).
-- Profile có sẵn trước V11 đều **chưa verify**: email của chúng từ #314 trở đi đến từ body, không phân biệt được với email cũ từ JWT.
-- **Phụ thuộc notification-service** (owner khác): nhận `purpose: VERIFY_EMAIL` không có `contractId`/`signedContentHash` + template. Chưa làm thì `POST /me/email-verification` trả 503.
+**Xác minh email là một phần của đăng ký** (§2.3 bước 3): mã được gửi ngay khi hồ sơ được tạo, đăng ký chỉ hoàn tất khi nhập đúng mã. Không phải production nên không có "user cũ chưa verify"; tài khoản demo bắt đầu ở trạng thái đã verify (seed data, hoặc script demo xác nhận qua MailHog).
+
+**Register gửi mã đầu tiên**
+- Profile **mới**: lưu email body vào `contactInfo` ở trạng thái **chưa verify**, commit, rồi gửi mã theo luồng "Gửi mã" bên dưới (cùng luật hết hạn/cooldown).
+- Register trả **201** kể cả khi gửi mã lỗi, vì profile đã commit. Response có thêm trạng thái gửi mã (`verificationEmailSent`, `expiresAt`). Gửi lỗi → `verificationEmailSent: false`, client vào màn nhập mã và bấm gửi lại.
+- **Idempotent register không đổi:** profile đã tồn tại → trả nguyên profile (200), không kiểm tra email body, **không gửi mã mới**.
+- Email body đã có account khác verify → **409 `EMAIL_ALREADY_CLAIMED`**, không tạo profile (chỉ khi tạo mới). **Chấp nhận** việc response này cho một user đã đăng nhập biết địa chỉ đó đã có người verify: register cần JWT, tức là đã có tài khoản Keycloak, và trang đăng ký Keycloak vốn báo trùng email (`duplicateEmailsAllowed: false`, §2.3). Chuyển check sang request/confirm cũng không che được, vì register tự gửi mã nên vẫn phải báo lại cùng thông tin. Message không lộ user nào đang giữ địa chỉ.
+
+**Gửi mã** (register, và `POST /me/email-verification` chỉ còn dùng để **gửi lại**)
+- Mã 6 số ngẫu nhiên (`SecureRandom`), lưu `HMAC-SHA256(code, pepper)` trong `email_verification_challenge` (mỗi user tối đa 1 dòng; yêu cầu mới thay dòng cũ), hết hạn sau `expiry-seconds` (600), tối đa `max-attempts` (5) lần nhập sai. Gửi lại sớm hơn `resend-cooldown-seconds` (60) tính từ lần gửi trước → 409 `VERIFICATION_RESEND_TOO_SOON`; challenge đã hết hạn (kể cả bị expire vì gửi lỗi) thì không tính cooldown.
+- **Commit trước, gửi sau** (không giữ transaction trong lúc gọi HTTP; giống contract-service #355):
+  1. Transaction: kiểm tra chưa verify, địa chỉ chưa bị claim, cooldown; lưu challenge mới. Commit.
+  2. Ngoài transaction: gửi đồng bộ qua `POST /internal/v1/notifications/otp-email` với `purpose: VERIFY_EMAIL` (không `contractId`/`signedContentHash`).
+  3. Notification không nhận → transaction mới **expire challenge vừa tạo** (điều kiện `code_hash` khớp, không đụng challenge của một request mới hơn), trả 503 (resend) hoặc `verificationEmailSent: false` (register). Mã cũ (nếu có) đã bị thay ở bước 1, không dùng lại được.
+- Log chỉ có `requestId`, không mã, không địa chỉ.
+
+**Xác nhận** (`POST /me/email-verification/confirm`)
+- **Trừ lượt trước, so mã sau**, bằng một câu UPDATE nguyên tử: `attempts_left = attempts_left - 1 WHERE user_id = ? AND attempts_left > 0 AND expires_at > now`. Request song song không đọc chung một giá trị `attempts_left` được, nên mỗi request đều tốn một lượt, không ai được đoán miễn phí. Mã đúng cũng tốn một lượt; không sao, vì challenge bị xoá ngay sau đó.
+- UPDATE không trúng dòng nào → đọc lại challenge để trả lỗi: không có → 409 `VERIFICATION_NOT_REQUESTED`; hết hạn hoặc mã gửi tới địa chỉ khác contact email hiện tại → 409 `VERIFICATION_EXPIRED`; hết lượt → 409 `VERIFICATION_ATTEMPTS_EXHAUSTED`. Đã verify → 409 `EMAIL_ALREADY_VERIFIED`.
+- **Sai mã:** lượt đã commit ở bước trừ lượt. Use case trả **kết quả bị từ chối** (còn bao nhiêu lượt), không throw, và web layer map sang 400 `VERIFICATION_CODE_INVALID`. Không dùng `noRollbackFor`.
+- **Đúng mã:** một transaction xoá challenge (điều kiện `code_hash` khớp; 0 dòng nghĩa là vừa có resend chen vào → 409 `VERIFICATION_EXPIRED`), kiểm tra địa chỉ chưa bị claim, ghi `verified_email` + `email_verified_at`.
+- **Transaction boundary theo D44:** `application`/`domain` không có `@Transactional`/`TransactionTemplate`; use case gọi port `TransactionRunner`, implementation ở infrastructure.
+
+**Địa chỉ đã có người verify:** `user_profiles.verified_email` UNIQUE (không phân biệt hoa thường theo collation). Nhiều user có thể *đăng ký* cùng địa chỉ chưa verify; **ai xác nhận trước thì sở hữu**. Sau đó register mới, gửi lại hoặc xác nhận cho địa chỉ đó → 409 `EMAIL_ALREADY_CLAIMED` (unique key chặn cả hai confirm chạy song song). Tài khoản chưa verify bị dọn sau 24 giờ (§2.3).
+
+**Không gửi tới địa chỉ chưa verify**
+- Mọi recipient lấy từ `UserProfile.verifiedContactEmail()`. `notification.user_kyc_result_requested` và `notification.user_lock_changed_requested` **không được publish** khi chưa verify (quyết định KYC/lock vẫn áp dụng; user xem trên `/me`).
+- Internal API trả `email: null` **và** `emailVerified: false` (§4.3), để caller phân biệt "chưa verify" với dữ liệu thiếu và trả lỗi rõ ràng. Follow-up: contract-service (create/sign) và product-service (`ProposeCategory`) dùng `emailVerified` thay vì suy từ email null.
+- Không có tính năng đổi email (§2.3, D47). `UserProfile.updateContactInfo` vẫn giữ invariant: đổi sang địa chỉ khác thì xoá trạng thái verify.
+
+**Thứ tự merge:** (1) contract change trên `contracts/344-email-verification` (`OtpEmailRequest.purpose: VERIFY_EMAIL`, response register, `emailVerified` trên internal DTO); (2) notification-service nhận `purpose: VERIFY_EMAIL` + template (owner khác); (3) PR này. Thiếu (2) thì mọi lần đăng ký đều không gửi được mã.
 
 ## 5. Events
 
