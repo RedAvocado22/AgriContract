@@ -98,7 +98,8 @@ jobs:
     permissions:
       pull-requests: read
     steps:
-      - env:
+      - name: Exactly one Closes reference
+        env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
@@ -109,6 +110,36 @@ jobs:
             echo "::error::PR description must contain exactly one 'Closes #<issue>' (found $count)."
             exit 1
           fi
+
+      # D56 (#483): design docs and the contract catalog are edited only by the repo owner, in docs PRs.
+      # contracts/** has the same rule in the contracts job.
+      - name: Design docs are owner-only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          CREATED_AT: ${{ github.event.pull_request.created_at }}
+          DOCS_OWNER: RedAvocado22
+          # PRs opened before the rule keep their already-reviewed doc edits (#413, #462).
+          RULE_SINCE: '2026-11-16T07:00:00Z'
+        run: |
+          if [ "$AUTHOR" = "$DOCS_OWNER" ]; then
+            echo "Opened by @$DOCS_OWNER; design docs may change."
+            exit 0
+          fi
+          if [[ "$CREATED_AT" < "$RULE_SINCE" ]]; then
+            echo "Opened $CREATED_AT, before the rule took effect ($RULE_SINCE)."
+            exit 0
+          fi
+          touched=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' \
+            | grep -E '^docs/(design|contracts)/' || true)
+          if [ -n "$touched" ]; then
+            echo "$touched"
+            echo "::error::docs/design/** and docs/contracts/** are edited only by @$DOCS_OWNER (D56). Drop these files from the PR and propose the change in an issue (see #483)."
+            exit 1
+          fi
+          echo "No design doc changed."
 
   # Frozen contracts (#88): every file parses and is a valid OpenAPI / JSON Schema document with resolvable
   # $refs; on a PR, contracts/** may only be changed by the repo owner and never in the same PR as code.
