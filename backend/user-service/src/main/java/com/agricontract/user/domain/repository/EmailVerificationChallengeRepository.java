@@ -6,8 +6,10 @@ import java.time.Instant;
 import java.util.Optional;
 
 public interface EmailVerificationChallengeRepository {
-    // Locks the user's challenge row until the caller's transaction ends, so parallel requests and confirms for the
-    // same user run one after another and always see the latest attempts_left. Must run inside a transaction.
+    // Locking read of the user's challenge row, so it returns the latest committed attempts_left. It does not serialize
+    // callers on its own: with no row InnoDB takes only a gap lock, which does not exclude a second caller. Callers
+    // lock the profile row first (UserProfileRepository.findByIdForUpdate), always in the order profile -> challenge.
+    // Must run inside a transaction.
     Optional<EmailVerificationChallenge> findByUserIdForUpdate(String userId);
 
     // Insert or replace: a user has at most one pending challenge.

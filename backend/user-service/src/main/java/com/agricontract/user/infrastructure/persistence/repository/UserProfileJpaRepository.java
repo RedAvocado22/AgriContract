@@ -2,8 +2,10 @@ package com.agricontract.user.infrastructure.persistence.repository;
 
 import com.agricontract.user.infrastructure.persistence.entity.UserProfileJpaEntity;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,6 +24,12 @@ public interface UserProfileJpaRepository extends JpaRepository<UserProfileJpaEn
             """)
     List<String> findEligibleInspectorIds(@Param("now") Instant now);
     Optional<UserProfileJpaEntity> findByUserId(String userId);
+
+    // SELECT ... FOR UPDATE on uk_user_profiles_user_id: a record lock on the user's row, and a locking read returns
+    // the latest committed row rather than the transaction's snapshot.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from UserProfileJpaEntity u where u.userId = :userId")
+    Optional<UserProfileJpaEntity> findByUserIdForUpdate(@Param("userId") String userId);
 
     boolean existsByUserId(String userId);
 

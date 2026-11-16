@@ -54,7 +54,7 @@ class ConfirmEmailVerificationUseCaseImplTest {
         useCase = new ConfirmEmailVerificationUseCaseImpl(userProfileRepository, challengeRepository, codes,
                 Clock.fixed(NOW, ZoneOffset.UTC), new DirectTransactionRunner());
         profile = UserProfile.create(ID, "HTX Ca Phe", Role.SELLER, new ContactInfo(EMAIL, null, null));
-        when(userProfileRepository.findById(ID)).thenReturn(Optional.of(profile));
+        when(userProfileRepository.findByIdForUpdate(ID)).thenReturn(Optional.of(profile));
     }
 
     private void pending(String email, Instant expiresAt, int attemptsLeft) {
@@ -82,16 +82,17 @@ class ConfirmEmailVerificationUseCaseImplTest {
     }
 
     @Test
-    void locksTheChallengeBeforeReadingTheProfile() {
+    void locksTheProfileBeforeTheChallenge() {
         pending(EMAIL, NOW.plusSeconds(300), 5);
         when(codes.matches("123456", HASH)).thenReturn(true);
         when(userProfileRepository.update(profile)).thenReturn(profile);
 
         useCase.execute(USER_ID, "123456");
 
+        // Same order as the issuer; the opposite would deadlock a confirm against a resend.
         InOrder order = inOrder(challengeRepository, userProfileRepository);
+        order.verify(userProfileRepository).findByIdForUpdate(ID);
         order.verify(challengeRepository).findByUserIdForUpdate(USER_ID);
-        order.verify(userProfileRepository).findById(ID);
     }
 
     @Test

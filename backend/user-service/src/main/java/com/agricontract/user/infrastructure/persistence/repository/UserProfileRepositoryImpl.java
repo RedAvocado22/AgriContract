@@ -72,6 +72,12 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<UserProfile> findByIdForUpdate(UserId userId) {
+        return jpaRepository.findByUserIdForUpdate(userId.value()).map(mapper::toDomain);
+    }
+
+    @Override
     public boolean existsById(UserId userId) {
         return jpaRepository.existsByUserId(userId.value());
     }

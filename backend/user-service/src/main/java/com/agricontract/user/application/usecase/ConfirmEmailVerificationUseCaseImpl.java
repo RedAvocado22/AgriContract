@@ -22,8 +22,9 @@ import java.util.Optional;
 /**
  * Checks the emailed code and marks the contact address verified (design §4.4).
  * <p>
- * The challenge row is locked first, so confirms for the same user run one after another: each sees the attempts
- * left by the one before, and a wrong guess always costs an attempt however many are sent at once. A wrong code is
+ * The profile row is locked first, then the challenge row, the same order as {@code EmailVerificationCodeIssuer}, so
+ * confirms and resends for the same user run one after another without deadlocking: each sees the attempts left by
+ * the one before, and a wrong guess always costs an attempt however many are sent at once. A wrong code is
  * returned as {@link EmailVerificationConfirmation.Rejected}, so the counted attempt commits with the transaction.
  * The first user to confirm an address owns it; a later confirm of the same address gets 409 EMAIL_ALREADY_CLAIMED,
  * also when confirms of two different users race (unique key on verified_email).
@@ -43,10 +44,11 @@ public class ConfirmEmailVerificationUseCaseImpl implements ConfirmEmailVerifica
     }
 
     private EmailVerificationConfirmation confirm(String userId, String code) {
-        // Lock before reading the profile, so the profile read sees a confirm that committed while we waited.
-        Optional<EmailVerificationChallenge> pending = challengeRepository.findByUserIdForUpdate(userId);
-        UserProfile profile = userProfileRepository.findById(new UserId(userId))
+        // Profile before challenge, as the issuer does: the opposite order would deadlock against a resend. Both are
+        // locking reads, so they see a confirm or resend that committed while we waited.
+        UserProfile profile = userProfileRepository.findByIdForUpdate(new UserId(userId))
                 .orElseThrow(() -> new NoSuchElementException("User not found: " + userId));
+        Optional<EmailVerificationChallenge> pending = challengeRepository.findByUserIdForUpdate(userId);
         if (profile.isEmailVerified()) {
             throw new EmailVerificationConflictException(EmailVerificationConflictException.ALREADY_VERIFIED,
                     "the contact email is already verified");
