@@ -1,4 +1,4 @@
-# Reputation service — Issue #113
+# Reputation service
 
 Java 21 / Spring Boot 3.3.5 service, port 8088. This foundation persists two immutable facts and exposes the authenticated public reputation summary. Source of truth: `docs/design/reputation-service-phase2-design.md` §§2, 3, 6.1b, data governance §8b, and the frozen OpenAPI/event contracts. The HALF_UP integer precision convention was explicitly approved for this implementation.
 
@@ -27,7 +27,7 @@ The fields match the frozen schemas; `settled_at` / `resolved_at` are `DATETIME(
 The database boundary is enforced by privileges, not an ORM annotation. Provision in this order:
 
 1. As a deployment DBA, create `reputation_db` and a **dedicated migration account** scoped to this database. Supply passwords through secret tooling. The migration account needs schema DDL and schema-history DML; never grant it access to another service database.
-2. Run the two versioned scripts with Flyway using that account (locations: this service's `src/main/resources/db/migration`). This bootstrap step precedes runtime grants because MySQL table grants require the tables to exist.
+2. Run the versioned scripts with Flyway using that account (locations: this service's `src/main/resources/db/migration`). This bootstrap step precedes runtime grants because MySQL table grants require the tables to exist.
 3. Create a **fresh** `reputation_runtime` account with no global/schema privileges or inherited roles. Apply [ops/grants.sql](ops/grants.sql) as the provisioning administrator. It grants only SELECT/INSERT on facts and SELECT on lock/override storage. Adapt the account host to deployment policy; the checked-in script uses `%` and requires network isolation.
 4. Verify `SHOW GRANTS FOR 'reputation_runtime'@'%'`; do not reuse a broadly privileged existing account. Start the application with separate runtime and migration credentials. Spring Flyway validates/migrates with its own account; JDBC uses the runtime account. Do not expose the database directly to clients.
 
@@ -104,5 +104,71 @@ Coverage includes immutable construction, replay and content conflicts, concurre
 - #105 gateway routing/JWT propagation and canonical contract-service event production require their owners' integration. No unmerged implementation is imported or modified.
 - #144 owns negative-consequence ingestion and production lock creation. This service does not bind `remedy.finalized`, `breach.reported` or `contract.terminated`. Unresolved allegations have no reputation consequences here.
 - #145 owns dispute-derived scoring. Dispute facts are stored only.
-- No inspection-service (#112), maker-checker, early-unlock write API, event publication, AML, credit export or two-business-day contest timer is implemented. The contest policy belongs upstream to attribution finalization.
-- The out-of-scope `reputation.unlocked` event schema still needs owner alignment with the updated staff-role policy before implementing that workflow. No frozen contracts are changed by #113.
+- No inspection-service (#112), maker-checker, early-unlock write API, AML, credit export or two-business-day contest timer is implemented. The contest policy belongs upstream to attribution finalization.
+
+## Lock events — Issue #268 (D53)
+
+`V3__create_lock_event_lifecycle.sql` adds `user_lock_state` (mutable per-user revision/effective expiry),
+`lock_event_receipt` (append-only business transition identities), and the shared `event_outbox` schema.
+V3 backfills `user_lock_state` from active, non-overridden ledger entries, taking the maximum expiry per
+user and setting revision to 0. An empty ledger creates no state rows. It does not alter ledger rows or emit
+historical lock/unlock events. No revision reconciliation is needed: the leader confirmed no such events
+were previously published. The first subsequent lock event uses revision 1. Apply updated `ops/grants.sql` after migration:
+runtime can mutate the projection/outbox and insert receipts; lock/override storage remains read-only until
+the owning #144/#269 writers and their grants are delivered. Run migrations only against disposable test
+databases during development; deployment requires the normal database-owner rollout.
+
+`LockEventLifecycle` is the integration boundary for future #144/#269 use cases, not an HTTP API or a remedy
+consumer. Its callback contains the owning use case's ledger INSERT, after eligibility/approval has been
+established. The callback must use the same transactional datasource, must run only inside this boundary,
+and must not perform external effects. Never insert a lock first and then call this boundary in a separate
+transaction: that would bypass the per-user mutex and permit a race with expiry.
+
+- `lockCreated(userId, remedyDecisionId, breachReasonCode, correlationId, appendLock)`: locks the projection
+  row before invoking the writer, verifies the resulting persisted decision belongs to the user, recomputes
+  the MAX over unexpired/non-overridden entries, advances revision and appends `reputation.locked`. The
+  reason is supplied from the source remedy, unchanged. This boundary validates wire vocabulary, not
+  eligibility or multiplier policy. The persisted source event ID becomes envelope `causationId`.
+- `unlockedEarly(userId, overrideId, correlationId, appendApprovedOverride)`: same mutex and transaction,
+  verifies a matching persisted override, always emits `UNLOCKED_EARLY` with the remaining effective expiry
+  (including unchanged expiry or null). #269 must establish actual approval and actor authorization; the
+  boundary does not create approvals. The override event ID is the direct cause.
+- Receipts use remedy decision ID / override ID, not incoming delivery ID. Replays skip the callback and
+  consume neither another revision nor another outbox row, even after outbox retention. A conflicting
+  user/reason replay fails. Receipts must not be purged independently of the immutable ledger.
+- `ExpireLocksJob` scans bounded keyset pages using a fixed DB-clock cutoff and `(effective_locked_until, user_id)`.
+  It advances past failures, which remain eligible for the next scan. Concurrent changes can move a row behind
+  the cursor; a later scan catches it. Each user gets a separate transaction,
+  locks/rechecks its state, reads the DB UTC clock after acquiring the mutex and recomputes effective lock.
+  Only a still-due state with no remaining active entry emits `EXPIRED` with explicit null expiry. Clearing
+  the projection durably prevents duplicate timeout events across retries, restarts and job instances.
+  A non-MAX expiry emits nothing. Failed transactions remain due and are logged for retry on the next pass.
+
+The plain `TransactionRunner` port keeps new application code independent of Spring transaction APIs (D44).
+`SpringTransactionRunner` uses READ_COMMITTED so ledger recomputation sees the preceding mutex holder's
+commit. Compatible outer transactions are joined; read-only or non-READ_COMMITTED ambient transactions
+are rejected before business work. Existing public-summary REPEATABLE_READ annotations belong to #420
+and are unchanged by #268.
+
+Projection revision, receipt, ledger callback and outbox INSERT commit or roll back together. Revision 1
+is the first committed event; users have independent sequences; overflow fails rather than wrapping.
+`OutboxLockEventPublisher` reuses `EventEnvelopeCodec`/`OutboxWriter`; the existing shared poller sends to
+`agricontract.reputation` with confirms/returns and retains failed sends for retry. Transport is at-least-once:
+a crash after broker acknowledgment may resend the same stored event ID. This is not transport exactly-once.
+
+Configuration: `REPUTATION_LOCK_EXPIRY_ENABLED` (true), `REPUTATION_LOCK_EXPIRY_INTERVAL` (PT1M, ISO-8601 or
+milliseconds), `REPUTATION_LOCK_EXPIRY_BATCH_SIZE` (100, range 1..1000), `REPUTATION_OUTBOX_ENABLED` (true).
+No user-service queues are declared here; consumer bindings remain owned by their consumer.
+
+Integration limitations: #144 must call this boundary for production lock creation and supply the remedy
+reason; #269 must call it only after a valid approval. There are no fabricated production callers. V3 does not
+invent historical creation reasons/events. A delayed creation with no effective active lock is rejected transactionally because
+the canonical locked event requires a non-null effective expiry. The owning #144 workflow must resolve such
+a case before integration. No public-summary scoring/response change is made.
+
+Tests: `LockEventLifecycleTest` covers application ordering/guards without Spring; `ExpireLocksJobTest`
+covers per-user failure isolation; `LockEventLifecycleMySqlTest` uses MySQL 8.0.42 with production migrations
+for revision races, durable replay, rollback, both creation/timeout lock orders, overlapping/early-unlock
+semantics, actual runtime grants and DB UTC time. A real RabbitMQ 3.13.7 test exercises unroutable retry and
+resend identity. Controlled privileged fixture writers stand in for #144/#269 and share the same transaction;
+they are test-only and do not relax the production ledger grants.

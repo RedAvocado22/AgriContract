@@ -26,7 +26,8 @@ public class RabbitConfiguration {
     Declarables reputationBindings() {
         var exchange = new TopicExchange("agricontract.contracts", true, false);
         var dlx = new DirectExchange(DLX, true, false);
-        List<Declarable> declarations = new ArrayList<>(List.of(exchange, dlx));
+        List<Declarable> declarations = new ArrayList<>(List.of(exchange, dlx,
+                new TopicExchange("agricontract.reputation", true, false)));
         for (String key : EVENT_KEYS) {
             String queueName = "reputation-svc." + key;
             var queue = QueueBuilder.durable(queueName).deadLetterExchange(dlx.getName()).build();

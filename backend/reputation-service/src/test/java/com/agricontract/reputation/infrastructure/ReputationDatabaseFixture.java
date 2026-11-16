@@ -29,6 +29,8 @@ final class ReputationDatabaseFixture {
     }
     private ReputationDatabaseFixture() {}
     static void properties(DynamicPropertyRegistry r) {
+        r.add("agricontract.eventing.outbox.enabled", () -> "false");
+        r.add("reputation.lock-expiry.enabled", () -> "false");
         r.add("spring.datasource.url", MYSQL::getJdbcUrl);
         r.add("spring.datasource.username", () -> "reputation_runtime");
         r.add("spring.datasource.password", () -> "test-only-runtime-password");
