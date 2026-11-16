@@ -5,44 +5,72 @@
  * verdicts against the schema itself.
  */
 
-export interface OtpEmailRequest {
+/** The fields every purpose carries. */
+interface OtpEmailRequestBase {
   /** The caller's otpId; deduplicates repeated calls (stored as notification_logs.event_id). */
   requestId: string;
   recipientUserId: string;
   recipientEmail: string;
-  contractId: string;
   /** Rendered into the email only; never stored or logged. */
   otpCode: string;
-  signedContentHash: string;
   /** UTC instant, as sent by the caller. */
   expiresAt: string;
-  /**
-   * Which action the code confirms; selects the template (D42). Optional on
-   * the wire, absent meaning SIGN_CONTRACT, so it is always set once parsed.
-   */
-  purpose: OtpPurpose;
 }
 
-export const OTP_PURPOSES = ['SIGN_CONTRACT', 'CANCEL_ACTIVATION'] as const;
-export type OtpPurpose = (typeof OTP_PURPOSES)[number];
-const DEFAULT_PURPOSE: OtpPurpose = 'SIGN_CONTRACT';
+/**
+ * A code that confirms an action on a contract (contract-service): signing,
+ * or a cancel request on a contract whose activation failed (D42).
+ */
+export interface ContractOtpEmailRequest extends OtpEmailRequestBase {
+  /**
+   * Which action the code confirms; selects the template. Optional on the
+   * wire, absent meaning SIGN_CONTRACT, so it is always set once parsed.
+   */
+  purpose: ContractOtpPurpose;
+  contractId: string;
+  signedContentHash: string;
+}
 
-/** The fields the contract requires. */
+/** The code that proves the email given at registration (user-service, #344, D45). */
+export interface VerifyEmailOtpRequest extends OtpEmailRequestBase {
+  purpose: 'VERIFY_EMAIL';
+}
+
+export type OtpEmailRequest = ContractOtpEmailRequest | VerifyEmailOtpRequest;
+
+export const CONTRACT_OTP_PURPOSES = [
+  'SIGN_CONTRACT',
+  'CANCEL_ACTIVATION',
+] as const;
+export type ContractOtpPurpose = (typeof CONTRACT_OTP_PURPOSES)[number];
+export const OTP_PURPOSES = [...CONTRACT_OTP_PURPOSES, 'VERIFY_EMAIL'] as const;
+export type OtpPurpose = (typeof OTP_PURPOSES)[number];
+const DEFAULT_PURPOSE: ContractOtpPurpose = 'SIGN_CONTRACT';
+
+/** The fields the contract requires whatever the purpose. */
 export const OTP_EMAIL_REQUIRED_FIELDS = [
   'requestId',
   'recipientUserId',
   'recipientEmail',
-  'contractId',
   'otpCode',
-  'signedContentHash',
   'expiresAt',
-] as const satisfies readonly (keyof OtpEmailRequest)[];
+] as const satisfies readonly (keyof OtpEmailRequestBase)[];
 
-/** Every field the contract declares: the required ones, then `purpose`. */
+/**
+ * Required for the contract purposes (SIGN_CONTRACT, CANCEL_ACTIVATION or
+ * purpose absent), and must be absent for VERIFY_EMAIL.
+ */
+export const OTP_EMAIL_CONTRACT_FIELDS = [
+  'contractId',
+  'signedContentHash',
+] as const satisfies readonly (keyof ContractOtpEmailRequest)[];
+
+/** Every field the contract declares. */
 export const OTP_EMAIL_REQUEST_FIELDS = [
   ...OTP_EMAIL_REQUIRED_FIELDS,
+  ...OTP_EMAIL_CONTRACT_FIELDS,
   'purpose',
-] as const satisfies readonly (keyof OtpEmailRequest)[];
+] as const;
 
 /**
  * The request does not match the contract. The message names fields only,
@@ -77,6 +105,31 @@ const REQUEST_ID = /^[A-Za-z0-9._:-]{1,36}$/;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_ID_LENGTH = 255;
 
+type CheckedField =
+  | (typeof OTP_EMAIL_REQUIRED_FIELDS)[number]
+  | (typeof OTP_EMAIL_CONTRACT_FIELDS)[number];
+
+const VALID: Record<CheckedField, (text: string) => boolean> = {
+  requestId: (s) => REQUEST_ID.test(s),
+  recipientUserId: (s) => s.length > 0 && s.length <= MAX_ID_LENGTH,
+  recipientEmail: (s) => s.length <= MAX_EMAIL_LENGTH && EMAIL.test(s),
+  contractId: (s) => s.length > 0 && s.length <= MAX_ID_LENGTH,
+  otpCode: (s) => OTP_CODE.test(s),
+  signedContentHash: (s) => SHA256_HEX.test(s),
+  expiresAt: (s) => DATE_TIME.test(s) && !Number.isNaN(Date.parse(s)),
+};
+
+/** Problems are reported in this order, the order the contract lists the fields in. */
+const FIELD_ORDER: readonly CheckedField[] = [
+  'requestId',
+  'recipientUserId',
+  'recipientEmail',
+  'contractId',
+  'otpCode',
+  'signedContentHash',
+  'expiresAt',
+];
+
 /** Validates an already JSON-parsed body against the contract; throws OtpEmailRequestInvalidError. */
 export function parseOtpEmailRequest(body: unknown): OtpEmailRequest {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
@@ -92,38 +145,39 @@ export function parseOtpEmailRequest(body: unknown): OtpEmailRequest {
     problems.push(`${unknownCount} unexpected field(s)`);
   }
 
-  const check = (
-    field: (typeof OTP_EMAIL_REQUIRED_FIELDS)[number],
-    valid: (text: string) => boolean,
-  ) => {
-    const raw = value[field];
-    if (raw === undefined) problems.push(`${field} is required`);
-    else if (typeof raw !== 'string' || !valid(raw))
-      problems.push(`${field} is invalid`);
-  };
-
-  check('requestId', (s) => REQUEST_ID.test(s));
-  check('recipientUserId', (s) => s.length > 0 && s.length <= MAX_ID_LENGTH);
-  check('recipientEmail', (s) => s.length <= MAX_EMAIL_LENGTH && EMAIL.test(s));
-  check('contractId', (s) => s.length > 0 && s.length <= MAX_ID_LENGTH);
-  check('otpCode', (s) => OTP_CODE.test(s));
-  check('signedContentHash', (s) => SHA256_HEX.test(s));
-  check('expiresAt', (s) => DATE_TIME.test(s) && !Number.isNaN(Date.parse(s)));
   // Optional: absent is SIGN_CONTRACT; null or any other value is invalid
   // (the contract's enum has no null).
   const purpose = value.purpose;
-  if (
-    purpose !== undefined &&
-    !(OTP_PURPOSES as readonly unknown[]).includes(purpose)
-  ) {
-    problems.push('purpose is invalid');
+  const purposeValid =
+    purpose === undefined ||
+    (OTP_PURPOSES as readonly unknown[]).includes(purpose);
+  // As the schema's if/then/else: only an explicit VERIFY_EMAIL drops the
+  // contract fields; any other purpose, even an invalid one, requires them.
+  const verifyEmail = purpose === 'VERIFY_EMAIL';
+
+  for (const field of FIELD_ORDER) {
+    const raw = value[field];
+    const contractField = (
+      OTP_EMAIL_CONTRACT_FIELDS as readonly string[]
+    ).includes(field);
+    if (verifyEmail && contractField) {
+      if (raw !== undefined)
+        problems.push(`${field} is not allowed for purpose VERIFY_EMAIL`);
+    } else if (raw === undefined) problems.push(`${field} is required`);
+    else if (typeof raw !== 'string' || !VALID[field](raw))
+      problems.push(`${field} is invalid`);
   }
+  if (!purposeValid) problems.push('purpose is invalid');
 
   if (problems.length > 0) throw new OtpEmailRequestInvalidError(problems);
+  const base = Object.fromEntries(
+    OTP_EMAIL_REQUIRED_FIELDS.map((field) => [field, value[field]]),
+  ) as unknown as OtpEmailRequestBase;
+  if (verifyEmail) return { ...base, purpose: 'VERIFY_EMAIL' };
   return {
-    ...(Object.fromEntries(
-      OTP_EMAIL_REQUIRED_FIELDS.map((field) => [field, value[field]]),
-    ) as Omit<OtpEmailRequest, 'purpose'>),
-    purpose: (purpose as OtpPurpose | undefined) ?? DEFAULT_PURPOSE,
+    ...base,
+    contractId: value.contractId as string,
+    signedContentHash: value.signedContentHash as string,
+    purpose: (purpose as ContractOtpPurpose | undefined) ?? DEFAULT_PURPOSE,
   };
 }

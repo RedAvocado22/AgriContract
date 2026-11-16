@@ -48,6 +48,27 @@ export const ACTIVATION_CANCEL_OTP_LOG_BODY = logBody(
   ACTIVATION_CANCEL_OTP_TEMPLATE_VERSION,
 );
 
+/*
+ * The code that proves the email given at registration (purpose VERIFY_EMAIL,
+ * #344, D45), sent by user-service. Same endpoint, dedup and log as the
+ * contract codes; there is no contract, so no contract line and no
+ * fingerprint. Same rule as above: do not rename notificationType.
+ */
+export const VERIFY_EMAIL_OTP_TEMPLATE_VERSION = 'otp-verify-email/v1';
+
+export const VERIFY_EMAIL_OTP_KIND = {
+  eventType: 'notification.otp_email_requested',
+  notificationType: 'VERIFY_EMAIL_OTP',
+  templateVersion: VERIFY_EMAIL_OTP_TEMPLATE_VERSION,
+} as const satisfies NotificationKind;
+
+export const VERIFY_EMAIL_OTP_SUBJECT =
+  '[AgriContract] Your email verification code';
+
+export const VERIFY_EMAIL_OTP_LOG_BODY = logBody(
+  VERIFY_EMAIL_OTP_TEMPLATE_VERSION,
+);
+
 function logBody(templateVersion: string): string {
   return `[${templateVersion}: body not stored, it contains the OTP]`;
 }
@@ -60,7 +81,7 @@ export interface OtpEmailTemplate {
   logBody: string;
   /** The lines before the code. */
   intro: readonly string[];
-  /** The lines after the fingerprint. */
+  /** The lines after the fingerprint, or after the expiry when there is no contract. */
   outro: readonly string[];
 }
 
@@ -96,6 +117,20 @@ export const OTP_EMAIL_TEMPLATES: Record<OtpPurpose, OtpEmailTemplate> = {
       'email: nothing changes without the code.',
     ],
   },
+  VERIFY_EMAIL: {
+    kind: VERIFY_EMAIL_OTP_KIND,
+    subject: VERIFY_EMAIL_OTP_SUBJECT,
+    logBody: VERIFY_EMAIL_OTP_LOG_BODY,
+    intro: [
+      'Use this one-time code to verify the email address of your',
+      'AgriContract account:',
+    ],
+    outro: [
+      DO_NOT_SHARE,
+      'ask for it. If you did not register on AgriContract, ignore this',
+      'email: the address is not verified without the code.',
+    ],
+  },
 };
 
 export interface RenderedEmail {
@@ -105,7 +140,9 @@ export interface RenderedEmail {
 
 /**
  * Subject without the code (subjects show in notifications and mail lists);
- * body with it, on a line of its own. The template follows `purpose`.
+ * body with it, on a line of its own. The template follows `purpose`. A
+ * contract code also names the contract and its fingerprint; a VERIFY_EMAIL
+ * code has neither.
  *
  * Lines stay within 76 characters (for contract ids up to 66 characters, a
  * UUID is 36): nodemailer then sends the text as 7bit. A longer line makes it
@@ -115,6 +152,18 @@ export interface RenderedEmail {
 export function renderOtpEmail(request: OtpEmailRequest): RenderedEmail {
   const template = OTP_EMAIL_TEMPLATES[request.purpose];
   const expiresAt = new Date(request.expiresAt);
+  const expires = `Expires: ${vietnamTime(expiresAt)} Vietnam time (${expiresAt.toISOString()} UTC)`;
+  const details =
+    request.purpose === 'VERIFY_EMAIL'
+      ? [expires]
+      : [
+          `Contract: ${request.contractId}`,
+          expires,
+          '',
+          'Before you enter the code, check that the contract fingerprint',
+          '(SHA-256) shown on screen is:',
+          request.signedContentHash,
+        ];
   return {
     subject: template.subject,
     body: [
@@ -122,12 +171,7 @@ export function renderOtpEmail(request: OtpEmailRequest): RenderedEmail {
       '',
       request.otpCode,
       '',
-      `Contract: ${request.contractId}`,
-      `Expires: ${vietnamTime(expiresAt)} Vietnam time (${expiresAt.toISOString()} UTC)`,
-      '',
-      'Before you enter the code, check that the contract fingerprint',
-      '(SHA-256) shown on screen is:',
-      request.signedContentHash,
+      ...details,
       '',
       ...template.outro,
     ].join('\n'),
