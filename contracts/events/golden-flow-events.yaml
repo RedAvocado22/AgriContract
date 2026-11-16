@@ -719,7 +719,7 @@ $defs:
           producer: {const: contract-service}
           payload:
             type: object
-            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, finalBreachingRole, breachReasonCode, qualityDisposition, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
+            required: [remedyDecisionId, attributionDecisionId, breachCaseId, contractId, buyerId, sellerId, affectedMilestoneIds, settledMilestoneCount, finalBreachingRole, breachReasonCode, qualityDisposition, decisionSource, penaltyEligible, reputationEligible, remedyLegs]
             additionalProperties: false
             allOf:
               - if:
@@ -771,6 +771,13 @@ $defs:
                 type: array
                 uniqueItems: true
                 items: {$ref: "#/$defs/uuid"}
+              settledMilestoneCount:
+                type: integer
+                minimum: 0
+                description: >-
+                  Milestones of the contract already SETTLED when this decision was made
+                  (snapshot, D55). reputation-service applies zeroProgressMultiplier 1.5x
+                  only when this is 0 and the reason is strategic.
               finalBreachingRole: {$ref: "#/$defs/breachingRole"}
               breachReasonCode: {$ref: "#/$defs/nullableBreachReasonCode"}
               qualityDisposition: {$ref: "#/$defs/finalQualityDisposition"}
