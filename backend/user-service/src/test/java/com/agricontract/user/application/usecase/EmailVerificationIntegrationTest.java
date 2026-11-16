@@ -27,6 +27,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,7 +49,8 @@ import static org.mockito.Mockito.verify;
  * Email verification against real MySQL (V11), with the default policy (code valid 600 s, 5 wrong guesses, 60 s
  * resend cooldown): register sends the first code; the first user to confirm an address owns it; a wrong code is
  * counted and committed; parallel wrong guesses each cost an attempt; an unsent code is expired and does not hold
- * the cooldown.
+ * the cooldown; parallel resends with no challenge row yet send one code, and a resend racing a confirm does
+ * not deadlock.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
@@ -198,6 +200,90 @@ class EmailVerificationIntegrationTest {
         assertThatThrownBy(() -> requestUseCase.execute("user-a"))
                 .isInstanceOfSatisfying(EmailVerificationConflictException.class, e -> assertThat(e.getReason())
                         .isEqualTo(EmailVerificationConflictException.RESEND_TOO_SOON));
+    }
+
+    @Test
+    void parallelResends_withoutChallengeRow_oneSent_restCooldown() throws Exception {
+        int callers = 8;
+        for (int round = 0; round < 10; round++) {
+            String userId = "user-" + round;
+            registerAndCaptureCode(userId, "u" + round + "@example.com");
+            // As for a user registered before V11, or whose first code was refused: no challenge row to lock.
+            jdbcTemplate.update("DELETE FROM email_verification_challenge WHERE user_id = ?", userId);
+            clearInvocations(sender);
+
+            List<String> results = runTogether(callers, () -> {
+                try {
+                    requestUseCase.execute(userId);
+                    return "SENT";
+                } catch (EmailVerificationConflictException e) {
+                    return e.getReason();
+                }
+            });
+
+            // Without the profile lock the callers all see no row, all pass the cooldown and all insert: the losers
+            // fail with a deadlock or duplicate key, which surfaces from get() as an ExecutionException.
+            assertThat(results).filteredOn("SENT"::equals).hasSize(1);
+            assertThat(results).filteredOn(EmailVerificationConflictException.RESEND_TOO_SOON::equals)
+                    .hasSize(callers - 1);
+            verify(sender).send(anyString(), eq(userId), anyString(), anyString(), any());
+            assertThat(challengeCount(userId)).isOne();
+        }
+    }
+
+    @Test
+    void parallelResendAndConfirm_neverDeadlock() throws Exception {
+        for (int round = 0; round < 10; round++) {
+            String userId = "user-" + round;
+            String code = registerAndCaptureCode(userId, "u" + round + "@example.com");
+
+            // Confirm locks profile then challenge and writes both; resend must take them in the same order.
+            List<String> results = runTogether(2, List.of(
+                    () -> confirmUseCase.execute(userId, code) instanceof EmailVerificationConfirmation.Verified
+                            ? "VERIFIED" : "REJECTED",
+                    () -> {
+                        try {
+                            requestUseCase.execute(userId);
+                            return "SENT";
+                        } catch (EmailVerificationConflictException e) {
+                            return e.getReason();
+                        }
+                    }));
+
+            assertThat(results.get(0)).isEqualTo("VERIFIED");
+            assertThat(results.get(1)).isIn(EmailVerificationConflictException.RESEND_TOO_SOON,
+                    EmailVerificationConflictException.ALREADY_VERIFIED);
+            assertThat(internalUserInfoUseCase.execute(userId).emailVerified()).isTrue();
+        }
+    }
+
+    private List<String> runTogether(int callers, Callable<String> task) throws Exception {
+        List<Callable<String>> tasks = new ArrayList<>();
+        for (int i = 0; i < callers; i++) {
+            tasks.add(task);
+        }
+        return runTogether(callers, tasks);
+    }
+
+    private List<String> runTogether(int callers, List<Callable<String>> tasks)
+            throws Exception {
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+        executor = Executors.newFixedThreadPool(callers);
+        CyclicBarrier start = new CyclicBarrier(callers);
+        List<Future<String>> outcomes = new ArrayList<>();
+        for (Callable<String> task : tasks) {
+            outcomes.add(executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                return task.call();
+            }));
+        }
+        List<String> results = new ArrayList<>();
+        for (Future<String> outcome : outcomes) {
+            results.add(outcome.get(60, TimeUnit.SECONDS));
+        }
+        return results;
     }
 
     private RegisterUserResult register(String userId, String email) {

@@ -67,7 +67,7 @@ class EmailVerificationCodeIssuerTest {
     }
 
     private void newCodeFor(EmailVerificationChallenge previous) {
-        when(userProfileRepository.findById(new UserId(USER_ID))).thenReturn(Optional.of(profile()));
+        when(userProfileRepository.findByIdForUpdate(new UserId(USER_ID))).thenReturn(Optional.of(profile()));
         when(challengeRepository.findByUserIdForUpdate(USER_ID)).thenReturn(Optional.ofNullable(previous));
         when(codes.newCode()).thenReturn("123456");
         when(codes.hash("123456")).thenReturn(HASH);
@@ -120,7 +120,7 @@ class EmailVerificationCodeIssuerTest {
     void alreadyVerified_conflict_nothingStoredOrSent() {
         UserProfile profile = profile();
         profile.markEmailVerified(EMAIL, NOW.minusSeconds(3600));
-        when(userProfileRepository.findById(new UserId(USER_ID))).thenReturn(Optional.of(profile));
+        when(userProfileRepository.findByIdForUpdate(new UserId(USER_ID))).thenReturn(Optional.of(profile));
 
         assertThatThrownBy(() -> issuer.issue(USER_ID))
                 .isInstanceOfSatisfying(EmailVerificationConflictException.class,
@@ -131,7 +131,7 @@ class EmailVerificationCodeIssuerTest {
 
     @Test
     void addressVerifiedByAnotherUser_noCodeSent() {
-        when(userProfileRepository.findById(new UserId(USER_ID))).thenReturn(Optional.of(profile()));
+        when(userProfileRepository.findByIdForUpdate(new UserId(USER_ID))).thenReturn(Optional.of(profile()));
         when(userProfileRepository.isEmailVerifiedByAnotherUser(EMAIL, new UserId(USER_ID))).thenReturn(true);
 
         assertThatThrownBy(() -> issuer.issue(USER_ID)).isInstanceOf(EmailAlreadyClaimedException.class);
@@ -141,7 +141,7 @@ class EmailVerificationCodeIssuerTest {
 
     @Test
     void resendWithinCooldown_conflict() {
-        when(userProfileRepository.findById(new UserId(USER_ID))).thenReturn(Optional.of(profile()));
+        when(userProfileRepository.findByIdForUpdate(new UserId(USER_ID))).thenReturn(Optional.of(profile()));
         when(challengeRepository.findByUserIdForUpdate(USER_ID)).thenReturn(Optional.of(
                 new EmailVerificationChallenge(USER_ID, EMAIL, HASH, NOW.minusSeconds(30), NOW.plusSeconds(570), 5)));
 

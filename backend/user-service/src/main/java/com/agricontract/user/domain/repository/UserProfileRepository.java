@@ -19,6 +19,11 @@ public interface UserProfileRepository {
 
     Optional<UserProfile> findById(UserId userId);
 
+    // Locks the profile row until the caller's transaction ends (SELECT ... FOR UPDATE). The row exists for every
+    // registered user, so this serializes per user even when no other row to lock exists yet. Must run inside a
+    // transaction.
+    Optional<UserProfile> findByIdForUpdate(UserId userId);
+
     boolean existsById(UserId userId);
 
     // True when a user other than userId has already proven this address (case-insensitive).

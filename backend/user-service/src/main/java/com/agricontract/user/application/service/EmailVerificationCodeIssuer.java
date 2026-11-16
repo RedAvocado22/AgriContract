@@ -54,7 +54,10 @@ public class EmailVerificationCodeIssuer {
     }
 
     private Issued store(String userId) {
-        UserProfile profile = userProfileRepository.findById(new UserId(userId))
+        // The profile row is the per-user lock: two requests at once run one after another, so only one passes the
+        // cooldown. The challenge row cannot be the lock, as it does not exist before the first code (users from
+        // before V11, or a register whose first code was refused).
+        UserProfile profile = userProfileRepository.findByIdForUpdate(new UserId(userId))
                 .orElseThrow(() -> new NoSuchElementException("User not found: " + userId));
         if (profile.isEmailVerified()) {
             throw new EmailVerificationConflictException(EmailVerificationConflictException.ALREADY_VERIFIED,
@@ -67,7 +70,6 @@ public class EmailVerificationCodeIssuer {
         }
 
         Instant now = Instant.now(clock);
-        // Locked so two requests at once cannot both pass the cooldown.
         policy.ensureCanResend(challengeRepository.findByUserIdForUpdate(userId).orElse(null), now);
 
         String code = codes.newCode();
