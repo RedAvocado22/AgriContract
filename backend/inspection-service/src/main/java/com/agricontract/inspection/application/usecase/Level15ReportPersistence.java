@@ -1,13 +1,18 @@
 package com.agricontract.inspection.application.usecase;
 
-import com.agricontract.inspection.application.exception.InspectionAssignmentAccessDeniedException;
-import com.agricontract.inspection.application.port.TransactionRunner;
-import com.agricontract.inspection.domain.model.*;
-import com.agricontract.inspection.domain.repository.Level15ReportRepository;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+
 import org.springframework.stereotype.Service;
+
+import com.agricontract.inspection.application.exception.InspectionAssignmentAccessDeniedException;
+import com.agricontract.inspection.application.port.TransactionRunner;
+import com.agricontract.inspection.domain.model.InspectionAssignment;
+import com.agricontract.inspection.domain.model.Level15Report;
+import com.agricontract.inspection.domain.model.ReportEvidence;
+import com.agricontract.inspection.domain.model.ReportIdentity;
+import com.agricontract.inspection.domain.repository.Level15ReportRepository;
 
 /** Internal capabilities only. No public submission/confirmation or commissioning transport.
  * A future trusted confirmation caller must verify file/result/report hashes and session freshness,
@@ -25,8 +30,11 @@ public class Level15ReportPersistence {
 
     public Level15ReportPersistence(InspectionAuthorization authorization, InspectorEligibilityGate eligibility,
                                     Level15ReportRepository reports, Clock clock, TransactionRunner transactions) {
-        this.authorization = authorization; this.eligibility = eligibility;
-        this.reports = reports; this.clock = clock; this.transactions = transactions;
+        this.authorization = authorization;
+        this.eligibility = eligibility;
+        this.reports = reports;
+        this.clock = clock;
+        this.transactions = transactions;
     }
 
     public ReportIdentity allocateIdentity(String contractId, String milestoneId) {
@@ -42,12 +50,15 @@ public class Level15ReportPersistence {
                     .orElseThrow(InspectionAssignmentAccessDeniedException::new);
             if (!current.isAssignedTo(actor) || !current.contractId().equals(expected.contractId())
                     || !current.milestoneId().equals(expected.milestoneId())
-                    || !current.inspectorId().equals(expected.inspectorId()))
+                    || !current.inspectorId().equals(expected.inspectorId())) {
                 throw new InspectionAssignmentAccessDeniedException();
-            if (evidence.confirmedAt().isBefore(current.assignedAt()) || evidence.confirmedAt().isAfter(clock.instant()))
+            }
+            if (evidence.confirmedAt().isBefore(current.assignedAt()) || evidence.confirmedAt().isAfter(clock.instant())) {
                 throw new IllegalArgumentException("Confirmation timestamp is outside the assignment lifetime");
-            if (reports.hasConfirmedReport(current.commissionId()))
+            }
+            if (reports.hasConfirmedReport(current.commissionId())) {
                 throw new IllegalStateException("Assignment already has a confirmed report");
+            }
             reports.insert(identity, evidence, clock.instant().truncatedTo(ChronoUnit.MICROS));
         });
     }

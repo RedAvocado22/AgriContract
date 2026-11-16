@@ -1,15 +1,21 @@
 package com.agricontract.inspection.infrastructure.persistence;
 
-import com.agricontract.inspection.domain.model.*;
-import com.agricontract.inspection.domain.repository.Level15ReportRepository;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.*;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.agricontract.inspection.domain.model.InspectionAssignment;
+import com.agricontract.inspection.domain.model.Level15Report;
+import com.agricontract.inspection.domain.model.ReportEvidence;
+import com.agricontract.inspection.domain.model.ReportIdentity;
+import com.agricontract.inspection.domain.repository.Level15ReportRepository;
 
 @Repository
 public class JdbcLevel15ReportRepository implements Level15ReportRepository {

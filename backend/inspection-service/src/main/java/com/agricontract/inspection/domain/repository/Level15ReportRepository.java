@@ -1,9 +1,13 @@
 package com.agricontract.inspection.domain.repository;
 
-import com.agricontract.inspection.domain.model.*;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+
+import com.agricontract.inspection.domain.model.InspectionAssignment;
+import com.agricontract.inspection.domain.model.Level15Report;
+import com.agricontract.inspection.domain.model.ReportEvidence;
+import com.agricontract.inspection.domain.model.ReportIdentity;
 
 /** Insert/read only; deliberately no save/merge, update, delete or assignment mutation. */
 public interface Level15ReportRepository {
