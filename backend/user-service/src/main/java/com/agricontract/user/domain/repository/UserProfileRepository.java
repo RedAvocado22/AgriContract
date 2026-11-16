@@ -29,7 +29,8 @@ public interface UserProfileRepository {
     // Lock projection (design §2.2). Both apply only when lockRevision is greater than the stored revision, checked
     // and written in one statement, and return false otherwise (older revision or unknown user). Caller's transaction.
 
-    // lockedUntil becomes the later of the stored and the incoming value: a new lock never shortens a longer one.
+    // lockedUntil becomes the incoming value: reputation-service sends the effective lock over all active locks (D53),
+    // so the newest revision is authoritative and an older, longer value must not survive an out-of-order delivery.
     boolean applyLock(UserId userId, Instant lockedUntil, long lockRevision);
 
     // lockedUntil becomes effectiveLockedUntil as computed by reputation-service; null means no active lock.

@@ -48,7 +48,7 @@ class OutboxLockChangePublisherTest {
 
     @Test
     void lock_reportsTheStoredLockNotTheIncomingOne() throws Exception {
-        // Incoming lock is shorter than the one already stored: the email must report the longer one.
+        // The email reports the projection as stored after the update, not the value carried by the command.
         ApplyLockChangeCommand change = command(LockAction.LOCKED, Instant.parse("2026-12-01T00:00:00Z"));
 
         publisher.lockChanged(profile(STORED_UNTIL), change);
