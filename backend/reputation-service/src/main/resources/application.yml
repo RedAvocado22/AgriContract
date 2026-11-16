@@ -16,6 +16,8 @@ spring:
     serialization:
       write-dates-as-timestamps: false
   rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME}
@@ -27,6 +29,10 @@ service:
 server:
   port: ${SERVER_PORT:8088}
 reputation:
+  lock-expiry:
+    enabled: ${REPUTATION_LOCK_EXPIRY_ENABLED:true}
+    interval: ${REPUTATION_LOCK_EXPIRY_INTERVAL:PT1M}
+    batch-size: ${REPUTATION_LOCK_EXPIRY_BATCH_SIZE:100}
   dlq-monitor:
     enabled: ${REPUTATION_DLQ_MONITOR_ENABLED:true}
     interval-ms: ${REPUTATION_DLQ_MONITOR_INTERVAL_MS:300000}
@@ -36,3 +42,8 @@ management:
     web:
       exposure:
         include: health,info
+agricontract:
+  eventing:
+    outbox:
+      enabled: ${REPUTATION_OUTBOX_ENABLED:true}
+      exchange: agricontract.reputation

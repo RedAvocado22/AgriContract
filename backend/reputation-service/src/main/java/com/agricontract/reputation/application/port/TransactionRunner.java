@@ -1,8 +1,8 @@
-package com.agricontract.reputation.application.port;
+﻿package com.agricontract.reputation.application.port;
 
 import java.util.function.Supplier;
 
-/** Transaction boundary for reads that require a consistent snapshot. */
+/** Transaction boundaries for consistent reads and lock lifecycle writes. */
 public interface TransactionRunner {
     /**
      * Starts a read-only, repeatable-read transaction, or participates in the caller's
@@ -10,4 +10,13 @@ public interface TransactionRunner {
      * the transaction for rollback.
      */
     <T> T inRepeatableReadOnlyTransaction(Supplier<T> work);
+
+    <T> T inTransaction(Supplier<T> work);
+
+    default void inTransaction(Runnable work) {
+        inTransaction(() -> {
+            work.run();
+            return null;
+        });
+    }
 }

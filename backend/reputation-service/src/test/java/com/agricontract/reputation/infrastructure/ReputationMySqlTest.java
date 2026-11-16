@@ -146,7 +146,7 @@ class ReputationMySqlTest {
                 "INSERT INTO lock_override_event (event_id) VALUES ('x')", "SELECT * FROM flyway_schema_history")) {
             assertPermissionDenied(sql);
         }
-        assertThat(ADMIN.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1", Integer.class)).isEqualTo(2);
+        assertThat(ADMIN.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1", Integer.class)).isEqualTo(3);
         assertThat(runtime.queryForObject("SELECT CURRENT_USER()", String.class)).isEqualTo("reputation_runtime@%");
     }
     void assertPermissionDenied(String sql) {
