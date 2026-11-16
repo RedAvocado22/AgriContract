@@ -103,6 +103,18 @@ CREATE TABLE user_lock_state (
 );
 CREATE INDEX idx_user_lock_state_until ON user_lock_state(effective_locked_until);
 
+-- BỔ SUNG 16/11/2026 (#268): biên nhận phát event theo định danh nghiệp vụ, insert-only.
+-- Một lần tạo lock cho mỗi remedy decision, một lần phát gỡ sớm cho mỗi override đã duyệt —
+-- không phụ thuộc eventId của outbox (outbox có thể dọn theo retention). Replay cùng định danh
+-- nhưng khác user/reason → từ chối (xung đột), không phát lại.
+CREATE TABLE lock_event_receipt (
+    transition_type VARCHAR(20) NOT NULL,   -- 'LOCK' (business_id = remedy_decision_id) | 'EARLY_UNLOCK' (= lock_override_event.event_id)
+    business_id     CHAR(36) NOT NULL,
+    user_id         CHAR(36) NOT NULL,
+    reason_code     VARCHAR(40) NOT NULL,   -- breachReasonCode | UNLOCKED_EARLY
+    PRIMARY KEY (transition_type, business_id)
+);
+
 -- Maker-checker có model thật (18/07/2026 — trước chỉ có prose governance §5.3):
 CREATE TABLE governance_action_request (
     request_id     CHAR(36) PRIMARY KEY,
