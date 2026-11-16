@@ -505,17 +505,17 @@ paths:
       operationId: registerUser
       security: [{bearerAuth: []}]
       responses:
-        '2XX': {description: 'Idempotent registration; exact success status is not frozen. The body email is stored unverified (#344) and receives no notification until confirmed.'}
+        '2XX': {description: 'Idempotent registration; exact success status is not frozen. The body email is stored unverified (#344) and receives no notification until confirmed. A new profile is emailed its first verification code right after it is stored, and the response adds verificationEmailSent (boolean) and, when true, verificationCodeExpiresAt (date-time); registration still succeeds with verificationEmailSent false when the email could not be sent, and the client offers a resend. An existing profile is returned without these fields and gets no new code.'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '409':
-          description: New profile only - EMAIL_ALREADY_CLAIMED, another account has already verified this email. An existing profile is returned unchanged instead.
+          description: New profile only - EMAIL_ALREADY_CLAIMED, another account has already verified this email (accepted disclosure, user-service design 4.4). An existing profile is returned unchanged instead.
           content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
   /api/v1/users/me/email-verification:
     x-service-owner: user-service
     post:
       operationId: requestEmailVerification
       security: [{bearerAuth: []}]
-      description: Emails a 6-digit code to the caller's contact email (notification-service otp-email, purpose VERIFY_EMAIL). Replaces any pending code.
+      description: Resends a 6-digit code to the caller's contact email (notification-service otp-email, purpose VERIFY_EMAIL); registerUser sends the first one. Replaces any pending code.
       responses:
         '202':
           description: Email accepted by notification-service.
@@ -525,7 +525,7 @@ paths:
         '409':
           description: EMAIL_ALREADY_VERIFIED, EMAIL_ALREADY_CLAIMED or VERIFICATION_RESEND_TOO_SOON.
           content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}
-        '503': {description: The email was not accepted; no code is kept and the caller may ask again.}
+        '503': {description: 'VERIFICATION_EMAIL_NOT_SENT - the email was not accepted; the unsent code is expired and the caller may ask again at once (the resend cooldown does not apply to it).'}
   /api/v1/users/me/email-verification/confirm:
     x-service-owner: user-service
     post:
