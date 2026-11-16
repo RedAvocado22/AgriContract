@@ -645,3 +645,46 @@ services:
         condition: service_completed_successfully
     networks:
       - agricontract-net
+
+  file-migrate:
+    image: flyway/flyway:10.10.0
+    container_name: file-migrate
+    command: -url=jdbc:mysql://file-db:3306/file_db?allowPublicKeyRetrieval=true -user=${DB_USERNAME:-root} -password=${DB_PASSWORD:-password} -connectRetries=20 migrate
+    volumes:
+      - ./file-service/db/migration:/flyway/sql:ro
+    depends_on:
+      file-db:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - agricontract-net
+
+  # file-service-phase2-design.md: blob storage for every service. Internal only, the gateway never routes it.
+  file-service:
+    build:
+      context: .
+      dockerfile: file-service/Dockerfile
+    container_name: file-service
+    environment:
+      DB_HOST: file-db
+      DB_PORT: 3306
+      DB_NAME: file_db
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      S3_ENDPOINT: http://object-storage:8333
+      # Dev identity of infra/seaweedfs/s3.json. The bucket is created on first start.
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-agricontract}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-agricontract-dev-secret}
+      S3_BUCKET: ${S3_BUCKET:-agricontract-files}
+    # Local only, for manual tests; the gateway never routes file-service.
+    ports:
+      - "8089:8089"
+    depends_on:
+      file-db:
+        condition: service_healthy
+      object-storage:
+        condition: service_healthy
+      file-migrate:
+        condition: service_completed_successfully
+    networks:
+      - agricontract-net
