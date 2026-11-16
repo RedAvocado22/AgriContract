@@ -38,10 +38,12 @@ public class JdbcLockStateStore implements LockStateStore {
     @Override public List<DueLock> dueUsers(Instant cutoff, DueLock after, int limit) {
         var mapper = (org.springframework.jdbc.core.RowMapper<DueLock>) (rs, n) -> new DueLock(
                 instant(rs.getObject("effective_locked_until", LocalDateTime.class)), UUID.fromString(rs.getString("user_id")));
-        if (after == null) return jdbc.query("""
+        if (after == null) {
+            return jdbc.query("""
                 SELECT effective_locked_until,user_id FROM user_lock_state WHERE effective_locked_until <= ?
                 ORDER BY effective_locked_until,user_id LIMIT ?
                 """, mapper, time(cutoff), limit);
+        }
         return jdbc.query("""
                 SELECT effective_locked_until,user_id FROM user_lock_state WHERE effective_locked_until <= ?
                 AND (effective_locked_until > ? OR (effective_locked_until = ? AND user_id > ?))
@@ -52,8 +54,9 @@ public class JdbcLockStateStore implements LockStateStore {
     @Override public boolean alreadyPublished(String kind, UUID businessId, UUID userId, String reason) {
         return jdbc.query("SELECT user_id,reason_code FROM lock_event_receipt WHERE transition_type=? AND business_id=?",
                 (rs, n) -> {
-                    if (!userId.toString().equals(rs.getString(1)) || !reason.equals(rs.getString(2)))
+                    if (!userId.toString().equals(rs.getString(1)) || !reason.equals(rs.getString(2))) {
                         throw new IllegalArgumentException("Conflicting lock transition replay");
+                    }
                     return true;
                 }, kind, businessId.toString()).stream().findFirst().orElse(false);
     }
@@ -64,7 +67,9 @@ public class JdbcLockStateStore implements LockStateStore {
     @Override public UUID requireLock(UUID userId, UUID remedyDecisionId) {
         var rows = jdbc.query("SELECT source_event_id FROM lock_entry WHERE user_id=? AND remedy_decision_id=?",
                 (rs, n) -> UUID.fromString(rs.getString(1)), userId.toString(), remedyDecisionId.toString());
-        if (rows.size() != 1) throw new IllegalArgumentException("Persisted lock does not match transition");
+        if (rows.size() != 1) {
+            throw new IllegalArgumentException("Persisted lock does not match transition");
+        }
         return rows.getFirst();
     }
     @Override public void requireOverride(UUID userId, UUID overrideId) {
@@ -72,7 +77,9 @@ public class JdbcLockStateStore implements LockStateStore {
                 SELECT COUNT(*) FROM lock_override_event o JOIN lock_entry l ON l.entry_id=o.lock_entry_id
                 WHERE o.event_id=? AND l.user_id=? AND o.override_type='UNLOCK_EARLY' AND o.proposed_by<>o.approved_by
                 """, Integer.class, overrideId.toString(), userId.toString());
-        if (count == null || count != 1) throw new IllegalArgumentException("Persisted override does not match transition");
+        if (count == null || count != 1) {
+            throw new IllegalArgumentException("Persisted override does not match transition");
+        }
     }
     @Override public void save(UUID userId, long revision, Instant until, Instant now) {
         jdbc.update("UPDATE user_lock_state SET lock_revision=?,effective_locked_until=?,updated_at=? WHERE user_id=?",
