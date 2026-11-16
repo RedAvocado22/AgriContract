@@ -188,18 +188,22 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
-sends an OTP synchronously. Service-to-service only: the caller sends `SERVICE_INTERNAL_SECRET` in
+and user-service send an OTP synchronously. Service-to-service only: the caller sends `SERVICE_INTERNAL_SECRET` in
 `X-Internal-Secret`, and the gateway never routes `/internal/**`.
 
 The optional `purpose` (D42) picks the email; each has its own subject, template and `notification_type`, with the
 same dedup and log rules:
 
-| `purpose` | The code confirms | `notification_type` | `template_version` |
-| --- | --- | --- | --- |
-| `SIGN_CONTRACT` (or absent, as contract-service sends a signing code) | signing the contract | `CONTRACT_SIGNING_OTP` | `otp-email/v1` |
-| `CANCEL_ACTIVATION` | a party's request to cancel a signed contract whose deposit lock failed | `ACTIVATION_CANCEL_OTP` | `otp-activation-cancel/v1` |
+| `purpose` | Sent by | The code confirms | `notification_type` | `template_version` |
+| --- | --- | --- | --- | --- |
+| `SIGN_CONTRACT` (or absent, as contract-service sends a signing code) | contract-service | signing the contract | `CONTRACT_SIGNING_OTP` | `otp-email/v1` |
+| `CANCEL_ACTIVATION` | contract-service | a party's request to cancel a signed contract whose deposit lock failed | `ACTIVATION_CANCEL_OTP` | `otp-activation-cancel/v1` |
+| `VERIFY_EMAIL` (#344, D45) | user-service | the email address given at registration | `VERIFY_EMAIL_OTP` | `otp-verify-email/v1` |
 
-Any other value, `null` included, is a `400`.
+Any other value, `null` included, is a `400`. `contractId` and `signedContentHash` depend on the purpose, as the
+contract's `if/then/else` says: required for the two contract purposes (and when `purpose` is absent or invalid),
+and a `400` if either is sent with `VERIFY_EMAIL`. The verify-email mail has the code and its expiry only, with no
+contract line and no fingerprint.
 
 | Response | When |
 | --- | --- |
