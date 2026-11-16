@@ -5,7 +5,6 @@ import com.agricontract.user.application.exception.VerificationEmailNotSentExcep
 import com.agricontract.user.domain.exception.ConcurrentProfileUpdateException;
 import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
 import com.agricontract.user.domain.exception.EmailVerificationConflictException;
-import com.agricontract.user.domain.exception.InvalidVerificationCodeException;
 import com.agricontract.user.domain.exception.InvalidVerificationTransitionException;
 import com.agricontract.user.domain.exception.ReadAuditUnavailableException;
 import com.agricontract.user.domain.exception.RoleSeparationViolationException;

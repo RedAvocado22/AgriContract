@@ -39,7 +39,8 @@ class GetInternalUserInfoUseCaseImplTest {
         InternalUserInfoResponse response = useCase.execute("seller-1");
 
         assertThat(response).isEqualTo(new InternalUserInfoResponse("seller-1", "HTX Ca Phe",
-                "seller@agricontract.test", Role.SELLER, VerificationStatus.VERIFIED, EXPIRES_AT, LOCKED_UNTIL));
+                "seller@agricontract.test", true, Role.SELLER, VerificationStatus.VERIFIED, EXPIRES_AT,
+                LOCKED_UNTIL));
     }
 
     @Test
@@ -48,7 +49,10 @@ class GetInternalUserInfoUseCaseImplTest {
                 "HTX Ca Phe", Role.SELLER, new ContactInfo("someone-else@agricontract.test", null, null),
                 VerificationStatus.VERIFIED, null, null, null, null, null, null, null)));
 
-        assertThat(useCase.execute("seller-1").email()).isNull();
+        InternalUserInfoResponse response = useCase.execute("seller-1");
+
+        assertThat(response.email()).isNull();
+        assertThat(response.emailVerified()).isFalse();
     }
 
     @Test

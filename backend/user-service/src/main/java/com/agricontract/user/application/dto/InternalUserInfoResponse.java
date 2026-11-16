@@ -14,6 +14,7 @@ import java.time.Instant;
 public record InternalUserInfoResponse(String userId,
                                        String organizationName,
                                        String email,
+                                       boolean emailVerified,
                                        Role role,
                                        VerificationStatus verificationStatus,
                                        Instant authorizationExpiresAt,

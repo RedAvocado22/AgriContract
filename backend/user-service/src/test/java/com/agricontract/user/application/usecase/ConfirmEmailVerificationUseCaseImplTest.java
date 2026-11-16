@@ -1,10 +1,9 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.UserProfileResponse;
+import com.agricontract.user.application.dto.EmailVerificationConfirmation;
 import com.agricontract.user.application.port.VerificationCodes;
 import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
 import com.agricontract.user.domain.exception.EmailVerificationConflictException;
-import com.agricontract.user.domain.exception.InvalidVerificationCodeException;
 import com.agricontract.user.domain.model.EmailVerificationChallenge;
 import com.agricontract.user.domain.model.UserProfile;
 import com.agricontract.user.domain.model.vo.ContactInfo;
@@ -12,9 +11,12 @@ import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.EmailVerificationChallengeRepository;
 import com.agricontract.user.domain.repository.UserProfileRepository;
+import com.agricontract.user.testsupport.DirectTransactionRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,6 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,13 +52,13 @@ class ConfirmEmailVerificationUseCaseImplTest {
     @BeforeEach
     void setUp() {
         useCase = new ConfirmEmailVerificationUseCaseImpl(userProfileRepository, challengeRepository, codes,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC), new DirectTransactionRunner());
         profile = UserProfile.create(ID, "HTX Ca Phe", Role.SELLER, new ContactInfo(EMAIL, null, null));
         when(userProfileRepository.findById(ID)).thenReturn(Optional.of(profile));
     }
 
     private void pending(String email, Instant expiresAt, int attemptsLeft) {
-        when(challengeRepository.findByUserId(USER_ID)).thenReturn(Optional.of(
+        when(challengeRepository.findByUserIdForUpdate(USER_ID)).thenReturn(Optional.of(
                 new EmailVerificationChallenge(USER_ID, email, HASH, NOW.minusSeconds(60), expiresAt, attemptsLeft)));
     }
 
@@ -69,23 +72,39 @@ class ConfirmEmailVerificationUseCaseImplTest {
         when(codes.matches("123456", HASH)).thenReturn(true);
         when(userProfileRepository.update(profile)).thenReturn(profile);
 
-        UserProfileResponse response = useCase.execute(USER_ID, "123456");
+        EmailVerificationConfirmation result = useCase.execute(USER_ID, "123456");
 
-        assertThat(response.emailVerified()).isTrue();
+        assertThat(result).isInstanceOfSatisfying(EmailVerificationConfirmation.Verified.class,
+                verified -> assertThat(verified.profile().emailVerified()).isTrue());
         assertThat(profile.verifiedContactEmail()).isEqualTo(EMAIL);
         assertThat(profile.getEmailVerifiedAt()).isEqualTo(NOW);
         verify(challengeRepository).deleteByUserId(USER_ID);
     }
 
     @Test
-    void wrongCode_countsAttempt_andKeepsUnverified() {
+    void locksTheChallengeBeforeReadingTheProfile() {
+        pending(EMAIL, NOW.plusSeconds(300), 5);
+        when(codes.matches("123456", HASH)).thenReturn(true);
+        when(userProfileRepository.update(profile)).thenReturn(profile);
+
+        useCase.execute(USER_ID, "123456");
+
+        InOrder order = inOrder(challengeRepository, userProfileRepository);
+        order.verify(challengeRepository).findByUserIdForUpdate(USER_ID);
+        order.verify(userProfileRepository).findById(ID);
+    }
+
+    @Test
+    void wrongCode_isRejectedResult_withTheAttemptCounted() {
         pending(EMAIL, NOW.plusSeconds(300), 2);
         when(codes.matches("000000", HASH)).thenReturn(false);
 
-        assertThatThrownBy(() -> useCase.execute(USER_ID, "000000"))
-                .isInstanceOfSatisfying(InvalidVerificationCodeException.class,
-                        e -> assertThat(e.getAttemptsLeft()).isEqualTo(1));
-        verify(challengeRepository).save(any());
+        EmailVerificationConfirmation result = useCase.execute(USER_ID, "000000");
+
+        assertThat(result).isEqualTo(new EmailVerificationConfirmation.Rejected(1));
+        ArgumentCaptor<EmailVerificationChallenge> saved = ArgumentCaptor.forClass(EmailVerificationChallenge.class);
+        verify(challengeRepository).save(saved.capture());
+        assertThat(saved.getValue().getAttemptsLeft()).isEqualTo(1);
         verify(userProfileRepository, never()).update(any());
         assertThat(profile.isEmailVerified()).isFalse();
     }
@@ -118,10 +137,20 @@ class ConfirmEmailVerificationUseCaseImplTest {
 
     @Test
     void noCodeRequested_conflict() {
-        when(challengeRepository.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        when(challengeRepository.findByUserIdForUpdate(USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.execute(USER_ID, "123456"))
                 .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(EmailVerificationConflictException.NOT_REQUESTED));
+    }
+
+    @Test
+    void alreadyVerified_conflict_evenWithoutChallenge() {
+        // A parallel confirm with the right code verified the address and deleted the challenge while we waited.
+        profile.markEmailVerified(EMAIL, NOW.minusSeconds(1));
+        when(challengeRepository.findByUserIdForUpdate(USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> useCase.execute(USER_ID, "123456"))
+                .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(EmailVerificationConflictException.ALREADY_VERIFIED));
     }
 
     @Test

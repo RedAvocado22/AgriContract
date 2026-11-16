@@ -54,7 +54,7 @@ class InternalUserControllerTest {
     @Test
     void validInternalSecret_returnsExactlyTheFrozenFieldsAtTopLevel() throws Exception {
         when(getInternalUserInfoUseCase.execute("seller-1")).thenReturn(new InternalUserInfoResponse(
-                "seller-1", "HTX Ca Phe", "seller@agricontract.test", Role.SELLER, VerificationStatus.VERIFIED,
+                "seller-1", "HTX Ca Phe", "seller@agricontract.test", true, Role.SELLER, VerificationStatus.VERIFIED,
                 Instant.parse("2027-06-30T16:59:59.999Z"), Instant.parse("2026-11-01T00:00:00Z")));
 
         String body = mockMvc.perform(get(URL).header("X-Internal-Secret", INTERNAL_SECRET))
@@ -63,20 +63,21 @@ class InternalUserControllerTest {
                 .andExpect(jsonPath("$.userId").value("seller-1"))
                 .andExpect(jsonPath("$.organizationName").value("HTX Ca Phe"))
                 .andExpect(jsonPath("$.email").value("seller@agricontract.test"))
+                .andExpect(jsonPath("$.emailVerified").value(true))
                 .andExpect(jsonPath("$.role").value("SELLER"))
                 .andExpect(jsonPath("$.verificationStatus").value("VERIFIED"))
                 .andExpect(jsonPath("$.authorizationExpiresAt").value("2027-06-30T16:59:59.999Z"))
                 .andExpect(jsonPath("$.lockedUntil").value("2026-11-01T00:00:00Z"))
                 .andReturn().getResponse().getContentAsString();
 
-        assertThat(fieldNames(body)).containsExactlyInAnyOrder("userId", "organizationName", "email", "role",
+        assertThat(fieldNames(body)).containsExactlyInAnyOrder("userId", "organizationName", "email", "emailVerified", "role",
                 "verificationStatus", "authorizationExpiresAt", "lockedUntil");
     }
 
     @Test
     void unlimitedAuthorizationAndNoLock_areWrittenAsExplicitNulls() throws Exception {
         when(getInternalUserInfoUseCase.execute("seller-1")).thenReturn(new InternalUserInfoResponse(
-                "seller-1", "HTX Ca Phe", "seller@agricontract.test", Role.SELLER, VerificationStatus.PENDING,
+                "seller-1", "HTX Ca Phe", "seller@agricontract.test", true, Role.SELLER, VerificationStatus.PENDING,
                 null, null));
 
         String body = mockMvc.perform(get(URL).header("X-Internal-Secret", INTERNAL_SECRET))

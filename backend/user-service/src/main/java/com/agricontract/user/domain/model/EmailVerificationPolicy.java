@@ -14,9 +14,10 @@ public record EmailVerificationPolicy(long expirySeconds, int maxAttempts, long 
         }
     }
 
-    // previous: the pending challenge being replaced, or null. Counted even if its email never arrived.
+    // previous: the challenge being replaced, or null. An expired one does not hold the cooldown: that is also how a
+    // challenge whose email could not be sent ends, so the user can ask again at once.
     public void ensureCanResend(EmailVerificationChallenge previous, Instant now) {
-        if (previous == null || resendCooldownSeconds == 0) {
+        if (previous == null || resendCooldownSeconds == 0 || previous.isExpired(now)) {
             return;
         }
         Instant allowedAt = previous.getSentAt().plusSeconds(resendCooldownSeconds);

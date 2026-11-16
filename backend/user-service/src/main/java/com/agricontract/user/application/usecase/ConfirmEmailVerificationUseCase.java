@@ -1,8 +1,8 @@
 package com.agricontract.user.application.usecase;
 
-import com.agricontract.user.application.dto.UserProfileResponse;
+import com.agricontract.user.application.dto.EmailVerificationConfirmation;
 
 public interface ConfirmEmailVerificationUseCase {
     // userId: the authenticated principal, never from the request.
-    UserProfileResponse execute(String userId, String code);
+    EmailVerificationConfirmation execute(String userId, String code);
 }

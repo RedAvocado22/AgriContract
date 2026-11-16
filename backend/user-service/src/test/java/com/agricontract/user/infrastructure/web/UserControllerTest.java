@@ -10,11 +10,11 @@ import com.agricontract.user.application.usecase.RegisterUserUseCase;
 import com.agricontract.user.domain.model.vo.Role;
 import com.agricontract.user.domain.model.vo.VerificationStatus;
 import com.agricontract.user.infrastructure.config.SecurityConfig;
+import com.agricontract.user.application.dto.EmailVerificationConfirmation;
 import com.agricontract.user.application.dto.EmailVerificationSentResponse;
 import com.agricontract.user.application.usecase.ConfirmEmailVerificationUseCase;
 import com.agricontract.user.application.usecase.RequestEmailVerificationUseCase;
 import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
-import com.agricontract.user.domain.exception.InvalidVerificationCodeException;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -167,12 +167,16 @@ class UserControllerTest {
 
     @Test
     void register_new_takesEmailFromBody_is201() throws Exception {
-        when(registerUserUseCase.execute(any())).thenReturn(new RegisterUserResult(profile("body@test.com"), true));
+        when(registerUserUseCase.execute(any())).thenReturn(RegisterUserResult.created(profile("body@test.com"),
+                Instant.parse("2026-11-16T10:10:00Z")));
 
         mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
                         .content(registerBody("\"body@test.com\"")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.email").value("body@test.com"));
+                .andExpect(jsonPath("$.email").value("body@test.com"))
+                .andExpect(jsonPath("$.emailVerified").value(false))
+                .andExpect(jsonPath("$.verificationEmailSent").value(true))
+                .andExpect(jsonPath("$.verificationCodeExpiresAt").value("2026-11-16T10:10:00Z"));
 
         ArgumentCaptor<RegisterUserCommand> command = ArgumentCaptor.forClass(RegisterUserCommand.class);
         verify(registerUserUseCase).execute(command.capture());
@@ -183,7 +187,8 @@ class UserControllerTest {
 
     @Test
     void register_forgedEmailHeaders_areIgnored() throws Exception {
-        when(registerUserUseCase.execute(any())).thenReturn(new RegisterUserResult(profile("body@test.com"), true));
+        when(registerUserUseCase.execute(any())).thenReturn(RegisterUserResult.created(profile("body@test.com"),
+                Instant.parse("2026-11-16T10:10:00Z")));
 
         // Two values used to be rejected (403) when X-User-Email was an identity header; it no longer is one.
         mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
@@ -208,12 +213,25 @@ class UserControllerTest {
 
     @Test
     void register_existingUser_is200_withStoredEmail() throws Exception {
-        when(registerUserUseCase.execute(any())).thenReturn(new RegisterUserResult(profile("stored@test.com"), false));
+        when(registerUserUseCase.execute(any())).thenReturn(RegisterUserResult.existing(profile("stored@test.com")));
 
         mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
                         .content(registerBody("\"body@test.com\"")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value("stored@test.com"));
+                .andExpect(jsonPath("$.email").value("stored@test.com"))
+                .andExpect(jsonPath("$.verificationEmailSent").doesNotExist())
+                .andExpect(jsonPath("$.verificationCodeExpiresAt").doesNotExist());
+    }
+
+    @Test
+    void register_new_firstCodeNotSent_is201_andSaysSo() throws Exception {
+        when(registerUserUseCase.execute(any())).thenReturn(RegisterUserResult.created(profile("body@test.com"), null));
+
+        mockMvc.perform(viaGateway(post(REGISTER_URL)).contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody("\"body@test.com\"")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.verificationEmailSent").value(false))
+                .andExpect(jsonPath("$.verificationCodeExpiresAt").doesNotExist());
     }
 
     // --- email verification ---
@@ -237,8 +255,9 @@ class UserControllerTest {
 
     @Test
     void confirmEmailVerification_rightCode_returnsVerifiedProfile() throws Exception {
-        when(confirmEmailVerificationUseCase.execute(CALLER_ID, "123456")).thenReturn(UserProfileResponse.builder()
-                .userId(CALLER_ID).email("buyer@agricontract.test").emailVerified(true).build());
+        when(confirmEmailVerificationUseCase.execute(CALLER_ID, "123456")).thenReturn(new EmailVerificationConfirmation.Verified(
+                UserProfileResponse.builder().userId(CALLER_ID).email("buyer@agricontract.test").emailVerified(true)
+                        .build()));
 
         mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification/confirm"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"123456\"}"))
@@ -258,7 +277,7 @@ class UserControllerTest {
     @Test
     void confirmEmailVerification_wrongCode_badRequest() throws Exception {
         when(confirmEmailVerificationUseCase.execute(CALLER_ID, "000000"))
-                .thenThrow(new InvalidVerificationCodeException(4));
+                .thenReturn(new EmailVerificationConfirmation.Rejected(4));
 
         mockMvc.perform(viaGateway(post("/api/v1/users/me/email-verification/confirm"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"000000\"}"))

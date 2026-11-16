@@ -92,7 +92,7 @@ Gate nằm tại use-case của `product-service`/`contract-service`, không n�
 
 | Method | Path | Quyền | Response/ý nghĩa |
 |---|---|---|---|
-| `POST` | `/api/v1/users/register` | Authenticated | Idempotent theo Keycloak `sub`; tạo `PENDING` nếu mới. Email lấy từ body, lưu **chưa verify** và **gửi OTP ngay** (§4.4) → 201 kèm `verificationEmailSent`, `expiresAt`; email đã có account khác verify → 409 `EMAIL_ALREADY_CLAIMED` (chỉ khi tạo mới) |
+| `POST` | `/api/v1/users/register` | Authenticated | Idempotent theo Keycloak `sub`; tạo `PENDING` nếu mới. Email lấy từ body, lưu **chưa verify** và **gửi OTP ngay** (§4.4) → 201 kèm `verificationEmailSent`, `verificationCodeExpiresAt`; email đã có account khác verify → 409 `EMAIL_ALREADY_CLAIMED` (chỉ khi tạo mới) |
 | `POST` | `/api/v1/users/me/email-verification` | Chính chủ | **Gửi lại** OTP 6 số tới contact email → 202 `{expiresAt}` (§4.4) |
 | `POST` | `/api/v1/users/me/email-verification/confirm` | Chính chủ | Body `{code}`; đúng mã → 200 `UserProfileResponse` với `emailVerified: true` (§4.4) |
 | `GET` | `/api/v1/users/me` | Chính chủ | `UserProfileResponse` đầy đủ contact/KYC/authorization/lock, kèm `emailVerified` |
@@ -156,7 +156,7 @@ Từ #314 email đăng ký đến từ body, không còn từ JWT, nên không c
 
 **Register gửi mã đầu tiên**
 - Profile **mới**: lưu email body vào `contactInfo` ở trạng thái **chưa verify**, commit, rồi gửi mã theo luồng "Gửi mã" bên dưới (cùng luật hết hạn/cooldown).
-- Register trả **201** kể cả khi gửi mã lỗi, vì profile đã commit. Response có thêm trạng thái gửi mã (`verificationEmailSent`, `expiresAt`). Gửi lỗi → `verificationEmailSent: false`, client vào màn nhập mã và bấm gửi lại.
+- Register trả **201** kể cả khi gửi mã lỗi, vì profile đã commit. Response là profile kèm `verificationEmailSent` và `verificationCodeExpiresAt`. Gửi lỗi → `verificationEmailSent: false`, không có `verificationCodeExpiresAt`, client vào màn nhập mã và bấm gửi lại. Profile đã tồn tại (200) không có hai field này.
 - **Idempotent register không đổi:** profile đã tồn tại → trả nguyên profile (200), không kiểm tra email body, **không gửi mã mới**.
 - Email body đã có account khác verify → **409 `EMAIL_ALREADY_CLAIMED`**, không tạo profile (chỉ khi tạo mới). **Chấp nhận** việc response này cho một user đã đăng nhập biết địa chỉ đó đã có người verify: register cần JWT, tức là đã có tài khoản Keycloak, và trang đăng ký Keycloak vốn báo trùng email (`duplicateEmailsAllowed: false`, §2.3). Chuyển check sang request/confirm cũng không che được, vì register tự gửi mã nên vẫn phải báo lại cùng thông tin. Message không lộ user nào đang giữ địa chỉ.
 
@@ -169,10 +169,10 @@ Từ #314 email đăng ký đến từ body, không còn từ JWT, nên không c
 - Log chỉ có `requestId`, không mã, không địa chỉ.
 
 **Xác nhận** (`POST /me/email-verification/confirm`)
-- **Trừ lượt trước, so mã sau**, bằng một câu UPDATE nguyên tử: `attempts_left = attempts_left - 1 WHERE user_id = ? AND attempts_left > 0 AND expires_at > now`. Request song song không đọc chung một giá trị `attempts_left` được, nên mỗi request đều tốn một lượt, không ai được đoán miễn phí. Mã đúng cũng tốn một lượt; không sao, vì challenge bị xoá ngay sau đó.
-- UPDATE không trúng dòng nào → đọc lại challenge để trả lỗi: không có → 409 `VERIFICATION_NOT_REQUESTED`; hết hạn hoặc mã gửi tới địa chỉ khác contact email hiện tại → 409 `VERIFICATION_EXPIRED`; hết lượt → 409 `VERIFICATION_ATTEMPTS_EXHAUSTED`. Đã verify → 409 `EMAIL_ALREADY_VERIFIED`.
-- **Sai mã:** lượt đã commit ở bước trừ lượt. Use case trả **kết quả bị từ chối** (còn bao nhiêu lượt), không throw, và web layer map sang 400 `VERIFICATION_CODE_INVALID`. Không dùng `noRollbackFor`.
-- **Đúng mã:** một transaction xoá challenge (điều kiện `code_hash` khớp; 0 dòng nghĩa là vừa có resend chen vào → 409 `VERIFICATION_EXPIRED`), kiểm tra địa chỉ chưa bị claim, ghi `verified_email` + `email_verified_at`.
+- **Một transaction, khoá dòng challenge trước** (`SELECT … FOR UPDATE`), rồi mới đọc profile. Các confirm song song của cùng user chạy lần lượt, mỗi lần thấy `attempts_left` mới nhất, nên mỗi lần đoán sai đều tốn một lượt, không ai được đoán miễn phí. Không dùng UPDATE trừ lượt nguyên tử: ở REPEATABLE READ, khi UPDATE không trúng dòng thì lần đọc lại để phân loại lỗi chỉ thấy snapshot cũ, đằng nào cũng phải đọc có khoá. Transaction không gọi HTTP nên khoá giữ rất ngắn. Resend cũng khoá dòng này, nên cooldown không bị hai request vượt cùng lúc.
+- Thứ tự kiểm tra: đã verify → 409 `EMAIL_ALREADY_VERIFIED`; chưa xin mã → 409 `VERIFICATION_NOT_REQUESTED`; hết hạn hoặc mã gửi tới địa chỉ khác contact email hiện tại → 409 `VERIFICATION_EXPIRED`; hết lượt → 409 `VERIFICATION_ATTEMPTS_EXHAUSTED`.
+- **Sai mã:** trừ một lượt, use case trả **kết quả bị từ chối** (còn bao nhiêu lượt), không throw, nên lượt sai commit cùng transaction; web layer map sang 400 `VERIFICATION_CODE_INVALID`. Không dùng `noRollbackFor`.
+- **Đúng mã:** kiểm tra địa chỉ chưa bị claim, ghi `verified_email` + `email_verified_at`, xoá challenge.
 - **Transaction boundary theo D44:** `application`/`domain` không có `@Transactional`/`TransactionTemplate`; use case gọi port `TransactionRunner`, implementation ở infrastructure.
 
 **Địa chỉ đã có người verify:** `user_profiles.verified_email` UNIQUE (không phân biệt hoa thường theo collation). Nhiều user có thể *đăng ký* cùng địa chỉ chưa verify; **ai xác nhận trước thì sở hữu**. Sau đó register mới, gửi lại hoặc xác nhận cho địa chỉ đó → 409 `EMAIL_ALREADY_CLAIMED` (unique key chặn cả hai confirm chạy song song). Tài khoản chưa verify bị dọn sau 24 giờ (§2.3).
