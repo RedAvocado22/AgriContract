@@ -154,6 +154,27 @@ describe('Level 1.5 waiting email on real MySQL and MailHog', () => {
     );
   });
 
+  it('delivers STILL_WAITING with its own template', async () => {
+    const { address, useCase } = operator('b54');
+    const reminder = command('b54', waitingPayload({ stage: 'STILL_WAITING' }));
+
+    await useCase.execute(reminder);
+
+    expect(await rowsOf(reminder.eventId)).toMatchObject([
+      {
+        notification_type: 'LEVEL1_5_STILL_WAITING',
+        template_version: 'level1-5-still-waiting/v1',
+        status: 'SENT',
+      },
+    ]);
+    const mails = await mailsContaining(address);
+    mailIds.push(...mails.map((m) => m.ID));
+    expect(mails).toHaveLength(1);
+    expect(mails[0].Content.Headers.Subject[0]).toBe(
+      '[AgriContract] A Level 1.5 inspection is still waiting for an inspector',
+    );
+  });
+
   it('delivers ASSIGNED with its own template', async () => {
     const { address, useCase } = operator('b52');
     const assigned = command('b52', waitingPayload({ stage: 'ASSIGNED' }));
