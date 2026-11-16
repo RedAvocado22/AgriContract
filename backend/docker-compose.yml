@@ -504,6 +504,70 @@ services:
     networks:
       - agricontract-net
 
+  inspection-service:
+    build:
+      context: .
+      dockerfile: inspection-service/Dockerfile
+    container_name: inspection-service
+    environment:
+      DB_HOST: inspection-db
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
+      USER_SERVICE_URL: http://user-service:8081
+      VIETNAM_HOLIDAYS: ${VIETNAM_HOLIDAYS:-2026-01-01,2026-02-16,2026-02-17,2026-02-18,2026-02-19,2026-02-20,2026-04-27,2026-04-30,2026-05-01,2026-09-01,2026-09-02,2027-01-01}
+      # Inspection uses Spring Boot's native RabbitMQ properties.
+      RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-guest}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-guest}
+    depends_on:
+      inspection-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8087/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  reputation-service:
+    build:
+      context: .
+      dockerfile: reputation-service/Dockerfile
+    container_name: reputation-service
+    environment:
+      REPUTATION_DB_URL: jdbc:mysql://reputation-db:3306/reputation_db?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      # Development uses one account for migrations and runtime; production uses separate least-privilege accounts.
+      REPUTATION_DB_USERNAME: ${REPUTATION_DB_USERNAME:-${DB_USERNAME:-root}}
+      REPUTATION_DB_PASSWORD: ${REPUTATION_DB_PASSWORD:-${DB_PASSWORD:-password}}
+      REPUTATION_MIGRATION_USERNAME: ${REPUTATION_MIGRATION_USERNAME:-${DB_USERNAME:-root}}
+      REPUTATION_MIGRATION_PASSWORD: ${REPUTATION_MIGRATION_PASSWORD:-${DB_PASSWORD:-password}}
+      GATEWAY_INTERNAL_SECRET: ${GATEWAY_INTERNAL_SECRET:?GATEWAY_INTERNAL_SECRET must be set in .env}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-guest}
+    depends_on:
+      reputation-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - agricontract-net
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8088/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
   bank-service:
     build:
       context: .
