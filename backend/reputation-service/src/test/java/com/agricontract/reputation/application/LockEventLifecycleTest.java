@@ -6,7 +6,6 @@ import com.agricontract.reputation.application.port.TransactionRunner;
 import com.agricontract.reputation.application.usecase.LockEventLifecycle;
 import java.time.Instant;
 import java.util.UUID;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -16,9 +15,7 @@ class LockEventLifecycleTest {
     final Instant now = Instant.parse("2026-01-01T00:00:00Z");
     final LockStateStore states = mock(LockStateStore.class);
     final LockEventPublisher events = mock(LockEventPublisher.class);
-    final TransactionRunner runner = new TransactionRunner() {
-        @Override public <T> T inTransaction(Supplier<T> work) { return work.get(); }
-    };
+    final TransactionRunner runner = new DirectTransactionRunner();
     final LockEventLifecycle lifecycle = new LockEventLifecycle(runner, states, events);
 
     @Test void mutexIsAcquiredBeforeLedgerWriteAndEventFollowsProjection() {

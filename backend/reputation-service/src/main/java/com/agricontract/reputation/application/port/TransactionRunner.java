@@ -1,4 +1,4 @@
-﻿package com.agricontract.reputation.application.port;
+package com.agricontract.reputation.application.port;
 
 import java.util.function.Supplier;
 

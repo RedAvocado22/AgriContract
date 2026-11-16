@@ -9,4 +9,9 @@ final class DirectTransactionRunner implements TransactionRunner {
     public <T> T inRepeatableReadOnlyTransaction(Supplier<T> work) {
         return work.get();
     }
+
+    @Override
+    public <T> T inTransaction(Supplier<T> work) {
+        return work.get();
+    }
 }
