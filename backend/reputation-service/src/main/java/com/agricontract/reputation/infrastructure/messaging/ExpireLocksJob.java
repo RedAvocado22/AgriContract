@@ -18,11 +18,17 @@ public class ExpireLocksJob {
     private final LockStateStore states;
     private final LockEventLifecycle lifecycle;
     private final int batchSize;
+
     public ExpireLocksJob(LockStateStore states, LockEventLifecycle lifecycle,
                           @Value("${reputation.lock-expiry.batch-size:100}") int batchSize) {
-        if (batchSize < 1 || batchSize > 1000) throw new IllegalArgumentException("Expiry batch size must be 1..1000");
-        this.states = states; this.lifecycle = lifecycle; this.batchSize = batchSize;
+        if (batchSize < 1 || batchSize > 1000) {
+            throw new IllegalArgumentException("Expiry batch size must be 1..1000");
+        }
+        this.states = states;
+        this.lifecycle = lifecycle;
+        this.batchSize = batchSize;
     }
+
     @Scheduled(fixedDelayString = "${reputation.lock-expiry.interval:PT1M}",
             initialDelayString = "${reputation.lock-expiry.interval:PT1M}")
     public void run() {
@@ -31,10 +37,13 @@ public class ExpireLocksJob {
         LockStateStore.DueLock cursor = null;
         while (true) {
             var page = states.dueUsers(cutoff, cursor, batchSize);
-            if (page.isEmpty()) return;
+            if (page.isEmpty()) {
+                return;
+            }
             for (var candidate : page) {
-                try { lifecycle.expire(candidate.userId(), correlation); }
-                catch (RuntimeException failure) {
+                try {
+                    lifecycle.expire(candidate.userId(), correlation);
+                } catch (RuntimeException failure) {
                     LOG.error("Lock expiry transaction failed for user {}", candidate.userId(), failure);
                 }
             }

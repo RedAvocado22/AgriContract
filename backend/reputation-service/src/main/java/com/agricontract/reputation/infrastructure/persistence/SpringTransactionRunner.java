@@ -1,4 +1,4 @@
-﻿package com.agricontract.reputation.infrastructure.persistence;
+package com.agricontract.reputation.infrastructure.persistence;
 
 import com.agricontract.reputation.application.port.TransactionRunner;
 import java.util.function.Supplier;

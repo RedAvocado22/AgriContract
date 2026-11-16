@@ -33,8 +33,9 @@ public class LockEventLifecycle {
 
     public boolean lockCreated(UUID userId, UUID remedyDecisionId, String breachReasonCode,
                                String correlationId, Runnable appendLock) {
-        if (!BREACH_REASONS.contains(Objects.requireNonNull(breachReasonCode)))
+        if (!BREACH_REASONS.contains(Objects.requireNonNull(breachReasonCode))) {
             throw new IllegalArgumentException("Unknown breach reason");
+        }
         return transition(userId, remedyDecisionId, breachReasonCode, correlationId, appendLock, true);
     }
 
@@ -47,20 +48,30 @@ public class LockEventLifecycle {
         Objects.requireNonNull(userId);
         Objects.requireNonNull(businessId);
         Objects.requireNonNull(append);
-        if (correlationId == null || correlationId.isBlank()) throw new IllegalArgumentException("Correlation required");
+        if (correlationId == null || correlationId.isBlank()) {
+            throw new IllegalArgumentException("Correlation required");
+        }
         String kind = locked ? "LOCK" : "EARLY_UNLOCK";
         return transactions.inTransaction(() -> {
             var state = states.acquire(userId);
-            if (states.alreadyPublished(kind, businessId, userId, reason)) return false;
+            if (states.alreadyPublished(kind, businessId, userId, reason)) {
+                return false;
+            }
             append.run();
             UUID cause;
-            if (locked) cause = states.requireLock(userId, businessId);
-            else { states.requireOverride(userId, businessId); cause = businessId; }
+            if (locked) {
+                cause = states.requireLock(userId, businessId);
+            } else {
+                states.requireOverride(userId, businessId);
+                cause = businessId;
+            }
             Instant now = states.now();
             Instant until = states.effectiveUntil(userId, now);
             // A delayed creation with no active lock cannot be represented by reputation.locked (non-null expiry).
             // Leave it retryable for the owning use case to resolve; never invent a lock or a wire value.
-            if (locked && until == null) throw new IllegalStateException("No effective lock for creation event");
+            if (locked && until == null) {
+                throw new IllegalStateException("No effective lock for creation event");
+            }
             persist(userId, state, until, reason, now, correlationId, cause, locked);
             states.remember(kind, businessId, userId, reason);
             return true;
@@ -69,12 +80,18 @@ public class LockEventLifecycle {
 
     public boolean expire(UUID userId, String correlationId) {
         Objects.requireNonNull(userId);
-        if (correlationId == null || correlationId.isBlank()) throw new IllegalArgumentException("Correlation required");
+        if (correlationId == null || correlationId.isBlank()) {
+            throw new IllegalArgumentException("Correlation required");
+        }
         return transactions.inTransaction(() -> {
             var state = states.acquire(userId);
             Instant now = states.now(); // Read after any wait on the mutex, using the DB's UTC clock.
-            if (state.effectiveUntil() == null || state.effectiveUntil().isAfter(now)) return false;
-            if (states.effectiveUntil(userId, now) != null) return false;
+            if (state.effectiveUntil() == null || state.effectiveUntil().isAfter(now)) {
+                return false;
+            }
+            if (states.effectiveUntil(userId, now) != null) {
+                return false;
+            }
             persist(userId, state, null, "EXPIRED", now, correlationId, null, false);
             return true;
         });
