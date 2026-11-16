@@ -21,6 +21,8 @@ The internal user-service profile is checked for INSPECTOR role, verified KYC,
 and a valid or explicitly unlimited authorization expiry. The client fails
 closed on dependency errors. It uses `X-Internal-Secret`, matching the frozen
 `serviceAuth` header.
+Connection and response-header waits are bounded; a stalled response body after
+headers is not bounded by the current client transport.
 
 The assignment and report tables belong to inspection-service. Report binding
 uses a same-database foreign key to the assignment; cross-service identifiers
@@ -28,6 +30,11 @@ are not database foreign keys. The application stores Level 1.5 report material
 but does not itself verify file bytes or hashes, create signatures, close the
 assignment, or publish the confirmed event. These operations require a trusted
 confirmation workflow and coordinated transaction.
+
+The #143 caller must start a transaction and acquire the milestone lock before
+calling the report boundary, which locks the assignment. Signature, report,
+assignment closure and outbox work must commit or roll back together. The report
+boundary requires an existing transaction; it does not close or publish itself.
 
 Merged PR #209 supplies the assignment lifecycle and V2/V3 migrations; merged
 PR #227 supplies deterministic hash calculation and verification. The persistence
@@ -54,7 +61,13 @@ mvn -B -pl inspection-service -am test --no-transfer-progress -Dapi.version=1.44
 
 Only `/actuator/health` is publicly accessible. See
 `docs/design/inspection-phase2-design.md` for the authoritative design;
-the current report migration does not yet implement its full two-tier schema.
+V4 implements its full two-tier report schema, with Level 1.5 required fields,
+assignment binding and one-report-per-assignment uniqueness enforced by MySQL.
+Level 2 workflows remain separate; #266 will add the Level 2 commission foreign
+key when its target table exists. Persistence tests use fresh disposable MySQL
+databases. An existing development database with the earlier PR-owned V4 checksum
+requires an explicit owner migration decision; do not run Flyway repair or clean
+automatically.
 
 ## Level 1.5 assignment lifecycle
 
