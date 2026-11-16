@@ -19,11 +19,12 @@ import { Test } from '@nestjs/testing';
 import { createPool, type Pool, type RowDataPacket } from 'mysql2/promise';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { otpRequest } from '../../../test/support/otp';
+import { otpRequest, verifyEmailRequest } from '../../../test/support/otp';
 import { APP_OPTIONS } from '../../app.options';
 import {
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_TEMPLATE_VERSION,
+  VERIFY_EMAIL_OTP_LOG_BODY,
 } from '../../application/otp/otp-email-template';
 import { validate } from '../../config/env.validation';
 import { OtpEmailModule } from '../../otp-email.module';
@@ -181,6 +182,75 @@ describe('OTP email endpoint on real MySQL and MailHog', () => {
       template_version: 'otp-activation-cancel/v1',
     });
     expect(JSON.stringify(rows[0])).not.toContain(body.otpCode);
+  });
+
+  /*
+   * #344/#422: user-service sends the registration code with purpose
+   * VERIFY_EMAIL and no contract. Before this was read, the endpoint answered
+   * 400 and every registration ended in a 503.
+   */
+  describe('purpose VERIFY_EMAIL', () => {
+    const newVerify = () => {
+      const requestId = randomUUID();
+      requestIds.push(requestId);
+      // The address is the only unique text of the mail: there is no contract id.
+      return verifyEmailRequest({
+        requestId,
+        recipientEmail: `verify-${requestId}@test.com`,
+      });
+    };
+
+    it('delivers the code with its own template and type, as user-service sends it', async () => {
+      const body = newVerify();
+
+      await post(app, body).expect(200);
+
+      const mails = await mailsContaining(body.recipientEmail);
+      mailIds.push(...mails.map((m) => m.ID));
+      expect(mails).toHaveLength(1);
+      expect(mails[0].Content.Headers.To).toEqual([body.recipientEmail]);
+      expect(mails[0].Content.Headers.Subject).toEqual([
+        '[AgriContract] Your email verification code',
+      ]);
+      expect(mails[0].Content.Body).toContain(body.otpCode);
+      expect(mails[0].Content.Body).toContain(
+        'If you did not register on AgriContract',
+      );
+      expect(mails[0].Content.Body).not.toContain('Contract:');
+
+      const rows = await rowOf(body.requestId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        status: 'SENT',
+        body: VERIFY_EMAIL_OTP_LOG_BODY,
+        recipient_user_id: body.recipientUserId,
+        template_version: 'otp-verify-email/v1',
+        notification_type: 'VERIFY_EMAIL_OTP',
+      });
+      expect(JSON.stringify(rows[0])).not.toContain(body.otpCode);
+    });
+
+    it.each(['contractId', 'signedContentHash'] as const)(
+      'answers 400 to a %s, and mails nothing',
+      async (field) => {
+        const body = { ...newVerify(), [field]: otpRequest()[field] };
+
+        await post(app, body).expect(400);
+
+        expect(await mailsContaining(body.recipientEmail)).toHaveLength(0);
+        expect(await rowOf(body.requestId)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('answers 400 to a contract code without its contract fields, and mails nothing', async () => {
+    const body: Record<string, unknown> = { ...newRequest() };
+    delete body.contractId;
+    delete body.signedContentHash;
+
+    await post(app, body).expect(400);
+
+    expect(await rowOf(body.requestId as string)).toHaveLength(0);
   });
 
   it('answers 400 to a purpose outside the contract, and mails nothing', async () => {
