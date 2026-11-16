@@ -2,8 +2,8 @@ package com.agricontract.reputation.application.usecase;
 
 import com.agricontract.reputation.application.dto.BatchSummaryQuery;
 import com.agricontract.reputation.application.dto.BatchSummaryResult;
-import com.agricontract.reputation.domain.repository.ReputationReadRepository;
 import com.agricontract.reputation.application.port.TransactionRunner;
+import com.agricontract.reputation.domain.repository.ReputationReadRepository;
 import java.time.Clock;
 import org.springframework.stereotype.Service;
 
