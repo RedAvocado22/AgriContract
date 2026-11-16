@@ -1,4 +1,4 @@
-import { otpRequest } from '../../../test/support/otp';
+import { otpRequest, verifyEmailRequest } from '../../../test/support/otp';
 import {
   OtpEmailRequestInvalidError,
   parseOtpEmailRequest,
@@ -95,6 +95,83 @@ describe('parseOtpEmailRequest', () => {
     it('is not reported missing', () => {
       expect(problemsOf(withoutPurpose())).toEqual([]);
     });
+  });
+
+  describe('purpose VERIFY_EMAIL (#344)', () => {
+    it('accepts the request user-service sends, without a contract, and returns exactly its fields', () => {
+      const parsed = parseOtpEmailRequest(verifyEmailRequest());
+
+      expect(parsed).toEqual(verifyEmailRequest());
+      expect(parsed).not.toHaveProperty('contractId');
+      expect(parsed).not.toHaveProperty('signedContentHash');
+    });
+
+    it.each(['contractId', 'signedContentHash'])(
+      'rejects a %s, whatever its value',
+      (field) => {
+        for (const value of ['ctr-otp-1', 'a'.repeat(64), '', null]) {
+          expect(
+            problemsOf({ ...verifyEmailRequest(), [field]: value }),
+          ).toEqual([`${field} is not allowed for purpose VERIFY_EMAIL`]);
+        }
+      },
+    );
+
+    it('rejects both contract fields, one problem each', () => {
+      const { contractId, signedContentHash } = otpRequest();
+      expect(
+        problemsOf({ ...verifyEmailRequest(), contractId, signedContentHash }),
+      ).toEqual([
+        'contractId is not allowed for purpose VERIFY_EMAIL',
+        'signedContentHash is not allowed for purpose VERIFY_EMAIL',
+      ]);
+    });
+
+    it('still requires every other field', () => {
+      expect(problemsOf({ purpose: 'VERIFY_EMAIL' })).toEqual([
+        'requestId is required',
+        'recipientUserId is required',
+        'recipientEmail is required',
+        'otpCode is required',
+        'expiresAt is required',
+      ]);
+    });
+
+    it.each([
+      ['otpCode', '12345'],
+      ['recipientEmail', 'not-an-email'],
+      ['expiresAt', '2026-11-04T10:15:00'],
+    ])('validates %s = %p as for a contract code', (field, value) => {
+      expect(problemsOf({ ...verifyEmailRequest(), [field]: value })).toEqual([
+        `${field} is invalid`,
+      ]);
+    });
+
+    /*
+     * Only VERIFY_EMAIL drops the contract fields: a contract purpose, an
+     * absent one or an invalid one still requires both (no regression for the
+     * signing and cancel codes).
+     */
+    it.each([undefined, 'SIGN_CONTRACT', 'CANCEL_ACTIVATION'])(
+      'still requires both contract fields for purpose %p',
+      (purpose) => {
+        expect(problemsOf({ ...verifyEmailRequest(), purpose })).toEqual([
+          'contractId is required',
+          'signedContentHash is required',
+        ]);
+      },
+    );
+
+    it.each(['verify_email', 'VERIFY'])(
+      'treats %p as an invalid purpose that needs a contract',
+      (purpose) => {
+        expect(problemsOf({ ...verifyEmailRequest(), purpose })).toEqual([
+          'contractId is required',
+          'signedContentHash is required',
+          'purpose is invalid',
+        ]);
+      },
+    );
   });
 
   it('rejects unknown fields without naming them', () => {

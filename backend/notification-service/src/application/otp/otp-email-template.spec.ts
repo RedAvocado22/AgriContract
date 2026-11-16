@@ -1,11 +1,13 @@
 import { createTransport } from 'nodemailer';
-import { otpRequest } from '../../../test/support/otp';
-import { OTP_PURPOSES } from './otp-email-request';
+import { otpRequest, verifyEmailRequest } from '../../../test/support/otp';
+import { CONTRACT_OTP_PURPOSES } from './otp-email-request';
 import {
   ACTIVATION_CANCEL_OTP_LOG_BODY,
   ACTIVATION_CANCEL_OTP_SUBJECT,
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_SUBJECT,
+  VERIFY_EMAIL_OTP_LOG_BODY,
+  VERIFY_EMAIL_OTP_SUBJECT,
   renderOtpEmail,
 } from './otp-email-template';
 
@@ -99,7 +101,58 @@ describe('renderOtpEmail', () => {
     });
   });
 
-  it.each(OTP_PURPOSES)(
+  describe('purpose VERIFY_EMAIL (#344)', () => {
+    const verify = verifyEmailRequest();
+    const mail = renderOtpEmail(verify);
+
+    it('has its own subject, without the code', () => {
+      expect(mail.subject).toBe(VERIFY_EMAIL_OTP_SUBJECT);
+      expect(mail.subject).not.toContain(verify.otpCode);
+    });
+
+    /*
+     * The whole of otp-verify-email/v1: the code, its expiry in Vietnam time
+     * and UTC, and what to do if you did not register. No contract wording.
+     */
+    it('renders otp-verify-email/v1 exactly', () => {
+      expect(mail.body).toBe(
+        [
+          'Use this one-time code to verify the email address of your',
+          'AgriContract account:',
+          '',
+          '730158',
+          '',
+          'Expires: 2026-11-04 17:15:00 Vietnam time (2026-11-04T10:15:00.000Z UTC)',
+          '',
+          'Do not share this code with anyone. AgriContract staff will never',
+          'ask for it. If you did not register on AgriContract, ignore this',
+          'email: the address is not verified without the code.',
+        ].join('\n'),
+      );
+    });
+
+    it('says nothing about a contract, a signature or a fingerprint', () => {
+      // \b: "AgriContract" is the product name, not a contract.
+      expect(mail.body).not.toMatch(/\bcontract|\bsign|fingerprint|SHA-256/i);
+      expect(mail.subject).not.toMatch(/\bcontract/i);
+    });
+
+    it('stores its own placeholder body, which holds no code', () => {
+      expect(VERIFY_EMAIL_OTP_LOG_BODY).toContain('otp-verify-email/v1');
+      expect(VERIFY_EMAIL_OTP_LOG_BODY).not.toMatch(/\d{6}/);
+    });
+
+    it('keeps every line within 76 characters', () => {
+      const long = renderOtpEmail(
+        verifyEmailRequest({ expiresAt: '2026-12-31T23:59:59.999Z' }),
+      ).body;
+      for (const line of long.split('\n')) {
+        expect(line.length).toBeLessThanOrEqual(76);
+      }
+    });
+  });
+
+  it.each(CONTRACT_OTP_PURPOSES)(
     'keeps every %s line within 76 characters for a 66-character contract id',
     (purpose) => {
       const long = renderOtpEmail(
@@ -115,7 +168,7 @@ describe('renderOtpEmail', () => {
     },
   );
 
-  it.each(OTP_PURPOSES)(
+  it.each(CONTRACT_OTP_PURPOSES)(
     'sends the %s email as 7bit, so the raw message holds the code and hash unbroken',
     async (purpose) => {
       const contractId = 'otp-it-8b6f3c1e-2a4d-4f7b-9c1e-0d2a3b4c5d6e';

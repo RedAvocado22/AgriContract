@@ -16,7 +16,8 @@ import { readJsonBody } from './json-body';
 
 /**
  * POST /internal/v1/notifications/otp-email (golden-flow-api.yaml sendOtpEmail,
- * design §2.2): contract-service sends the signing OTP synchronously.
+ * design §2.2): contract-service sends its contract OTPs (signing, activation
+ * cancel) and user-service the email-verification OTP (#344), synchronously.
  *
  * - 200, empty body: the mail server accepted the email, now or for an
  *   earlier call with the same requestId;

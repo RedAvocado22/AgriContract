@@ -16,7 +16,7 @@ import {
   OtpEmailRequestInvalidError,
   parseOtpEmailRequest,
 } from '../../src/application/otp/otp-email-request';
-import { otpRequest } from '../support/otp';
+import { otpRequest, verifyEmailRequest } from '../support/otp';
 
 const CONTRACT = join(
   __dirname,
@@ -63,7 +63,12 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
     ]);
   });
 
-  it('declares exactly the fields the code reads, all but purpose required', () => {
+  /*
+   * contractId and signedContentHash are not in `required`: the schema's
+   * if/then/else requires them for the contract purposes and forbids them for
+   * VERIFY_EMAIL, which the verdicts below check case by case.
+   */
+  it('declares exactly the fields the code reads, and requires those of every purpose', () => {
     expect(Object.keys(schema.properties).sort()).toEqual(
       [...OTP_EMAIL_REQUEST_FIELDS].sort(),
     );
@@ -81,8 +86,11 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
   });
 
   const base = otpRequest();
-  const without = (field: string) =>
-    Object.fromEntries(Object.entries(base).filter(([key]) => key !== field));
+  const without = (field: string, from: object = base) =>
+    Object.fromEntries(Object.entries(from).filter(([key]) => key !== field));
+  const verify = verifyEmailRequest();
+  const { contractId, signedContentHash } = base;
+  const noContract = without('signedContentHash', without('contractId'));
 
   it.each<[string, unknown]>([
     ['the sample request', base],
@@ -114,8 +122,56 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
     ['a date without time', { ...base, expiresAt: '2026-11-04' }],
     ['a date-time without zone', { ...base, expiresAt: '2026-11-04T10:15:00' }],
     ['an array body', [base]],
+    // The contract fields, which depend on the purpose (#344).
+    ['a missing contractId', without('contractId')],
+    ['a missing signedContentHash', without('signedContentHash')],
+    [
+      'no contract fields and no purpose (a signing code)',
+      without('purpose', noContract),
+    ],
+    [
+      'no contract fields with SIGN_CONTRACT',
+      { ...noContract, purpose: 'SIGN_CONTRACT' },
+    ],
+    [
+      'no contract fields with CANCEL_ACTIVATION',
+      { ...noContract, purpose: 'CANCEL_ACTIVATION' },
+    ],
+    [
+      'no contract fields with an unknown purpose',
+      { ...noContract, purpose: 'VERIFY' },
+    ],
+    ['the VERIFY_EMAIL request user-service sends', verify],
+    ['VERIFY_EMAIL with a contractId', { ...verify, contractId }],
+    ['VERIFY_EMAIL with a signedContentHash', { ...verify, signedContentHash }],
+    [
+      'VERIFY_EMAIL with both contract fields',
+      { ...verify, contractId, signedContentHash },
+    ],
+    ['VERIFY_EMAIL with a null contractId', { ...verify, contractId: null }],
+    ['VERIFY_EMAIL with a missing otpCode', without('otpCode', verify)],
+    [
+      'VERIFY_EMAIL with a missing recipientUserId',
+      without('recipientUserId', verify),
+    ],
+    ['VERIFY_EMAIL with an invalid email', { ...verify, recipientEmail: 'x' }],
+    ['a lower-case verify_email', { ...verify, purpose: 'verify_email' }],
   ])('agrees with the schema on %s', (_case, body) => {
     expect(codeAccepts(body)).toBe(contractAccepts(body));
+  });
+
+  /*
+   * Agreement alone would pass if both refused everything: pin the verdicts
+   * #422 is about.
+   */
+  it('accepts VERIFY_EMAIL only without a contract, and a contract code only with one', () => {
+    expect(contractAccepts(verify)).toBe(true);
+    expect(contractAccepts({ ...verify, contractId })).toBe(false);
+    expect(contractAccepts({ ...verify, signedContentHash })).toBe(false);
+    expect(contractAccepts(base)).toBe(true);
+    expect(contractAccepts(without('purpose', noContract))).toBe(false);
+    expect(codeAccepts(verify)).toBe(true);
+    expect(codeAccepts(without('purpose', noContract))).toBe(false);
   });
 
   /*

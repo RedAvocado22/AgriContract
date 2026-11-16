@@ -2,7 +2,11 @@ import {
   FakeEmailPort,
   InMemoryNotificationLogRepository,
 } from '../../../test/support/fakes';
-import { otpKey, otpRequest } from '../../../test/support/otp';
+import {
+  otpKey,
+  otpRequest,
+  verifyEmailRequest,
+} from '../../../test/support/otp';
 import { NotificationStatus } from '../../domain/notification-log';
 import { CLAIM_LEASE_MS } from '../notification-sender';
 import {
@@ -13,6 +17,9 @@ import {
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_SUBJECT,
   OTP_EMAIL_TEMPLATE_VERSION,
+  VERIFY_EMAIL_OTP_KIND,
+  VERIFY_EMAIL_OTP_LOG_BODY,
+  VERIFY_EMAIL_OTP_SUBJECT,
 } from './otp-email-template';
 import {
   OtpEmailDeliveryError,
@@ -100,6 +107,46 @@ describe('SendOtpEmailUseCase', () => {
     expect(JSON.stringify(logs.get(otpKey(cancel)))).not.toContain(
       cancel.otpCode,
     );
+  });
+
+  it('sends a VERIFY_EMAIL code with its own template and records it under its own type', async () => {
+    const verify = verifyEmailRequest();
+
+    await expect(useCase.execute(verify)).resolves.toBe('SENT');
+
+    expect(email.sent).toHaveLength(1);
+    expect(email.sent[0].to).toBe(verify.recipientEmail);
+    expect(email.sent[0].subject).toBe(VERIFY_EMAIL_OTP_SUBJECT);
+    expect(email.sent[0].body).toContain(verify.otpCode);
+    expect(logs.get(otpKey(verify))).toMatchObject({
+      eventId: verify.requestId,
+      eventType: VERIFY_EMAIL_OTP_KIND.eventType,
+      notificationType: 'VERIFY_EMAIL_OTP',
+      recipientUserId: verify.recipientUserId,
+      recipientEmail: verify.recipientEmail,
+      status: NotificationStatus.SENT,
+      subject: VERIFY_EMAIL_OTP_SUBJECT,
+      body: VERIFY_EMAIL_OTP_LOG_BODY,
+      templateVersion: 'otp-verify-email/v1',
+    });
+    expect(JSON.stringify(logs.get(otpKey(verify)))).not.toContain(
+      verify.otpCode,
+    );
+  });
+
+  it('a VERIFY_EMAIL code never dedups a contract code with the same requestId and address', async () => {
+    const verify = verifyEmailRequest({
+      requestId: request.requestId,
+      recipientEmail: request.recipientEmail,
+    });
+
+    await expect(useCase.execute(request)).resolves.toBe('SENT');
+    await expect(useCase.execute(verify)).resolves.toBe('SENT');
+
+    expect(email.sent.map((m) => m.subject)).toEqual([
+      OTP_EMAIL_SUBJECT,
+      VERIFY_EMAIL_OTP_SUBJECT,
+    ]);
   });
 
   /*
