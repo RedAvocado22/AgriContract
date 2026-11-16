@@ -45,7 +45,7 @@ public class JdbcLevel15ReportRepository implements Level15ReportRepository {
 
     @Override
     public Optional<Level15Report> find(String reportId) {
-        return jdbc.query("SELECT * FROM inspection_report WHERE report_id=?", (rs, row) -> new Level15Report(
+        return jdbc.query("SELECT * FROM inspection_report WHERE report_id=? AND tier='LEVEL_1_5'", (rs, row) -> new Level15Report(
                 rs.getString("report_id"), rs.getString("l15_commission_id"), rs.getString("contract_id"),
                 rs.getString("milestone_id"), rs.getString("inspector_id"),
                 new ReportEvidence(rs.getString("content"), rs.getString("normalized_result"),
@@ -57,7 +57,7 @@ public class JdbcLevel15ReportRepository implements Level15ReportRepository {
     @Override
     public boolean hasConfirmedReport(String commissionId) {
         // Current read after the assignment lock: avoid stale repeatable-read snapshots on concurrent submissions.
-        return !jdbc.queryForList("SELECT report_id FROM inspection_report WHERE l15_commission_id=? AND status='CONFIRMED' FOR UPDATE",
+        return !jdbc.queryForList("SELECT report_id FROM inspection_report WHERE l15_commission_id=? AND tier='LEVEL_1_5' AND status='CONFIRMED' FOR UPDATE",
                 String.class, commissionId).isEmpty();
     }
 
@@ -67,7 +67,7 @@ public class JdbcLevel15ReportRepository implements Level15ReportRepository {
                 SELECT a.* FROM level1_5_inspection_assignment a
                 WHERE a.inspector_id=? AND a.ended_at IS NULL
                   AND NOT EXISTS (SELECT 1 FROM inspection_report r
-                                  WHERE r.l15_commission_id=a.commission_id AND r.status='CONFIRMED')
+                                  WHERE r.l15_commission_id=a.commission_id AND r.tier='LEVEL_1_5' AND r.status='CONFIRMED')
                 ORDER BY a.assigned_at,a.commission_id
                 """, ASSIGNMENT, inspectorId);
     }
