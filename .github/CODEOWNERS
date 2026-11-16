@@ -12,6 +12,8 @@
 /backend/analytics-service/          @minhlphe171115
 /backend/shared/node-eventing/       @minhlphe171115 @viethung82nd
 
-# Shared contracts and CI touch everyone; the repo owner reviews them.
+# Shared contracts, design docs and CI touch everyone; only the repo owner edits them (D56, #483).
 /contracts/                          @RedAvocado22
+/docs/design/                        @RedAvocado22
+/docs/contracts/                     @RedAvocado22
 /.github/                            @RedAvocado22
