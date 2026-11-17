@@ -10,6 +10,7 @@ import com.agricontract.inspection.domain.model.TimedAssignment;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
 import com.agricontract.inspection.testsupport.DirectTransactionRunner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
@@ -35,6 +36,11 @@ class ManageLevel15AssignmentsTest {
     private final VietnamBusinessDays calendar = VietnamBusinessDays.fromConfiguration("2026-01-01");
     private final ManageLevel15Assignments lifecycle = new ManageLevel15Assignments(
             assignments, inspectors, calendar, random, alerts, Clock.fixed(NOW, ZoneOffset.UTC), transactions, waiting);
+
+    @BeforeEach
+    void reserveNewRequest() {
+        when(waiting.tryReserve(any())).thenReturn(true);
+    }
 
     @Test
     void requestCreatesAssignmentWithExistingDeadlineAndProvenance() {
@@ -65,7 +71,7 @@ class ManageLevel15AssignmentsTest {
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of());
         lifecycle.requested(request());
         var pending = ArgumentCaptor.forClass(WaitingAssignment.class);
-        verify(waiting).insert(pending.capture());
+        verify(waiting).tryReserve(pending.capture());
         assertThat(pending.getValue().reason()).isEqualTo(WaitingAssignment.Reason.NO_ELIGIBLE);
         assertThat(pending.getValue().waitingSince()).isEqualTo(NOW);
         verify(alerts).waitingChanged(pending.getValue(), AssignmentAlerts.Stage.WAITING_STARTED);
@@ -75,10 +81,10 @@ class ManageLevel15AssignmentsTest {
 
     @Test
     void waitingRequestIsNoOpWithoutLookingUpEligibility() {
-        when(waiting.exists(new WaitingAssignment.Key("contract", "milestone"))).thenReturn(true);
+        when(waiting.tryReserve(any())).thenReturn(false);
         lifecycle.requested(request());
         verify(assignments, never()).insert(any());
-        verify(waiting, never()).insert(any());
+        verify(waiting, never()).delete(any());
         verifyNoInteractions(inspectors, random, alerts);
     }
 

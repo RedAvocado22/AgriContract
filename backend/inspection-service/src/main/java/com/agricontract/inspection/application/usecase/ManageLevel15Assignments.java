@@ -38,9 +38,6 @@ public class ManageLevel15Assignments {
             if (assignments.active(request.contractId(), request.milestoneId()).isPresent()) {
                 return;
             }
-            if (waiting.exists(new WaitingAssignment.Key(request.contractId(), request.milestoneId()))) {
-                return;
-            }
             pick(request.contractId(), request.milestoneId(), request.reportDueBusinessDays(),
                     request.initiatedByActorId(), "contract-service",
                     WaitingAssignment.Reason.NO_ELIGIBLE, Set.of());
@@ -63,9 +60,6 @@ public class ManageLevel15Assignments {
             if (!assignments.end(commissionId, old.reportDueAt())) {
                 throw new IllegalStateException("Assignment already ended");
             }
-            if (waiting.exists(new WaitingAssignment.Key(old.contractId(), old.milestoneId()))) {
-                throw new IllegalStateException("Active assignment has a waiting request");
-            }
             pick(old.contractId(), old.milestoneId(), old.reportDueBusinessDays(), old.initiatedByActorId(),
                     old.assignedByService(), WaitingAssignment.Reason.ALL_EXCLUDED,
                     assignments.previousInspectors(old.contractId(), old.milestoneId()));
@@ -74,15 +68,28 @@ public class ManageLevel15Assignments {
 
     private void pick(String contract, String milestone, int days, String actor, String service,
                       WaitingAssignment.Reason reason, Set<String> excluded) {
+        Instant attempted = now();
+        var pending = new WaitingAssignment(contract, milestone, reason, days, service, actor,
+                attempted, attempted, null);
+        // Reserve the key under the milestone guard without a missing-row gap lock.
+        if (!waiting.tryReserve(pending)) {
+            if (reason == WaitingAssignment.Reason.ALL_EXCLUDED) {
+                throw new IllegalStateException("Active assignment has a waiting request");
+            }
+            return;
+        }
         var candidates = candidates(excluded);
         if (candidates.isEmpty()) {
-            Instant attempted = now();
-            var pending = new WaitingAssignment(contract, milestone, reason, days, service, actor,
+            attempted = now();
+            if (!attempted.equals(pending.waitingSince())) {
+                waiting.started(pending.key(), attempted);
+            }
+            pending = new WaitingAssignment(contract, milestone, reason, days, service, actor,
                     attempted, attempted, null);
-            waiting.insert(pending);
             alerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED);
         } else {
             assign(contract, milestone, days, actor, service, candidates);
+            waiting.delete(pending.key());
         }
     }
 

@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -29,9 +30,14 @@ public class JdbcAssignmentWaitingRepository implements AssignmentWaitingReposit
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public boolean exists(Key key) {
-        return !jdbc.queryForList("SELECT contract_id FROM level1_5_assignment_waiting WHERE contract_id=? AND milestone_id=? FOR UPDATE",
-                key.contractId(), key.milestoneId()).isEmpty();
+    public boolean tryReserve(WaitingAssignment waiting) {
+        try {
+            insert(waiting);
+            return true;
+        } catch (DuplicateKeyException duplicate) {
+            // The composite primary key is the table's only unique constraint.
+            return false;
+        }
     }
 
     @Override
@@ -45,6 +51,16 @@ public class JdbcAssignmentWaitingRepository implements AssignmentWaitingReposit
                 """, w.contractId(), w.milestoneId(), w.reason().name(), w.reportDueBusinessDays(),
                 w.assignedByService(), w.initiatedByActorId(), Timestamp.from(w.waitingSince()),
                 Timestamp.from(w.lastAttemptAt()), date(w.lastReminderOn()));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void started(Key key, Instant at) {
+        int rows = jdbc.update("UPDATE level1_5_assignment_waiting SET waiting_since=?,last_attempt_at=? WHERE contract_id=? AND milestone_id=?",
+                Timestamp.from(at), Timestamp.from(at), key.contractId(), key.milestoneId());
+        if (rows != 1) {
+            throw new IllegalStateException("Waiting request disappeared during creation");
+        }
     }
 
     @Override
