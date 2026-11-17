@@ -5,6 +5,7 @@ import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.eventing.outbox.OutboxPoller;
 import com.agricontract.inspection.application.exception.EligibilityUnavailableException;
+import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
 import com.agricontract.inspection.application.port.AssignmentAlerts.Stage;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
 import com.agricontract.inspection.application.port.TransactionRunner;
@@ -171,6 +172,17 @@ class AssignmentWaitingIntegrationTest {
         verify(inspectors, times(1)).loadEligibleInspectors();
     }
 
+    @Test void waitingTimeStartsAfterEligibilityLookupCompletes() {
+        Instant detected = NOW.plusSeconds(90);
+        when(clock.instant()).thenReturn(NOW, detected);
+        deliver(event());
+        var stored = pending();
+        assertThat(stored.waitingSince()).isEqualTo(detected);
+        assertThat(stored.lastAttemptAt()).isEqualTo(detected);
+        assertThat(jdbc.queryForObject("SELECT JSON_UNQUOTE(JSON_EXTRACT(envelope,'$.payload.waitingSince')) FROM event_outbox",
+                String.class)).isEqualTo(detected.toString());
+    }
+
     @ParameterizedTest @ValueSource(strings = {"insert", "beforeCommand", "afterCommand"})
     void initialFailureRollsBackWaitingCommandAndProcessedClaimThenRedeliveryRecovers(String point) {
         var request = event();
@@ -204,6 +216,52 @@ class AssignmentWaitingIntegrationTest {
         assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
         assertThat(commands(Stage.WAITING_STARTED)).isEqualTo(1);
         assertThat(count("processed_event")).isEqualTo(sameEvent ? 1 : 2);
+        verify(inspectors, times(1)).loadEligibleInspectors();
+    }
+
+    @Test void differentMilestonesCanEnterWaitingConcurrently() throws Exception {
+        String otherContract = UUID.randomUUID().toString();
+        String otherMilestone = UUID.randomUUID().toString();
+        var reachedReservation = new CountDownLatch(2);
+        doAnswer(call -> {
+            reachedReservation.countDown();
+            await(reachedReservation);
+            return call.callRealMethod();
+        }).when(waitingTarget()).tryReserve(any());
+        var first = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString());
+        var second = new Level15AssignmentRequestedCommand(otherContract, otherMilestone, 2, actor, UUID.randomUUID().toString());
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var one = pool.submit(() -> lifecycle.requested(first));
+            var two = pool.submit(() -> lifecycle.requested(second));
+            one.get(20, TimeUnit.SECONDS);
+            two.get(20, TimeUnit.SECONDS);
+        }
+        assertThat(count("level1_5_assignment_waiting")).isEqualTo(2);
+        assertThat(count("level1_5_inspection_assignment")).isZero();
+        assertThat(commands(Stage.WAITING_STARTED)).isEqualTo(2);
+        for (String milestoneId : List.of(milestone, otherMilestone)) {
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM level1_5_assignment_waiting WHERE milestone_id=?",
+                    Integer.class, milestoneId)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_outbox WHERE JSON_UNQUOTE(JSON_EXTRACT(envelope,'$.payload.milestoneId'))=?",
+                    Integer.class, milestoneId)).isEqualTo(1);
+        }
+    }
+
+    @Test void staleSnapshotDoesNotCreateDuplicateWaitingCommand() throws Exception {
+        var request = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString());
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            transactions.inTransaction(() -> {
+                assertThat(count("level1_5_assignment_waiting")).isZero();
+                try {
+                    pool.submit(() -> lifecycle.requested(request)).get(15, TimeUnit.SECONDS);
+                } catch (Exception failure) {
+                    throw new IllegalStateException(failure);
+                }
+                lifecycle.requested(request);
+            });
+        }
+        assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
+        assertThat(commands(Stage.WAITING_STARTED)).isEqualTo(1);
         verify(inspectors, times(1)).loadEligibleInspectors();
     }
 
