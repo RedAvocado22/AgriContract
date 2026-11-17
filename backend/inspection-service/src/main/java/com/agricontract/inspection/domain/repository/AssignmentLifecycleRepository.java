@@ -8,6 +8,8 @@ import java.util.Set;
 
 public interface AssignmentLifecycleRepository {
     void lock(String contractId, String milestoneId);
+    /** Nonblocking lock of an existing milestone guard, acquired before the waiting row. */
+    boolean tryLock(String contractId, String milestoneId);
     Optional<TimedAssignment> active(String contractId, String milestoneId);
     Optional<TimedAssignment> find(String commissionId);
     Set<String> previousInspectors(String contractId, String milestoneId);

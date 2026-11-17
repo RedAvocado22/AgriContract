@@ -26,6 +26,7 @@ import org.springframework.security.authentication.*;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.*;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.*;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.*;
         "inspection.dlq-monitor.enabled=false", "spring.rabbitmq.listener.simple.auto-startup=false",
         "management.health.rabbit.enabled=false"})
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class Level15ReportPersistenceTest {
     @Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.42");
     @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
@@ -186,9 +188,9 @@ class Level15ReportPersistenceTest {
                 s -> reports.insert(second,evidence(),NOW)), 1062, "uk_report_l15_commission");
     }
 
-    @Test void freshDatabaseHasAllFourMigrationsAndCompleteReportSchema() {
+    @Test void freshDatabaseHasAllFiveMigrationsAndCompleteReportSchema() {
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank",
-                String.class)).containsExactly("1", "2", "3", "4");
+                String.class)).containsExactly("1", "2", "3", "4", "5");
         var expected = """
                 report_id|char(36)|NO
                 l15_commission_id|char(36)|YES

@@ -2,7 +2,7 @@ package com.agricontract.inspection;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import com.agricontract.inspection.infrastructure.scheduling.AssignmentTimeoutJob;
-import com.agricontract.inspection.infrastructure.messaging.OperationalAssignmentAlerts;
+import com.agricontract.inspection.infrastructure.messaging.OutboxAssignmentAlerts;
 import org.springframework.transaction.IllegalTransactionStateException;
 import com.agricontract.eventing.outbox.OutboxWriter;
 import java.time.Duration;
@@ -21,6 +21,7 @@ import com.agricontract.inspection.application.port.AssignmentAlerts;
 import com.agricontract.inspection.application.port.TransactionRunner;
 import com.agricontract.inspection.application.usecase.ManageLevel15Assignments;
 import com.agricontract.inspection.domain.model.TimedAssignment;
+import com.agricontract.inspection.domain.model.WaitingAssignment;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
 import com.agricontract.inspection.infrastructure.messaging.Level15RequestedConsumer;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +51,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -67,10 +69,11 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.argThat;
 
 @SpringBootTest(properties = {"SERVICE_INTERNAL_SECRET=test-service", "GATEWAY_INTERNAL_SECRET=test-gateway",
-        "inspection.assignment.scheduler-enabled=false",
+        "inspection.assignment.scheduler-enabled=false", "agricontract.eventing.outbox.enabled=false",
         "inspection.dlq-monitor.enabled=false",
         "VIETNAM_HOLIDAYS=2026-01-01", "management.health.rabbit.enabled=false"})
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class AssignmentLifecycleIntegrationTest {
     @Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.42").withDatabaseName("inspection_db");
     @Container static final RabbitMQContainer RABBIT =
@@ -105,6 +108,7 @@ class AssignmentLifecycleIntegrationTest {
         jdbc.update("DELETE FROM event_outbox");
         jdbc.update("DELETE FROM processed_event");
         jdbc.update("DELETE FROM level1_5_inspection_assignment");
+        jdbc.update("DELETE FROM level1_5_assignment_waiting");
         jdbc.update("DELETE FROM level1_5_assignment_lock");
         when(clock.instant()).thenReturn(NOW);
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a,b,c));
@@ -142,7 +146,8 @@ class AssignmentLifecycleIntegrationTest {
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of());
         var event = event(); deliver(event); deliver(event);
         assertThat(rows()).isZero();
-        verify(alerts).emptyPool(contract, milestone, event.eventId().toString(), false);
+        verify(alerts).waitingChanged(argThat(w -> w.contractId().equals(contract) && w.milestoneId().equals(milestone)
+                && w.reason() == WaitingAssignment.Reason.NO_ELIGIBLE), org.mockito.ArgumentMatchers.eq(AssignmentAlerts.Stage.WAITING_STARTED));
         verifyNoInteractions(random);
     }
     @Test void unavailablePoolRollsBackDedupClaimForRetry() {
@@ -173,7 +178,8 @@ class AssignmentLifecycleIntegrationTest {
         lifecycle.timeout(third.commissionId());
         assertThat(rows()).isEqualTo(3);
         assertThat(assignments.active(contract,milestone)).isEmpty();
-        verify(alerts).emptyPool(contract,milestone,third.commissionId(),true);
+        verify(alerts).waitingChanged(argThat(w -> w.contractId().equals(contract) && w.milestoneId().equals(milestone)
+                && w.reason() == WaitingAssignment.Reason.ALL_EXCLUDED), org.mockito.ArgumentMatchers.eq(AssignmentAlerts.Stage.WAITING_STARTED));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM level1_5_inspection_assignment WHERE ended_at IS NOT NULL", Integer.class)).isEqualTo(3);
         verify(random).nextInt(3); verify(random).nextInt(2); verify(random).nextInt(1);
     }
@@ -215,21 +221,23 @@ class AssignmentLifecycleIntegrationTest {
 
     @Test void structuredOperationalAlertIsEmittedOnlyAfterCommit() {
         var logger = (Logger) LoggerFactory.getLogger(
-                OperationalAssignmentAlerts.class);
+                OutboxAssignmentAlerts.class);
         var logs = new ListAppender<ILoggingEvent>();
         logs.start(); logger.addAppender(logs);
-        var realAlerts = new OperationalAssignmentAlerts();
+        var realAlerts = new OutboxAssignmentAlerts(new OutboxWriter(jdbc, codec), clock);
+        var pending = new WaitingAssignment(contract, milestone, WaitingAssignment.Reason.NO_ELIGIBLE,
+                1, "contract-service", null, NOW, NOW, null);
         var tx = new TransactionTemplate(transactions);
         try {
             tx.executeWithoutResult(status -> {
-                realAlerts.emptyPool(contract,milestone,"source",false);
+                realAlerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED);
                 assertThat(logs.list).isEmpty();
                 status.setRollbackOnly();
             });
             assertThat(logs.list).isEmpty();
-            tx.executeWithoutResult(status -> realAlerts.emptyPool(contract,milestone,"source",false));
+            tx.executeWithoutResult(status -> realAlerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED));
             assertThat(logs.list).hasSize(1);
-            assertThat(logs.list.getFirst().getFormattedMessage()).contains("audience=OPERATOR", "inspection_assignment_empty_pool");
+            assertThat(logs.list.getFirst().getFormattedMessage()).contains("audience=OPERATOR", "inspection_assignment_waiting");
         } finally { logger.detachAppender(logs); logs.stop(); }
     }
     @Test void confirmationBoundaryRequiresCallerTransactionAndRollsBackTogether() {
@@ -286,7 +294,7 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(rows()).isEqualTo(2);
     }
 
-    @Test void redeliveryAfterExhaustionIsNoOpWhileNewCommandUsesCurrentPool() {
+    @Test void redeliveryAndNewCommandWhileWaitingAreNoOpsUntilRetryUsesCurrentPool() {
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a));
         var original = event(); deliver(original); var old = active();
         when(clock.instant()).thenReturn(old.reportDueAt());
@@ -296,6 +304,8 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(rows()).isEqualTo(1);
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of(b));
         deliver(event());
+        assertThat(assignments.active(contract, milestone)).isEmpty();
+        lifecycle.retryWaiting(new WaitingAssignment.Key(contract, milestone));
         assertThat(active().inspectorId()).isEqualTo(b);
         assertThat(rows()).isEqualTo(2);
         assertThat(assignments.find(old.commissionId()).orElseThrow().endedAt()).isEqualTo(old.reportDueAt());

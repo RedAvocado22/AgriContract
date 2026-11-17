@@ -7,8 +7,10 @@ import com.agricontract.inspection.application.exception.EligibilityUnavailableE
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
 import com.agricontract.inspection.domain.model.InspectorEligibility;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,9 @@ import java.time.format.DateTimeParseException;
 public class InternalUserEligibilityClient implements InspectorEligibilityPort {
     private static final Logger LOG = LoggerFactory.getLogger(InternalUserEligibilityClient.class);
     private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectReader eligiblePoolReader = mapper.readerFor(JsonNode.class)
+            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .with(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY);
     private final RestClient client;
 
     public InternalUserEligibilityClient(RestClient.Builder builder,
@@ -102,7 +107,11 @@ public class InternalUserEligibilityClient implements InspectorEligibilityPort {
                         var type = response.getHeaders().getContentType();
                         if (type == null || !MediaType.APPLICATION_JSON.isCompatibleWith(type))
                             throw new InvalidEligibility("malformed_response");
-                        return mapper.readTree(response.getBody());
+                        try {
+                            return eligiblePoolReader.readValue(response.getBody());
+                        } catch (JsonProcessingException malformed) {
+                            throw new InvalidEligibility("malformed_response");
+                        }
                     });
             if (body == null || !body.isArray()) throw new InvalidEligibility("malformed_response");
             var ids = new LinkedHashSet<String>();
