@@ -269,6 +269,7 @@ class AssignmentLifecycleIntegrationTest {
     @Test void failureAfterInsertRollsBackAssignmentAndDedupTogether() {
         var request = event();
         var tx = new TransactionTemplate(transactions);
+        tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
         assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
             deliver(request);
             assertThat(rows()).isEqualTo(1);
@@ -463,7 +464,7 @@ class AssignmentLifecycleIntegrationTest {
     void callerFailureRollsBackAssignmentProcessedEventAndOutbox(boolean error) {
         var request = event();
         // No new outgoing business event is introduced: this models another participant in the caller's transaction.
-        assertThatThrownBy(() -> transactionRunner.inTransaction(() -> {
+        assertThatThrownBy(() -> transactionRunner.inReadCommittedTransaction(() -> {
             deliver(request);
             new OutboxWriter(jdbc, codec).append(event());
             assertThat(rows()).isEqualTo(1);

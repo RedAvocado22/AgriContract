@@ -55,7 +55,7 @@ class ManageLevel15AssignmentsTest {
         assertThat(inserted.getValue().initiatedByActorId()).isEqualTo("actor");
         assertThat(inserted.getValue().assignedAt()).isEqualTo(NOW);
         assertThat(inserted.getValue().reportDueAt()).isEqualTo(calendar.deadline(NOW, 1));
-        verify(transactions).inTransaction(any(Runnable.class));
+        verify(transactions).inReadCommittedTransaction(any(Runnable.class));
     }
 
     @Test
@@ -121,7 +121,7 @@ class ManageLevel15AssignmentsTest {
         var inserted = ArgumentCaptor.forClass(TimedAssignment.class);
         verify(assignments).insert(inserted.capture());
         assertThat(inserted.getValue().inspectorId()).isEqualTo("b");
-        verify(transactions).inTransaction(any(Runnable.class));
+        verify(transactions).inReadCommittedTransaction(any(Runnable.class));
     }
 
     @Test

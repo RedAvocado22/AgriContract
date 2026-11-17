@@ -33,7 +33,7 @@ public class ManageLevel15Assignments {
     private final AssignmentWaitingRepository waiting;
 
     public void requested(Level15AssignmentRequestedCommand request) {
-        transactions.inTransaction(() -> {
+        transactions.inReadCommittedTransaction(() -> {
             assignments.lock(request.contractId(), request.milestoneId());
             if (assignments.active(request.contractId(), request.milestoneId()).isPresent()) {
                 return;
@@ -45,7 +45,7 @@ public class ManageLevel15Assignments {
     }
 
     public void timeout(String commissionId) {
-        transactions.inTransaction(() -> {
+        transactions.inReadCommittedTransaction(() -> {
             var initial = assignments.find(commissionId).orElseThrow();
             assignments.lock(initial.contractId(), initial.milestoneId());
             var current = assignments.active(initial.contractId(), initial.milestoneId());
@@ -108,7 +108,7 @@ public class ManageLevel15Assignments {
     }
 
     public void retryWaiting(WaitingAssignment.Key key) {
-        transactions.inTransaction(() -> {
+        transactions.inReadCommittedTransaction(() -> {
             // Same lock order as requested/timeout: milestone guard, then waiting row.
             // Both are nonblocking so another worker can continue with unrelated rows.
             if (!assignments.tryLock(key.contractId(), key.milestoneId())) {

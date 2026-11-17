@@ -13,6 +13,9 @@ public class DirectTransactionRunner implements TransactionRunner {
     public void inTransaction(Runnable work) { work.run(); }
 
     @Override
+    public void inReadCommittedTransaction(Runnable work) { work.run(); }
+
+    @Override
     public <T> T inReadOnlyTransaction(Supplier<T> work) { return work.get(); }
 
     @Override

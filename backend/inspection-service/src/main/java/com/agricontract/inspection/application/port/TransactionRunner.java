@@ -9,6 +9,9 @@ public interface TransactionRunner {
 
     void inTransaction(Runnable work);
 
+    /** Join a READ_COMMITTED caller or start a READ_COMMITTED transaction; reject incompatible callers. */
+    void inReadCommittedTransaction(Runnable work);
+
     /** Join the caller's transaction, or start a read-only transaction if none exists. */
     <T> T inReadOnlyTransaction(Supplier<T> work);
 
