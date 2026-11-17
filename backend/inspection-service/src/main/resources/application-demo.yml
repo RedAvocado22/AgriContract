@@ -1,0 +1,3 @@
+inspection:
+  assignment:
+    waiting-retry-interval-ms: ${INSPECTION_WAITING_RETRY_INTERVAL_MS:60000}

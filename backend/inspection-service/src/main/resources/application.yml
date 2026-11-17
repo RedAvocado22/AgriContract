@@ -1,4 +1,7 @@
 spring:
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
   application:
     name: inspection-service
   datasource:
@@ -32,6 +35,7 @@ inspection:
     interval-ms: 300000
     timeout-ms: 3000
   assignment:
+    waiting-retry-interval-ms: ${INSPECTION_WAITING_RETRY_INTERVAL_MS:3600000}
     scan-interval-ms: ${INSPECTION_ASSIGNMENT_SCAN_INTERVAL_MS:60000}
     scheduler-enabled: true
   user-service:
@@ -39,3 +43,9 @@ inspection:
     internal-secret: ${SERVICE_INTERNAL_SECRET}
     connect-timeout-ms: 2000
     read-timeout-ms: 3000
+
+agricontract:
+  eventing:
+    outbox:
+      enabled: true
+      exchange: agricontract.inspection

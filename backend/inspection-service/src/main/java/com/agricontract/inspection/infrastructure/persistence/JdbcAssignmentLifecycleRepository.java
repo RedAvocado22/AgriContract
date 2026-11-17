@@ -4,7 +4,10 @@ import com.agricontract.inspection.domain.model.TimedAssignment;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -20,7 +23,8 @@ public class JdbcAssignmentLifecycleRepository implements AssignmentLifecycleRep
             rs.getString("commission_id"), rs.getString("contract_id"), rs.getString("milestone_id"),
             rs.getString("inspector_id"), rs.getTimestamp("assigned_at").toInstant(),
             instant(rs.getTimestamp("ended_at")), rs.getInt("report_due_business_days"),
-            rs.getTimestamp("report_due_at").toInstant(), rs.getString("initiated_by_actor_id"));
+            rs.getTimestamp("report_due_at").toInstant(), rs.getString("initiated_by_actor_id"),
+            rs.getString("assigned_by_service"));
     private static Instant instant(Timestamp value) { return value == null ? null : value.toInstant(); }
 
     @Override
@@ -31,6 +35,13 @@ public class JdbcAssignmentLifecycleRepository implements AssignmentLifecycleRep
                 contractId, milestoneId);
         jdbc.queryForList("SELECT contract_id FROM level1_5_assignment_lock WHERE contract_id=? AND milestone_id=? FOR UPDATE",
                 contractId, milestoneId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean tryLock(String contractId, String milestoneId) {
+        return !jdbc.queryForList("SELECT contract_id FROM level1_5_assignment_lock WHERE contract_id=? AND milestone_id=? FOR UPDATE SKIP LOCKED",
+                contractId, milestoneId).isEmpty();
     }
 
     @Override
@@ -59,9 +70,9 @@ public class JdbcAssignmentLifecycleRepository implements AssignmentLifecycleRep
                 INSERT INTO level1_5_inspection_assignment
                 (commission_id,contract_id,milestone_id,inspector_id,assigned_at,assigned_by_service,
                  initiated_by_actor_id,report_due_business_days,report_due_at)
-                VALUES (?,?,?,?,?,'contract-service',?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?)
                 """, a.commissionId(), a.contractId(), a.milestoneId(), a.inspectorId(), Timestamp.from(a.assignedAt()),
-                a.initiatedByActorId(), a.reportDueBusinessDays(), Timestamp.from(a.reportDueAt()));
+                a.assignedByService(), a.initiatedByActorId(), a.reportDueBusinessDays(), Timestamp.from(a.reportDueAt()));
     }
 
     @Override

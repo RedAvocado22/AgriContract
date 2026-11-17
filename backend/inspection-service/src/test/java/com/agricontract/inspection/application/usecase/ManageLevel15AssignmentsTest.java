@@ -3,6 +3,8 @@ package com.agricontract.inspection.application.usecase;
 import com.agricontract.calendar.VietnamBusinessDays;
 import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
 import com.agricontract.inspection.application.port.AssignmentAlerts;
+import com.agricontract.inspection.application.port.AssignmentWaitingRepository;
+import com.agricontract.inspection.domain.model.WaitingAssignment;
 import com.agricontract.inspection.application.port.InspectorEligibilityPort;
 import com.agricontract.inspection.domain.model.TimedAssignment;
 import com.agricontract.inspection.domain.repository.AssignmentLifecycleRepository;
@@ -27,11 +29,12 @@ class ManageLevel15AssignmentsTest {
     private final AssignmentLifecycleRepository assignments = mock(AssignmentLifecycleRepository.class);
     private final InspectorEligibilityPort inspectors = mock(InspectorEligibilityPort.class);
     private final RandomGenerator random = mock(RandomGenerator.class);
+    private final AssignmentWaitingRepository waiting = mock(AssignmentWaitingRepository.class);
     private final AssignmentAlerts alerts = mock(AssignmentAlerts.class);
     private final DirectTransactionRunner transactions = spy(new DirectTransactionRunner());
     private final VietnamBusinessDays calendar = VietnamBusinessDays.fromConfiguration("2026-01-01");
     private final ManageLevel15Assignments lifecycle = new ManageLevel15Assignments(
-            assignments, inspectors, calendar, random, alerts, Clock.fixed(NOW, ZoneOffset.UTC), transactions);
+            assignments, inspectors, calendar, random, alerts, Clock.fixed(NOW, ZoneOffset.UTC), transactions, waiting);
 
     @Test
     void requestCreatesAssignmentWithExistingDeadlineAndProvenance() {
@@ -61,9 +64,33 @@ class ManageLevel15AssignmentsTest {
     void emptyPoolRetainsAlertAndDoesNotCreateAssignment() {
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of());
         lifecycle.requested(request());
-        verify(alerts).emptyPool("contract", "milestone", "event", false);
+        var pending = ArgumentCaptor.forClass(WaitingAssignment.class);
+        verify(waiting).insert(pending.capture());
+        assertThat(pending.getValue().reason()).isEqualTo(WaitingAssignment.Reason.NO_ELIGIBLE);
+        assertThat(pending.getValue().waitingSince()).isEqualTo(NOW);
+        verify(alerts).waitingChanged(pending.getValue(), AssignmentAlerts.Stage.WAITING_STARTED);
         verify(assignments, never()).insert(any());
         verifyNoInteractions(random);
+    }
+
+    @Test
+    void waitingRequestIsNoOpWithoutLookingUpEligibility() {
+        when(waiting.exists(new WaitingAssignment.Key("contract", "milestone"))).thenReturn(true);
+        lifecycle.requested(request());
+        verify(assignments, never()).insert(any());
+        verify(waiting, never()).insert(any());
+        verifyNoInteractions(inspectors, random, alerts);
+    }
+
+    @Test
+    void newRequestUsesExistingFirstPickRules() {
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of("a", "b"));
+        lifecycle.requested(request());
+        var inserted = ArgumentCaptor.forClass(TimedAssignment.class);
+        verify(assignments).insert(inserted.capture());
+        assertThat(inserted.getValue().inspectorId()).isEqualTo("a");
+        verify(random).nextInt(2);
+        verify(assignments, never()).previousInspectors(any(), any());
     }
 
     @Test
@@ -80,6 +107,7 @@ class ManageLevel15AssignmentsTest {
         var old = assignment(NOW);
         when(assignments.find("commission")).thenReturn(Optional.of(old));
         when(assignments.active("contract", "milestone")).thenReturn(Optional.of(old));
+        when(assignments.end("commission", NOW)).thenReturn(true);
         when(assignments.previousInspectors("contract", "milestone")).thenReturn(Set.of("a"));
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of("a", "b"));
         lifecycle.timeout("commission");

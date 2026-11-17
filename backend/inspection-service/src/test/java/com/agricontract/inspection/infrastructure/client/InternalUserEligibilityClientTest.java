@@ -107,6 +107,26 @@ class InternalUserEligibilityClientTest {
         assertThatThrownBy(client::loadEligibleInspectors).isInstanceOf(EligibilityUnavailableException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"null", "{}", "not JSON", "[null]", "[{}]", "[] []",
+            "[{\"userId\":null}]", "[{\"userId\":\"x\",\"userId\":\"y\"}]"})
+    void malformedPoolFailsClosed(String body) {
+        response = body;
+        expectedCategory = "malformed_response";
+        assertThatThrownBy(client::loadEligibleInspectors).isInstanceOf(EligibilityUnavailableException.class);
+    }
+
+    @Test
+    void poolTimeoutFailsClosed() {
+        expectedCategory = "transport";
+        responseGate = new CountDownLatch(1);
+        try {
+            assertThatThrownBy(client::loadEligibleInspectors).isInstanceOf(EligibilityUnavailableException.class);
+        } finally {
+            responseGate.countDown();
+        }
+    }
+
     @AfterEach
     void stopStub() {
         if (responseGate != null) responseGate.countDown();
