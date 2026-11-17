@@ -6,6 +6,7 @@ import com.agricontract.eventing.EventEnvelope;
 import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.eventing.InvalidEnvelopeException;
 import com.agricontract.inspection.application.usecase.ManageLevel15Assignments;
+import com.agricontract.inspection.application.port.TransactionRunner;
 import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
 import com.agricontract.inspection.application.exception.InvalidEventPayloadException;
 import com.agricontract.eventing.inbox.ProcessedEventStore;
@@ -17,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @Component
 @RequiredArgsConstructor
@@ -30,7 +30,7 @@ public class Level15RequestedConsumer {
     private final EventEnvelopeCodec codec;
     private final ManageLevel15Assignments assignments;
     private final ProcessedEventStore processedEvents;
-    private final TransactionTemplate transactionTemplate;
+    private final TransactionRunner transactions;
 
     @RabbitListener(queues = AssignmentRabbitConfiguration.QUEUE)
     public void accept(Message message) {
@@ -46,7 +46,7 @@ public class Level15RequestedConsumer {
             throw new InvalidEventPayloadException("Invalid Level 1.5 request; inspect the restricted DLQ");
         }
         // Dependency/database failures remain retryable and roll back the processed-event claim.
-        transactionTemplate.executeWithoutResult(status -> {
+        transactions.inReadCommittedTransaction(() -> {
             if (!processedEvents.markProcessed(CONSUMER_NAME, event)) return;
             assignments.requested(command);
         });

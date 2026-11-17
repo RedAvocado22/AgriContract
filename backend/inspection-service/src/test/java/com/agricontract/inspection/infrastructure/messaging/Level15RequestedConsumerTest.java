@@ -2,8 +2,7 @@ package com.agricontract.inspection.infrastructure.messaging;
 
 import com.agricontract.eventing.inbox.ProcessedEventStore;
 import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.transaction.PlatformTransactionManager;
+import com.agricontract.inspection.testsupport.DirectTransactionRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -27,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class Level15RequestedConsumerTest {
     private final ManageLevel15Assignments lifecycle = mock(ManageLevel15Assignments.class);
     private final ProcessedEventStore processed = mock(ProcessedEventStore.class);
-    private final TransactionTemplate transaction = new TransactionTemplate(mock(PlatformTransactionManager.class));
+    private final DirectTransactionRunner transaction = new DirectTransactionRunner();
     @BeforeEach void setup() { when(processed.markProcessed(anyString(), any())).thenReturn(true); }
     private final Level15RequestedConsumer consumer = new Level15RequestedConsumer(new EventEnvelopeCodec(), lifecycle, processed, transaction);
     static final String VALID = """

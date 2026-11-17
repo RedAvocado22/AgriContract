@@ -27,6 +27,7 @@ import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,6 +37,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -247,10 +250,56 @@ class AssignmentWaitingIntegrationTest {
         }
     }
 
-    @Test void staleSnapshotDoesNotCreateDuplicateWaitingCommand() throws Exception {
+    @Test void differentMilestonesWithEligibleInspectorsCanBeAssignedConcurrently() throws Exception {
+        String otherContract = UUID.randomUUID().toString();
+        String otherMilestone = UUID.randomUUID().toString();
+        var bothReady = new CountDownLatch(2);
+        when(inspectors.loadEligibleInspectors()).thenAnswer(call -> {
+            bothReady.countDown();
+            await(bothReady);
+            return List.of(a);
+        });
+        var first = event();
+        var second = new EventEnvelope(UUID.randomUUID(), "inspection.level1_5_requested", 1, NOW,
+                "contract-service", otherContract, null, null, null,
+                Map.of("contractId", otherContract, "milestoneId", otherMilestone, "reason", "DISPUTE_ROUTED",
+                        "reportDueBusinessDays", 2, "initiatedByActorId", actor, "requestedAt", NOW.toString()));
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var one = pool.submit(() -> deliver(first));
+            var two = pool.submit(() -> deliver(second));
+            awaitAssignment(one);
+            awaitAssignment(two);
+        }
+        assertThat(count("level1_5_inspection_assignment")).isEqualTo(2);
+        assertThat(count("level1_5_assignment_waiting")).isZero();
+        assertThat(count("event_outbox")).isZero();
+        assertThat(count("processed_event")).isEqualTo(2);
+        for (String milestoneId : List.of(milestone, otherMilestone)) {
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM level1_5_inspection_assignment WHERE milestone_id=? AND ended_at IS NULL",
+                    Integer.class, milestoneId)).isEqualTo(1);
+        }
+    }
+
+    private static void awaitAssignment(Future<?> result) throws Exception {
+        try {
+            result.get(20, TimeUnit.SECONDS);
+        } catch (ExecutionException failure) {
+            Throwable cause = failure;
+            while (cause != null && !(cause instanceof SQLException)) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof SQLException sql) {
+                throw new AssertionError("Assignment failed with MySQL error " + sql.getErrorCode()
+                        + " and SQLState " + sql.getSQLState(), failure);
+            }
+            throw failure;
+        }
+    }
+
+    @Test void earlierReadStillSeesCommittedWaitingUnderReadCommitted() throws Exception {
         var request = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString());
         try (var pool = Executors.newSingleThreadExecutor()) {
-            transactions.inTransaction(() -> {
+            transactions.inReadCommittedTransaction(() -> {
                 assertThat(count("level1_5_assignment_waiting")).isZero();
                 try {
                     pool.submit(() -> lifecycle.requested(request)).get(15, TimeUnit.SECONDS);
@@ -263,6 +312,115 @@ class AssignmentWaitingIntegrationTest {
         assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
         assertThat(commands(Stage.WAITING_STARTED)).isEqualTo(1);
         verify(inspectors, times(1)).loadEligibleInspectors();
+    }
+
+    @Test void repeatableReadCallerIsRejectedBeforeAssignmentWork() {
+        var request = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString());
+        var repeatableRead = new TransactionTemplate(manager);
+        repeatableRead.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        assertThatThrownBy(() -> repeatableRead.executeWithoutResult(status -> {
+            assertThat(count("level1_5_assignment_waiting")).isZero();
+            lifecycle.requested(request);
+        })).isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class)
+                .hasMessageContaining("READ_COMMITTED");
+        assertEmptyState();
+        verifyNoInteractions(inspectors, random, alerts);
+    }
+
+    @Test void incompatibleConsumerTransactionDoesNotClaimEvent() {
+        var repeatableRead = new TransactionTemplate(manager);
+        repeatableRead.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        assertThatThrownBy(() -> repeatableRead.executeWithoutResult(status -> deliver(event())))
+                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class)
+                .hasMessageContaining("READ_COMMITTED");
+        assertEmptyState();
+        verifyNoInteractions(inspectors, random, alerts);
+    }
+
+    @Test void earlierReadSeesNewActiveAssignmentUnderReadCommitted() throws Exception {
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a));
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            transactions.inReadCommittedTransaction(() -> {
+                assertThat(count("level1_5_inspection_assignment")).isZero();
+                try {
+                    pool.submit(() -> deliver(event())).get(15, TimeUnit.SECONDS);
+                } catch (Exception failure) {
+                    throw new IllegalStateException(failure);
+                }
+                deliver(event());
+            });
+        }
+        assertThat(count("level1_5_inspection_assignment")).isEqualTo(1);
+        assertThat(count("level1_5_assignment_waiting")).isZero();
+        assertThat(count("event_outbox")).isZero();
+        verify(inspectors, times(1)).loadEligibleInspectors();
+    }
+
+    @Test void timeoutAndWaitingScanDoNotDoubleAssign() throws Exception {
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a));
+        deliver(event());
+        var old = assignments.active(contract, milestone).orElseThrow();
+        when(clock.instant()).thenReturn(old.reportDueAt());
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        when(inspectors.loadEligibleInspectors()).thenAnswer(call -> {
+            entered.countDown();
+            await(release);
+            return List.of();
+        });
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var timeout = pool.submit(() -> lifecycle.timeout(old.commissionId()));
+            try {
+                assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+                job().scan();
+                assertThat(count("level1_5_assignment_waiting")).isZero();
+            } finally {
+                release.countDown();
+            }
+            timeout.get(15, TimeUnit.SECONDS);
+        }
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of(b));
+        job().scan();
+        assertThat(count("level1_5_assignment_waiting")).isZero();
+        assertThat(count("level1_5_inspection_assignment")).isEqualTo(2);
+        assertThat(assignments.active(contract, milestone).orElseThrow().inspectorId()).isEqualTo(b);
+        assertThat(commands(Stage.WAITING_STARTED)).isEqualTo(1);
+        assertThat(commands(Stage.ASSIGNED)).isEqualTo(1);
+    }
+
+    @Test void reportConfirmationAndTimeoutSerializeOnMilestone() throws Exception {
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a));
+        deliver(event());
+        var old = assignments.active(contract, milestone).orElseThrow();
+        when(clock.instant()).thenReturn(old.reportDueAt());
+        Instant confirmed = old.reportDueAt().minusSeconds(1);
+        var closed = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var timeoutStarted = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var report = pool.submit(() -> transactions.inTransaction(() -> {
+                lifecycle.closeConfirmed(contract, milestone, old.commissionId(), a, confirmed);
+                closed.countDown();
+                await(release);
+            }));
+            try {
+                assertThat(closed.await(10, TimeUnit.SECONDS)).isTrue();
+                var timeout = pool.submit(() -> {
+                    timeoutStarted.countDown();
+                    lifecycle.timeout(old.commissionId());
+                });
+                assertThat(timeoutStarted.await(10, TimeUnit.SECONDS)).isTrue();
+                release.countDown();
+                timeout.get(15, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+            report.get(15, TimeUnit.SECONDS);
+        }
+        assertThat(assignments.find(old.commissionId()).orElseThrow().endedAt()).isEqualTo(confirmed);
+        assertThat(count("level1_5_inspection_assignment")).isEqualTo(1);
+        assertThat(count("level1_5_assignment_waiting")).isZero();
+        assertThat(count("event_outbox")).isZero();
     }
 
     @Test void overdueAllExcludedPreservesHistoryContextAndRetriesWithFreshDeadline() {
@@ -423,7 +581,7 @@ class AssignmentWaitingIntegrationTest {
             var first = pool.submit(() -> job().scan());
             try {
                 assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
-                var second = pool.submit(() -> transactions.inTransaction(() -> {
+                var second = pool.submit(() -> transactions.inReadCommittedTransaction(() -> {
                     secondConnection.set(jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class));
                     // Directly prove the actual waiting row is locked by worker one, independently of the guard.
                     assertThat(waiting.lockSkippingLocked(key)).isEmpty();
