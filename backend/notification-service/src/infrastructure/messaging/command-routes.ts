@@ -7,6 +7,7 @@ import {
   type NotifyContractAnchorUseCase,
   type NotifyContractTerminatedUseCase,
   type NotifyLevel15AssignmentWaitingUseCase,
+  type NotifyLevel15InspectorAssignmentUseCase,
   type NotifyUserKycResultUseCase,
   type NotifyUserLockChangedUseCase,
 } from '../../application/use-cases';
@@ -17,6 +18,7 @@ import {
   parseContractAnchorRequested,
   parseContractTerminatedRequested,
   parseLevel15AssignmentWaitingRequested,
+  parseLevel15InspectorAssignmentRequested,
   parseUserKycResultRequested,
   parseUserLockChangedRequested,
   unsupportedCommand,
@@ -39,6 +41,7 @@ export interface CommandUseCases {
   userKycResult: NotifyUserKycResultUseCase;
   userLockChanged: NotifyUserLockChangedUseCase;
   level15AssignmentWaiting: NotifyLevel15AssignmentWaitingUseCase;
+  level15InspectorAssignment: NotifyLevel15InspectorAssignmentUseCase;
 }
 
 /**
@@ -86,5 +89,9 @@ export function commandRoutes(u: CommandUseCases): CommandRoutes {
         throw err;
       }
     },
+    'notification.level1_5_inspector_assignment_requested': (b) =>
+      u.level15InspectorAssignment.execute(
+        parseLevel15InspectorAssignmentRequested(b),
+      ),
   };
 }

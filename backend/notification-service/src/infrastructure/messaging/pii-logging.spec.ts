@@ -17,6 +17,7 @@ import {
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
   NotifyLevel15AssignmentWaitingUseCase,
+  NotifyLevel15InspectorAssignmentUseCase,
   NotifyContractAnchorUseCase,
   NotifyCategoryApprovedUseCase,
   NotifyCategoryRejectedUseCase,
@@ -38,6 +39,8 @@ import {
   lockEnvelope,
   lockPayload,
   waitingEnvelope,
+  inspectorEnvelope,
+  inspectorPayload,
 } from '../../../test/support/commands';
 import { commandRoutes } from './command-routes';
 import { legacyRoutes } from './legacy-routes';
@@ -109,6 +112,9 @@ async function harness(
     level15AssignmentWaiting: new NotifyLevel15AssignmentWaitingUseCase(
       sender,
       operatorEmail,
+    ),
+    level15InspectorAssignment: new NotifyLevel15InspectorAssignmentUseCase(
+      sender,
     ),
   });
   const consumer = new NotificationEventConsumer(amqp, routes, commands);
@@ -279,6 +285,36 @@ describe('no personal data in the logs', () => {
     );
     expect(log).toContain('recipients[0].userId');
     expect(log).not.toContain(BUYER);
+    expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it('a rejected inspector-assignment command (two recipients): the dead-letter log shows no address', async () => {
+    const lines = captureLogs();
+    const { deliver, nacks } = await harness(jest.fn());
+
+    deliver(
+      'notification-svc.notification.level1_5_inspector_assignment_requested',
+      JSON.stringify(
+        inspectorEnvelope({
+          payload: inspectorPayload({
+            recipients: [
+              { userId: null, email: BUYER, role: 'INSPECTOR' },
+              { userId: null, email: SELLER, role: 'INSPECTOR' },
+            ],
+          }),
+        }),
+      ),
+    );
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(nacks).toEqual([false]); // dead-lettered at once, no retry
+    const log = lines.join('\n');
+    expect(log).toContain(
+      'Malformed notification.level1_5_inspector_assignment_requested command',
+    );
+    expect(log).toContain('exactly one inspector');
+    expect(log).not.toContain(BUYER);
+    expect(log).not.toContain(SELLER);
     expect(log).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });
 

@@ -39,7 +39,10 @@ export const TOPOLOGY = [
     // yet (#439), so it must publish here for this binding to route.
     exchange: 'agricontract.inspection',
     dlx: 'notification-svc.inspection.dlx',
-    routingKeys: ['notification.level1_5_assignment_waiting_requested'],
+    routingKeys: [
+      'notification.level1_5_assignment_waiting_requested',
+      'notification.level1_5_inspector_assignment_requested',
+    ],
   },
 ] as const;
 
@@ -87,6 +90,11 @@ export type RoutingKey = (typeof TOPOLOGY)[number]['routingKeys'][number];
  * agricontract.inspection, in a row of its own with its own DLX.
  * inspection-service is to declare this queue ahead as well (#439), so the
  * names and options here are the ones it must copy byte for byte.
+ *
+ * `notification.level1_5_inspector_assignment_requested` (D57) tells the
+ * assigned inspector about a Level 1.5 case and, if the dispute ends first,
+ * that it was cancelled. Same exchange, same row, same DLX; inspection-service
+ * declares this queue ahead too, with these exact names and options.
  */
 export const COMMAND_ROUTING_KEYS = [
   'notification.contract_anchor_requested',
@@ -96,6 +104,7 @@ export const COMMAND_ROUTING_KEYS = [
   'notification.user_kyc_result_requested',
   'notification.user_lock_changed_requested',
   'notification.level1_5_assignment_waiting_requested',
+  'notification.level1_5_inspector_assignment_requested',
 ] as const;
 
 export type CommandRoutingKey = (typeof COMMAND_ROUTING_KEYS)[number];

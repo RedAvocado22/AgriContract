@@ -44,6 +44,7 @@ const EXPECTED_QUEUES = [
   'notification-svc.notification.user_kyc_result_requested',
   'notification-svc.notification.user_lock_changed_requested',
   'notification-svc.notification.level1_5_assignment_waiting_requested',
+  'notification-svc.notification.level1_5_inspector_assignment_requested',
 ];
 
 /** The exchange row a queue belongs to, from the routing key in its name. */
@@ -58,7 +59,7 @@ const dlxOf = (queue: string): string => {
 };
 
 describe('topology (must match the Java RabbitMQConfig)', () => {
-  it('names the 9 queues and 9 DLQs', () => {
+  it('names the 10 queues and 10 DLQs', () => {
     expect(queueNames()).toEqual(EXPECTED_QUEUES);
     expect(dlqNames()).toEqual(EXPECTED_QUEUES.map((q) => `${q}.dlq`));
   });
@@ -83,11 +84,11 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     ]);
   });
 
-  it('declares 18 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
+  it('declares 20 queues: main queues with only x-dead-letter-exchange, DLQs without arguments', async () => {
     const { channel, queues } = recordingChannel();
     await declareTopology(channel);
 
-    expect(queues).toHaveLength(18);
+    expect(queues).toHaveLength(20);
 
     for (const q of EXPECTED_QUEUES) {
       // toEqual on the whole options object also fails on any extra option
@@ -117,8 +118,18 @@ describe('topology (must match the Java RabbitMQConfig)', () => {
     const { channel, bindings } = recordingChannel();
     await declareTopology(channel);
 
-    expect(bindings).toHaveLength(18);
-    // The names inspection-service is to declare ahead of us (#439).
+    expect(bindings).toHaveLength(20);
+    // The names inspection-service is to declare ahead of us (#439, D57).
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.level1_5_inspector_assignment_requested',
+      'agricontract.inspection',
+      'notification.level1_5_inspector_assignment_requested',
+    ]);
+    expect(bindings).toContainEqual([
+      'notification-svc.notification.level1_5_inspector_assignment_requested.dlq',
+      'notification-svc.inspection.dlx',
+      'notification.level1_5_inspector_assignment_requested',
+    ]);
     expect(bindings).toContainEqual([
       'notification-svc.notification.level1_5_assignment_waiting_requested',
       'agricontract.inspection',
