@@ -196,10 +196,12 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
 | | `WAITING_STARTED` → `LEVEL1_5_WAITING_STARTED`, `level1-5-waiting-started/v1` |
 | | `STILL_WAITING` → `LEVEL1_5_STILL_WAITING`, `level1-5-still-waiting/v1` |
 | | `ASSIGNED` → `LEVEL1_5_ASSIGNED_AFTER_WAIT`, `level1-5-assigned-after-wait/v1` |
+| | `CANCELLED` (#493, D57) → `LEVEL1_5_WAITING_CANCELLED`, `level1-5-waiting-cancelled/v1` |
 
 - inspection-service publishes it (#439) when a Level 1.5 request finds no inspector: once when the wait starts,
-  at most once per business day while it lasts, once when an inspector is assigned. Each is its own command, so
-  each is its own email; a replayed `eventId` sends once.
+  at most once per business day while it lasts, once when an inspector is assigned, or once when the request is
+  cancelled because the dispute ended (concession or agreed settlement) while it was still waiting. Each is its
+  own command, so each is its own email; a replayed `eventId` sends once.
 - The body gives `contractId`, `milestoneId`, the `reason` in plain words (`NO_ELIGIBLE`: no inspector is
   eligible; `ALL_EXCLUDED`: every eligible inspector already had this milestone) and `waitingSince` in Vietnam
   time and UTC. While waiting, it tells the Operator to ask an Admin for more INSPECTOR accounts and never to pick
@@ -228,10 +230,12 @@ same dedup and log rules:
 | --- | --- | --- | --- | --- |
 | `SIGN_CONTRACT` (or absent, as contract-service sends a signing code) | contract-service | signing the contract | `CONTRACT_SIGNING_OTP` | `otp-email/v1` |
 | `CANCEL_ACTIVATION` | contract-service | a party's request to cancel a signed contract whose deposit lock failed | `ACTIVATION_CANCEL_OTP` | `otp-activation-cancel/v1` |
+| `CONCEDE_DISPUTE` (#493, D57) | contract-service | accepting the other party's position in a milestone dispute | `CONCEDE_DISPUTE_OTP` | `otp-concede-dispute/v1` |
+| `SETTLE_DISPUTE` (#493, D57) | contract-service | proposing or accepting an agreed settlement amount in a milestone dispute | `SETTLE_DISPUTE_OTP` | `otp-settle-dispute/v1` |
 | `VERIFY_EMAIL` (#344, D45) | user-service | the email address given at registration | `VERIFY_EMAIL_OTP` | `otp-verify-email/v1` |
 
 Any other value, `null` included, is a `400`. `contractId` and `signedContentHash` depend on the purpose, as the
-contract's `if/then/else` says: required for the two contract purposes (and when `purpose` is absent or invalid),
+contract's `if/then/else` says: required for the four contract purposes (and when `purpose` is absent or invalid),
 and a `400` if either is sent with `VERIFY_EMAIL`. The verify-email mail has the code and its expiry only, with no
 contract line and no fingerprint.
 
