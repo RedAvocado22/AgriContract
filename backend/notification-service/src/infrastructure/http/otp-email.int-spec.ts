@@ -185,6 +185,61 @@ describe('OTP email endpoint on real MySQL and MailHog', () => {
   });
 
   /*
+   * #493 (D57): contract-service sends CONCEDE_DISPUTE and SETTLE_DISPUTE when
+   * a party ends a milestone dispute. Before this was read, the endpoint
+   * answered 400 ("purpose is invalid") and no code was mailed.
+   */
+  it.each([
+    [
+      'CONCEDE_DISPUTE',
+      '[AgriContract] Your code to concede a milestone dispute',
+      'CONCEDE_DISPUTE_OTP',
+      'otp-concede-dispute/v1',
+    ],
+    [
+      'SETTLE_DISPUTE',
+      '[AgriContract] Your code to settle a milestone dispute',
+      'SETTLE_DISPUTE_OTP',
+      'otp-settle-dispute/v1',
+    ],
+  ] as const)(
+    'delivers a %s code with its own template and type',
+    async (purpose, subject, notificationType, templateVersion) => {
+      const body = { ...newRequest(), purpose };
+
+      await post(app, body).expect(200);
+
+      const mails = await mailsContaining(body.contractId);
+      mailIds.push(...mails.map((m) => m.ID));
+      expect(mails).toHaveLength(1);
+      expect(mails[0].Content.Headers.Subject).toEqual([subject]);
+      expect(mails[0].Content.Body).toContain(body.otpCode);
+      expect(mails[0].Content.Body).toContain(body.signedContentHash);
+
+      const rows = await rowOf(body.requestId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        status: 'SENT',
+        notification_type: notificationType,
+        template_version: templateVersion,
+      });
+      expect(JSON.stringify(rows[0])).not.toContain(body.otpCode);
+    },
+  );
+
+  it.each(['CONCEDE_DISPUTE', 'SETTLE_DISPUTE'])(
+    'answers 400 to a %s code without a contractId, and mails nothing',
+    async (purpose) => {
+      const { contractId, ...rest } = { ...newRequest(), purpose };
+
+      await post(app, rest).expect(400);
+
+      expect(await mailsContaining(contractId)).toHaveLength(0);
+      expect(await rowOf(rest.requestId)).toHaveLength(0);
+    },
+  );
+
+  /*
    * #344/#422: user-service sends the registration code with purpose
    * VERIFY_EMAIL and no contract. Before this was read, the endpoint answered
    * 400 and every registration ended in a 503.
