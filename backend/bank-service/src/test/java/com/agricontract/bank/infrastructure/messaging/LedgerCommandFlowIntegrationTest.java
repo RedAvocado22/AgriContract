@@ -1,5 +1,9 @@
 package com.agricontract.bank.infrastructure.messaging;
 
+import com.agricontract.bank.application.dto.LedgerCommand;
+import com.agricontract.bank.application.usecase.ProcessLedgerCommandUseCase;
+import com.agricontract.bank.domain.model.EntryType;
+import com.agricontract.bank.domain.model.FundType;
 import com.agricontract.bank.infrastructure.config.RabbitConfiguration;
 import com.agricontract.bank.infrastructure.contract.FrozenSchemas;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,6 +21,7 @@ import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -24,14 +29,20 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 import static org.awaitility.Awaitility.await;
 
 /**
@@ -85,6 +96,8 @@ class LedgerCommandFlowIntegrationTest {
     @Autowired RabbitTemplate rabbit;
     @Autowired AmqpAdmin admin;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ProcessLedgerCommandUseCase useCase;
+    @SpyBean OutboxLedgerResultPublisher publisher;
 
     @BeforeEach
     void bindResultQueue() {
@@ -199,6 +212,24 @@ class LedgerCommandFlowIntegrationTest {
         Message dead = rabbit.receive(RabbitConfiguration.LOCK_REQUEST_DLQ, 10_000);
         assertThat(dead).isNotNull();
         assertThat(rabbit.receive(RESULTS, 1_000)).isNull();
+    }
+
+    /** D22 (#416): the ledger entry and its result commit together; an outbox failure leaves no entry behind. */
+    @Test
+    void outboxFailureRollsTheLedgerEntryBack() {
+        String eventId = UUID.randomUUID().toString();
+        LedgerCommand command = new LedgerCommand(eventId, UUID.randomUUID().toString(),
+                UUID.randomUUID().toString(), null, UUID.randomUUID().toString(), EntryType.LOCK_BUYER_DEPOSIT,
+                FundType.BUYER_DEPOSIT, null, null, new BigDecimal("1000000"), eventId);
+        doThrow(new IllegalStateException("outbox down")).when(publisher).completed(any(), any());
+        try {
+            assertThatThrownBy(() -> useCase.execute(command)).hasMessage("outbox down");
+        } finally {
+            reset(publisher);
+        }
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ledger_entry WHERE source_event_id = ?",
+                Integer.class, eventId)).isZero();
     }
 
     private void send(Map<String, Object> event) throws Exception {

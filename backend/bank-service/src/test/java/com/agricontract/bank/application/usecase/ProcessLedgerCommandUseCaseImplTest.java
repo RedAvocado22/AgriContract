@@ -1,5 +1,6 @@
 package com.agricontract.bank.application.usecase;
 
+import com.agricontract.bank.application.port.TransactionRunner;
 import com.agricontract.bank.application.dto.LedgerCommand;
 import com.agricontract.bank.application.port.LedgerResultPublisher;
 import com.agricontract.bank.domain.exception.DuplicateLedgerEntryException;
@@ -9,13 +10,9 @@ import com.agricontract.bank.domain.model.LedgerEntry;
 import com.agricontract.bank.domain.model.Money;
 import com.agricontract.bank.domain.repository.LedgerEntryRepository;
 import org.junit.jupiter.api.Test;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.SimpleTransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.util.function.Supplier;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -33,7 +30,7 @@ class ProcessLedgerCommandUseCaseImplTest {
     private final InMemoryLedger ledger = new InMemoryLedger();
     private final RecordingResults results = new RecordingResults();
     private final ProcessLedgerCommandUseCaseImpl useCase = new ProcessLedgerCommandUseCaseImpl(ledger, results,
-            new TransactionTemplate(new NoopTransactionManager()),
+            new DirectTransactionRunner(),
             Clock.fixed(Instant.parse("2026-10-27T03:00:00Z"), ZoneOffset.UTC));
 
     @Test
@@ -148,18 +145,11 @@ class ProcessLedgerCommandUseCaseImplTest {
         }
     }
 
-    private static final class NoopTransactionManager implements PlatformTransactionManager {
+    /** Atomicity is proven on MySQL in LedgerCommandFlowIntegrationTest; here the work just runs. */
+    private static final class DirectTransactionRunner implements TransactionRunner {
         @Override
-        public TransactionStatus getTransaction(TransactionDefinition definition) {
-            return new SimpleTransactionStatus();
-        }
-
-        @Override
-        public void commit(TransactionStatus status) {
-        }
-
-        @Override
-        public void rollback(TransactionStatus status) {
+        public <T> T inTransaction(Supplier<T> work) {
+            return work.get();
         }
     }
 }
