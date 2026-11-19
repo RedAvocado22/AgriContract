@@ -60,9 +60,9 @@ class WaitingDeliveryIntegrationTest {
                 "reason", "DISPUTE_ROUTED", "reportDueBusinessDays", 2,
                 "initiatedByActorId", UUID.randomUUID().toString(), "requestedAt", Instant.now().toString());
         var first = new EventEnvelope(UUID.randomUUID(), AssignmentRabbitConfiguration.KEY, 1, Instant.now(),
-                "contract-service", contract, null, null, null, payload);
+                "contract-service", contract, UUID.randomUUID().toString(), null, null, payload);
         var duplicateBusiness = new EventEnvelope(UUID.randomUUID(), AssignmentRabbitConfiguration.KEY, 1, Instant.now(),
-                "contract-service", contract, null, null, null, payload);
+                "contract-service", contract, UUID.randomUUID().toString(), null, null, payload);
         for (var request : List.of(first, first, duplicateBusiness)) {
             rabbit.send("agricontract.contracts", AssignmentRabbitConfiguration.KEY,
                     new Message(codec.toJson(request).getBytes(StandardCharsets.UTF_8)));
