@@ -90,6 +90,18 @@ Core logic (tính `storageHash`, lưu MinIO, insert `File` metadata) dùng chung
 
 **Sửa (17/07/2026) — đóng mâu thuẫn với `api-gateway-phase2-design.md` §3.5/§5.2:** Gateway không expose file-service ra ngoài; mọi upload của end-user đi qua business endpoint của service sở hữu ngữ cảnh (product-service nhận KML/trích lục kèm tham số nghiệp vụ, contract-service nhận evidence gắn milestone). Hợp lý — các use case đó vốn cần file *đi kèm* business params, upload raw rời rạc chỉ đẻ orphan + 2 round-trip. Entrypoint `DIRECT_UPLOAD` vì vậy đổi từ public `UploadFile` thành `StoreOnBehalfOf` nội bộ, **giữ nguyên toàn bộ semantics DIRECT_UPLOAD** (virus-scan, cap 10MB, whitelist contentType). Ranh giới Hướng B (§2.1) không đổi: channel vẫn do entrypoint quyết định — business service **không được** gọi `store()`/`SYSTEM_GENERATED` cho file gốc từ end-user để né scan; `store()` chỉ dành cho file hệ thống tự sinh, và `uploadedBy` của `SYSTEM_GENERATED` bắt buộc là serviceId (validate được), không phải userId.
 
+**Chốt request `StoreOnBehalfOf` (20/11/2026, D60, #507):** `POST /internal/v1/files` (`supplementary-services-api.yaml` `storeOnBehalfOf`).
+- **Body là bytes thô của file, đọc theo stream.** `Content-Type` là loại của chính file (`image/jpeg` | `image/png` | `application/pdf`). `Content-Length` bắt buộc, không nhận chunked. Nhờ vậy cap 10 MiB (10 × 1024 × 1024) và whitelist được check trước khi đọc byte nào. Body dài hoặc ngắn hơn `Content-Length` → 400, không giữ lại gì.
+- **Không dùng multipart:** service gọi sang là Java, gửi thẳng stream đơn giản hơn dựng form.
+- **Header:** `X-Internal-Secret` (như các `/internal` khác), `X-Acting-User-Id` (UUID, ghi vào `uploaded_by`), `Idempotency-Key`.
+- **Trả `202 {fileId, status}`.** 400 header/type/độ dài sai, 401 sai secret, 413 quá 10 MiB, 503 storage hoặc DB lỗi (không giữ gì, retry cùng key được).
+- **Idempotency theo cặp (`uploaded_by`, `idempotency_key`)**, unique trên bảng `file` (§8):
+  - Gửi lại cùng cặp → 202 cùng `fileId` + status hiện tại, không lưu body lần nữa.
+  - 2 request song song cùng cặp → chỉ 1 dòng insert được. Bên thua xoá blob của mình và trả `fileId` của bên thắng.
+  - Key gắn theo user chứ không theo service gọi, vì shared secret không cho biết service nào gọi.
+- **Không có cột `purpose`:** đúng §2, file-service không biết nghiệp vụ. "Owner" là `uploaded_by`; file dùng để làm gì nằm ở tên field của service sở hữu (`sellerEvidenceFileId`, …).
+- **Chia việc:** #116 làm khung service + core lưu dùng chung + endpoint này; #274 làm `store()`, confirm-attached, `GET`, `DELETE`.
+
 ---
 
 ## 4. Async Processing Pipeline
@@ -189,12 +201,14 @@ CREATE TABLE file (
     legal_hold        BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at        TIMESTAMP NULL,          -- governance tombstone; blob deletion follows
     deletion_reason   TEXT NULL,
+    idempotency_key   VARCHAR(255) NULL,      -- Idempotency-Key của StoreOnBehalfOf (D60); NULL khi entrypoint không có key (VD EMAIL_INTAKE)
     created_at        TIMESTAMP NOT NULL DEFAULT now(),
     CONSTRAINT ck_file_deletion_metadata CHECK (
       (deleted_at IS NULL AND deletion_reason IS NULL)
       OR (deleted_at IS NOT NULL AND deletion_reason IS NOT NULL AND length(trim(deletion_reason)) > 0)
     )
 );
+CREATE UNIQUE INDEX uq_file_uploader_idempotency ON file(uploaded_by, idempotency_key);  -- D60: 1 upload / (actor, key); NULL không đụng nhau
 CREATE INDEX idx_file_status ON file(status);
 CREATE INDEX idx_file_attached_created ON file(attached, created_at);  -- phục vụ query orphan cleanup
 CREATE INDEX idx_file_retention ON file(legal_hold, retention_until, deleted_at);
