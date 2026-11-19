@@ -419,6 +419,8 @@ services:
       NOTIFICATION_SERVICE_URL: http://notification-service:8085
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_USER_SERVICE_SECRET: ${KEYCLOAK_USER_SERVICE_SECRET:?KEYCLOAK_USER_SERVICE_SECRET must be set in .env}
+      # D59: unverified self-registered accounts are deleted this long after creation; demo: PT10M.
+      UNVERIFIED_ACCOUNT_MAX_AGE: ${UNVERIFIED_ACCOUNT_MAX_AGE:-PT24H}
     depends_on:
       user-db:
         condition: service_healthy

@@ -83,6 +83,12 @@ public class UserProfileRepositoryImpl implements UserProfileRepository {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void deleteById(UserId userId) {
+        jpaRepository.deleteByUserId(userId.value());
+    }
+
+    @Override
     public boolean isEmailVerifiedByAnotherUser(String email, UserId userId) {
         return jpaRepository.existsByVerifiedEmailAndUserIdNot(email, userId.value());
     }

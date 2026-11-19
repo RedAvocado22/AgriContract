@@ -26,6 +26,9 @@ public interface UserProfileRepository {
 
     boolean existsById(UserId userId);
 
+    // Removes the profile row. Caller's transaction; an absent row does nothing.
+    void deleteById(UserId userId);
+
     // True when a user other than userId has already proven this address (case-insensitive).
     boolean isEmailVerifiedByAnotherUser(String email, UserId userId);
 

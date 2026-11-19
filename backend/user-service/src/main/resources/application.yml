@@ -35,6 +35,12 @@ user:
     max-attempts: 5
     resend-cooldown-seconds: 60
     pepper: ${EMAIL_VERIFICATION_PEPPER:dev-only-email-verification-pepper}
+  # D59: self-registered accounts not verified within max-age of creation are deleted (Keycloak + profile).
+  unverified-account:
+    max-age: ${UNVERIFIED_ACCOUNT_MAX_AGE:PT24H}
+    purge:
+      enabled: ${UNVERIFIED_ACCOUNT_PURGE_ENABLED:true}
+      interval-ms: ${UNVERIFIED_ACCOUNT_PURGE_INTERVAL_MS:300000}
   dlq-monitor:
     enabled: ${USER_DLQ_MONITOR_ENABLED:true}
     interval-ms: ${USER_DLQ_MONITOR_INTERVAL_MS:300000}
