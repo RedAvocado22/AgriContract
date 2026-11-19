@@ -16,11 +16,8 @@ run_sql() {
 
 run_sql "product-db"  "product_db"  "$SEED_DIR/01-product-db.sql"
 run_sql "user-db"     "user_db"     "$SEED_DIR/02-user-db.sql"
-run_sql "contract-db" "contract_db" "$SEED_DIR/03-contract-db.sql"
-run_sql "escrow-db"   "escrow_db"   "$SEED_DIR/04-escrow-db.sql"
 
 echo ""
 echo "Done. Accounts: buyer1@test.com / seller1@test.com"
 echo "  product_db : 4 products, 11 listings"
-echo "  contract_db: 8 contracts (OFFERED → DISPUTED)"
-echo "  escrow_db  : 6 escrow accounts + transactions"
+echo "  contract/escrow: no seed (#450); create contracts through the API (create offer → sign)"
