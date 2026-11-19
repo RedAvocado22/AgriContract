@@ -1,6 +1,8 @@
 package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.EmailVerificationConfirmation;
+import com.agricontract.user.application.exception.IdentityProviderUnavailableException;
+import com.agricontract.user.application.port.IdentityAccounts;
 import com.agricontract.user.application.port.VerificationCodes;
 import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
 import com.agricontract.user.domain.exception.EmailVerificationConflictException;
@@ -29,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +48,7 @@ class ConfirmEmailVerificationUseCaseImplTest {
     @Mock private UserProfileRepository userProfileRepository;
     @Mock private EmailVerificationChallengeRepository challengeRepository;
     @Mock private VerificationCodes codes;
+    @Mock private IdentityAccounts identityAccounts;
 
     private ConfirmEmailVerificationUseCaseImpl useCase;
     private UserProfile profile;
@@ -52,7 +56,7 @@ class ConfirmEmailVerificationUseCaseImplTest {
     @BeforeEach
     void setUp() {
         useCase = new ConfirmEmailVerificationUseCaseImpl(userProfileRepository, challengeRepository, codes,
-                Clock.fixed(NOW, ZoneOffset.UTC), new DirectTransactionRunner());
+                Clock.fixed(NOW, ZoneOffset.UTC), new DirectTransactionRunner(), identityAccounts);
         profile = UserProfile.create(ID, "HTX Ca Phe", Role.SELLER, new ContactInfo(EMAIL, null, null));
         when(userProfileRepository.findByIdForUpdate(ID)).thenReturn(Optional.of(profile));
     }
@@ -79,6 +83,22 @@ class ConfirmEmailVerificationUseCaseImplTest {
         assertThat(profile.verifiedContactEmail()).isEqualTo(EMAIL);
         assertThat(profile.getEmailVerifiedAt()).isEqualTo(NOW);
         verify(challengeRepository).deleteByUserId(USER_ID);
+        verify(identityAccounts).markEmailVerified(USER_ID);
+    }
+
+    @Test
+    void keycloakDown_stillVerified() {
+        // D59: the record here is what counts; the purge job sets Keycloak's flag again before deleting anything.
+        pending(EMAIL, NOW.plusSeconds(300), 5);
+        when(codes.matches("123456", HASH)).thenReturn(true);
+        when(userProfileRepository.update(profile)).thenReturn(profile);
+        doThrow(new IdentityProviderUnavailableException("down", null))
+                .when(identityAccounts).markEmailVerified(USER_ID);
+
+        EmailVerificationConfirmation result = useCase.execute(USER_ID, "123456");
+
+        assertThat(result).isInstanceOf(EmailVerificationConfirmation.Verified.class);
+        assertThat(profile.isEmailVerified()).isTrue();
     }
 
     @Test
@@ -108,6 +128,7 @@ class ConfirmEmailVerificationUseCaseImplTest {
         assertThat(saved.getValue().getAttemptsLeft()).isEqualTo(1);
         verify(userProfileRepository, never()).update(any());
         assertThat(profile.isEmailVerified()).isFalse();
+        verify(identityAccounts, never()).markEmailVerified(any());
     }
 
     @Test

@@ -40,6 +40,13 @@ user:
     interval-ms: ${USER_DLQ_MONITOR_INTERVAL_MS:300000}
     timeout-ms: ${USER_DLQ_MONITOR_TIMEOUT_MS:3000}
 
+# Admin REST API as the confidential client "user-service" (realm file, D59).
+keycloak:
+  url: ${KEYCLOAK_URL:http://localhost:8180}
+  realm: agricontract
+  client-id: user-service
+  client-secret: ${KEYCLOAK_USER_SERVICE_SECRET:}
+
 gateway:
   internal-secret: ${GATEWAY_INTERNAL_SECRET:changeme}
 
