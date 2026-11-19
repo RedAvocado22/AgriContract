@@ -23,6 +23,8 @@ import {
   terminatedPayload,
   waitingCommand,
   waitingEnvelope,
+  inspectorCommand,
+  inspectorEnvelope,
 } from '../../../test/support/commands';
 import { commandRoutes, type CommandUseCases } from './command-routes';
 import { legacyRoutes, type NotificationUseCases } from './legacy-routes';
@@ -74,6 +76,7 @@ const HANDLERS = [
   'userKycResult',
   'userLockChanged',
   'level15AssignmentWaiting',
+  'level15InspectorAssignment',
   'categoryApproved',
   'categoryRejected',
 ] as const;
@@ -443,6 +446,48 @@ describe('NotificationEventConsumer', () => {
     }
     expect(channel.acked).toEqual([msg]);
     expect(channel.nacked).toEqual([]);
+  });
+
+  it('runs the Level 1.5 inspector use case on its own queue, and acks', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.level1_5_inspector_assignment_requested',
+      inspectorEnvelope(),
+    );
+    await flush();
+
+    expect(service.level15InspectorAssignment).toHaveBeenCalledTimes(1);
+    expect(service.level15InspectorAssignment.mock.calls[0][0]).toEqual(
+      inspectorCommand(),
+    );
+    for (const other of HANDLERS.filter(
+      (h) => h !== 'level15InspectorAssignment',
+    )) {
+      expect(service[other]).not.toHaveBeenCalled();
+    }
+    expect(channel.acked).toEqual([msg]);
+    expect(channel.nacked).toEqual([]);
+  });
+
+  it('dead-letters a waiting alert delivered to the Level 1.5 inspector queue', async () => {
+    const { consumer, service, open } = setup();
+    await consumer.onModuleInit();
+    const channel = new FakeChannel();
+    await open(channel);
+
+    const msg = channel.deliver(
+      'notification-svc.notification.level1_5_inspector_assignment_requested',
+      waitingEnvelope(),
+    );
+    await flush();
+
+    expect(service.level15InspectorAssignment).not.toHaveBeenCalled();
+    expect(service.level15AssignmentWaiting).not.toHaveBeenCalled();
+    expect(channel.nacked).toEqual([{ msg, requeue: false }]);
   });
 
   it('dead-letters a lock-changed command delivered to the Level 1.5 waiting queue', async () => {

@@ -79,4 +79,16 @@ export const COMMAND_KINDS = {
     notificationType: 'LEVEL1_5_WAITING_CANCELLED',
     templateVersion: 'level1-5-waiting-cancelled/v1',
   },
+  // notification.level1_5_inspector_assignment_requested (D57): one kind per
+  // stage, to the assigned inspector.
+  level15InspectorAssigned: {
+    eventType: 'notification.level1_5_inspector_assignment_requested',
+    notificationType: 'LEVEL1_5_INSPECTOR_ASSIGNED',
+    templateVersion: 'level1-5-inspector-assigned/v1',
+  },
+  level15InspectorCancelled: {
+    eventType: 'notification.level1_5_inspector_assignment_requested',
+    notificationType: 'LEVEL1_5_INSPECTOR_CANCELLED',
+    templateVersion: 'level1-5-inspector-cancelled/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;

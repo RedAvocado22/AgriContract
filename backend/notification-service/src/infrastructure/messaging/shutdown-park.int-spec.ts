@@ -24,6 +24,7 @@ import {
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
   NotifyLevel15AssignmentWaitingUseCase,
+  NotifyLevel15InspectorAssignmentUseCase,
   NotifyContractAnchorUseCase,
 } from '../../application/use-cases';
 import { validate } from '../../config/env.validation';
@@ -120,6 +121,9 @@ describe('shutdown park on real MySQL', () => {
       level15AssignmentWaiting: new NotifyLevel15AssignmentWaitingUseCase(
         sender,
         'ops@agricontract.test',
+      ),
+      level15InspectorAssignment: new NotifyLevel15InspectorAssignmentUseCase(
+        sender,
       ),
     });
     const consumer = new NotificationEventConsumer(amqp, routes, commands);

@@ -15,6 +15,7 @@ import {
   NotifyContractAnchorUseCase,
   NotifyContractTerminatedUseCase,
   NotifyLevel15AssignmentWaitingUseCase,
+  NotifyLevel15InspectorAssignmentUseCase,
   NotifyUserKycResultUseCase,
   NotifyUserLockChangedUseCase,
 } from './application/use-cases';
@@ -93,6 +94,7 @@ const USE_CASES = {
     useCaseOf(NotifyContractTerminatedUseCase),
     useCaseOf(NotifyUserKycResultUseCase),
     useCaseOf(NotifyUserLockChangedUseCase),
+    useCaseOf(NotifyLevel15InspectorAssignmentUseCase),
     {
       provide: NotifyLevel15AssignmentWaitingUseCase,
       inject: [NotificationSender, ConfigService],
@@ -119,6 +121,7 @@ const USE_CASES = {
         NotifyUserKycResultUseCase,
         NotifyUserLockChangedUseCase,
         NotifyLevel15AssignmentWaitingUseCase,
+        NotifyLevel15InspectorAssignmentUseCase,
       ],
       useFactory: (
         contractAnchor: NotifyContractAnchorUseCase,
@@ -128,6 +131,7 @@ const USE_CASES = {
         userKycResult: NotifyUserKycResultUseCase,
         userLockChanged: NotifyUserLockChangedUseCase,
         level15AssignmentWaiting: NotifyLevel15AssignmentWaitingUseCase,
+        level15InspectorAssignment: NotifyLevel15InspectorAssignmentUseCase,
       ) =>
         commandRoutes({
           contractAnchor,
@@ -137,6 +141,7 @@ const USE_CASES = {
           userKycResult,
           userLockChanged,
           level15AssignmentWaiting,
+          level15InspectorAssignment,
         }),
     },
     {
