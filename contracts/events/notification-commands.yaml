@@ -26,6 +26,7 @@ oneOf:
   - {$ref: "#/$defs/userLockChangedRequested"}
   - {$ref: "#/$defs/verifierKeyAnchorRequested"}
   - {$ref: "#/$defs/level15AssignmentWaitingRequested"}
+  - {$ref: "#/$defs/level15InspectorAssignmentRequested"}
 $defs:
   uuid: {type: string, format: uuid}
   nullableUuid:
@@ -485,7 +486,8 @@ $defs:
       Staff-only operational alert (inspection design §2.5, D49). The command carries no recipients:
       notification-service sends to its own notification.operatorEmail. One command per stage:
       WAITING_STARTED once when the wait begins, STILL_WAITING at most once per business day while
-      still waiting, ASSIGNED once when an inspector was finally assigned. No inspector identity.
+      still waiting, ASSIGNED once when an inspector was finally assigned, CANCELLED once when the
+      request was cancelled because the dispute ended while still waiting (D57). No inspector identity.
     allOf:
       - {$ref: "#/$defs/commandEnvelope"}
       - type: object
@@ -501,4 +503,34 @@ $defs:
               milestoneId: {$ref: "#/$defs/uuid"}
               reason: {enum: [NO_ELIGIBLE, ALL_EXCLUDED]}
               waitingSince: {type: string, format: date-time}
-              stage: {enum: [WAITING_STARTED, STILL_WAITING, ASSIGNED]}
+              stage: {enum: [WAITING_STARTED, STILL_WAITING, ASSIGNED, CANCELLED]}
+  level15InspectorAssignmentRequested:
+    x-publisher: inspection-service
+    x-consumers: [notification-service]
+    x-semantics: >-
+      Mail to the assigned Level 1.5 inspector (inspection design §2.5, D57). ASSIGNED once per
+      assignment, in the transaction that creates it: the case, the report due date and the free
+      cancellation deadline before which the inspector should not start. CANCELLED once when the
+      assignment was ended because the dispute ended (inspection.level1_5_cancelled).
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.level1_5_inspector_assignment_requested}
+          producer: {const: inspection-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, commissionId, recipients, reportDueAt, freeCancelUntil, stage]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              commissionId: {$ref: "#/$defs/uuid"}
+              recipients:
+                allOf:
+                  - {$ref: "#/$defs/recipients"}
+                  - maxItems: 1
+                    items: {properties: {role: {const: INSPECTOR}}}
+              reportDueAt: {type: string, format: date-time}
+              freeCancelUntil: {type: string, format: date-time}
+              stage: {enum: [ASSIGNED, CANCELLED]}

@@ -270,6 +270,12 @@ The following paths are part of the authoritative contract surface:
 - `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure`
 - `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/force-majeure/resolve`
 
+Kết thúc tranh chấp trước khi có report (thêm 19/11/2026, D57, §3.4). BUYER/SELLER của hợp đồng, checkbox + step-up + OTP, cùng SDS error envelope và idempotent write policy:
+
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/concede/initiate` · `.../dispute/concede/verify`
+- `POST /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/settlement/initiate` · `.../dispute/settlement/verify`
+- `DELETE /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/settlement` (bên đề xuất rút, hoặc bên kia từ chối, đề xuất đang mở)
+
 Các action do Buyer/Seller xác nhận (`weigh`, `confirm`, `flag`, `respond`, price accept và acknowledgement tương đương) phải nhận consent input theo `contract-document-consent-phase2-design.md` §4. Nhóm vận hành dùng checkbox + authenticated session; receipt/confirm statement phải ghi rõ xác nhận nhận hàng không tự động waive quyền inspection/khiếu nại còn tồn tại. Mutual termination/replacement là high-risk và dùng checkbox + step-up + OTP, không dùng mức xác thực vận hành này.
 
 Activation recovery (sửa 08/11/2026, D42): OPERATOR chỉ gọi retry; 2 bên gửi/rút yêu cầu huỷ. Cùng SDS error envelope và idempotent write policy:
@@ -435,6 +441,42 @@ Conservation kiểm theo nguồn tiền, không cộng lẫn các chế tài:
 - Tổng mọi leg `fundType = MILESTONE_PAYMENT` của quality resolution phải đúng `batchAmount`: seller settlement + buyer refund = `batchAmount`.
 - `CONTRACTUAL_PENALTY` đối soát trên nguồn penalty riêng; base của milestone reject là `effectiveUnitPrice × committedQuantity`, không bao giờ là `totalContractValue`.
 - `DEPOSIT_FORFEITURE` đối soát riêng theo `SELLER_DEPOSIT`; không cộng lại vào batch conservation. `inspectionCostResponsibility` không tạo ledger enum hay quality-specific punitive leg mới.
+
+### 3.4 Kết thúc tranh chấp trước khi có report giám định (mới, 19/11/2026, D57)
+
+**Vấn đề:** một milestone đang tranh chấp (`CONTESTED`, contest quyết định bất khả kháng, contest quyết định có lỗi trong cửa sổ GB-50) chỉ có một lối ra là chờ phán quyết. Trong thực tế hai bên hay tự hiểu ra sớm hơn: buyer kiểm lại kho thấy mình đếm nhầm, hoặc hai bên gọi điện chốt được con số. Bắt họ chờ report giám định vừa phí tiền giám định vừa giam tiền milestone vô ích. Trước D57 cũng không có cách nào báo inspection-service dừng việc giám định (known limitation D49).
+
+**Không có hành động "huỷ giám định" riêng.** Giám định chỉ bị huỷ như **hệ quả** của việc tranh chấp kết thúc. Lý do: tranh chấp luôn xoay quanh một con số (seller được nhận bao nhiêu), huỷ giám định mà không chốt con số thì milestone vẫn kẹt, tiền vẫn treo, chỉ là không còn ai đi đo. Có đúng hai đường kết thúc:
+
+1. **Nhận phần bên kia (concede).** Một bên bất kỳ tuyên bố chấp nhận vị thế của bên kia. Đơn phương, không cần bên kia xác nhận, vì bên kia được đúng thứ họ đòi, không ai thiệt. Kết quả **như thua phán quyết**: attribution theo vị thế được nhận (`decisionSource = MUTUAL`, `finalBreachingRole` và `breachReasonCode` theo vị thế đó). Vị thế được nhận có lỗi thì penalty và khoá uy tín áp như thường. **Không miễn uy tín cho người tự nhận:** seller giao thiếu thật thì tự nhận hay bị giám định bắt, sự thật về độ tin cậy vẫn vậy; miễn thì thành chiêu "thấy sắp thua thì nhận trước".
+2. **Thoả thuận con số (settlement).** Một bên đề xuất số tiền seller được nhận cho milestone, **bên kia phải xác nhận** đúng con số đó. Bắt xác nhận để bên sắp thua không tự khai "đã thoả thuận" mà né phạt. Con số **bắt buộc nằm trong `[vị thế buyer, vị thế seller]`, tính cả hai đầu**: buyer không ép được seller nhận tệ hơn chính con số buyer đã khai. "Hai bên cùng huỷ tranh chấp" chính là thoả thuận ở một đầu khoảng. Kết quả **không lỗi**: `decisionSource = MUTUAL`, `finalBreachingRole = NULL`, `breachReasonCode = NULL`, `penaltyEligible = false`, `reputationEligible = false`.
+
+**Vị thế hai bên** do contract-service tính từ dữ liệu đã ghi nhận (client không gửi), cùng công thức path contested §3.3 (`min(lockedAmount, quantityKg × effectiveUnitPrice)`, không áp Delta 2/tolerance lần hai):
+
+| Loại tranh chấp | Vị thế buyer (cận dưới) | Vị thế seller (cận trên) |
+|---|---|---|
+| Buyer flag số lượng (`CONTESTED`) | entitlement theo `buyerReceivedWeight` | entitlement theo `sellerDeclaredWeight` |
+| Buyer flag chất lượng | `0` (flag chất lượng coi như đòi reject, §3.3 `NON_CONFORMING`) | entitlement không giảm chất lượng |
+| Contest quyết định bất khả kháng (§5) / quyết định có lỗi (GB-50) | entitlement theo kết quả có lợi cho buyer trong hai kết quả đang tranh | entitlement theo kết quả có lợi cho seller |
+
+**Áp dụng cho** yêu cầu giám định do một bên gây ra: `DISPUTE_ROUTED`, `FORCE_MAJEURE_CONTEST`, `DECISION_CONTESTED`, và cả khi tranh chấp đang ở Level 1 (Arbitrator) chưa tới giám định. **Không áp dụng** cho `MANDATORY_INSPECTION` (giám định là điều khoản đã ký, không bên nào bỏ được) và `LEVEL2_BUFFER_EXPIRED` (hệ thống tự kích hoạt trong provisional settlement §3.2). Hai đường mở tới khi phán quyết cuối (report `CONFIRMED` hoặc quyết định Arbitrator) được ghi nhận; sau đó chỉ còn các đường đã có.
+
+**Mức xác thực:** cả hai đường là high-risk (`contract-document-consent-phase2-design.md` §4): checkbox statement riêng (`CONCEDE_DISPUTE`, `SETTLE_DISPUTE`) + step-up + OTP. Statement ghi rõ con số và hệ quả, ví dụ concede của seller: "bạn chấp nhận thanh toán cho X kg thay vì Y kg, bị phạt Z và khoá uy tín theo chính sách"; xác nhận settlement: "bạn nhận X đồng thay vì Y đồng; nếu không đồng ý, giám định tiếp tục". Không bấm hoặc từ chối = giám định chạy tiếp, không mất gì. Sau khi chốt, cả hai bên nhận mail tóm tắt qua `notification.milestone_status_requested`.
+
+**Đề xuất settlement:** mỗi milestone tối đa 1 đề xuất đang mở. Bên đề xuất `initiate` (kèm `agreedSellerEntitlementAmount`) → `verify` OTP → đề xuất được ghi. Bên kia `initiate` với **đúng** con số đó → `verify` OTP → tranh chấp kết thúc. Bên đề xuất rút hoặc bên kia từ chối bằng `DELETE`. Đề xuất không có hạn riêng; nó tự hết hiệu lực khi tranh chấp kết thúc bằng đường khác. Đề xuất không dừng giám định.
+
+**Khung huỷ miễn phí 4 tiếng và phí giám định:** inspector được giao thường gần như ngay, và cần biết khi nào ca của mình chắc chắn không bị huỷ để không đi kiểm uổng công. Inspection-service sở hữu mốc `freeCancelUntil = assignedAt + 4 giờ` (giờ đồng hồ, không phải giờ làm việc; config `inspection.assignment.free-cancel-hours`, demo chỉnh được), gửi cho contract-service qua `inspection.level1_5_assigned` và cho inspector qua mail giao việc. Contract-service so thời điểm tranh chấp kết thúc với `freeCancelUntil` của assignment đang active:
+
+| Kết thúc | Trong khung (hoặc chưa có inspector được giao) | Sau khung, trước phán quyết cuối |
+|---|---|---|
+| Concede | bên nhận thua, theo vị thế được nhận; không phí giám định | như cột trái, **bên nhận thua chịu phí giám định** (khớp `LOSER_PAYS`) |
+| Settlement | không lỗi; không phí | không lỗi; **bên đã yêu cầu giám định chịu phí** (role của `initiatedByActorId`) |
+
+Bên chịu phí được ghi trên `RemedyDecision` cùng cách phân bổ phí ở §3.3; Phase 2 không có ledger leg phí giám định (§3.3), nên đây là ghi nhận trách nhiệm, không phát lệnh tiền. Chưa nhận `inspection.level1_5_assigned` lúc tranh chấp kết thúc = coi như chưa có inspector (miễn phí); race này chấp nhận được vì inspector nhận mail cùng lúc event được ghi và được dặn chưa đi trước `freeCancelUntil`.
+
+**Tiền và event:** cả hai đường đi đúng một đường `AttributionDecision → RemedyDecision → remedy.finalized` như mọi kết thúc tranh chấp (legs `MILESTONE_PAYMENT` cộng đúng `batchAmount`: seller nhận entitlement đã chốt, phần còn lại refund buyer; penalty/forfeiture chỉ khi concede vào vị thế có lỗi), không phát `milestone.settled`. Breach cấp milestone đã kết thúc bằng sự đồng ý của chính bên chịu hậu quả nên không mở contest window GB-50. Concede vào tranh chấp buyer flag publish `milestone.dispute_resolved` với `resolutionFavors` = bên được nhận (buyer tự rút flag vẫn tính là flag-rồi-thua cho tín hiệu chống lạm dụng `FLAG_ISSUE` của reputation design); settlement không có bên thắng nên không publish `milestone.dispute_resolved`. Nếu đang có yêu cầu giám định Level 1.5 (đang chờ inspector hoặc đang có assignment), cùng transaction ghi `inspection.level1_5_cancelled` qua outbox; inspection-service dừng việc giám định (`inspection-phase2-design.md` §2.5). Report tới muộn sau khi tranh chấp đã kết thúc bị bỏ qua (đã có).
+
+**Known limitation:** bị ép ngoài nền tảng (buyer doạ không mua mùa sau để seller concede hoặc thoả thuận) thì hệ thống không phát hiện được, giống `MUTUAL_TERMINATION`. Thiết kế chỉ giới hạn thiệt hại: từ chối là mặc định và an toàn, con số thoả thuận bị kẹp trong khoảng hai vị thế, thoả thuận không có lỗi nên không dùng để hạ uy tín được, OTP + statement để lại bằng chứng seller đã thấy rõ mình đồng ý cái gì.
 
 ## 4. Business Rules — Delta 1 vs Delta 2
 
@@ -811,6 +853,8 @@ OTP lại cho từng milestone làm flow nặng nhưng không tăng bảo vệ c
 | RabbitMQ | `milestone.cancelled_with_penalty` | contract-service — chỉ là outcome sau attribution, không phải money trigger | analytics-service (`fact_milestone_performance`), audit-service |
 | RabbitMQ | `milestone.dispute_resolved` (mới, 08/07/2026) | contract-service — bắn khi `DisputeRoutingService` ra phán quyết. Payload: `{contractId, milestoneId, flaggedBy: BUYER, flaggedByUserId, resolutionFavors: BUYER\|SELLER}` | reputation-service (đếm tỷ lệ buyer flag-rồi-thua) |
 | RabbitMQ | `milestone.price_adjusted` (mới, 23/07/2026) | contract-service — publish đúng một lần sau counterparty accept. Payload `{contractId, milestoneId, baseUnitPrice, effectiveUnitPrice, currency, proposerId, accepterId, acceptedAt}`. | audit-service, analytics-service |
+| RabbitMQ | `inspection.level1_5_cancelled` (mới, 19/11/2026, D57) | contract-service — cùng transaction với việc tranh chấp kết thúc bằng concede/settlement (§3.4) khi đang có yêu cầu giám định Level 1.5. Payload `{contractId, milestoneId, reason: DISPUTE_CONCEDED\|DISPUTE_SETTLED, cancelledAt}` | inspection-service (xoá dòng chờ hoặc kết thúc assignment, mail inspector/Operator) |
+| RabbitMQ | `inspection.level1_5_assigned` (mới, 19/11/2026, D57) | inspection-service — mỗi lần giao inspector. Payload `{contractId, milestoneId, commissionId, assignedAt, freeCancelUntil, reportDueAt}`, không danh tính inspector | contract-service (mốc khung huỷ miễn phí §3.4) |
 | RabbitMQ | `escrow.milestone_funding_failed` (mới, 19/07/2026) | escrow-service — bắn khi hết retry lock `batchAmount` milestone 2+ (§6b bước 2). Payload: `{contractId, milestoneId, reason}` | contract-service (milestone `FUNDING_FAILED`, tạm dừng đồng hồ giao hàng, notify 3 bên; Rổ A breach sau `fundingCureWindowDays`) |
 
 **Sửa (08/07/2026; khóa quality path 23/07/2026) — `milestone.buyer_confirmed` không được trigger tiền:** buyer `CONFIRM_CLEAN` → milestone `SETTLED` → contract-service publish `milestone.settled` cho clean path. `milestone.buyer_confirmed` chỉ vào audit trail; mail trạng thái đi qua `notification.milestone_status_requested`. Khi quality dispute đã mở, resolution chỉ phát tiền qua `remedy.finalized`; tuyệt đối không đồng thời publish/consume `milestone.settled` cho cùng resolution.
