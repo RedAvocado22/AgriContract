@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.web;
 
+import com.agricontract.contract.application.exception.ListingDataInvalidException;
 import com.agricontract.contract.application.exception.ListingNotFoundException;
 import com.agricontract.contract.application.exception.ListingServiceUnavailableException;
 import com.agricontract.contract.application.exception.OtpEmailNotSentException;
@@ -66,6 +67,14 @@ public class GlobalExceptionHandler {
         log.warn("503 PRODUCT_SERVICE_UNAVAILABLE {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error(
                 "PRODUCT_SERVICE_UNAVAILABLE: the listing could not be reserved right now; try again shortly."));
+    }
+
+    /** #430: product-service answered with data that breaks the schema; retrying cannot help. Detail stays in the log. */
+    @ExceptionHandler(ListingDataInvalidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleListingDataInvalid(ListingDataInvalidException ex) {
+        log.error("500 LISTING_DATA_INVALID {}", ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error(
+                "INTERNAL_ERROR: the request could not be completed; contact support if it keeps happening."));
     }
 
     @ExceptionHandler(ListingNotFoundException.class)

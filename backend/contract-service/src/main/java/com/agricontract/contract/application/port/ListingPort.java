@@ -2,6 +2,7 @@ package com.agricontract.contract.application.port;
 
 import com.agricontract.contract.application.dto.ListingReservation;
 import com.agricontract.contract.application.dto.ListingResponse;
+import com.agricontract.contract.application.exception.ListingDataInvalidException;
 import com.agricontract.contract.application.exception.ListingNotFoundException;
 import com.agricontract.contract.application.exception.ListingServiceUnavailableException;
 import com.agricontract.contract.domain.exception.ContractConflictException;
@@ -13,7 +14,8 @@ import java.math.BigDecimal;
  * product-service, the only owner of listing inventory and reservations (product design §8b). The create methods
  * fail closed: a 409 from product-service becomes {@link ContractConflictException} with product-service's code
  * (INSUFFICIENT_LISTING_QUANTITY, LISTING_VERSION_MISMATCH, LISTING_STATE_CONFLICT, RESERVATION_STATE_CONFLICT), an
- * unknown listing {@link ListingNotFoundException}, anything else {@link ListingServiceUnavailableException}.
+ * unknown listing {@link ListingNotFoundException}, an answer whose body breaks the frozen schema
+ * {@link ListingDataInvalidException} (500), anything else {@link ListingServiceUnavailableException} (503).
  */
 public interface ListingPort {
     ListingResponse getListing(String listingId);
