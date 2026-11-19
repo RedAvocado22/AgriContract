@@ -134,8 +134,8 @@ public class ContractController {
             Authentication auth) {
         String userId = auth.getName();
         PagedResult<ContractResponse> result = "SELLER".equalsIgnoreCase(request.getRole())
-                ? listContractsUseCase.executeBySeller(userId, request.getStatus(), request.toPageable())
-                : listContractsUseCase.executeByBuyer(userId, request.getStatus(), request.toPageable());
+                ? listContractsUseCase.executeBySeller(userId, request.getStatus(), request.toPageQuery())
+                : listContractsUseCase.executeByBuyer(userId, request.getStatus(), request.toPageQuery());
         return ResponseEntity.ok(PaginatedResponse.from(result));
     }
 

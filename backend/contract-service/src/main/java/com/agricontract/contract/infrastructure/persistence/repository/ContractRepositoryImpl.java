@@ -13,7 +13,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.agricontract.contract.domain.repository.PageQuery;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,7 +98,8 @@ public class ContractRepositoryImpl implements ContractRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Contract> findByBuyerId(String buyerId, ContractStatus status, Pageable pageable) {
+    public List<Contract> findByBuyerId(String buyerId, ContractStatus status, PageQuery query) {
+        Pageable pageable = pageable(query);
         Page<ContractJpaEntity> page = status != null
                 ? jpaRepo.findByBuyerIdAndStatus(buyerId, status, pageable)
                 : jpaRepo.findByBuyerId(buyerId, pageable);
@@ -104,7 +108,8 @@ public class ContractRepositoryImpl implements ContractRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Contract> findBySellerId(String sellerId, ContractStatus status, Pageable pageable) {
+    public List<Contract> findBySellerId(String sellerId, ContractStatus status, PageQuery query) {
+        Pageable pageable = pageable(query);
         Page<ContractJpaEntity> page = status != null
                 ? jpaRepo.findBySellerIdAndStatus(sellerId, status, pageable)
                 : jpaRepo.findBySellerId(sellerId, pageable);
@@ -144,5 +149,12 @@ public class ContractRepositoryImpl implements ContractRepository {
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("Failed to serialize domain event: " + event.getEventType(), ex);
         }
+    }
+
+    private static Pageable pageable(PageQuery query) {
+        return query.sortBy() == null
+                ? PageRequest.of(query.page(), query.size())
+                : PageRequest.of(query.page(), query.size(),
+                        Sort.by(query.descending() ? Sort.Direction.DESC : Sort.Direction.ASC, query.sortBy()));
     }
 }
