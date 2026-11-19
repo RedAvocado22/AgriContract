@@ -217,6 +217,30 @@ and its addresses sit in `payload.recipients`, so the publisher — contract-ser
   characters, so the mail goes out as 7bit. `test/contract/level15-assignment-waiting-requested.contract.spec.ts`
   checks the parser against the contract in both directions.
 
+### Level 1.5 inspector assignment (Phase 2, `notification.level1_5_inspector_assignment_requested`, D57)
+
+| | |
+| --- | --- |
+| Queue | `notification-svc.notification.level1_5_inspector_assignment_requested` (DLX `notification-svc.inspection.dlx`) |
+| Exchange, routing key | `agricontract.inspection`, `notification.level1_5_inspector_assignment_requested` |
+| Recipients | `payload.recipients`: exactly one, role `INSPECTOR` |
+| Row per email | one kind per `stage`, `recipient_user_id` = the inspector's `userId`: |
+| | `ASSIGNED` → `LEVEL1_5_INSPECTOR_ASSIGNED`, `level1-5-inspector-assigned/v1` |
+| | `CANCELLED` → `LEVEL1_5_INSPECTOR_CANCELLED`, `level1-5-inspector-cancelled/v1` |
+
+- inspection-service publishes it (#493) to the inspector it picked: `ASSIGNED` once per assignment, `CANCELLED`
+  once if the assignment ends because the dispute ended (concession or agreed settlement). Each is its own
+  command, so each is its own email; a replayed `eventId` sends once.
+- `ASSIGNED` gives `contractId`, `milestoneId`, `commissionId`, `reportDueAt` and `freeCancelUntil` in Vietnam time
+  and UTC, and tells the inspector not to start before `freeCancelUntil`: until then the case may still be
+  cancelled. `CANCELLED` says the case is closed and no visit or report is needed.
+- **A second recipient, or a role other than `INSPECTOR`, is dead-lettered at once** (the contract allows one
+  inspector only); the log names the problem, never the address.
+- Same exchange and DLX as the waiting alert; inspection-service declares this queue ahead too, with these exact
+  names and options. Same claim, dedup, redelivery and dead-letter rules as the other commands; lines stay within
+  76 characters. `test/contract/level15-inspector-assignment-requested.contract.spec.ts` checks the parser
+  against the contract in both directions.
+
 ### OTP email endpoint (Phase 2, #114)
 
 `POST /internal/v1/notifications/otp-email` (`golden-flow-api.yaml` `sendOtpEmail`, design §2.2): contract-service
