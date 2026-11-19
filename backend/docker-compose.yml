@@ -38,6 +38,8 @@ services:
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Secret of the user-service client, substituted into the realm file on import (D59).
+      KEYCLOAK_USER_SERVICE_SECRET: ${KEYCLOAK_USER_SERVICE_SECRET:?KEYCLOAK_USER_SERVICE_SECRET must be set in .env}
     command: start-dev --import-realm
     ports:
       - "8180:8080"
@@ -415,6 +417,8 @@ services:
       SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
       RABBITMQ_HOST: rabbitmq
       NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_USER_SERVICE_SECRET: ${KEYCLOAK_USER_SERVICE_SECRET:?KEYCLOAK_USER_SERVICE_SECRET must be set in .env}
     depends_on:
       user-db:
         condition: service_healthy
