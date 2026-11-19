@@ -81,6 +81,15 @@ public class VerifyOtpAndSignUseCase {
         }
     }
 
+    private void claimKey(VerifySignCommand command, String requestHash, Signature signature) {
+        if (idempotencyStore.claim(command.actorId(), OPERATION, command.idempotencyKey(), requestHash)
+                != IdempotencyStore.Outcome.FIRST) {
+            throw new IllegalStateException("Idempotency-Key " + command.idempotencyKey() + " claimed concurrently");
+        }
+        idempotencyStore.recordResult(command.actorId(), OPERATION, command.idempotencyKey(),
+                signature.signatureId().toString());
+    }
+
     /** Returns null when signed (or replayed), or the refusal to throw once its side effects are committed. */
     private RuntimeException verifyAndSign(VerifySignCommand command, SignerRole role) {
         Contract contract = contractRepository.findByIdForUpdate(new ContractId(command.contractId()))
@@ -111,6 +120,19 @@ public class VerifyOtpAndSignUseCase {
             throw new ContractConflictException(OTP_NOT_FOUND, "No such signing code.");
         }
         Instant now = Instant.now(clock).truncatedTo(ChronoUnit.MICROS);
+        // #432 / D58: the signer already signed with this code but lost the 204 and the old Idempotency-Key. The
+        // same correct code answers what the first verify did, whatever the contract's state is now; nothing new is
+        // written but the new key. A wrong code on a used challenge stays OTP_ALREADY_USED and costs no attempt.
+        if (challenge.verifiedAt() != null && otpCodes.matches(command.otpCode(), challenge.otpHash())) {
+            var signed = signatures.findByOtpId(challenge.otpId())
+                    .filter(signature -> signature.signerUserId().equals(command.actorId()));
+            if (signed.isPresent()) {
+                claimKey(command, requestHash, signed.get());
+                log.info("Sign verify for contract {} replayed with a new key: code {} already signed (signature {})",
+                        command.contractId(), challenge.otpId(), signed.get().signatureId());
+                return null;
+            }
+        }
         challenge.ensureUsable(now, policy.maxAttempts());
 
         // A Phase 1 contract (no coffee terms) has no hash to compare; Contract.sign refuses it below.
@@ -144,12 +166,7 @@ public class VerifyOtpAndSignUseCase {
             events.contractSigned(contract, now);
             events.contractAnchorRequested(contract, now);
         }
-        if (idempotencyStore.claim(command.actorId(), OPERATION, command.idempotencyKey(), requestHash)
-                != IdempotencyStore.Outcome.FIRST) {
-            throw new IllegalStateException("Idempotency-Key " + command.idempotencyKey() + " claimed concurrently");
-        }
-        idempotencyStore.recordResult(command.actorId(), OPERATION, command.idempotencyKey(),
-                signature.signatureId().toString());
+        claimKey(command, requestHash, signature);
         log.info("Contract {} signed by {} as {} (signature {}), status {}", command.contractId(),
                 command.actorId(), role, signature.signatureId(), contract.getStatus());
         return null;
