@@ -378,8 +378,10 @@ jobs:
             chrislusf/seaweedfs:4.48 \
             server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -master.volumeSizeLimitMB=1024
           for i in $(seq 1 60); do
-            # The compose healthcheck: the master answers once a volume can take writes.
-            curl -sf -o /dev/null http://127.0.0.1:9333/cluster/healthz && exit 0
+            # The compose healthcheck: the master answers once a volume can take writes, and the
+            # S3 gateway, which starts a few seconds later (before it, :8333 resets the connection).
+            curl -sf -o /dev/null http://127.0.0.1:9333/cluster/healthz \
+              && curl -sf -o /dev/null http://127.0.0.1:8333/healthz && exit 0
             sleep 2
           done
           docker logs object-storage

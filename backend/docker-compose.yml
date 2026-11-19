@@ -328,7 +328,8 @@ services:
     networks:
       - agricontract-net
     healthcheck:
-      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/healthz" ]
+      # The master once a volume can take writes, then the S3 gateway, which starts a few seconds later.
+      test: [ "CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9333/cluster/healthz && wget -q -O /dev/null http://127.0.0.1:8333/healthz" ]
       interval: 15s
       timeout: 5s
       retries: 5
