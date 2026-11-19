@@ -45,6 +45,7 @@ const at = (
 
 const STILL = at('STILL_WAITING', '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d');
 const ASSIGNED = at('ASSIGNED', '9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f');
+const CANCELLED = at('CANCELLED', '6e5d4c3b-2a19-4f08-9e7d-6c5b4a392817');
 
 describe('NotifyLevel15AssignmentWaitingUseCase', () => {
   it.each([
@@ -65,6 +66,12 @@ describe('NotifyLevel15AssignmentWaitingUseCase', () => {
       ASSIGNED,
       'A waiting Level 1.5 inspection now has an inspector',
       COMMAND_KINDS.level15AssignedAfterWait,
+    ],
+    [
+      'CANCELLED',
+      CANCELLED,
+      'A waiting Level 1.5 inspection was cancelled',
+      COMMAND_KINDS.level15WaitingCancelled,
     ],
   ])(
     'mails %s to the operator address with its own template',
@@ -204,19 +211,36 @@ describe('level15AssignmentWaitingBody', () => {
     );
   });
 
-  it.each(['WAITING_STARTED', 'STILL_WAITING', 'ASSIGNED'] as const)(
-    'keeps every line of %s within 76 characters',
-    (stage) => {
-      for (const reason of ['NO_ELIGIBLE', 'ALL_EXCLUDED'] as const) {
-        const body = level15AssignmentWaitingBody({
-          ...waitingCommand(),
-          stage,
-          reason,
-        });
-        for (const line of body.split('\n')) {
-          expect(line.length).toBeLessThanOrEqual(76);
-        }
+  it('CANCELLED (level1-5-waiting-cancelled/v1): why it ended, no action, no inspector named', () => {
+    expect(level15AssignmentWaitingBody(CANCELLED)).toBe(
+      [
+        'A Level 1.5 inspection request that was waiting for an inspector has',
+        'been cancelled: the milestone dispute ended, by concession or by an',
+        'agreed settlement, before an inspector could be assigned.',
+        '',
+        'No inspector will be assigned. Nothing more is needed from you.',
+        '',
+        ...DETAILS,
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it.each([
+    'WAITING_STARTED',
+    'STILL_WAITING',
+    'ASSIGNED',
+    'CANCELLED',
+  ] as const)('keeps every line of %s within 76 characters', (stage) => {
+    for (const reason of ['NO_ELIGIBLE', 'ALL_EXCLUDED'] as const) {
+      const body = level15AssignmentWaitingBody({
+        ...waitingCommand(),
+        stage,
+        reason,
+      });
+      for (const line of body.split('\n')) {
+        expect(line.length).toBeLessThanOrEqual(76);
       }
-    },
-  );
+    }
+  });
 });

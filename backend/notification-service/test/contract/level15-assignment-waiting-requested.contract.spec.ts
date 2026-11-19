@@ -101,6 +101,7 @@ describe('level15AssignmentWaitingRequested contract (notification-commands.yaml
       COMMAND_KINDS.level15WaitingStarted,
       COMMAND_KINDS.level15StillWaiting,
       COMMAND_KINDS.level15AssignedAfterWait,
+      COMMAND_KINDS.level15WaitingCancelled,
     ]) {
       expect(kind.eventType).toBe(schema.eventType.const);
     }
@@ -129,6 +130,7 @@ describe('level15AssignmentWaitingRequested contract (notification-commands.yaml
     ['the start of a wait, as published', {}],
     ['a reminder', { stage: 'STILL_WAITING' }],
     ['an assignment', { stage: 'ASSIGNED', reason: 'ALL_EXCLUDED' }],
+    ['a cancellation (D57)', { stage: 'CANCELLED' }],
     [
       'an instant with an offset',
       { waitingSince: '2026-11-16T10:00:00+07:00' },
@@ -150,7 +152,8 @@ describe('level15AssignmentWaitingRequested contract (notification-commands.yaml
       'an inspector in the payload',
       { payload: waitingPayload({ inspectorId: 'x' }) },
     ],
-    ['another stage', { payload: waitingPayload({ stage: 'CANCELLED' }) }],
+    ['another stage', { payload: waitingPayload({ stage: 'EXPIRED' }) }],
+    ['a lower-case stage', { payload: waitingPayload({ stage: 'cancelled' }) }],
     [
       'a lower-case reason',
       { payload: waitingPayload({ reason: 'no_eligible' }) },
