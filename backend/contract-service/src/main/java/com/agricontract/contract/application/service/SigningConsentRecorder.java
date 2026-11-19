@@ -1,5 +1,6 @@
 package com.agricontract.contract.application.service;
 
+import com.agricontract.contract.application.port.TransactionRunner;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.consent.ConsentEvidence;
 import com.agricontract.contract.domain.model.consent.ConsentStatements;
@@ -8,8 +9,6 @@ import com.agricontract.contract.domain.repository.ConsentEvidenceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -27,10 +26,11 @@ public class SigningConsentRecorder {
     private final ConsentEvidenceRepository consentEvidenceRepository;
     private final ConsentStatements consentStatements;
     private final Clock clock;
+    private final TransactionRunner transactions;
 
-    @Transactional(propagation = Propagation.MANDATORY)
     public ConsentEvidence record(Contract contract, String actorId, SignerRole signerRole,
                                   String statementVersion, String presentedContentHash, String correlationId) {
+        transactions.requireTransaction();
         ConsentEvidence evidence = contract.consentToSign(actorId, signerRole, statementVersion,
                 presentedContentHash, consentStatements, UUID.randomUUID(), Instant.now(clock), correlationId);
         consentEvidenceRepository.append(evidence);
@@ -40,10 +40,10 @@ public class SigningConsentRecorder {
     }
 
     /** D42 cancel request: same append-only evidence, CANCEL_ACTIVATION statement. */
-    @Transactional(propagation = Propagation.MANDATORY)
     public ConsentEvidence recordCancelActivation(Contract contract, String actorId, SignerRole role,
                                                   String statementVersion, String presentedContentHash,
                                                   String correlationId) {
+        transactions.requireTransaction();
         ConsentEvidence evidence = contract.consentToCancelActivation(actorId, role, statementVersion,
                 presentedContentHash, consentStatements, UUID.randomUUID(), Instant.now(clock), correlationId);
         consentEvidenceRepository.append(evidence);

@@ -2,6 +2,7 @@ package com.agricontract.contract.application.service;
 
 import com.agricontract.contract.application.dto.IssuedOtp;
 import com.agricontract.contract.application.port.OtpCodes;
+import com.agricontract.contract.application.port.TransactionRunner;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.consent.ConsentActionType;
 import com.agricontract.contract.domain.model.consent.ConsentEvidence;
@@ -11,8 +12,6 @@ import com.agricontract.contract.domain.repository.OtpChallengeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -33,9 +32,11 @@ public class OtpChallengeIssuer {
     private final OtpCodes otpCodes;
     private final OtpPolicy policy;
     private final Clock clock;
+    private final TransactionRunner transactions;
 
-    @Transactional(propagation = Propagation.MANDATORY)
+    /** Only inside the caller's transaction: the kill, the limits and the insert commit with the consent or not at all. */
     public IssuedOtp issue(Contract contract, ConsentEvidence consent, Instant authTime) {
+        transactions.requireTransaction();
         String currentHash = contract.getCoffeeTerms().signedContentHash();
         if (!consent.subjectId().equals(contract.getContractId().value())
                 || !consent.presentedContentHash().equals(currentHash)) {
@@ -66,9 +67,8 @@ public class OtpChallengeIssuer {
     }
 
     /** The email could not be handed over: the new code must never be usable (no late email, no ghost code). */
-    @Transactional
     public void expire(UUID otpId) {
-        challenges.expire(otpId, now());
+        transactions.inTransaction(() -> challenges.expire(otpId, now()));
         log.warn("OTP challenge {} expired because the email was not sent", otpId);
     }
 

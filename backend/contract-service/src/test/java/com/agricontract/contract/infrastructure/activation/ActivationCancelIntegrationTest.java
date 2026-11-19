@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.activation;
 
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -95,7 +96,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
-@Import({ActivationCancelUseCases.class, ActivationRefundStarter.class, StartDueOneSidedCancelsUseCase.class,
+@Import({SpringTransactionRunner.class, ActivationCancelUseCases.class, ActivationRefundStarter.class, StartDueOneSidedCancelsUseCase.class,
         CompleteActivationFailureUseCase.class, RecordDepositLockFailureUseCase.class, RetryDepositLockUseCase.class,
         GetContractUseCase.class, InitiateSignUseCase.class, VerifyOtpAndSignUseCase.class, SignerEligibility.class,
         OtpChallengeIssuer.class, SigningConsentRecorder.class, JdbcOtpChallengeRepository.class,
@@ -149,6 +150,7 @@ class ActivationCancelIntegrationTest {
     }
 
     @Autowired ActivationCancelUseCases cancel;
+    @Autowired ActivationRefundStarter refundStarter;
     @Autowired StartDueOneSidedCancelsUseCase startDue;
     @Autowired CompleteActivationFailureUseCase complete;
     @Autowired RecordDepositLockFailureUseCase recordFailure;
@@ -305,6 +307,14 @@ class ActivationCancelIntegrationTest {
         assertThat(failed.get(0).get("causationId").asText()).isEqualTo(eventId);
         assertThatThrownBy(() -> retry.execute(new RetryDepositLockCommand(id(), OPERATOR, UUID.randomUUID())))
                 .hasFieldOrPropertyWithValue("code", ContractConflictException.ACTIVATION_NOT_FAILED);
+    }
+
+    /** Was @Transactional(MANDATORY): the refund only starts under the caller's contract row lock. */
+    @Test
+    void startingARefundOutsideATransactionIsRefused() {
+        assertThatThrownBy(() -> refundStarter.startIfDue(null, null, java.util.List.of(), Instant.now()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("caller's transaction");
     }
 
     @Test

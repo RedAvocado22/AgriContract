@@ -37,7 +37,7 @@ import com.agricontract.contract.domain.repository.OtpChallengeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
+import com.agricontract.contract.application.port.TransactionRunner;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -73,7 +73,7 @@ public class ActivationCancelUseCases {
     private final OtpEmailPort otpEmailPort;
     private final ActivationRefundStarter refundStarter;
     private final ContractEventPublisher events;
-    private final TransactionTemplate tx;
+    private final TransactionRunner transactions;
     private final Clock clock;
 
     /** Records the consent and the OTP challenge, then emails the code (purpose CANCEL_ACTIVATION). */
@@ -82,7 +82,7 @@ public class ActivationCancelUseCases {
         UserInfo party = users.findUser(command.actorId()).orElseThrow(() ->
                 new UnauthorizedContractAccessException("No profile was found for this account."));
 
-        IssuedOtp issued = tx.execute(status -> {
+        IssuedOtp issued = transactions.inTransaction(() -> {
             String requestHash = CanonicalTerms.sha256(String.join("\n", command.contractId(),
                     command.requesterRole().name(), command.consentStatementVersion(), command.presentedContentHash()));
             IdempotencyStore.Outcome outcome = idempotencyStore.claim(command.actorId(), INITIATE,
@@ -138,7 +138,7 @@ public class ActivationCancelUseCases {
      */
     public void verify(ActivationCancelCommands.Verify command) {
         eligibility.requireFreshLogin(command.authTime());
-        RuntimeException refusal = tx.execute(status -> verifyInTx(command));
+        RuntimeException refusal = transactions.inTransaction(() -> verifyInTx(command));
         if (refusal != null) {
             throw refusal;
         }
@@ -211,7 +211,7 @@ public class ActivationCancelUseCases {
 
     /** Withdraws the caller's standing request while the contract is still SIGNED; nothing to withdraw → 409. */
     public void withdraw(ActivationCancelCommands.Withdraw command) {
-        tx.executeWithoutResult(status -> {
+        transactions.inTransaction(() -> {
             Contract contract = contracts.findByIdForUpdate(new ContractId(command.contractId()))
                     .orElseThrow(() -> new ContractNotFoundException(command.contractId()));
             SignerRole role = contract.roleOf(command.actorId()).orElseThrow(() ->

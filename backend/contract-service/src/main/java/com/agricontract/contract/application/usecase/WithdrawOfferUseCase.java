@@ -15,7 +15,7 @@ import com.agricontract.contract.domain.repository.OtpChallengeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
+import com.agricontract.contract.application.port.TransactionRunner;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -41,11 +41,11 @@ public class WithdrawOfferUseCase {
     private final IdempotencyStore idempotencyStore;
     private final OtpChallengeRepository challenges;
     private final ContractEventPublisher events;
-    private final TransactionTemplate tx;
+    private final TransactionRunner transactions;
     private final Clock clock;
 
     public void execute(WithdrawOfferCommand command) {
-        tx.executeWithoutResult(status -> {
+        transactions.inTransaction(() -> {
             Contract contract = contracts.findByIdForUpdate(new ContractId(command.contractId()))
                     .orElseThrow(() -> new ContractNotFoundException(command.contractId()));
             if (contract.roleOf(command.actorId()).isEmpty()) {

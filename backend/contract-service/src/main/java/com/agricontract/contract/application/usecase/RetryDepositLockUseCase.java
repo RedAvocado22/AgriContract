@@ -1,5 +1,6 @@
 package com.agricontract.contract.application.usecase;
 
+import com.agricontract.contract.application.port.TransactionRunner;
 import com.agricontract.contract.application.dto.RetryDepositLockCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
 import com.agricontract.contract.application.exception.IdempotencyKeyReusedException;
@@ -15,7 +16,6 @@ import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -29,7 +29,6 @@ import java.time.temporal.ChronoUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class RetryDepositLockUseCase {
     static final String OPERATION = "RETRY_DEPOSIT_LOCK";
 
@@ -38,8 +37,13 @@ public class RetryDepositLockUseCase {
     private final ActivationRecoveryRepository recoveries;
     private final ContractEventPublisher events;
     private final Clock clock;
+    private final TransactionRunner transactions;
 
     public void execute(RetryDepositLockCommand command) {
+        transactions.inTransaction(() -> retry(command));
+    }
+
+    private void retry(RetryDepositLockCommand command) {
         IdempotencyStore.Outcome outcome = idempotencyStore.claim(command.operatorUserId(), OPERATION,
                 command.idempotencyKey(), CanonicalTerms.sha256(command.contractId()));
         if (outcome == IdempotencyStore.Outcome.CONFLICT) {

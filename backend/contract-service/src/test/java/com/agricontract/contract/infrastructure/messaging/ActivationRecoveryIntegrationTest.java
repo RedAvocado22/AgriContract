@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.messaging;
 
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,7 +70,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
-@Import({DepositLockFailedConsumer.class, RecordDepositLockFailureUseCase.class, RetryDepositLockUseCase.class,
+@Import({SpringTransactionRunner.class, DepositLockFailedConsumer.class, RecordDepositLockFailureUseCase.class, RetryDepositLockUseCase.class,
         GetContractUseCase.class, OutboxContractEventPublisher.class, JdbcActivationRecoveryRepository.class,
         JdbcActivationCancelRequestRepository.class,
         JdbcIdempotencyStore.class, BusinessCalendarConfiguration.class, ContractRepositoryImpl.class,

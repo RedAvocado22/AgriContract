@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.withdraw;
 
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,7 +89,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
-@Import({WithdrawOfferUseCase.class, InitiateSignUseCase.class, VerifyOtpAndSignUseCase.class,
+@Import({SpringTransactionRunner.class, WithdrawOfferUseCase.class, InitiateSignUseCase.class, VerifyOtpAndSignUseCase.class,
         SignerEligibility.class, OtpChallengeIssuer.class, SigningConsentRecorder.class,
         JdbcOtpChallengeRepository.class, JdbcSignatureRepository.class, JdbcConsentEvidenceRepository.class,
         JdbcIdempotencyStore.class, OtpConfiguration.class, ConsentConfiguration.class, ContractRepositoryImpl.class,

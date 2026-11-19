@@ -1,6 +1,7 @@
 package com.agricontract.contract.application.service;
 
 import com.agricontract.contract.application.port.ContractEventPublisher;
+import com.agricontract.contract.application.port.TransactionRunner;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.activation.ActivationCancelRequest;
 import com.agricontract.contract.domain.model.activation.ActivationRecovery;
@@ -10,8 +11,6 @@ import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,11 +29,13 @@ public class ActivationRefundStarter {
 
     private final ContractRepository contracts;
     private final ContractEventPublisher events;
+    private final TransactionRunner transactions;
 
     /** True when the refund started now. */
-    @Transactional(propagation = Propagation.MANDATORY)
+    /** Only inside the caller's transaction, which holds the contract row lock. */
     public boolean startIfDue(Contract contract, ActivationRecovery recovery, List<ActivationCancelRequest> standing,
                               Instant now) {
+        transactions.requireTransaction();
         if (contract.getStatus() != ContractStatus.SIGNED || standing.isEmpty()) {
             return false;
         }

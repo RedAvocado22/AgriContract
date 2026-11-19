@@ -1,5 +1,6 @@
 package com.agricontract.contract.application.usecase;
 
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,7 +50,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({UpdateContractTermsUseCase.class, JdbcIdempotencyStore.class, ContractRepositoryImpl.class, JdbcSignatureRepository.class,
+@Import({SpringTransactionRunner.class, UpdateContractTermsUseCase.class, JdbcIdempotencyStore.class, ContractRepositoryImpl.class, JdbcSignatureRepository.class,
         ContractMapper.class, JcsTermsCanonicalizer.class, ContractTermsConfiguration.class})
 @Testcontainers
 class UpdateContractTermsIntegrationTest {

@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.consent;
 
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +34,6 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -46,7 +46,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({SigningConsentRecorder.class, JdbcConsentEvidenceRepository.class, ConsentConfiguration.class,
+@Import({SpringTransactionRunner.class, SigningConsentRecorder.class, JdbcConsentEvidenceRepository.class, ConsentConfiguration.class,
         JcsTermsCanonicalizer.class, ContractTermsConfiguration.class})
 @Testcontainers
 class SigningConsentPersistenceIntegrationTest {
@@ -148,7 +148,8 @@ class SigningConsentPersistenceIntegrationTest {
 
         assertThatThrownBy(() -> recorder.record(contract, BUYER, SignerRole.BUYER, "1.0",
                 contract.getCoffeeTerms().signedContentHash(), null))
-                .isInstanceOf(IllegalTransactionStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("caller's transaction");
     }
 
     private Contract offered() {

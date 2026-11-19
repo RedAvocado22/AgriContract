@@ -55,8 +55,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionTemplate;
+import com.agricontract.contract.application.port.DirectTransactionRunner;
 
 /** #232 create ordering: validate → read → reserve → local transaction, with compensation after the reserve. */
 class CreateContractUseCaseTest {
@@ -72,14 +71,11 @@ class CreateContractUseCaseTest {
     private final ListingPort listings = mock(ListingPort.class);
     private final UserPort users = mock(UserPort.class);
     private final ContractEventPublisher events = mock(ContractEventPublisher.class);
-    private final TransactionTemplate tx = mock(TransactionTemplate.class);
+    private final DirectTransactionRunner tx = new DirectTransactionRunner();
     private CreateContractUseCase useCase;
 
     @BeforeEach
-    @SuppressWarnings("unchecked")
     void setUp() {
-        when(tx.execute(any())).thenAnswer(call -> ((TransactionCallback<Object>) call.getArgument(0))
-                .doInTransaction(null));
         useCase = new CreateContractUseCase(contracts, idempotency, listings, users,
                 new ReservationCompensation(listings, 3, 0),
                 new SignerEligibility(users, Clock.fixed(NOW, ZoneOffset.UTC), 300), events,

@@ -9,7 +9,7 @@ import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
+import com.agricontract.contract.application.port.TransactionRunner;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -31,7 +31,7 @@ public class StartDueOneSidedCancelsUseCase {
     private final ActivationRecoveryRepository recoveries;
     private final ContractRepository contracts;
     private final ActivationRefundStarter refundStarter;
-    private final TransactionTemplate tx;
+    private final TransactionRunner transactions;
     private final Clock clock;
 
     /** Returns how many refunds started. */
@@ -40,7 +40,7 @@ public class StartDueOneSidedCancelsUseCase {
         List<String> due = requests.findContractsWithOneSidedCancelDue(now, BATCH);
         int started = 0;
         for (String contractId : due) {
-            Boolean result = tx.execute(status -> {
+            Boolean result = transactions.inTransaction(() -> {
                 Contract contract = contracts.findByIdForUpdate(new ContractId(contractId)).orElse(null);
                 if (contract == null) {
                     return false;
