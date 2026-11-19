@@ -196,6 +196,30 @@ describe('Level 1.5 waiting email on real MySQL and MailHog', () => {
     );
   });
 
+  // #493 (D57): the dispute ended while the request was still waiting.
+  it('delivers CANCELLED with its own template', async () => {
+    const { address, useCase } = operator('b55');
+    const cancelled = command('b55', waitingPayload({ stage: 'CANCELLED' }));
+
+    await useCase.execute(cancelled);
+
+    expect(await rowsOf(cancelled.eventId)).toMatchObject([
+      {
+        recipient_email: address,
+        notification_type: 'LEVEL1_5_WAITING_CANCELLED',
+        template_version: 'level1-5-waiting-cancelled/v1',
+        status: 'SENT',
+      },
+    ]);
+    const mails = await mailsContaining(address);
+    mailIds.push(...mails.map((m) => m.ID));
+    expect(mails).toHaveLength(1);
+    expect(mails[0].Content.Headers.Subject[0]).toBe(
+      '[AgriContract] A waiting Level 1.5 inspection was cancelled',
+    );
+    expect(mails[0].Content.Body).toContain('No inspector will be assigned.');
+  });
+
   it('a replay of the same eventId sends no second copy', async () => {
     const { address, useCase } = operator('b53');
     const reminder = command('b53', waitingPayload({ stage: 'STILL_WAITING' }));
