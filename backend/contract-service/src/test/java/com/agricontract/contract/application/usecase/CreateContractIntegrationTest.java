@@ -17,6 +17,7 @@ import com.agricontract.contract.application.dto.CreateContractCommand;
 import com.agricontract.contract.application.dto.ListingReservation;
 import com.agricontract.contract.application.dto.ListingResponse;
 import com.agricontract.contract.application.dto.UserInfo;
+import com.agricontract.contract.application.exception.ListingDataInvalidException;
 import com.agricontract.contract.application.port.ListingPort;
 import com.agricontract.contract.application.port.UserPort;
 import com.agricontract.contract.application.service.ReservationCompensation;
@@ -164,6 +165,41 @@ class CreateContractIntegrationTest {
 
         assertThatThrownBy(() -> useCase.execute(command(key))).isInstanceOf(ContractConflictException.class);
 
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM idempotency_record WHERE idempotency_key = ?",
+                Integer.class, key.toString())).isZero();
+    }
+
+    @Test
+    void unreadableSnapshot_nothingReservedNothingStored() {
+        when(listings.contractSnapshot(LISTING, TOKEN)).thenThrow(new ListingDataInvalidException("bad", null));
+        UUID key = UUID.randomUUID();
+        int offersBefore = offers();
+
+        assertThatThrownBy(() -> useCase.execute(command(key))).isInstanceOf(ListingDataInvalidException.class);
+
+        verify(listings, never()).reserve(anyString(), anyString(), any(), anyString());
+        assertNothingStored(key, offersBefore);
+    }
+
+    @Test
+    void unreadableReservationAnswer_givesTheReservationBack_andStoresNothing() {
+        when(listings.reserve(anyString(), eq(LISTING), any(), eq(TOKEN)))
+                .thenThrow(new ListingDataInvalidException("bad", null));
+        UUID key = UUID.randomUUID();
+        int offersBefore = offers();
+
+        assertThatThrownBy(() -> useCase.execute(command(key))).isInstanceOf(ListingDataInvalidException.class);
+
+        verify(listings).releaseReservation(anyString(), eq(LISTING), eq(TOTAL));
+        assertNothingStored(key, offersBefore);
+    }
+
+    private int offers() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM contracts WHERE buyer_id = ?", Integer.class, BUYER);
+    }
+
+    private void assertNothingStored(UUID key, int offersBefore) {
+        assertThat(offers()).isEqualTo(offersBefore);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM idempotency_record WHERE idempotency_key = ?",
                 Integer.class, key.toString())).isZero();
     }
