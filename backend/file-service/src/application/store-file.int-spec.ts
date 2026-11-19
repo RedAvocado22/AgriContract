@@ -66,10 +66,12 @@ describe('StoreFileUseCase on SeaweedFS and MySQL', () => {
     return (res.Contents ?? []).map((o) => o.Key!);
   };
 
+  /** Set once the bucket exists, so afterAll only cleans up what beforeAll made. */
+  let bucketCreated = false;
+
   beforeAll(async () => {
-    client = createS3Client(config.storage);
-    storage = new S3ObjectStorage(client, bucket);
-    await expect(storage.ensureBucket()).resolves.toBe('CREATED');
+    // Pool and client first: neither connects until used, so afterAll can
+    // always close them, even when the storage below is not reachable.
     pool = createPool({
       host: config.db.host,
       port: config.db.port,
@@ -78,23 +80,34 @@ describe('StoreFileUseCase on SeaweedFS and MySQL', () => {
       password: config.db.password,
       timezone: 'Z',
     });
+    client = createS3Client(config.storage);
+    storage = new S3ObjectStorage(client, bucket);
     useCase = new StoreFileUseCase(
       storage,
       new FileMysqlRepository(pool),
       logger,
     );
+    await expect(storage.ensureBucket()).resolves.toBe('CREATED');
+    bucketCreated = true;
   });
 
   afterAll(async () => {
-    if (fileIds.length > 0) {
-      await pool.query('DELETE FROM file WHERE file_id IN (?)', [fileIds]);
+    try {
+      if (fileIds.length > 0) {
+        await pool.query('DELETE FROM file WHERE file_id IN (?)', [fileIds]);
+      }
+      if (bucketCreated) {
+        for (const key of await keys()) {
+          await client.send(
+            new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+          );
+        }
+        await client.send(new DeleteBucketCommand({ Bucket: bucket }));
+      }
+    } finally {
+      await pool.end(); // always, or Jest never exits
+      client.destroy();
     }
-    await pool.end();
-    for (const key of await keys()) {
-      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-    }
-    await client.send(new DeleteBucketCommand({ Bucket: bucket }));
-    client.destroy();
   });
 
   it('ensureBucket is idempotent', async () => {
