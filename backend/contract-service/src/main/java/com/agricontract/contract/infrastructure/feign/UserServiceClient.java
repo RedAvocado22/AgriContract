@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "user-service", url = "${user-service.url}", configuration = FeignConfig.class)
 public interface UserServiceClient {
 
-    // Service-to-service read (getInternalUserInfo): bare body, not ApiResponse-wrapped. The public
+    // Service-to-service read (getInternalUserInfo): bare body, not wrapped. The public
     // /api/v1/users/{userId} carries no email and requires an end-user principal.
     @GetMapping("/internal/v1/users/{userId}")
     UserInfo getUser(@PathVariable("userId") String userId);

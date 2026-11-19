@@ -19,17 +19,17 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
   test("should return paginated response", function() {
-    const data = res.getBody().data;
+    const data = res.getBody();
     expect(data).to.have.property("content");
     expect(data).to.have.property("totalElements");
   });
   test("all returned contracts should have status ACTIVE", function() {
-    const contracts = res.getBody().data.content;
+    const contracts = res.getBody().content;
     contracts.forEach(c => {
       expect(c.status).to.equal("ACTIVE");
     });
   });
   test("should have at least one contract", function() {
-    expect(res.getBody().data.totalElements).to.be.above(0);
+    expect(res.getBody().totalElements).to.be.above(0);
   });
 }

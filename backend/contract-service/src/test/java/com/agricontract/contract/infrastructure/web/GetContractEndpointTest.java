@@ -79,14 +79,14 @@ class GetContractEndpointTest {
     }
 
     @Test
-    void phaseOneRowWithoutCoffeeTermsKeepsItsWrappedBody() throws Exception {
+    void phaseOneRowWithoutCoffeeTermsAnswersItsOldBodyUnwrapped() throws Exception {
         when(useCase.execute(anyString(), anyString(), anyBoolean()))
                 .thenReturn(new ContractDetail(null, legacyResponse()));
 
         mvc.perform(get("/api/v1/contracts/{id}", "seed-ctr-offered").principal(buyer()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.contractId").value("seed-ctr-offered"))
+                .andExpect(jsonPath("$.success").doesNotExist())
+                .andExpect(jsonPath("$.contractId").value("seed-ctr-offered"))
                 .andExpect(jsonPath("$.signedContentHash").doesNotExist());
     }
 
