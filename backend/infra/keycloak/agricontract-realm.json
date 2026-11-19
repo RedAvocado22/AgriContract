@@ -573,6 +573,21 @@
     "realmRoles" : [ "default-roles-agricontract", "ARBITRATOR" ],
     "notBefore" : 0,
     "groups" : [ ]
+  }, {
+    "username" : "service-account-user-service",
+    "enabled" : true,
+    "totp" : false,
+    "emailVerified" : false,
+    "serviceAccountClientId" : "user-service",
+    "credentials" : [ ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-agricontract" ],
+    "clientRoles" : {
+      "realm-management" : [ "view-users", "manage-users" ]
+    },
+    "notBefore" : 0,
+    "groups" : [ ]
   } ],
   "scopeMappings" : [ {
     "clientScope" : "offline_access",
@@ -679,6 +694,31 @@
     "nodeReRegistrationTimeout" : 0,
     "defaultClientScopes" : [ "web-origins", "acr", "roles", "profile", "email" ],
     "optionalClientScopes" : [ "address", "phone", "offline_access", "microprofile-jwt" ]
+  }, {
+    "clientId" : "user-service",
+    "name" : "user-service",
+    "description" : "Service account of user-service: marks emails verified and deletes unverified accounts (D59)",
+    "enabled" : true,
+    "clientAuthenticatorType" : "client-secret",
+    "secret" : "${KEYCLOAK_USER_SERVICE_SECRET}",
+    "redirectUris" : [ ],
+    "webOrigins" : [ ],
+    "bearerOnly" : false,
+    "consentRequired" : false,
+    "standardFlowEnabled" : false,
+    "implicitFlowEnabled" : false,
+    "directAccessGrantsEnabled" : false,
+    "serviceAccountsEnabled" : true,
+    "publicClient" : false,
+    "frontchannelLogout" : false,
+    "protocol" : "openid-connect",
+    "attributes" : {
+      "oauth2.device.authorization.grant.enabled" : "false",
+      "oidc.ciba.grant.enabled" : "false"
+    },
+    "fullScopeAllowed" : true,
+    "defaultClientScopes" : [ "roles" ],
+    "optionalClientScopes" : [ ]
   }, {
     "id" : "9e333275-6a27-438f-80ea-ed45674db4d5",
     "clientId" : "agricontract-frontend",
