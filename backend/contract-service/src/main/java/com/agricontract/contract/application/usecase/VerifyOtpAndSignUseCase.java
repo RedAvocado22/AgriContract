@@ -24,7 +24,7 @@ import com.agricontract.contract.domain.repository.SignatureRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
+import com.agricontract.contract.application.port.TransactionRunner;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -62,7 +62,7 @@ public class VerifyOtpAndSignUseCase {
     private final ContractEventPublisher events;
     private final OtpCodes otpCodes;
     private final OtpPolicy policy;
-    private final TransactionTemplate tx;
+    private final TransactionRunner transactions;
     private final Clock clock;
 
     public void execute(VerifySignCommand command) {
@@ -75,7 +75,7 @@ public class VerifyOtpAndSignUseCase {
         eligibility.requireCounterpartyEligible(role == SignerRole.BUYER ? contract.getSellerId()
                 : contract.getBuyerId());
 
-        RuntimeException refusal = tx.execute(status -> verifyAndSign(command, role));
+        RuntimeException refusal = transactions.inTransaction(() -> verifyAndSign(command, role));
         if (refusal != null) {
             throw refusal;
         }

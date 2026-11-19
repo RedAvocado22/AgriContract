@@ -1,5 +1,6 @@
 package com.agricontract.contract.application.usecase;
 
+import com.agricontract.contract.application.port.TransactionRunner;
 import com.agricontract.contract.application.dto.CoffeeContractView;
 import com.agricontract.contract.application.dto.UpdateContractTermsCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
@@ -18,7 +19,6 @@ import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * PATCH /api/v1/contracts/{id}/terms (#93). The idempotency claim, the new terms and the contract row commit in
@@ -35,9 +35,13 @@ public class UpdateContractTermsUseCase {
     private final TermsCanonicalizer canonicalizer;
     private final ContractTermsRules rules;
     private final ContractTemplateProfile currentTemplate;
+    private final TransactionRunner transactions;
 
-    @Transactional
     public CoffeeContractView execute(UpdateContractTermsCommand command) {
+        return transactions.inTransaction(() -> update(command));
+    }
+
+    private CoffeeContractView update(UpdateContractTermsCommand command) {
         String requestHash = CanonicalTerms.sha256(command.contractId() + "\n" + canonicalizer.canonicalInputJson(command.terms()));
         IdempotencyStore.Outcome outcome = idempotencyStore.claim(command.actorId(), OPERATION,
                 command.idempotencyKey(), requestHash);

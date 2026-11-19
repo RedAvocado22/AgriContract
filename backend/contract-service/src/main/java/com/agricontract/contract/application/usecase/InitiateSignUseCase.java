@@ -25,7 +25,7 @@ import com.agricontract.contract.domain.repository.OtpChallengeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
+import com.agricontract.contract.application.port.TransactionRunner;
 
 import java.time.Clock;
 import java.util.UUID;
@@ -56,14 +56,14 @@ public class InitiateSignUseCase {
     private final OtpChallengeRepository challenges;
     private final OtpPolicy policy;
     private final OtpEmailPort otpEmailPort;
-    private final TransactionTemplate tx;
+    private final TransactionRunner transactions;
     private final Clock clock;
 
     public SignChallengeView execute(InitiateSignCommand command) {
         eligibility.requireFreshLogin(command.authTime());
         UserInfo signer = eligibility.requireEligible(command.actorId());
 
-        Issued issued = tx.execute(status -> issueOrReplay(command));
+        Issued issued = transactions.inTransaction(() -> issueOrReplay(command));
         if (issued.replayed()) {
             return issued.view();
         }

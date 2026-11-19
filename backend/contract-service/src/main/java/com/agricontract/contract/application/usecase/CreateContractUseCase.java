@@ -28,7 +28,7 @@ import com.agricontract.contract.domain.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
+import com.agricontract.contract.application.port.TransactionRunner;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -71,7 +71,7 @@ public class CreateContractUseCase {
     private final TermsCanonicalizer canonicalizer;
     private final ContractTermsRules rules;
     private final ContractTemplateProfile currentTemplate;
-    private final TransactionTemplate tx;
+    private final TransactionRunner transactions;
     private final Clock clock;
 
     public Result execute(CreateContractCommand command) {
@@ -86,7 +86,7 @@ public class CreateContractUseCase {
         eligibility.requireMayOffer(buyer);
 
         // Fast path for a retry; a concurrent first request is caught by the claim in step 4.
-        Optional<IdempotencyStore.Outcome> seen = tx.execute(status -> idempotencyStore.lookup(command.buyerId(),
+        Optional<IdempotencyStore.Outcome> seen = transactions.inTransaction(() -> idempotencyStore.lookup(command.buyerId(),
                 OPERATION, command.idempotencyKey(), requestHash));
         if (seen.isPresent()) {
             return replay(command, seen.get());
@@ -133,7 +133,7 @@ public class CreateContractUseCase {
             Contract contract = Contract.offerCoffee(new ContractId(contractId), command.listingId(),
                     command.buyerId(), listing.sellerId(), buyer.organizationName(), seller.organizationName(),
                     buyer.email(), seller.email(), terms);
-            CoffeeContractView view = tx.execute(status -> persist(command, requestHash, contract, createdAt));
+            CoffeeContractView view = transactions.inTransaction(() -> persist(command, requestHash, contract, createdAt));
             log.info("Contract {} offered: buyer={} seller={} listing={} reserved={} kg", contractId,
                     command.buyerId(), listing.sellerId(), command.listingId(), requestedQuantity);
             return new Result(view, false);

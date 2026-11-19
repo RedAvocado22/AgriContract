@@ -1,5 +1,6 @@
 package com.agricontract.contract.infrastructure.otp;
 
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,7 +62,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
-@Import({OtpChallengeIssuer.class, JdbcOtpChallengeRepository.class, OtpConfiguration.class,
+@Import({SpringTransactionRunner.class, OtpChallengeIssuer.class, JdbcOtpChallengeRepository.class, OtpConfiguration.class,
         SigningConsentRecorder.class, JdbcConsentEvidenceRepository.class, ConsentConfiguration.class,
         ContractRepositoryImpl.class, JdbcSignatureRepository.class, ContractMapper.class, JcsTermsCanonicalizer.class,
         ContractTermsConfiguration.class})
@@ -176,6 +177,20 @@ class OtpChallengeIntegrationTest {
         assertThat(challenges.findById(issued.challenge().otpId()).orElseThrow()
                 .isUsable(Instant.now(), 5)).isFalse();
         assertThat(usable(contract, SELLER)).isZero();
+    }
+
+    /** Was @Transactional(MANDATORY): an OTP never commits on its own, without the consent and the kill. */
+    @Test
+    void issuingOutsideATransactionIsRefused() {
+        Contract contract = offered();
+        ConsentEvidence consent = tx.execute(s -> consents.record(contract, SELLER, SignerRole.SELLER, "1.0",
+                contract.getCoffeeTerms().signedContentHash(), null));
+
+        assertThatThrownBy(() -> issuer.issue(contract, consent, AUTH_TIME))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("caller's transaction");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM signature_otp WHERE contract_id = ?", Integer.class,
+                contract.getContractId().value())).isZero();
     }
 
     @Test
