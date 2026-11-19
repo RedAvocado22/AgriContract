@@ -19,7 +19,8 @@ interface OtpEmailRequestBase {
 
 /**
  * A code that confirms an action on a contract (contract-service): signing,
- * or a cancel request on a contract whose activation failed (D42).
+ * a cancel request on a contract whose activation failed (D42), or ending a
+ * milestone dispute by concession or agreed settlement (D57).
  */
 export interface ContractOtpEmailRequest extends OtpEmailRequestBase {
   /**
@@ -41,6 +42,8 @@ export type OtpEmailRequest = ContractOtpEmailRequest | VerifyEmailOtpRequest;
 export const CONTRACT_OTP_PURPOSES = [
   'SIGN_CONTRACT',
   'CANCEL_ACTIVATION',
+  'CONCEDE_DISPUTE',
+  'SETTLE_DISPUTE',
 ] as const;
 export type ContractOtpPurpose = (typeof CONTRACT_OTP_PURPOSES)[number];
 export const OTP_PURPOSES = [...CONTRACT_OTP_PURPOSES, 'VERIFY_EMAIL'] as const;
@@ -57,8 +60,9 @@ export const OTP_EMAIL_REQUIRED_FIELDS = [
 ] as const satisfies readonly (keyof OtpEmailRequestBase)[];
 
 /**
- * Required for the contract purposes (SIGN_CONTRACT, CANCEL_ACTIVATION or
- * purpose absent), and must be absent for VERIFY_EMAIL.
+ * Required for the contract purposes (SIGN_CONTRACT, CANCEL_ACTIVATION,
+ * CONCEDE_DISPUTE, SETTLE_DISPUTE or purpose absent), and must be absent for
+ * VERIFY_EMAIL.
  */
 export const OTP_EMAIL_CONTRACT_FIELDS = [
   'contractId',

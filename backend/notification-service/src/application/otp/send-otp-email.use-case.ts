@@ -51,17 +51,19 @@ export type OtpEmailResult = 'SENT' | 'ALREADY_SENT';
 /**
  * Sends an OTP email synchronously (design §2.2, §5): the signing code, the
  * code confirming a cancel request on a contract whose activation failed
- * (D42), or the code proving the email given at registration (#344, D45), as
+ * (D42), the codes ending a milestone dispute by concession or settlement
+ * (D57), or the code proving the email given at registration (#344, D45), as
  * `purpose` says.
  *
  * A call is claimed in notification_logs by (requestId, recipientEmail,
  * notification type of the purpose: CONTRACT_SIGNING_OTP,
- * ACTIVATION_CANCEL_OTP or VERIFY_EMAIL_OTP) before sending, so a repeated
- * call never sends twice. Since V2 (#115) the address is in recipient_email
- * (and still in user_id, as in every Phase 1 row and in Java), the caller's
- * platform id is in recipient_user_id, and template_version records which
- * template rendered the mail (otp-email/v1, otp-activation-cancel/v1 or
- * otp-verify-email/v1).
+ * ACTIVATION_CANCEL_OTP, CONCEDE_DISPUTE_OTP, SETTLE_DISPUTE_OTP or
+ * VERIFY_EMAIL_OTP) before sending, so a repeated call never sends twice.
+ * Since V2 (#115) the address is in recipient_email (and still in user_id, as
+ * in every Phase 1 row and in Java), the caller's platform id is in
+ * recipient_user_id, and template_version records which template rendered
+ * the mail (otp-email/v1, otp-activation-cancel/v1, otp-concede-dispute/v1,
+ * otp-settle-dispute/v1 or otp-verify-email/v1).
  * - no row, or the earlier call FAILED: send now (the caller asked again, so
  *   this is not a late background send);
  * - SENT: return ALREADY_SENT without sending;

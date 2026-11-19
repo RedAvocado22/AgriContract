@@ -13,10 +13,14 @@ import {
   ACTIVATION_CANCEL_OTP_KIND,
   ACTIVATION_CANCEL_OTP_LOG_BODY,
   ACTIVATION_CANCEL_OTP_SUBJECT,
+  CONCEDE_DISPUTE_OTP_LOG_BODY,
+  CONCEDE_DISPUTE_OTP_SUBJECT,
   OTP_EMAIL_KIND,
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_SUBJECT,
   OTP_EMAIL_TEMPLATE_VERSION,
+  SETTLE_DISPUTE_OTP_LOG_BODY,
+  SETTLE_DISPUTE_OTP_SUBJECT,
   VERIFY_EMAIL_OTP_KIND,
   VERIFY_EMAIL_OTP_LOG_BODY,
   VERIFY_EMAIL_OTP_SUBJECT,
@@ -108,6 +112,50 @@ describe('SendOtpEmailUseCase', () => {
       cancel.otpCode,
     );
   });
+
+  /* #493 (D57): the codes that end a milestone dispute. */
+  it.each([
+    [
+      'CONCEDE_DISPUTE',
+      CONCEDE_DISPUTE_OTP_SUBJECT,
+      CONCEDE_DISPUTE_OTP_LOG_BODY,
+      'CONCEDE_DISPUTE_OTP',
+      'otp-concede-dispute/v1',
+    ],
+    [
+      'SETTLE_DISPUTE',
+      SETTLE_DISPUTE_OTP_SUBJECT,
+      SETTLE_DISPUTE_OTP_LOG_BODY,
+      'SETTLE_DISPUTE_OTP',
+      'otp-settle-dispute/v1',
+    ],
+  ] as const)(
+    'sends a %s code with its own template and records it under its own type',
+    async (purpose, subject, logBody, notificationType, templateVersion) => {
+      const dispute = otpRequest({ purpose });
+
+      await expect(useCase.execute(dispute)).resolves.toBe('SENT');
+
+      expect(email.sent).toHaveLength(1);
+      expect(email.sent[0].subject).toBe(subject);
+      expect(email.sent[0].body).toContain(dispute.otpCode);
+      expect(email.sent[0].body).toContain(dispute.signedContentHash);
+      expect(logs.get(otpKey(dispute))).toMatchObject({
+        eventId: dispute.requestId,
+        eventType: 'notification.otp_email_requested',
+        notificationType,
+        status: NotificationStatus.SENT,
+        subject,
+        body: logBody,
+        templateVersion,
+      });
+      // Same requestId and address as the signing code: its own row.
+      expect(logs.get(otpKey(request))).toBeUndefined();
+      expect(JSON.stringify(logs.get(otpKey(dispute)))).not.toContain(
+        dispute.otpCode,
+      );
+    },
+  );
 
   it('sends a VERIFY_EMAIL code with its own template and records it under its own type', async () => {
     const verify = verifyEmailRequest();

@@ -4,8 +4,12 @@ import { CONTRACT_OTP_PURPOSES } from './otp-email-request';
 import {
   ACTIVATION_CANCEL_OTP_LOG_BODY,
   ACTIVATION_CANCEL_OTP_SUBJECT,
+  CONCEDE_DISPUTE_OTP_LOG_BODY,
+  CONCEDE_DISPUTE_OTP_SUBJECT,
   OTP_EMAIL_LOG_BODY,
   OTP_EMAIL_SUBJECT,
+  SETTLE_DISPUTE_OTP_LOG_BODY,
+  SETTLE_DISPUTE_OTP_SUBJECT,
   VERIFY_EMAIL_OTP_LOG_BODY,
   VERIFY_EMAIL_OTP_SUBJECT,
   renderOtpEmail,
@@ -98,6 +102,93 @@ describe('renderOtpEmail', () => {
         'otp-activation-cancel/v1',
       );
       expect(ACTIVATION_CANCEL_OTP_LOG_BODY).not.toMatch(/\d{6}/);
+    });
+  });
+
+  /*
+   * #493 (D57): the whole of otp-concede-dispute/v1 and otp-settle-dispute/v1,
+   * pinned so a later edit is a new version, not a silent change.
+   */
+  describe('purpose CONCEDE_DISPUTE', () => {
+    const concede = otpRequest({ purpose: 'CONCEDE_DISPUTE' });
+    const mail = renderOtpEmail(concede);
+
+    it('has its own subject, without the code', () => {
+      expect(mail.subject).toBe(CONCEDE_DISPUTE_OTP_SUBJECT);
+      expect(mail.subject).not.toContain(concede.otpCode);
+    });
+
+    it('renders otp-concede-dispute/v1 exactly', () => {
+      expect(mail.body).toBe(
+        [
+          "Use this one-time code to confirm that you accept the other party's",
+          'position in the dispute on a milestone of your AgriContract contract.',
+          '',
+          '482913',
+          '',
+          'Contract: ctr-otp-1',
+          'Expires: 2026-11-04 17:15:00 Vietnam time (2026-11-04T10:15:00.000Z UTC)',
+          '',
+          'Before you enter the code, check that the contract fingerprint',
+          '(SHA-256) shown on screen is:',
+          'a'.repeat(64),
+          '',
+          "Entering this code ends the dispute on the other party's position.",
+          'Nothing changes before you enter it.',
+          '',
+          'Do not share this code with anyone. AgriContract staff will never',
+          'ask for it. If you did not ask to concede this dispute, ignore this',
+          'email: nothing changes without the code.',
+        ].join('\n'),
+      );
+    });
+
+    it('stores its own placeholder body, which holds no code', () => {
+      expect(CONCEDE_DISPUTE_OTP_LOG_BODY).toContain('otp-concede-dispute/v1');
+      expect(CONCEDE_DISPUTE_OTP_LOG_BODY).not.toMatch(/\d{6}/);
+    });
+  });
+
+  describe('purpose SETTLE_DISPUTE', () => {
+    const settle = otpRequest({ purpose: 'SETTLE_DISPUTE' });
+    const mail = renderOtpEmail(settle);
+
+    it('has its own subject, without the code', () => {
+      expect(mail.subject).toBe(SETTLE_DISPUTE_OTP_SUBJECT);
+      expect(mail.subject).not.toBe(CONCEDE_DISPUTE_OTP_SUBJECT);
+      expect(mail.subject).not.toContain(settle.otpCode);
+    });
+
+    it('renders otp-settle-dispute/v1 exactly', () => {
+      expect(mail.body).toBe(
+        [
+          'Use this one-time code to confirm the settlement amount you proposed',
+          'or accepted in the dispute on a milestone of your AgriContract',
+          'contract.',
+          '',
+          '482913',
+          '',
+          'Contract: ctr-otp-1',
+          'Expires: 2026-11-04 17:15:00 Vietnam time (2026-11-04T10:15:00.000Z UTC)',
+          '',
+          'Before you enter the code, check that the contract fingerprint',
+          '(SHA-256) shown on screen is:',
+          'a'.repeat(64),
+          '',
+          'Nothing is recorded before you enter this code. A proposal then waits',
+          'for the other party; an acceptance ends the dispute on the agreed',
+          'amount.',
+          '',
+          'Do not share this code with anyone. AgriContract staff will never',
+          'ask for it. If you did not propose or accept a settlement, ignore',
+          'this email: nothing changes without the code.',
+        ].join('\n'),
+      );
+    });
+
+    it('stores its own placeholder body, which holds no code', () => {
+      expect(SETTLE_DISPUTE_OTP_LOG_BODY).toContain('otp-settle-dispute/v1');
+      expect(SETTLE_DISPUTE_OTP_LOG_BODY).not.toMatch(/\d{6}/);
     });
   });
 
