@@ -7,6 +7,7 @@ export const LEVEL15_WAITING_STAGES = [
   'WAITING_STARTED',
   'STILL_WAITING',
   'ASSIGNED',
+  'CANCELLED',
 ] as const;
 export type Level15WaitingStage = (typeof LEVEL15_WAITING_STAGES)[number];
 
@@ -19,7 +20,8 @@ export type Level15WaitingStage = (typeof LEVEL15_WAITING_STAGES)[number];
  *
  * One command per stage: WAITING_STARTED once when the wait begins,
  * STILL_WAITING at most once per business day while it lasts, ASSIGNED once
- * an inspector was found. `eventId` is the envelope's: the dedup key's event
+ * an inspector was found, CANCELLED once when the request was cancelled
+ * because the dispute ended while it was still waiting (D57). `eventId` is the envelope's: the dedup key's event
  * (design §5), so each stage is its own email.
  */
 export interface Level15AssignmentWaitingRequestedCommand {

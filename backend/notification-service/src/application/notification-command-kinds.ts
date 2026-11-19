@@ -73,4 +73,10 @@ export const COMMAND_KINDS = {
     notificationType: 'LEVEL1_5_ASSIGNED_AFTER_WAIT',
     templateVersion: 'level1-5-assigned-after-wait/v1',
   },
+  // Stage CANCELLED (D57): the dispute ended while the request was waiting.
+  level15WaitingCancelled: {
+    eventType: 'notification.level1_5_assignment_waiting_requested',
+    notificationType: 'LEVEL1_5_WAITING_CANCELLED',
+    templateVersion: 'level1-5-waiting-cancelled/v1',
+  },
 } as const satisfies Record<string, NotificationKind>;

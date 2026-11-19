@@ -13,7 +13,8 @@ import { vietnamTime } from '../vietnam-time';
  * §4, D49; inspection design §2.5). A Level 1.5 inspection request found no
  * inspector to assign: inspection-service keeps it waiting and retries on its
  * own, and tells the Operator when the wait starts, at most once per business
- * day while it lasts, and when an inspector was finally assigned.
+ * day while it lasts, and when it ends: an inspector was finally assigned, or
+ * the request was cancelled because the dispute ended first (D57).
  *
  * The command names no recipient: the email goes to `notification.operatorEmail`.
  * It names no inspector either, and neither does the email. What the Operator
@@ -27,6 +28,7 @@ const KINDS: Record<Level15WaitingStage, Kind> = {
   WAITING_STARTED: COMMAND_KINDS.level15WaitingStarted,
   STILL_WAITING: COMMAND_KINDS.level15StillWaiting,
   ASSIGNED: COMMAND_KINDS.level15AssignedAfterWait,
+  CANCELLED: COMMAND_KINDS.level15WaitingCancelled,
 };
 
 const SUBJECTS: Record<Level15WaitingStage, string> = {
@@ -36,6 +38,7 @@ const SUBJECTS: Record<Level15WaitingStage, string> = {
     '[AgriContract] A Level 1.5 inspection is still waiting for an inspector',
   ASSIGNED:
     '[AgriContract] A waiting Level 1.5 inspection now has an inspector',
+  CANCELLED: '[AgriContract] A waiting Level 1.5 inspection was cancelled',
 };
 
 const REASONS: Record<Level15WaitingReason, string[]> = {
@@ -86,8 +89,9 @@ const WHAT_TO_DO = [
 ];
 
 /**
- * The email text of the three templates: `level1-5-waiting-started/v1`,
- * `level1-5-still-waiting/v1` and `level1-5-assigned-after-wait/v1`. Changing
+ * The email text of the four templates: `level1-5-waiting-started/v1`,
+ * `level1-5-still-waiting/v1`, `level1-5-assigned-after-wait/v1` and
+ * `level1-5-waiting-cancelled/v1`. Changing
  * one is a new version of that template: rows already written name the text
  * they sent. Every line stays within 76 characters, so the email goes out
  * as 7bit and the instant reads unbroken.
@@ -135,6 +139,17 @@ export function level15AssignmentWaitingBody(
         '',
         'The report deadline counts from the assignment, not from the start',
         'of the wait.',
+        '',
+        ...details,
+      ];
+      break;
+    case 'CANCELLED':
+      lines = [
+        'A Level 1.5 inspection request that was waiting for an inspector has',
+        'been cancelled: the milestone dispute ended, by concession or by an',
+        'agreed settlement, before an inspector could be assigned.',
+        '',
+        'No inspector will be assigned. Nothing more is needed from you.',
         '',
         ...details,
       ];
