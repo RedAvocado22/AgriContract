@@ -5,9 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import com.agricontract.contract.domain.repository.PageQuery;
 
 @Data
 @NoArgsConstructor
@@ -25,14 +23,10 @@ public abstract class PaginatedRequest {
             message = "Sort direction must be ASC or DESC")
     private String sortDirection = "ASC";
 
-    public Pageable toPageable() {
+    public PageQuery toPageQuery() {
         int p = page != null ? page : 0;
         int s = size != null ? size : 20;
-        if (sortBy != null && !sortBy.isBlank()) {
-            Sort.Direction dir = "DESC".equalsIgnoreCase(sortDirection)
-                    ? Sort.Direction.DESC : Sort.Direction.ASC;
-            return PageRequest.of(p, s, Sort.by(dir, sortBy));
-        }
-        return PageRequest.of(p, s);
+        String sort = sortBy != null && !sortBy.isBlank() ? sortBy : null;
+        return new PageQuery(p, s, sort, sort != null && "DESC".equalsIgnoreCase(sortDirection));
     }
 }

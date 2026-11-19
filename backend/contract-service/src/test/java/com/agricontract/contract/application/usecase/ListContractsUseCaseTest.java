@@ -10,8 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import com.agricontract.contract.domain.repository.PageQuery;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,7 +35,7 @@ class ListContractsUseCaseTest {
             "Grade A"
     );
 
-    private static final Pageable PAGE = PageRequest.of(0, 20);
+    private static final PageQuery PAGE = PageQuery.of(0, 20);
 
     @BeforeEach
     void setUp() {
@@ -138,7 +137,7 @@ class ListContractsUseCaseTest {
 
     @Test
     void pagingMetadata_isCorrect() {
-        Pageable page2 = PageRequest.of(1, 10);
+        PageQuery page2 = PageQuery.of(1, 10);
         List<Contract> contracts = List.of(contractFor("c-11", "buyer-1", "seller-1"));
         when(contractRepository.findByBuyerId("buyer-1", null, page2)).thenReturn(contracts);
         when(contractRepository.countByBuyerId("buyer-1", null)).thenReturn(11L);
