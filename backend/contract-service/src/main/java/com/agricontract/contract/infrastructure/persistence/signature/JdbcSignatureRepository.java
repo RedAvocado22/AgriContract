@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.UUID;
 
@@ -57,5 +58,10 @@ public class JdbcSignatureRepository implements SignatureRepository {
     @Override
     public List<Signature> findByContractId(String contractId) {
         return jdbc.query("SELECT * FROM signature WHERE contract_id = ? ORDER BY signed_at", ROW, contractId);
+    }
+
+    @Override
+    public Optional<Signature> findByOtpId(UUID otpId) {
+        return jdbc.query("SELECT * FROM signature WHERE otp_id = ?", ROW, otpId.toString()).stream().findFirst();
     }
 }
