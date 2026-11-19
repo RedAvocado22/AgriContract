@@ -261,9 +261,10 @@ class VerifySignIntegrationTest {
         verify.execute(command(BUYER, key, buyer, buyer.code(), Instant.now()));
 
         verify.execute(command(BUYER, key, buyer, buyer.code(), Instant.now()));
-        assertThatThrownBy(() -> verify.execute(command(BUYER, UUID.randomUUID(), buyer, buyer.code(),
-                Instant.now()))).extracting("code").isEqualTo(OtpChallenge.OTP_USED);
+        // #432: the same code with a new key (the app lost the old one) answers "signed" too, and writes nothing.
+        verify.execute(command(BUYER, UUID.randomUUID(), buyer, buyer.code(), Instant.now()));
 
+        assertThat(signatures.findByContractId(id())).hasSize(2);
         assertThat(signedEvents()).hasSize(1);
         assertThat(outboxRows("notification.contract_anchor_requested")).hasSize(1);
     }
@@ -293,13 +294,55 @@ class VerifySignIntegrationTest {
                 .isInstanceOf(IdempotencyKeyReusedException.class);
     }
 
+    /** #432: signed, lost the 204 and the key; the same right code with a new key answers "signed" again. */
     @Test
-    void usedCodeWithANewKey_isRefused() {
+    void usedCodeWithANewKey_rightCode_answersSigned_andWritesNothing() {
+        Code seller = codeFor(SELLER, SignerRole.SELLER);
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+        UUID newKey = UUID.randomUUID();
+
+        verify.execute(command(SELLER, newKey, seller, seller.code(), Instant.now()));
+        // The new key is now claimed: retrying with it is a plain replay.
+        verify.execute(command(SELLER, newKey, seller, seller.code(), Instant.now()));
+
+        assertThat(signatures.findByContractId(id())).hasSize(1);
+        assertThat(signedEvents()).isEmpty();
+        assertThat(challenges.findById(seller.otpId()).orElseThrow().attemptCount()).isZero();
+    }
+
+    @Test
+    void usedCodeWithANewKey_wrongCode_isUsed_withoutCountingAnAttempt() {
         Code seller = codeFor(SELLER, SignerRole.SELLER);
         verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
 
-        assertThatThrownBy(() -> verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(),
+        assertThatThrownBy(() -> verify.execute(command(SELLER, UUID.randomUUID(), seller, wrong(seller),
                 Instant.now()))).extracting("code").isEqualTo(OtpChallenge.OTP_USED);
+        assertThat(challenges.findById(seller.otpId()).orElseThrow().attemptCount()).isZero();
+    }
+
+    @Test
+    void usedCodeWithANewKey_byTheOtherParty_isStillForbidden() {
+        Code seller = codeFor(SELLER, SignerRole.SELLER);
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+
+        assertThatThrownBy(() -> verify.execute(command(BUYER, UUID.randomUUID(), seller, seller.code(),
+                Instant.now()))).isInstanceOf(UnauthorizedContractAccessException.class);
+        assertThat(signatures.findByContractId(id())).hasSize(1);
+    }
+
+    /** D58: the offer was withdrawn after the first signature; the replay still answers what the verify did. */
+    @Test
+    void usedCodeWithANewKey_afterTheOfferWasWithdrawn_stillAnswersSigned() {
+        Code seller = codeFor(SELLER, SignerRole.SELLER);
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+        Contract signedOnce = contracts.findById(contract.getContractId()).orElseThrow();
+        signedOnce.withdraw(BUYER);
+        contracts.save(signedOnce);
+
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+
+        assertThat(status()).isEqualTo(ContractStatus.WITHDRAWN);
+        assertThat(signatures.findByContractId(id())).hasSize(1);
     }
 
     @Test
