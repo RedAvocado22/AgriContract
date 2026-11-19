@@ -1388,6 +1388,56 @@ $defs:
           needed and never selects the inspector; inspection-service picks one
           uniformly at random from currently eligible INSPECTOR accounts. A request
           for a milestone that already has an active assignment is a no-op.
+  inspectionLevel15Assigned:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: inspection.level1_5_assigned}
+          producer: {const: inspection-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, commissionId, assignedAt, freeCancelUntil, reportDueAt]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              commissionId: {$ref: "#/$defs/uuid"}
+              assignedAt: {type: string, format: date-time}
+              freeCancelUntil: {type: string, format: date-time}
+              reportDueAt: {type: string, format: date-time}
+        x-publisher: inspection-service
+        x-consumers: [contract-service]
+        x-source: inspection-phase2-design.md section 2.5; milestone-escrow-phase2-design.md section 3.4 (D57)
+        x-contract-note: >-
+          Written through the outbox in the transaction that creates each assignment (first pick,
+          re-pick after overdue, or retry from the waiting row). freeCancelUntil = assignedAt + the
+          configured free cancellation hours; contract-service uses it to allocate the inspection fee
+          when a dispute ends before the report. Carries no inspector identity.
+  inspectionLevel15Cancelled:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: inspection.level1_5_cancelled}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, reason, cancelledAt]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              reason: {enum: [DISPUTE_CONCEDED, DISPUTE_SETTLED]}
+              cancelledAt: {type: string, format: date-time}
+        x-publisher: contract-service
+        x-consumers: [inspection-service]
+        x-source: milestone-escrow-phase2-design.md section 3.4; inspection-phase2-design.md section 2.5 (D57)
+        x-contract-note: >-
+          Command event via outbox, in the transaction where the milestone dispute ends by concession
+          or agreed settlement while a Level 1.5 request is pending. Routed to the same inspection-service
+          queue as inspection.level1_5_requested. inspection-service deletes the waiting row or ends the
+          active assignment at cancelledAt; with nothing open it is a no-op.
   inspectionLevel2Commissioned:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -1461,6 +1511,8 @@ oneOf:
   - $ref: "#/$defs/milestoneLevel2TerminalSettled"
   - $ref: "#/$defs/milestonePriceAdjusted"
   - $ref: "#/$defs/inspectionReportConfirmed"
+  - $ref: "#/$defs/inspectionLevel15Assigned"
+  - $ref: "#/$defs/inspectionLevel15Cancelled"
   - $ref: "#/$defs/milestoneSellerWeighed"
   - $ref: "#/$defs/milestoneBuyerConfirmed"
   - $ref: "#/$defs/milestoneFlagged"

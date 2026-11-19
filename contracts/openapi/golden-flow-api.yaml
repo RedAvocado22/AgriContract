@@ -440,6 +440,127 @@ paths:
         - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ForceMajeureResolveRequest'}}}}
       responses: {'204': {description: ARBITRATOR decision recorded and milestone.force_majeure_resolved published.}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/concede/initiate:
+    x-service-owner: contract-service
+    post:
+      operationId: initiateDisputeConcession
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        A party accepts the other party's position in an open milestone dispute (D57, milestone-escrow design
+        section 3.4). Allowed while the dispute is open and no final decision is recorded, for disputes a party
+        caused (not mandatory inspection, not the Level 2 buffer fallback). High-risk consent: checkbox statement
+        CONCEDE_DISPUTE bound to the current signedContentHash, a fresh login (auth_time within 300 s) and an emailed
+        OTP with purpose CONCEDE_DISPUTE. Nothing changes until /dispute/concede/verify.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/InitiateDisputeConcessionRequest'}}}}
+      responses:
+        '200':
+          description: OTP email accepted by notification-service; nothing is recorded yet.
+          content: {application/json: {schema: {$ref: '#/components/schemas/InitiateSignResponse'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/concede/verify:
+    x-service-owner: contract-service
+    post:
+      operationId: verifyDisputeConcession
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Checks the CONCEDE_DISPUTE OTP and ends the dispute on the other party's position, in one transaction:
+        AttributionDecision (decisionSource MUTUAL, finalBreachingRole and breachReasonCode of the accepted position),
+        RemedyDecision (inspection fee on the conceding party when an inspector was assigned and its freeCancelUntil
+        has passed), remedy.finalized, milestone.dispute_resolved for a buyer flag, and inspection.level1_5_cancelled
+        when a Level 1.5 request is pending. Any open settlement proposal lapses.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VerifyOtpAndSignRequest'}}}}
+      responses:
+        '204': {description: Dispute ended on the other party's position.}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/settlement/initiate:
+    x-service-owner: contract-service
+    post:
+      operationId: initiateDisputeSettlement
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Proposes, or accepts, an agreed seller entitlement for the disputed milestone (D57, milestone-escrow design
+        section 3.4). With no open proposal the caller proposes; with an open proposal from the other party the
+        caller accepts and must send exactly the proposed amount (409 otherwise). The amount must lie between the
+        buyer's and the seller's positions computed by contract-service, both ends included (400 otherwise).
+        At most one open proposal per milestone; the proposer cannot accept its own proposal (409). High-risk
+        consent: checkbox statement SETTLE_DISPUTE bound to the current signedContentHash, fresh login and an
+        emailed OTP with purpose SETTLE_DISPUTE. Nothing changes until /dispute/settlement/verify.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/InitiateDisputeSettlementRequest'}}}}
+      responses:
+        '200':
+          description: OTP email accepted by notification-service; nothing is recorded yet.
+          content: {application/json: {schema: {$ref: '#/components/schemas/InitiateSignResponse'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/settlement/verify:
+    x-service-owner: contract-service
+    post:
+      operationId: verifyDisputeSettlement
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Checks the SETTLE_DISPUTE OTP. For a proposal it records the open proposal and notifies the other party;
+        the inspection keeps running. For an acceptance it ends the dispute in one transaction: AttributionDecision
+        (decisionSource MUTUAL, no fault), RemedyDecision (inspection fee on the party that requested the
+        inspection when an inspector was assigned and its freeCancelUntil has passed), remedy.finalized, and
+        inspection.level1_5_cancelled when a Level 1.5 request is pending. No milestone.dispute_resolved.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VerifyOtpAndSignRequest'}}}}
+      responses:
+        '204': {description: 'Proposal recorded, or dispute ended on the agreed amount.'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/contracts/{contractId}/milestones/{milestoneId}/dispute/settlement:
+    x-service-owner: contract-service
+    delete:
+      operationId: withdrawDisputeSettlement
+      x-roles: [BUYER, SELLER]
+      x-domain-ownership-check: true
+      description: >-
+        Ends the open settlement proposal: the proposer withdraws it or the other party refuses it. The dispute and
+        any inspection continue. No open proposal: 409.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: contractId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: milestoneId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204': {description: Open proposal ended.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
   /api/v1/contracts/{contractId}/milestones/{milestoneId}/funding/retry:
     x-service-owner: escrow-service
     post:
@@ -1383,7 +1504,7 @@ components:
       required: [requestId, recipientUserId, recipientEmail, otpCode, expiresAt]
       description: >-
         contractId and signedContentHash are required for the contract purposes (SIGN_CONTRACT, CANCEL_ACTIVATION,
-        or purpose absent) and must be absent for VERIFY_EMAIL (#344).
+        CONCEDE_DISPUTE, SETTLE_DISPUTE, or purpose absent) and must be absent for VERIFY_EMAIL (#344).
       properties:
         requestId: {type: string}
         recipientUserId: {type: string}
@@ -1392,7 +1513,7 @@ components:
         otpCode: {type: string, pattern: '^[0-9]{6}$'}
         signedContentHash: {type: string, pattern: '^[a-f0-9]{64}$'}
         expiresAt: {type: string, format: date-time, description: UTC OTP expiry instant derived from the owner service system timestamp.}
-        purpose: {enum: [SIGN_CONTRACT, CANCEL_ACTIVATION, VERIFY_EMAIL], default: SIGN_CONTRACT, description: 'Which action the code confirms; selects the email template. Absent means SIGN_CONTRACT. VERIFY_EMAIL (#344) is sent by user-service to prove the register email.'}
+        purpose: {enum: [SIGN_CONTRACT, CANCEL_ACTIVATION, VERIFY_EMAIL, CONCEDE_DISPUTE, SETTLE_DISPUTE], default: SIGN_CONTRACT, description: 'Which action the code confirms; selects the email template. Absent means SIGN_CONTRACT. VERIFY_EMAIL (#344) is sent by user-service to prove the register email. CONCEDE_DISPUTE and SETTLE_DISPUTE (D57) confirm ending a milestone dispute.'}
       if:
         required: [purpose]
         properties: {purpose: {const: VERIFY_EMAIL}}
@@ -1429,6 +1550,21 @@ components:
       properties:
         requesterRole: {enum: [BUYER, SELLER]}
         consentStatementVersion: {type: string, minLength: 1, description: Active server-owned CANCEL_ACTIVATION checkbox statement version displayed to the party.}
+        presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: signedContentHash displayed to the party; must equal the contract's.}
+      additionalProperties: false
+    InitiateDisputeConcessionRequest:
+      type: object
+      required: [consentStatementVersion, presentedContentHash]
+      properties:
+        consentStatementVersion: {type: string, minLength: 1, description: Active server-owned CONCEDE_DISPUTE checkbox statement version displayed to the party, stating the accepted amount and its consequences.}
+        presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: signedContentHash displayed to the party; must equal the contract's.}
+      additionalProperties: false
+    InitiateDisputeSettlementRequest:
+      type: object
+      required: [agreedSellerEntitlementAmount, consentStatementVersion, presentedContentHash]
+      properties:
+        agreedSellerEntitlementAmount: {type: string, pattern: '^[0-9]+\.[0-9]{2}$', maxLength: 19, description: 'Seller entitlement for the milestone in VND; the rest of the locked batch amount is refunded to the buyer. Must lie within [buyer position, seller position].'}
+        consentStatementVersion: {type: string, minLength: 1, description: Active server-owned SETTLE_DISPUTE checkbox statement version displayed to the party.}
         presentedContentHash: {type: string, pattern: '^[a-f0-9]{64}$', description: signedContentHash displayed to the party; must equal the contract's.}
       additionalProperties: false
     VerifyOtpAndSignRequest:
