@@ -1,11 +1,11 @@
 meta {
-  name: 32. List Contracts (seller, filter by status=ACTIVE)
+  name: 32. List Contracts (seller, filter by status=OFFERED)
   type: http
   seq: 32
 }
 
 get {
-  url: {{base_url}}/api/v1/contracts?role=SELLER&status=ACTIVE&page=0&size=10
+  url: {{base_url}}/api/v1/contracts?role=SELLER&status=OFFERED&page=0&size=10
   body: none
   auth: bearer
 }
@@ -23,10 +23,10 @@ tests {
     expect(data).to.have.property("content");
     expect(data).to.have.property("totalElements");
   });
-  test("all returned contracts should have status ACTIVE", function() {
+  test("all returned contracts should have status OFFERED", function() {
     const contracts = res.getBody().content;
     contracts.forEach(c => {
-      expect(c.status).to.equal("ACTIVE");
+      expect(c.status).to.equal("OFFERED");
     });
   });
   test("should have at least one contract", function() {
