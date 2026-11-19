@@ -46,6 +46,11 @@ export {
   type Level15WaitingReason,
   type Level15WaitingStage,
 } from './level15-assignment-waiting-requested.command';
+export {
+  LEVEL15_INSPECTOR_STAGES,
+  type Level15InspectorAssignmentRequestedCommand,
+  type Level15InspectorStage,
+} from './level15-inspector-assignment-requested.command';
 export { RECIPIENT_ROLES } from './notification-recipient';
 export type {
   NotificationRecipient,

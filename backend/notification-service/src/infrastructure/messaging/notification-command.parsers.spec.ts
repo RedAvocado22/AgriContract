@@ -28,6 +28,10 @@ import {
   waitingBody,
   waitingCommand,
   waitingPayload,
+  INSPECTOR_RECIPIENT,
+  inspectorBody,
+  inspectorCommand,
+  inspectorPayload,
 } from '../../../test/support/commands';
 import {
   parseActivationCancelRequested,
@@ -42,6 +46,8 @@ import {
   USER_LOCK_CHANGED_REQUIRED,
   LEVEL15_ASSIGNMENT_WAITING_FIELDS,
   parseLevel15AssignmentWaitingRequested,
+  LEVEL15_INSPECTOR_ASSIGNMENT_FIELDS,
+  parseLevel15InspectorAssignmentRequested,
 } from './notification-command.parsers';
 
 /** Delivers a message built from `overrides` on the envelope. */
@@ -699,6 +705,139 @@ describe('parseLevel15AssignmentWaitingRequested', () => {
   it('rejects the lock-changed command, whose eventType is not this queue’s', () => {
     expect(
       message(() => parseLevel15AssignmentWaitingRequested(lockBody())),
+    ).toContain("is not this queue's command");
+  });
+});
+
+describe('parseLevel15InspectorAssignmentRequested', () => {
+  const parseInspector = (
+    payload: Record<string, unknown> = inspectorPayload(),
+  ) => parseLevel15InspectorAssignmentRequested(inspectorBody({ payload }));
+  const OTHER = 'other.inspector@inspect.test';
+
+  it('reads the envelope eventId, the one inspector and every payload field', () => {
+    expect(parseInspector()).toEqual(inspectorCommand());
+  });
+
+  it.each([
+    ['a cancellation', { stage: 'CANCELLED' }],
+    [
+      'instants with an offset',
+      {
+        reportDueAt: '2026-11-25T17:00:00+07:00',
+        freeCancelUntil: '2026-11-21T09:00:00+07:00',
+      },
+    ],
+  ])('accepts %s, as the contract does', (_case, patch) => {
+    expect(parseInspector(inspectorPayload(patch))).toMatchObject(patch);
+  });
+
+  it('accepts an inspector without a platform id (userId null)', () => {
+    expect(
+      parseInspector(
+        inspectorPayload({
+          recipients: [{ ...INSPECTOR_RECIPIENT, userId: null }],
+        }),
+      ).recipient,
+    ).toEqual({ ...INSPECTOR_RECIPIENT, userId: null });
+  });
+
+  /*
+   * The contract narrows recipients to one INSPECTOR (maxItems 1, role
+   * const): anything else is not a mail this template may send (#493 AC).
+   */
+  it.each([
+    [
+      'a second recipient',
+      [{ ...INSPECTOR_RECIPIENT }, { ...INSPECTOR_RECIPIENT, email: OTHER }],
+      'field "recipients" must hold exactly one inspector, got 2',
+    ],
+    [
+      'a BUYER',
+      [{ ...INSPECTOR_RECIPIENT, role: 'BUYER' }],
+      'recipients[0].role must be INSPECTOR',
+    ],
+    [
+      'an OPERATOR',
+      [{ ...INSPECTOR_RECIPIENT, role: 'OPERATOR' }],
+      'recipients[0].role must be INSPECTOR',
+    ],
+    ['no recipient', [], 'field "recipients" must be a non-empty array'],
+    [
+      'an unknown role',
+      [{ ...INSPECTOR_RECIPIENT, role: 'VERIFIER' }],
+      'recipients[0].role must be one of',
+    ],
+  ])(
+    'rejects %s, without retrying and without the address',
+    (_case, recipients, reason) => {
+      const text = message(() =>
+        parseInspector(inspectorPayload({ recipients })),
+      );
+
+      expect(text).toContain(
+        'Malformed notification.level1_5_inspector_assignment_requested',
+      );
+      expect(text).toContain(reason);
+      expect(text).not.toContain(INSPECTOR_RECIPIENT.email);
+      expect(text).not.toContain(OTHER);
+    },
+  );
+
+  it.each([
+    [
+      'stage',
+      'STILL_WAITING',
+      'field "stage" must be one of ASSIGNED, CANCELLED',
+    ],
+    ['stage', 'assigned', 'field "stage" must be one of'],
+    ['reportDueAt', '2026-11-25', 'RFC 3339'],
+    ['freeCancelUntil', null, '"freeCancelUntil"'],
+    ['commissionId', 'commission-1', 'field "commissionId" must be a UUID'],
+    ['contractId', 'contract-1', 'field "contractId" must be a UUID'],
+    ['milestoneId', 42, 'field "milestoneId" must be a non-empty string'],
+    [
+      'inspectorId',
+      INSPECTOR_RECIPIENT.userId,
+      'unknown payload property "inspectorId"',
+    ],
+  ])(
+    'rejects %s = %p as an invalid payload, without retrying',
+    (field, value, reason) => {
+      const text = message(() =>
+        parseInspector(inspectorPayload({ [field]: value })),
+      );
+
+      expect(text).toContain(
+        'Malformed notification.level1_5_inspector_assignment_requested',
+      );
+      expect(text).toContain(reason);
+    },
+  );
+
+  it.each(LEVEL15_INSPECTOR_ASSIGNMENT_FIELDS)(
+    'rejects a missing %s',
+    (field) => {
+      const payload = inspectorPayload();
+      delete payload[field];
+
+      expect(message(() => parseInspector(payload))).toContain(`"${field}"`);
+    },
+  );
+
+  it('rejects a command from another producer', () => {
+    expect(
+      message(() =>
+        parseLevel15InspectorAssignmentRequested(
+          inspectorBody({ producer: 'contract-service' }),
+        ),
+      ),
+    ).toContain('producer must be "inspection-service"');
+  });
+
+  it('rejects the waiting alert, whose eventType is not this queue’s', () => {
+    expect(
+      message(() => parseLevel15InspectorAssignmentRequested(waitingBody())),
     ).toContain("is not this queue's command");
   });
 });
