@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.agricontract.contract.application.dto.CoffeeContractView;
 import com.agricontract.contract.application.dto.CreateContractCommand;
+import com.agricontract.contract.application.exception.ListingDataInvalidException;
 import com.agricontract.contract.application.exception.ListingServiceUnavailableException;
 import com.agricontract.contract.application.usecase.*;
 import com.agricontract.contract.domain.exception.ContractConflictException;
@@ -116,6 +117,21 @@ class CreateContractEndpointTest {
 
         mvc.perform(request(body(terms), "BUYER").header("Idempotency-Key", UUID.randomUUID().toString()))
                 .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    void unreadableListingDataIsA500_withoutTheDetail() throws Exception {
+        when(useCase.execute(any())).thenThrow(new ListingDataInvalidException(
+                "product-service sent an unreadable contract snapshot of listing " + LISTING
+                        + " (HTTP 200, field CoffeeGoodsTerms[\"categoryId\"])", null));
+
+        mvc.perform(request(body(terms), "BUYER").header("Idempotency-Key", UUID.randomUUID().toString()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("INTERNAL_ERROR")))
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("categoryId"))))
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString(LISTING))));
     }
 
     private static String body(String termsJson) {
