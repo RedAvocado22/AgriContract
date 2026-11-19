@@ -40,11 +40,6 @@ public class ListingPortAdapter implements ListingPort {
     }
 
     @Override
-    public void closeListing(String listingId) {
-        productServiceClient.closeListing(listingId);
-    }
-
-    @Override
     public CoffeeGoodsTerms contractSnapshot(String listingId, String listingVersionToken) {
         try {
             return productServiceClient.getContractSnapshot(listingId, listingVersionToken);

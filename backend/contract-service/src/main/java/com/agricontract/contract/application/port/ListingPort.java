@@ -20,8 +20,6 @@ import java.math.BigDecimal;
 public interface ListingPort {
     ListingResponse getListing(String listingId);
 
-    void closeListing(String listingId);
-
     /** getListingContractSnapshot: the goods terms at the buyer's listing version, stored unchanged as goodsTerms. */
     CoffeeGoodsTerms contractSnapshot(String listingId, String listingVersionToken);
 
