@@ -19,13 +19,13 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
   test("should return paginated response", function() {
-    const data = res.getBody().data;
+    const data = res.getBody();
     expect(data).to.have.property("content");
     expect(data).to.have.property("totalElements");
     expect(data.content).to.be.an("array");
   });
   test("should contain our contract", function() {
-    const found = res.getBody().data.content.some(c => c.contractId === bru.getEnvVar("contract_id"));
+    const found = res.getBody().content.some(c => c.contractId === bru.getEnvVar("contract_id"));
     expect(found).to.equal(true);
   });
 }

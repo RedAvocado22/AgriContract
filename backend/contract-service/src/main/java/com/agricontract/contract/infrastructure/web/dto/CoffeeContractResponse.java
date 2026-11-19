@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * ContractResponse of golden-flow-api.yaml, without the Phase 1 ApiResponse wrapper (D32). terms is written as the
+ * ContractResponse of golden-flow-api.yaml, without the Phase 1 response wrapper (D32). terms is written as the
  * stored canonical JSON so the client sees exactly the bytes behind signedContentHash. Milestones arrive with #119.
  */
 public record CoffeeContractResponse(

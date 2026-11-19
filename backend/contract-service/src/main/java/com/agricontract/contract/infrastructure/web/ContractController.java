@@ -2,7 +2,6 @@ package com.agricontract.contract.infrastructure.web;
 
 import com.agricontract.contract.application.dto.*;
 import com.agricontract.contract.application.usecase.*;
-import com.agricontract.contract.common.ApiResponse;
 import com.agricontract.contract.common.PaginatedResponse;
 import com.agricontract.contract.application.exception.UnauthorizedContractActionException;
 import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
@@ -97,7 +96,7 @@ public class ContractController {
     }
 
     @PutMapping("/{contractId}/negotiate")
-    public ResponseEntity<ApiResponse<ContractResponse>> negotiate(
+    public ResponseEntity<ContractResponse> negotiate(
             @PathVariable String contractId,
             @Valid @RequestBody NegotiateContractRequest request,
             Authentication auth) {
@@ -105,13 +104,13 @@ public class ContractController {
         ContractResponse response = negotiateContractUseCase.execute(
                 new NegotiateContractCommand(contractId, userId, request.newTerms())
         );
-        return ResponseEntity.ok(ApiResponse.ok(response));
+        return ResponseEntity.ok(response);
     }
 
     /**
      * A coffee contract is the frozen ContractResponse without a wrapper (D32), so the client gets the terms and
-     * signedContentHash it must present to /sign/initiate. A Phase 1 row (no coffee terms) keeps its old wrapped body
-     * until the Phase 1 cleanup.
+     * signedContentHash it must present to /sign/initiate. A Phase 1 row (no coffee terms) answers its old body,
+     * also unwrapped, until the Phase 1 cleanup.
      */
     @GetMapping("/{contractId}")
     @Operation(summary = "Get a contract: terms as stored and the signedContentHash to present when signing")
@@ -124,12 +123,12 @@ public class ContractController {
         ContractDetail detail = getContractUseCase.execute(contractId, auth.getName(), isAdmin);
         return detail.isCoffee()
                 ? ResponseEntity.ok(CoffeeContractResponse.from(detail.coffee()))
-                : ResponseEntity.ok(ApiResponse.ok(detail.legacy()));
+                : ResponseEntity.ok(detail.legacy());
     }
 
     @GetMapping
     @Operation(summary = "List contracts for the authenticated user with optional status filter and pagination")
-    public ResponseEntity<ApiResponse<PaginatedResponse<ContractResponse>>> listContracts(
+    public ResponseEntity<PaginatedResponse<ContractResponse>> listContracts(
             @Parameter(description = "BUYER (default) or SELLER")
             @ModelAttribute @Valid ListContractsRequest request,
             Authentication auth) {
@@ -137,7 +136,7 @@ public class ContractController {
         PagedResult<ContractResponse> result = "SELLER".equalsIgnoreCase(request.getRole())
                 ? listContractsUseCase.executeBySeller(userId, request.getStatus(), request.toPageable())
                 : listContractsUseCase.executeByBuyer(userId, request.getStatus(), request.toPageable());
-        return ResponseEntity.ok(ApiResponse.ok(PaginatedResponse.from(result)));
+        return ResponseEntity.ok(PaginatedResponse.from(result));
     }
 
 }

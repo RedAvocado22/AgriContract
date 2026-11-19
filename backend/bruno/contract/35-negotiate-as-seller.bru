@@ -32,9 +32,9 @@ tests {
     expect(res.getStatus()).to.equal(200);
   });
   test("status should be NEGOTIATING", function() {
-    expect(res.getBody().data.status).to.equal("NEGOTIATING");
+    expect(res.getBody().status).to.equal("NEGOTIATING");
   });
   test("terms should reflect the counter-offer", function() {
-    expect(res.getBody().data.terms.agreedPrice.amount).to.equal(8300000);
+    expect(res.getBody().terms.agreedPrice.amount).to.equal(8300000);
   });
 }

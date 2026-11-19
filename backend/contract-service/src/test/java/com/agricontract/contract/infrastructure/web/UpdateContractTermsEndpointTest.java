@@ -48,7 +48,7 @@ class UpdateContractTermsEndpointTest {
     }
 
     @Test
-    void returnsTheStoredTermsVerbatimWithoutTheApiResponseWrapper() throws Exception {
+    void returnsTheStoredTermsVerbatimWithoutAWrapper() throws Exception {
         mvc.perform(request(body, "SELLER").header("Idempotency-Key", UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("NEGOTIATING"))
