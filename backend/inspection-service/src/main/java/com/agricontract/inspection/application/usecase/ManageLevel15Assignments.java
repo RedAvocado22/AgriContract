@@ -40,7 +40,7 @@ public class ManageLevel15Assignments {
             }
             pick(request.contractId(), request.milestoneId(), request.reportDueBusinessDays(),
                     request.initiatedByActorId(), "contract-service",
-                    WaitingAssignment.Reason.NO_ELIGIBLE, Set.of());
+                    WaitingAssignment.Reason.NO_ELIGIBLE, Set.of(), request.correlationId(), request.sourceEventId());
         });
     }
 
@@ -62,12 +62,12 @@ public class ManageLevel15Assignments {
             }
             pick(old.contractId(), old.milestoneId(), old.reportDueBusinessDays(), old.initiatedByActorId(),
                     old.assignedByService(), WaitingAssignment.Reason.ALL_EXCLUDED,
-                    assignments.previousInspectors(old.contractId(), old.milestoneId()));
+                    assignments.previousInspectors(old.contractId(), old.milestoneId()), UUID.randomUUID().toString(), null);
         });
     }
 
     private void pick(String contract, String milestone, int days, String actor, String service,
-                      WaitingAssignment.Reason reason, Set<String> excluded) {
+                      WaitingAssignment.Reason reason, Set<String> excluded, String correlationId, String causationId) {
         Instant attempted = now();
         var pending = new WaitingAssignment(contract, milestone, reason, days, service, actor,
                 attempted, attempted, null);
@@ -81,12 +81,12 @@ public class ManageLevel15Assignments {
         var candidates = candidates(excluded);
         if (candidates.isEmpty()) {
             attempted = now();
-            if (!attempted.equals(pending.waitingSince())) {
-                waiting.started(pending.key(), attempted);
-            }
+            LocalDate startDate = attempted.atZone(VietnamBusinessDays.ICT).toLocalDate();
+            LocalDate reminder = calendar.isBusinessDay(startDate) ? startDate : null;
+            waiting.started(pending.key(), attempted, reminder);
             pending = new WaitingAssignment(contract, milestone, reason, days, service, actor,
-                    attempted, attempted, null);
-            alerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED);
+                    attempted, attempted, reminder);
+            alerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED, correlationId, causationId);
         } else {
             assign(contract, milestone, days, actor, service, candidates);
             waiting.delete(pending.key());
@@ -128,14 +128,14 @@ public class ManageLevel15Assignments {
                 assign(key.contractId(), key.milestoneId(), pending.reportDueBusinessDays(),
                         pending.initiatedByActorId(), pending.assignedByService(), candidates);
                 waiting.delete(key);
-                alerts.waitingChanged(pending, AssignmentAlerts.Stage.ASSIGNED);
+                alerts.waitingChanged(pending, AssignmentAlerts.Stage.ASSIGNED, UUID.randomUUID().toString(), null);
                 return;
             }
             Instant attempted = now();
             LocalDate today = attempted.atZone(VietnamBusinessDays.ICT).toLocalDate();
             LocalDate reminder = pending.lastReminderOn();
             if (calendar.isBusinessDay(today) && !today.equals(reminder)) {
-                alerts.waitingChanged(pending, AssignmentAlerts.Stage.STILL_WAITING);
+                alerts.waitingChanged(pending, AssignmentAlerts.Stage.STILL_WAITING, UUID.randomUUID().toString(), null);
                 reminder = today;
             }
             waiting.attempted(key, attempted, reminder);

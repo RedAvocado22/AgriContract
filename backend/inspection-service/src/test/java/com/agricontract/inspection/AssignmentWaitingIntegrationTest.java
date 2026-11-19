@@ -33,6 +33,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -128,7 +129,7 @@ class AssignmentWaitingIntegrationTest {
 
     EventEnvelope event() {
         return new EventEnvelope(UUID.randomUUID(), "inspection.level1_5_requested", 1, NOW,
-                "contract-service", contract, null, null, null,
+                "contract-service", contract, UUID.randomUUID().toString(), null, null,
                 Map.of("contractId", contract, "milestoneId", milestone, "reason", "DISPUTE_ROUTED",
                         "reportDueBusinessDays", 2, "initiatedByActorId", actor, "requestedAt", NOW.toString()));
     }
@@ -140,6 +141,11 @@ class AssignmentWaitingIntegrationTest {
     int commands(Stage stage) {
         return jdbc.queryForObject("SELECT COUNT(*) FROM event_outbox WHERE JSON_UNQUOTE(JSON_EXTRACT(envelope,'$.payload.stage'))=?",
                 Integer.class, stage.name());
+    }
+    EventEnvelope command(Stage stage) {
+        String json = jdbc.queryForObject("SELECT envelope FROM event_outbox WHERE JSON_UNQUOTE(JSON_EXTRACT(envelope,'$.payload.stage'))=?",
+                String.class, stage.name());
+        return codec.parse(json.getBytes(StandardCharsets.UTF_8));
     }
     // Stub the spy target, not its MANDATORY transaction proxy. Production calls still pass through the proxy.
     OutboxAssignmentAlerts alertTarget() { return org.springframework.test.util.AopTestUtils.getUltimateTargetObject(alerts); }
@@ -157,11 +163,85 @@ class AssignmentWaitingIntegrationTest {
         assertThat(count("level1_5_inspection_assignment")).isZero();
         assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
         assertThat(pending()).isEqualTo(new WaitingAssignment(contract, milestone, Reason.NO_ELIGIBLE,
-                2, "contract-service", actor, NOW, NOW, null));
+                2, "contract-service", actor, NOW, NOW, LocalDate.of(2026, 10, 23)));
         assertThat(commands(Stage.WAITING_STARTED)).isEqualTo(1);
         assertThat(count("processed_event")).isEqualTo(2);
         verify(inspectors, times(1)).loadEligibleInspectors();
         verifyNoInteractions(random);
+    }
+
+    @Test void requestedAlertPreservesSourceCorrelationAndCausation() {
+        var first = event();
+        deliver(first);
+        var alert = command(Stage.WAITING_STARTED);
+        assertThat(alert.correlationId()).isEqualTo(first.correlationId()).isNotEqualTo(contract).isNotEqualTo(milestone);
+        assertThat(alert.causationId()).isEqualTo(first.eventId().toString());
+        assertThat(alert.eventId()).isNotEqualTo(first.eventId());
+    }
+
+    @Test void differentRequestsPreserveTheirOwnMetadata() {
+        var first = event();
+        var otherMilestone = UUID.randomUUID().toString();
+        var payload = new HashMap<>(first.payload());
+        payload.put("milestoneId", otherMilestone);
+        var second = new EventEnvelope(UUID.randomUUID(), first.eventType(), 1, NOW, "contract-service",
+                contract, UUID.randomUUID().toString(), null, null, payload);
+        deliver(first);
+        deliver(second);
+        for (var request : List.of(first, second)) {
+            String json = jdbc.queryForObject("SELECT envelope FROM event_outbox WHERE JSON_UNQUOTE(JSON_EXTRACT(envelope,'$.payload.milestoneId'))=?",
+                    String.class, request.payload().get("milestoneId"));
+            var alert = codec.parse(json.getBytes(StandardCharsets.UTF_8));
+            assertThat(alert.correlationId()).isEqualTo(request.correlationId());
+            assertThat(alert.causationId()).isEqualTo(request.eventId().toString());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"2026-10-23T16:59:59Z,2026-10-23", "2026-10-23T17:00:00Z,none",
+            "2026-10-25T03:00:00Z,none", "2026-10-26T03:00:00Z,none",
+            "2026-10-22T17:00:00Z,2026-10-23"})
+    void waitingStartUsesIctBusinessDate(String instant, String expected) {
+        when(clock.instant()).thenReturn(Instant.parse(instant));
+        deliver(event());
+        assertThat(pending().lastReminderOn()).isEqualTo(expected.equals("none") ? null : LocalDate.parse(expected));
+        job().scan();
+        assertThat(commands(Stage.STILL_WAITING)).isZero();
+        when(clock.instant()).thenReturn(Instant.parse("2026-10-26T17:00:00Z"));
+        job().scan();
+        job().scan();
+        assertThat(commands(Stage.STILL_WAITING)).isEqualTo(1);
+        assertThat(pending().lastReminderOn()).isEqualTo(LocalDate.of(2026, 10, 27));
+    }
+
+    @Test void jobAlertsHaveIndependentRootMetadata() {
+        var source = event();
+        deliver(source);
+        when(clock.instant()).thenReturn(Instant.parse("2026-10-26T17:00:00Z"));
+        job().scan();
+        var reminder = command(Stage.STILL_WAITING);
+        assertThat(UUID.fromString(reminder.correlationId())).isNotNull();
+        assertThat(reminder.correlationId()).isNotEqualTo(source.correlationId()).isNotEqualTo(contract).isNotEqualTo(milestone);
+        assertThat(reminder.causationId()).isNull();
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a));
+        job().scan();
+        var assigned = command(Stage.ASSIGNED);
+        assertThat(UUID.fromString(assigned.correlationId())).isNotNull();
+        assertThat(assigned.correlationId()).isNotEqualTo(reminder.correlationId()).isNotEqualTo(contract).isNotEqualTo(milestone);
+        assertThat(assigned.causationId()).isNull();
+    }
+
+    @Test void timeoutAlertHasIndependentRootMetadata() {
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a));
+        var source = event();
+        deliver(source);
+        var old = assignments.active(contract, milestone).orElseThrow();
+        when(clock.instant()).thenReturn(old.reportDueAt());
+        lifecycle.timeout(old.commissionId());
+        var alert = command(Stage.WAITING_STARTED);
+        assertThat(UUID.fromString(alert.correlationId())).isNotNull();
+        assertThat(alert.correlationId()).isNotEqualTo(source.correlationId()).isNotEqualTo(contract).isNotEqualTo(milestone).isNotEqualTo(old.commissionId());
+        assertThat(alert.causationId()).isNull();
     }
 
     @Test void activeAssignmentPreventsWaitingEvenWhenPoolBecomesEmpty() {
@@ -194,13 +274,13 @@ class AssignmentWaitingIntegrationTest {
             assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
             if (point.equals("afterCommand")) call.callRealMethod();
             throw new IllegalStateException("injected");
-        }).when(alertTarget()).waitingChanged(any(), eq(Stage.WAITING_STARTED));
+        }).when(alertTarget()).waitingChanged(any(), eq(Stage.WAITING_STARTED), any(), any());
         assertThatThrownBy(() -> deliver(request)).isInstanceOf(point.equals("insert")
                 ? org.springframework.dao.InvalidDataAccessApiUsageException.class : IllegalStateException.class)
                 .hasMessage("injected");
         assertEmptyState();
         doCallRealMethod().when(waitingTarget()).insert(any());
-        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any());
+        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any(), any(), any());
         deliver(request);
         assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
         assertThat(commands(Stage.WAITING_STARTED)).isEqualTo(1);
@@ -231,8 +311,8 @@ class AssignmentWaitingIntegrationTest {
             await(reachedReservation);
             return call.callRealMethod();
         }).when(waitingTarget()).tryReserve(any());
-        var first = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString());
-        var second = new Level15AssignmentRequestedCommand(otherContract, otherMilestone, 2, actor, UUID.randomUUID().toString());
+        var first = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString(), UUID.randomUUID().toString());
+        var second = new Level15AssignmentRequestedCommand(otherContract, otherMilestone, 2, actor, UUID.randomUUID().toString(), UUID.randomUUID().toString());
         try (var pool = Executors.newFixedThreadPool(2)) {
             var one = pool.submit(() -> lifecycle.requested(first));
             var two = pool.submit(() -> lifecycle.requested(second));
@@ -261,7 +341,7 @@ class AssignmentWaitingIntegrationTest {
         });
         var first = event();
         var second = new EventEnvelope(UUID.randomUUID(), "inspection.level1_5_requested", 1, NOW,
-                "contract-service", otherContract, null, null, null,
+                "contract-service", otherContract, UUID.randomUUID().toString(), null, null,
                 Map.of("contractId", otherContract, "milestoneId", otherMilestone, "reason", "DISPUTE_ROUTED",
                         "reportDueBusinessDays", 2, "initiatedByActorId", actor, "requestedAt", NOW.toString()));
         try (var pool = Executors.newFixedThreadPool(2)) {
@@ -297,7 +377,7 @@ class AssignmentWaitingIntegrationTest {
     }
 
     @Test void earlierReadStillSeesCommittedWaitingUnderReadCommitted() throws Exception {
-        var request = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString());
+        var request = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString(), UUID.randomUUID().toString());
         try (var pool = Executors.newSingleThreadExecutor()) {
             transactions.inReadCommittedTransaction(() -> {
                 assertThat(count("level1_5_assignment_waiting")).isZero();
@@ -315,7 +395,7 @@ class AssignmentWaitingIntegrationTest {
     }
 
     @Test void repeatableReadCallerIsRejectedBeforeAssignmentWork() {
-        var request = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString());
+        var request = new Level15AssignmentRequestedCommand(contract, milestone, 2, actor, UUID.randomUUID().toString(), UUID.randomUUID().toString());
         var repeatableRead = new TransactionTemplate(manager);
         repeatableRead.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
         assertThatThrownBy(() -> repeatableRead.executeWithoutResult(status -> {
@@ -460,12 +540,12 @@ class AssignmentWaitingIntegrationTest {
         when(inspectors.loadEligibleInspectors()).thenReturn(List.of(a));
         deliver(event()); var old = assignments.active(contract, milestone).orElseThrow();
         when(clock.instant()).thenReturn(old.reportDueAt());
-        doThrow(new IllegalStateException("outbox failed")).when(alertTarget()).waitingChanged(any(), any());
+        doThrow(new IllegalStateException("outbox failed")).when(alertTarget()).waitingChanged(any(), any(), any(), any());
         assertThatThrownBy(() -> lifecycle.timeout(old.commissionId())).isInstanceOf(IllegalStateException.class);
         assertThat(assignments.active(contract, milestone).orElseThrow()).isEqualTo(old);
         assertThat(count("level1_5_assignment_waiting")).isZero();
         assertThat(count("event_outbox")).isZero();
-        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any());
+        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any(), any(), any());
         lifecycle.timeout(old.commissionId());
         assertThat(pending().reason()).isEqualTo(Reason.ALL_EXCLUDED);
     }
@@ -484,7 +564,7 @@ class AssignmentWaitingIntegrationTest {
             assertThat(count("level1_5_assignment_waiting")).isZero();
             if (point.equals("afterCommand")) call.callRealMethod();
             throw new IllegalStateException("injected");
-        }).when(alertTarget()).waitingChanged(any(), eq(Stage.ASSIGNED));
+        }).when(alertTarget()).waitingChanged(any(), eq(Stage.ASSIGNED), any(), any());
         assertThatThrownBy(() -> lifecycle.retryWaiting(key)).isInstanceOf(point.equals("beforeDelete")
                 ? org.springframework.dao.InvalidDataAccessApiUsageException.class : IllegalStateException.class)
                 .hasMessage("injected");
@@ -492,7 +572,7 @@ class AssignmentWaitingIntegrationTest {
         assertThat(count("level1_5_inspection_assignment")).isZero();
         assertThat(commands(Stage.ASSIGNED)).isZero();
         doCallRealMethod().when(waitingTarget()).delete(any());
-        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any());
+        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any(), any(), any());
         job().scan();
         assertThat(count("level1_5_inspection_assignment")).isEqualTo(1);
         assertThat(count("level1_5_assignment_waiting")).isZero();
@@ -503,18 +583,18 @@ class AssignmentWaitingIntegrationTest {
         deliver(event());
         when(clock.instant()).thenReturn(NOW.plusSeconds(3600));
         job().scan(); job().scan();
-        assertThat(commands(Stage.STILL_WAITING)).isEqualTo(1);
+        assertThat(commands(Stage.STILL_WAITING)).isZero();
         assertThat(pending().lastReminderOn()).isEqualTo(LocalDate.of(2026, 10, 23));
         for (String instant : List.of("2026-10-23T17:00:00Z", "2026-10-25T03:00:00Z", "2026-10-26T03:00:00Z")) {
             when(clock.instant()).thenReturn(Instant.parse(instant));
             job().scan();
-            assertThat(commands(Stage.STILL_WAITING)).isEqualTo(1);
+            assertThat(commands(Stage.STILL_WAITING)).isZero();
             assertThat(pending().lastAttemptAt()).isEqualTo(Instant.parse(instant));
         }
         // Tuesday in ICT, still Monday in UTC; Monday is configured as a holiday.
         when(clock.instant()).thenReturn(Instant.parse("2026-10-26T17:00:00Z"));
         job().scan(); job().scan();
-        assertThat(commands(Stage.STILL_WAITING)).isEqualTo(2);
+        assertThat(commands(Stage.STILL_WAITING)).isEqualTo(1);
         assertThat(pending().lastReminderOn()).isEqualTo(LocalDate.of(2026, 10, 27));
         assertThat(pending().waitingSince()).isEqualTo(NOW);
         assertThat(pending().reason()).isEqualTo(Reason.NO_ELIGIBLE);
@@ -522,15 +602,42 @@ class AssignmentWaitingIntegrationTest {
 
     @Test void reminderFailureDoesNotConsumeDailyReminderOrAdvanceAttempt() {
         deliver(event()); var original = pending();
-        when(clock.instant()).thenReturn(NOW.plusSeconds(3600));
+        when(clock.instant()).thenReturn(Instant.parse("2026-10-26T17:00:00Z"));
         doAnswer(call -> { call.callRealMethod(); throw new IllegalStateException("injected"); })
-                .when(alertTarget()).waitingChanged(any(), eq(Stage.STILL_WAITING));
+                .when(alertTarget()).waitingChanged(any(), eq(Stage.STILL_WAITING), any(), any());
         job().scan();
         assertThat(pending()).isEqualTo(original);
         assertThat(commands(Stage.STILL_WAITING)).isZero();
-        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any());
+        doCallRealMethod().when(alertTarget()).waitingChanged(any(), any(), any(), any());
         job().scan(); job().scan();
         assertThat(commands(Stage.STILL_WAITING)).isEqualTo(1);
+    }
+
+    @Test void concurrentRetriesEmitOnlyOneDailyReminder() throws Exception {
+        deliver(event());
+        when(clock.instant()).thenReturn(Instant.parse("2026-10-26T17:00:00Z"));
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        when(inspectors.loadEligibleInspectors()).thenAnswer(call -> {
+            entered.countDown();
+            await(release);
+            return List.of();
+        });
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var first = pool.submit(() -> job().scan());
+            try {
+                assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+                var second = pool.submit(() -> job().scan());
+                second.get(15, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+            first.get(15, TimeUnit.SECONDS);
+        }
+        when(inspectors.loadEligibleInspectors()).thenReturn(List.of());
+        job().scan();
+        assertThat(commands(Stage.STILL_WAITING)).isEqualTo(1);
+        assertThat(pending().lastReminderOn()).isEqualTo(LocalDate.of(2026, 10, 27));
     }
 
     @Test void dependencyFailureRollsBackInitialClaimAndLeavesScheduledRowUnchanged() {
@@ -640,7 +747,7 @@ class AssignmentWaitingIntegrationTest {
             "ALL_EXCLUDED,WAITING_STARTED", "ALL_EXCLUDED,STILL_WAITING", "ALL_EXCLUDED,ASSIGNED"})
     void realOutboxEnvelopeValidatesAgainstFrozenCommandSchema(Reason reason, Stage stage) throws Exception {
         transactions.inTransaction(() -> alerts.waitingChanged(new WaitingAssignment(contract, milestone,
-                reason, 2, "contract-service", actor, NOW, NOW, null), stage));
+                reason, 2, "contract-service", actor, NOW, NOW, null), stage, UUID.randomUUID().toString(), null));
         var root = (ObjectNode) new ObjectMapper(new YAMLFactory()).readTree(
                 Path.of(System.getProperty("contracts.directory"), "events", "notification-commands.yaml").toFile());
         root.remove("oneOf"); root.put("$ref", "#/$defs/level15AssignmentWaitingRequested");

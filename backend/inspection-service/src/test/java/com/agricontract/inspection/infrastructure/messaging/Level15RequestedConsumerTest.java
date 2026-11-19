@@ -31,7 +31,7 @@ class Level15RequestedConsumerTest {
     private final Level15RequestedConsumer consumer = new Level15RequestedConsumer(new EventEnvelopeCodec(), lifecycle, processed, transaction);
     static final String VALID = """
             {"eventId":"1349fbf6-44b6-450c-b01d-4b5abaf7c326","eventType":"inspection.level1_5_requested",
-             "eventVersion":1,"occurredAt":"2026-10-24T00:00:00Z","producer":"contract-service","aggregateId":"contract",
+             "correlationId":"1349fbf6-44b6-450c-b01d-4b5abaf7c329","eventVersion":1,"occurredAt":"2026-10-24T00:00:00Z","producer":"contract-service","aggregateId":"contract",
              "payload":{"contractId":"1349fbf6-44b6-450c-b01d-4b5abaf7c327","milestoneId":"1349fbf6-44b6-450c-b01d-4b5abaf7c328",
               "reason":"DISPUTE_ROUTED","reportDueBusinessDays":2,"initiatedByActorId":null,"requestedAt":"2026-10-24T00:00:00Z"}}
             """;
@@ -41,7 +41,7 @@ class Level15RequestedConsumerTest {
         order.verify(processed).markProcessed(eq("inspection.level1_5_requested"), any());
         order.verify(lifecycle).requested(new Level15AssignmentRequestedCommand(
                 "1349fbf6-44b6-450c-b01d-4b5abaf7c327", "1349fbf6-44b6-450c-b01d-4b5abaf7c328",
-                2, null, "1349fbf6-44b6-450c-b01d-4b5abaf7c326"));
+                2, null, "1349fbf6-44b6-450c-b01d-4b5abaf7c326", "1349fbf6-44b6-450c-b01d-4b5abaf7c329"));
     }
     @Test void malformedAndInspectorOverridePayloadsAreRejectedWithoutMutation() {
         for (String invalid : new String[]{"{", VALID.replace("\"eventVersion\":1", "\"eventVersion\":1.5"),
@@ -74,6 +74,8 @@ class Level15RequestedConsumerTest {
 
     static Stream<String> invalidFields() {
         return Stream.of(
+                VALID.replace("\"correlationId\":\"1349fbf6-44b6-450c-b01d-4b5abaf7c329\",", ""),
+                VALID.replace("1349fbf6-44b6-450c-b01d-4b5abaf7c329", "not-a-uuid"),
                 VALID.replace("inspection.level1_5_requested", "other.event"),
                 VALID.replace("\"eventVersion\":1", "\"eventVersion\":2"),
                 VALID.replace("DISPUTE_ROUTED", "UNKNOWN"),

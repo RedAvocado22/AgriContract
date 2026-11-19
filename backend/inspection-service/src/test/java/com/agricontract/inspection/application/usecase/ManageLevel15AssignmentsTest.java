@@ -15,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -74,7 +75,9 @@ class ManageLevel15AssignmentsTest {
         verify(waiting).tryReserve(pending.capture());
         assertThat(pending.getValue().reason()).isEqualTo(WaitingAssignment.Reason.NO_ELIGIBLE);
         assertThat(pending.getValue().waitingSince()).isEqualTo(NOW);
-        verify(alerts).waitingChanged(pending.getValue(), AssignmentAlerts.Stage.WAITING_STARTED);
+        var started = new WaitingAssignment("contract", "milestone", WaitingAssignment.Reason.NO_ELIGIBLE,
+                1, "contract-service", "actor", NOW, NOW, LocalDate.of(2026, 10, 23));
+        verify(alerts).waitingChanged(eq(started), eq(AssignmentAlerts.Stage.WAITING_STARTED), eq("correlation"), eq("event"));
         verify(assignments, never()).insert(any());
         verifyNoInteractions(random);
     }
@@ -146,11 +149,11 @@ class ManageLevel15AssignmentsTest {
     }
 
     private Level15AssignmentRequestedCommand request() {
-        return new Level15AssignmentRequestedCommand("contract", "milestone", 1, "actor", "event");
+        return new Level15AssignmentRequestedCommand("contract", "milestone", 1, "actor", "event", "correlation");
     }
 
     private TimedAssignment assignment(Instant deadline) {
         return new TimedAssignment("commission", "contract", "milestone", "a", NOW.minusSeconds(1),
-                null, 1, deadline, "actor");
+                null, 1, deadline, "actor", "contract-service");
     }
 }

@@ -55,9 +55,9 @@ public class JdbcAssignmentWaitingRepository implements AssignmentWaitingReposit
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void started(Key key, Instant at) {
-        int rows = jdbc.update("UPDATE level1_5_assignment_waiting SET waiting_since=?,last_attempt_at=? WHERE contract_id=? AND milestone_id=?",
-                Timestamp.from(at), Timestamp.from(at), key.contractId(), key.milestoneId());
+    public void started(Key key, Instant at, LocalDate lastReminderOn) {
+        int rows = jdbc.update("UPDATE level1_5_assignment_waiting SET waiting_since=?,last_attempt_at=?,last_reminder_on=? WHERE contract_id=? AND milestone_id=?",
+                Timestamp.from(at), Timestamp.from(at), date(lastReminderOn), key.contractId(), key.milestoneId());
         if (rows != 1) {
             throw new IllegalStateException("Waiting request disappeared during creation");
         }

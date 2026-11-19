@@ -61,6 +61,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
@@ -119,7 +120,7 @@ class AssignmentLifecycleIntegrationTest {
         payload.put("reason", "DISPUTE_ROUTED"); payload.put("reportDueBusinessDays", 1);
         payload.put("initiatedByActorId", null); payload.put("requestedAt", NOW.toString());
         return new EventEnvelope(UUID.randomUUID(), "inspection.level1_5_requested", 1, NOW,
-                "contract-service", contract, null, null, null, payload);
+                "contract-service", contract, UUID.randomUUID().toString(), null, null, payload);
     }
     void deliver(EventEnvelope e) {
         consumer.accept(new Message(canonicalBytes(e)));
@@ -147,7 +148,7 @@ class AssignmentLifecycleIntegrationTest {
         var event = event(); deliver(event); deliver(event);
         assertThat(rows()).isZero();
         verify(alerts).waitingChanged(argThat(w -> w.contractId().equals(contract) && w.milestoneId().equals(milestone)
-                && w.reason() == WaitingAssignment.Reason.NO_ELIGIBLE), org.mockito.ArgumentMatchers.eq(AssignmentAlerts.Stage.WAITING_STARTED));
+                && w.reason() == WaitingAssignment.Reason.NO_ELIGIBLE), org.mockito.ArgumentMatchers.eq(AssignmentAlerts.Stage.WAITING_STARTED), any(), any());
         verifyNoInteractions(random);
     }
     @Test void unavailablePoolRollsBackDedupClaimForRetry() {
@@ -179,7 +180,7 @@ class AssignmentLifecycleIntegrationTest {
         assertThat(rows()).isEqualTo(3);
         assertThat(assignments.active(contract,milestone)).isEmpty();
         verify(alerts).waitingChanged(argThat(w -> w.contractId().equals(contract) && w.milestoneId().equals(milestone)
-                && w.reason() == WaitingAssignment.Reason.ALL_EXCLUDED), org.mockito.ArgumentMatchers.eq(AssignmentAlerts.Stage.WAITING_STARTED));
+                && w.reason() == WaitingAssignment.Reason.ALL_EXCLUDED), org.mockito.ArgumentMatchers.eq(AssignmentAlerts.Stage.WAITING_STARTED), any(), any());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM level1_5_inspection_assignment WHERE ended_at IS NOT NULL", Integer.class)).isEqualTo(3);
         verify(random).nextInt(3); verify(random).nextInt(2); verify(random).nextInt(1);
     }
@@ -230,12 +231,12 @@ class AssignmentLifecycleIntegrationTest {
         var tx = new TransactionTemplate(transactions);
         try {
             tx.executeWithoutResult(status -> {
-                realAlerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED);
+                realAlerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED, UUID.randomUUID().toString(), null);
                 assertThat(logs.list).isEmpty();
                 status.setRollbackOnly();
             });
             assertThat(logs.list).isEmpty();
-            tx.executeWithoutResult(status -> realAlerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED));
+            tx.executeWithoutResult(status -> realAlerts.waitingChanged(pending, AssignmentAlerts.Stage.WAITING_STARTED, UUID.randomUUID().toString(), null));
             assertThat(logs.list).hasSize(1);
             assertThat(logs.list.getFirst().getFormattedMessage()).contains("audience=OPERATOR", "inspection_assignment_waiting");
         } finally { logger.detachAppender(logs); logs.stop(); }

@@ -26,12 +26,12 @@ public class OutboxAssignmentAlerts implements AssignmentAlerts {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void waitingChanged(WaitingAssignment waiting, Stage stage) {
+    public void waitingChanged(WaitingAssignment waiting, Stage stage, String correlationId, String causationId) {
         UUID eventId = UUID.randomUUID();
         var payload = Map.<String, Object>of("contractId", waiting.contractId(), "milestoneId", waiting.milestoneId(),
                 "reason", waiting.reason().name(), "waitingSince", waiting.waitingSince().toString(), "stage", stage.name());
         outbox.append(new EventEnvelope(eventId, EVENT_TYPE, 1, clock.instant(), "inspection-service",
-                waiting.milestoneId(), waiting.milestoneId(), null, null, payload));
+                waiting.milestoneId(), correlationId, causationId, null, payload));
         // Preserve operational visibility after commit only; email delivery belongs to notification-service.
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCommit() {
