@@ -12,6 +12,7 @@ import {
   FUND_TYPES,
   KYC_RESULTS,
   LEVEL15_WAITING_REASONS,
+  LEVEL15_INSPECTOR_STAGES,
   LEVEL15_WAITING_STAGES,
   LOCK_ACTIONS,
   PARTY_ROLES,
@@ -25,6 +26,7 @@ import {
   type RemedyLeg,
   type ContractAnchorRequestedCommand,
   type Level15AssignmentWaitingRequestedCommand,
+  type Level15InspectorAssignmentRequestedCommand,
   type NotificationRecipient,
   type RecipientRole,
   type UserKycResultRequestedCommand,
@@ -729,6 +731,62 @@ export function parseLevel15AssignmentWaitingRequested(
     reason: payload.enumValue('reason', LEVEL15_WAITING_REASONS),
     waitingSince: payload.dateTime('waitingSince'),
     stage: payload.enumValue('stage', LEVEL15_WAITING_STAGES),
+  };
+}
+
+export const LEVEL15_INSPECTOR_ASSIGNMENT_REQUESTED =
+  'notification.level1_5_inspector_assignment_requested';
+
+/** Payload properties of `level15InspectorAssignmentRequested`, all required. */
+export const LEVEL15_INSPECTOR_ASSIGNMENT_FIELDS = [
+  'contractId',
+  'milestoneId',
+  'commissionId',
+  'recipients',
+  'reportDueAt',
+  'freeCancelUntil',
+  'stage',
+] as const;
+
+/**
+ * The mail to the assigned Level 1.5 inspector (D57). The contract narrows
+ * `recipients` to one entry of role INSPECTOR (`maxItems: 1`, role
+ * `const: INSPECTOR`): a second recipient or another role is not a mail this
+ * template may send, so it is dead-lettered like any malformed command.
+ */
+export function parseLevel15InspectorAssignmentRequested(
+  body: Buffer,
+): Level15InspectorAssignmentRequestedCommand {
+  const { envelope, payload } = readCommand(
+    body,
+    LEVEL15_INSPECTOR_ASSIGNMENT_REQUESTED,
+    'inspection-service',
+  );
+  payload.only(LEVEL15_INSPECTOR_ASSIGNMENT_FIELDS);
+
+  const contractId = payload.uuid('contractId');
+  const milestoneId = payload.uuid('milestoneId');
+  const commissionId = payload.uuid('commissionId');
+  const recipients = payload.recipients();
+  if (recipients.length !== 1) {
+    throw payload.error(
+      `field "recipients" must hold exactly one inspector, got ${recipients.length}`,
+    );
+  }
+  const [recipient] = recipients;
+  if (recipient.role !== 'INSPECTOR') {
+    throw payload.error('recipients[0].role must be INSPECTOR');
+  }
+
+  return {
+    eventId: envelope.eventId,
+    contractId,
+    milestoneId,
+    commissionId,
+    recipient: { ...recipient, role: 'INSPECTOR' },
+    reportDueAt: payload.dateTime('reportDueAt'),
+    freeCancelUntil: payload.dateTime('freeCancelUntil'),
+    stage: payload.enumValue('stage', LEVEL15_INSPECTOR_STAGES),
   };
 }
 

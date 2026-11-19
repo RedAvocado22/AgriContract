@@ -4,6 +4,7 @@ import type {
   ContractAnchorRequestedCommand,
   ContractTerminatedRequestedCommand,
   Level15AssignmentWaitingRequestedCommand,
+  Level15InspectorAssignmentRequestedCommand,
   NotificationRecipient,
   UserKycResultRequestedCommand,
   UserLockChangedRequestedCommand,
@@ -500,5 +501,70 @@ export function waitingCommand(): Level15AssignmentWaitingRequestedCommand {
     reason: 'NO_ELIGIBLE',
     waitingSince: '2026-11-16T03:00:00Z',
     stage: 'WAITING_STARTED',
+  };
+}
+
+/*
+ * `notification.level1_5_inspector_assignment_requested`, as inspection-service
+ * is to write it (D57) when it assigns a Level 1.5 inspector: stage ASSIGNED,
+ * one recipient of role INSPECTOR.
+ */
+export const INSPECTOR_CONTRACT_ID = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+export const INSPECTOR_MILESTONE_ID = '2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e';
+export const INSPECTOR_COMMISSION_ID = '3c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f';
+export const INSPECTOR_RECIPIENT = {
+  userId: '4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a',
+  email: 'inspector1@inspect.test',
+  role: 'INSPECTOR',
+} as const satisfies NotificationRecipient;
+const INSPECTOR_EVENT_ID = '5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b';
+
+export function inspectorEnvelope(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    eventId: INSPECTOR_EVENT_ID,
+    eventType: 'notification.level1_5_inspector_assignment_requested',
+    eventVersion: 1,
+    occurredAt: '2026-11-20T02:00:00.125Z',
+    producer: 'inspection-service',
+    aggregateId: INSPECTOR_MILESTONE_ID,
+    correlationId: '6f7a8b9c-0d1e-4f2a-9b3c-4d5e6f7a8b9c',
+    causationId: '7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d',
+    payload: inspectorPayload(),
+    ...overrides,
+  };
+}
+
+export function inspectorPayload(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    contractId: INSPECTOR_CONTRACT_ID,
+    milestoneId: INSPECTOR_MILESTONE_ID,
+    commissionId: INSPECTOR_COMMISSION_ID,
+    recipients: [{ ...INSPECTOR_RECIPIENT }],
+    reportDueAt: '2026-11-25T10:00:00Z',
+    freeCancelUntil: '2026-11-21T02:00:00Z',
+    stage: 'ASSIGNED',
+    ...overrides,
+  };
+}
+
+export const inspectorBody = (
+  overrides: Record<string, unknown> = {},
+): Buffer => Buffer.from(JSON.stringify(inspectorEnvelope(overrides)));
+
+/** The command the parser is expected to produce from `inspectorEnvelope()`. */
+export function inspectorCommand(): Level15InspectorAssignmentRequestedCommand {
+  return {
+    eventId: INSPECTOR_EVENT_ID,
+    contractId: INSPECTOR_CONTRACT_ID,
+    milestoneId: INSPECTOR_MILESTONE_ID,
+    commissionId: INSPECTOR_COMMISSION_ID,
+    recipient: { ...INSPECTOR_RECIPIENT },
+    reportDueAt: '2026-11-25T10:00:00Z',
+    freeCancelUntil: '2026-11-21T02:00:00Z',
+    stage: 'ASSIGNED',
   };
 }
