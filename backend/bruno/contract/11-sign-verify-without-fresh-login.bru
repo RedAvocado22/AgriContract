@@ -35,6 +35,6 @@ body:json {
 tests {
   test("should return 403 STEP_UP_REQUIRED", function() {
     expect(res.getStatus()).to.equal(403);
-    expect(res.getBody().error).to.match(/^STEP_UP_REQUIRED/);
+    expect(res.getBody().code).to.equal("STEP_UP_REQUIRED");
   });
 }
