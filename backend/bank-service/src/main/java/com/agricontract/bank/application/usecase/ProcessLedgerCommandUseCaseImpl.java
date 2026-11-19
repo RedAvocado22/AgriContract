@@ -2,6 +2,7 @@ package com.agricontract.bank.application.usecase;
 
 import com.agricontract.bank.application.dto.LedgerCommand;
 import com.agricontract.bank.application.port.LedgerResultPublisher;
+import com.agricontract.bank.application.port.TransactionRunner;
 import com.agricontract.bank.domain.exception.DuplicateLedgerEntryException;
 import com.agricontract.bank.domain.exception.InvalidLedgerEntryException;
 import com.agricontract.bank.domain.model.LedgerEntry;
@@ -10,7 +11,6 @@ import com.agricontract.bank.domain.repository.LedgerEntryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.util.Objects;
@@ -28,7 +28,7 @@ public class ProcessLedgerCommandUseCaseImpl implements ProcessLedgerCommandUseC
 
     private final LedgerEntryRepository ledger;
     private final LedgerResultPublisher results;
-    private final TransactionTemplate transactionTemplate;
+    private final TransactionRunner transactions;
     private final Clock clock;
 
     @Override
@@ -47,12 +47,12 @@ public class ProcessLedgerCommandUseCaseImpl implements ProcessLedgerCommandUseC
         } catch (InvalidLedgerEntryException e) {
             log.warn("event=bank_command_rejected operation={} sourceEventId={} contractId={} reason={}",
                     command.operation(), command.sourceEventId(), command.contractId(), e.getMessage());
-            transactionTemplate.executeWithoutResult(status -> results.failed(command, e.getMessage()));
+            transactions.inTransaction(() -> results.failed(command, e.getMessage()));
             return;
         }
 
         try {
-            transactionTemplate.executeWithoutResult(status -> {
+            transactions.inTransaction(() -> {
                 ledger.append(entry);
                 results.completed(command, entry);
             });
@@ -74,7 +74,7 @@ public class ProcessLedgerCommandUseCaseImpl implements ProcessLedgerCommandUseC
         }
         log.info("event=bank_command_replayed sourceEventId={} ledgerEntryId={}",
                 command.sourceEventId(), recorded.getEntryId());
-        transactionTemplate.executeWithoutResult(status -> results.completed(command, recorded));
+        transactions.inTransaction(() -> results.completed(command, recorded));
     }
 
     private static boolean sameCommand(LedgerCommand command, LedgerEntry recorded) {
