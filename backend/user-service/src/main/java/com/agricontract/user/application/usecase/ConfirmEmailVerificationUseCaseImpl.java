@@ -2,6 +2,7 @@ package com.agricontract.user.application.usecase;
 
 import com.agricontract.user.application.dto.EmailVerificationConfirmation;
 import com.agricontract.user.application.dto.UserProfileResponse;
+import com.agricontract.user.application.port.IdentityAccounts;
 import com.agricontract.user.application.port.TransactionRunner;
 import com.agricontract.user.application.port.VerificationCodes;
 import com.agricontract.user.domain.exception.EmailAlreadyClaimedException;
@@ -12,6 +13,7 @@ import com.agricontract.user.domain.model.vo.UserId;
 import com.agricontract.user.domain.repository.EmailVerificationChallengeRepository;
 import com.agricontract.user.domain.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -28,19 +30,33 @@ import java.util.Optional;
  * returned as {@link EmailVerificationConfirmation.Rejected}, so the counted attempt commits with the transaction.
  * The first user to confirm an address owns it; a later confirm of the same address gets 409 EMAIL_ALREADY_CLAIMED,
  * also when confirms of two different users race (unique key on verified_email).
+ * <p>
+ * After the commit Keycloak is told once (D59). If it cannot be reached the user still gets the success: the purge
+ * job checks this record before deleting anything and sets Keycloak's flag again then.
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ConfirmEmailVerificationUseCaseImpl implements ConfirmEmailVerificationUseCase {
     private final UserProfileRepository userProfileRepository;
     private final EmailVerificationChallengeRepository challengeRepository;
     private final VerificationCodes codes;
     private final Clock clock;
     private final TransactionRunner transactionRunner;
+    private final IdentityAccounts identityAccounts;
 
     @Override
     public EmailVerificationConfirmation execute(String userId, String code) {
-        return transactionRunner.inTransaction(() -> confirm(userId, code));
+        EmailVerificationConfirmation result = transactionRunner.inTransaction(() -> confirm(userId, code));
+        if (result instanceof EmailVerificationConfirmation.Verified) {
+            try {
+                identityAccounts.markEmailVerified(userId);
+            } catch (RuntimeException e) {
+                log.warn("event=keycloak_email_verified_not_synced userId={} reason={}", userId,
+                        e.getClass().getSimpleName());
+            }
+        }
+        return result;
     }
 
     private EmailVerificationConfirmation confirm(String userId, String code) {
