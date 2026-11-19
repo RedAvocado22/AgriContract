@@ -146,7 +146,7 @@ class ContractSigningEndpointTest {
             mvc.perform(verifyRequest(UUID.randomUUID(), bad, "SELLER")
                             .header("Idempotency-Key", UUID.randomUUID().toString()))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value(not(containsString("12345"))));
+                    .andExpect(jsonPath("$.message").value(not(containsString("12345"))));
         }
         mvc.perform(verifyRequest(UUID.randomUUID(), VERIFY_BODY, "SELLER")).andExpect(status().isBadRequest());
         verify(verifyUseCase, never()).execute(any());
@@ -168,7 +168,7 @@ class ContractSigningEndpointTest {
             mvc.perform(verifyRequest(UUID.randomUUID(), VERIFY_BODY, "SELLER")
                             .header("Idempotency-Key", UUID.randomUUID().toString()))
                     .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.error").value(startsWith(code)));
+                    .andExpect(jsonPath("$.code").value(code));
         }
     }
 
@@ -186,7 +186,7 @@ class ContractSigningEndpointTest {
         doThrow(thrown).when(useCase).execute(any());
         mvc.perform(request(BODY, "SELLER").header("Idempotency-Key", UUID.randomUUID().toString()))
                 .andExpect(status().is(status))
-                .andExpect(jsonPath("$.error").value(startsWith(code)));
+                .andExpect(jsonPath("$.code").value(code));
     }
 
     private static void assertThatCommand(InitiateSignCommand command, UUID key) {

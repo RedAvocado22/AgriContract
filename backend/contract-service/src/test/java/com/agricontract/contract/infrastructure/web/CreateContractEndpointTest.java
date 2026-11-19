@@ -107,8 +107,8 @@ class CreateContractEndpointTest {
 
         mvc.perform(request(body(terms), "BUYER").header("Idempotency-Key", UUID.randomUUID().toString()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith(
-                        "INSUFFICIENT_LISTING_QUANTITY")));
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_LISTING_QUANTITY"))
+                .andExpect(jsonPath("$.message").value("Only 100 kg left"));
     }
 
     @Test
@@ -116,7 +116,27 @@ class CreateContractEndpointTest {
         when(useCase.execute(any())).thenThrow(new ListingServiceUnavailableException("down", null));
 
         mvc.perform(request(body(terms), "BUYER").header("Idempotency-Key", UUID.randomUUID().toString()))
-                .andExpect(status().isServiceUnavailable());
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("PRODUCT_SERVICE_UNAVAILABLE"));
+    }
+
+    /** #427 (D32): every error is the shared ErrorEnvelope, every required field present. */
+    @Test
+    void errorBodyIsTheSharedEnvelope() throws Exception {
+        when(useCase.execute(any())).thenThrow(
+                new ContractConflictException("INSUFFICIENT_LISTING_QUANTITY", "Only 100 kg left"));
+
+        mvc.perform(request(body(terms), "BUYER").header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("X-Correlation-Id", "trace-427"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_LISTING_QUANTITY"))
+                .andExpect(jsonPath("$.path").value("/api/v1/contracts"))
+                .andExpect(jsonPath("$.traceId").value("trace-427"))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.success").doesNotExist())
+                .andExpect(jsonPath("$.data").doesNotExist());
     }
 
     @Test
@@ -127,10 +147,10 @@ class CreateContractEndpointTest {
 
         mvc.perform(request(body(terms), "BUYER").header("Idempotency-Key", UUID.randomUUID().toString()))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("INTERNAL_ERROR")))
-                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.not(
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("categoryId"))))
-                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.not(
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString(LISTING))));
     }
 

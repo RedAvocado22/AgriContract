@@ -19,6 +19,11 @@
             <artifactId>java-eventing</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.agricontract</groupId>
+            <artifactId>java-web-error</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- The one Vietnam business-day calendar (#295): D42 one-sided cancel window. -->
         <dependency>
             <groupId>com.agricontract</groupId>
