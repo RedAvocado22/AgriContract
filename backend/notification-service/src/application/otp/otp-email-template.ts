@@ -69,6 +69,46 @@ export const VERIFY_EMAIL_OTP_LOG_BODY = logBody(
   VERIFY_EMAIL_OTP_TEMPLATE_VERSION,
 );
 
+/*
+ * The codes that end a milestone dispute before the inspection report (D57,
+ * milestone-escrow design §3.4), sent by contract-service: CONCEDE_DISPUTE
+ * when a party accepts the other party's position, SETTLE_DISPUTE when a party
+ * proposes or accepts an agreed seller entitlement. Contract purposes, so the
+ * email names the contract and its fingerprint like the signing code. The
+ * request carries neither the milestone nor the amount, so the email cannot
+ * name them: the party sees both on screen. Same rule as above: do not rename
+ * notificationType.
+ */
+export const CONCEDE_DISPUTE_OTP_TEMPLATE_VERSION = 'otp-concede-dispute/v1';
+
+export const CONCEDE_DISPUTE_OTP_KIND = {
+  eventType: 'notification.otp_email_requested',
+  notificationType: 'CONCEDE_DISPUTE_OTP',
+  templateVersion: CONCEDE_DISPUTE_OTP_TEMPLATE_VERSION,
+} as const satisfies NotificationKind;
+
+export const CONCEDE_DISPUTE_OTP_SUBJECT =
+  '[AgriContract] Your code to concede a milestone dispute';
+
+export const CONCEDE_DISPUTE_OTP_LOG_BODY = logBody(
+  CONCEDE_DISPUTE_OTP_TEMPLATE_VERSION,
+);
+
+export const SETTLE_DISPUTE_OTP_TEMPLATE_VERSION = 'otp-settle-dispute/v1';
+
+export const SETTLE_DISPUTE_OTP_KIND = {
+  eventType: 'notification.otp_email_requested',
+  notificationType: 'SETTLE_DISPUTE_OTP',
+  templateVersion: SETTLE_DISPUTE_OTP_TEMPLATE_VERSION,
+} as const satisfies NotificationKind;
+
+export const SETTLE_DISPUTE_OTP_SUBJECT =
+  '[AgriContract] Your code to settle a milestone dispute';
+
+export const SETTLE_DISPUTE_OTP_LOG_BODY = logBody(
+  SETTLE_DISPUTE_OTP_TEMPLATE_VERSION,
+);
+
 function logBody(templateVersion: string): string {
   return `[${templateVersion}: body not stored, it contains the OTP]`;
 }
@@ -115,6 +155,42 @@ export const OTP_EMAIL_TEMPLATES: Record<OtpPurpose, OtpEmailTemplate> = {
       DO_NOT_SHARE,
       'ask for it. If you did not ask to cancel this contract, ignore this',
       'email: nothing changes without the code.',
+    ],
+  },
+  CONCEDE_DISPUTE: {
+    kind: CONCEDE_DISPUTE_OTP_KIND,
+    subject: CONCEDE_DISPUTE_OTP_SUBJECT,
+    logBody: CONCEDE_DISPUTE_OTP_LOG_BODY,
+    intro: [
+      "Use this one-time code to confirm that you accept the other party's",
+      'position in the dispute on a milestone of your AgriContract contract.',
+    ],
+    outro: [
+      "Entering this code ends the dispute on the other party's position.",
+      'Nothing changes before you enter it.',
+      '',
+      DO_NOT_SHARE,
+      'ask for it. If you did not ask to concede this dispute, ignore this',
+      'email: nothing changes without the code.',
+    ],
+  },
+  SETTLE_DISPUTE: {
+    kind: SETTLE_DISPUTE_OTP_KIND,
+    subject: SETTLE_DISPUTE_OTP_SUBJECT,
+    logBody: SETTLE_DISPUTE_OTP_LOG_BODY,
+    intro: [
+      'Use this one-time code to confirm the settlement amount you proposed',
+      'or accepted in the dispute on a milestone of your AgriContract',
+      'contract.',
+    ],
+    outro: [
+      'Nothing is recorded before you enter this code. A proposal then waits',
+      'for the other party; an acceptance ends the dispute on the agreed',
+      'amount.',
+      '',
+      DO_NOT_SHARE,
+      'ask for it. If you did not propose or accept a settlement, ignore',
+      'this email: nothing changes without the code.',
     ],
   },
   VERIFY_EMAIL: {

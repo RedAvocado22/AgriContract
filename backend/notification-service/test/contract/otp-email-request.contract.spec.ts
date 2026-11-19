@@ -110,6 +110,9 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
       without('purpose'),
     ],
     ['purpose CANCEL_ACTIVATION', { ...base, purpose: 'CANCEL_ACTIVATION' }],
+    ['purpose CONCEDE_DISPUTE', { ...base, purpose: 'CONCEDE_DISPUTE' }],
+    ['purpose SETTLE_DISPUTE', { ...base, purpose: 'SETTLE_DISPUTE' }],
+    ['a lower-case settle_dispute', { ...base, purpose: 'settle_dispute' }],
     ['an unknown purpose', { ...base, purpose: 'TERMINATE_CONTRACT' }],
     ['a lower-case purpose', { ...base, purpose: 'cancel_activation' }],
     ['a null purpose', { ...base, purpose: null }],
@@ -136,6 +139,22 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
     [
       'no contract fields with CANCEL_ACTIVATION',
       { ...noContract, purpose: 'CANCEL_ACTIVATION' },
+    ],
+    [
+      'no contract fields with CONCEDE_DISPUTE',
+      { ...noContract, purpose: 'CONCEDE_DISPUTE' },
+    ],
+    [
+      'no contract fields with SETTLE_DISPUTE',
+      { ...noContract, purpose: 'SETTLE_DISPUTE' },
+    ],
+    [
+      'CONCEDE_DISPUTE without a contractId',
+      without('contractId', { ...base, purpose: 'CONCEDE_DISPUTE' }),
+    ],
+    [
+      'SETTLE_DISPUTE without a signedContentHash',
+      without('signedContentHash', { ...base, purpose: 'SETTLE_DISPUTE' }),
     ],
     [
       'no contract fields with an unknown purpose',
@@ -173,6 +192,17 @@ describe('OtpEmailRequest contract (golden-flow-api.yaml)', () => {
     expect(codeAccepts(verify)).toBe(true);
     expect(codeAccepts(without('purpose', noContract))).toBe(false);
   });
+
+  /* #493 (D57): the dispute codes are contract codes, both ways. */
+  it.each(['CONCEDE_DISPUTE', 'SETTLE_DISPUTE'])(
+    'accepts %s only with a contract',
+    (purpose) => {
+      expect(contractAccepts({ ...base, purpose })).toBe(true);
+      expect(codeAccepts({ ...base, purpose })).toBe(true);
+      expect(contractAccepts({ ...noContract, purpose })).toBe(false);
+      expect(codeAccepts({ ...noContract, purpose })).toBe(false);
+    },
+  );
 
   /*
    * Where the code is deliberately stricter than the contract (see

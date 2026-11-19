@@ -77,20 +77,29 @@ describe('parseOtpEmailRequest', () => {
       );
     });
 
-    it.each(['SIGN_CONTRACT', 'CANCEL_ACTIVATION'])('accepts %s', (purpose) => {
+    it.each([
+      'SIGN_CONTRACT',
+      'CANCEL_ACTIVATION',
+      'CONCEDE_DISPUTE',
+      'SETTLE_DISPUTE',
+    ])('accepts %s', (purpose) => {
       expect(
         parseOtpEmailRequest({ ...withoutPurpose(), purpose }).purpose,
       ).toBe(purpose);
     });
 
-    it.each([null, 'cancel_activation', 'TERMINATE_CONTRACT', 1, ''])(
-      'rejects %p',
-      (purpose) => {
-        expect(problemsOf({ ...withoutPurpose(), purpose })).toEqual([
-          'purpose is invalid',
-        ]);
-      },
-    );
+    it.each([
+      null,
+      'cancel_activation',
+      'concede_dispute',
+      'TERMINATE_CONTRACT',
+      1,
+      '',
+    ])('rejects %p', (purpose) => {
+      expect(problemsOf({ ...withoutPurpose(), purpose })).toEqual([
+        'purpose is invalid',
+      ]);
+    });
 
     it('is not reported missing', () => {
       expect(problemsOf(withoutPurpose())).toEqual([]);
@@ -152,15 +161,18 @@ describe('parseOtpEmailRequest', () => {
      * absent one or an invalid one still requires both (no regression for the
      * signing and cancel codes).
      */
-    it.each([undefined, 'SIGN_CONTRACT', 'CANCEL_ACTIVATION'])(
-      'still requires both contract fields for purpose %p',
-      (purpose) => {
-        expect(problemsOf({ ...verifyEmailRequest(), purpose })).toEqual([
-          'contractId is required',
-          'signedContentHash is required',
-        ]);
-      },
-    );
+    it.each([
+      undefined,
+      'SIGN_CONTRACT',
+      'CANCEL_ACTIVATION',
+      'CONCEDE_DISPUTE',
+      'SETTLE_DISPUTE',
+    ])('still requires both contract fields for purpose %p', (purpose) => {
+      expect(problemsOf({ ...verifyEmailRequest(), purpose })).toEqual([
+        'contractId is required',
+        'signedContentHash is required',
+      ]);
+    });
 
     it.each(['verify_email', 'VERIFY'])(
       'treats %p as an invalid purpose that needs a contract',
