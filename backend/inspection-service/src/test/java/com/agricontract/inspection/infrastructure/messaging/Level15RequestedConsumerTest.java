@@ -6,6 +6,7 @@ import com.agricontract.inspection.testsupport.DirectTransactionRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
 import java.util.stream.Stream;
 import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.inspection.application.usecase.ManageLevel15Assignments;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -42,6 +44,29 @@ class Level15RequestedConsumerTest {
         order.verify(lifecycle).requested(new Level15AssignmentRequestedCommand(
                 "1349fbf6-44b6-450c-b01d-4b5abaf7c327", "1349fbf6-44b6-450c-b01d-4b5abaf7c328",
                 2, null, "1349fbf6-44b6-450c-b01d-4b5abaf7c326", "1349fbf6-44b6-450c-b01d-4b5abaf7c329"));
+    }
+    @ParameterizedTest
+    @MethodSource("correlationCases")
+    void resolvesCorrelationWithoutChangingItsValue(String correlationField, String expected) {
+        consumer.accept(message(VALID.replace("\"correlationId\":\"1349fbf6-44b6-450c-b01d-4b5abaf7c329\"", correlationField)));
+        verify(lifecycle).requested(new Level15AssignmentRequestedCommand(
+                "1349fbf6-44b6-450c-b01d-4b5abaf7c327", "1349fbf6-44b6-450c-b01d-4b5abaf7c328",
+                2, null, "1349fbf6-44b6-450c-b01d-4b5abaf7c326", expected));
+    }
+
+    static Stream<Arguments> correlationCases() {
+        String eventId = "1349fbf6-44b6-450c-b01d-4b5abaf7c326";
+        return Stream.of(
+                Arguments.of("\"correlationId\":null", eventId),
+                Arguments.of("\"correlationId\":\"   \"", eventId),
+                Arguments.of("\"correlationId\":\"req-abc\"", "req-abc"),
+                Arguments.of("\"correlationId\":\"1349FBF6-44B6-450C-B01D-4B5ABAF7C329\"", "1349FBF6-44B6-450C-B01D-4B5ABAF7C329"));
+    }
+    @Test void missingCorrelationUsesSourceEventId() {
+        consumer.accept(message(VALID.replace("\"correlationId\":\"1349fbf6-44b6-450c-b01d-4b5abaf7c329\",", "")));
+        verify(lifecycle).requested(new Level15AssignmentRequestedCommand(
+                "1349fbf6-44b6-450c-b01d-4b5abaf7c327", "1349fbf6-44b6-450c-b01d-4b5abaf7c328",
+                2, null, "1349fbf6-44b6-450c-b01d-4b5abaf7c326", "1349fbf6-44b6-450c-b01d-4b5abaf7c326"));
     }
     @Test void malformedAndInspectorOverridePayloadsAreRejectedWithoutMutation() {
         for (String invalid : new String[]{"{", VALID.replace("\"eventVersion\":1", "\"eventVersion\":1.5"),
@@ -74,8 +99,7 @@ class Level15RequestedConsumerTest {
 
     static Stream<String> invalidFields() {
         return Stream.of(
-                VALID.replace("\"correlationId\":\"1349fbf6-44b6-450c-b01d-4b5abaf7c329\",", ""),
-                VALID.replace("1349fbf6-44b6-450c-b01d-4b5abaf7c329", "not-a-uuid"),
+                VALID.replace("1349fbf6-44b6-450c-b01d-4b5abaf7c326", "bad-event-id"),
                 VALID.replace("inspection.level1_5_requested", "other.event"),
                 VALID.replace("\"eventVersion\":1", "\"eventVersion\":2"),
                 VALID.replace("DISPUTE_ROUTED", "UNKNOWN"),

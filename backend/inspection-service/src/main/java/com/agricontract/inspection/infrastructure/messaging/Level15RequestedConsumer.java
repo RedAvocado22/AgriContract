@@ -59,11 +59,14 @@ public class Level15RequestedConsumer {
                 || days < 1 || days > 30 || !REASONS.contains(text(payload.get("reason"))))
             throw new IllegalArgumentException("Invalid assignment payload");
         OffsetDateTime.parse(text(payload.get("requestedAt")));
-        id(event.correlationId());
+        String correlationId = event.correlationId();
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = event.eventId().toString();
+        }
         return new Level15AssignmentRequestedCommand(id(payload.get("contractId")),
                 id(payload.get("milestoneId")), days,
                 payload.get("initiatedByActorId") == null ? null : id(payload.get("initiatedByActorId")),
-                event.eventId().toString(), event.correlationId());
+                event.eventId().toString(), correlationId);
     }
 
     private static String text(Object value) {
