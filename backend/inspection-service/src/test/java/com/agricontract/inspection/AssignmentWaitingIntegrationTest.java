@@ -179,6 +179,31 @@ class AssignmentWaitingIntegrationTest {
         assertThat(alert.eventId()).isNotEqualTo(first.eventId());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"req-abc", "   "})
+    void resolvedCorrelationReachesOutboxWithSourceEventAsCause(String correlation) {
+        var original = event();
+        var request = new EventEnvelope(original.eventId(), original.eventType(), original.eventVersion(),
+                original.occurredAt(), original.producer(), original.aggregateId(), correlation,
+                null, null, original.payload());
+        deliver(request);
+        var alert = command(Stage.WAITING_STARTED);
+        assertThat(alert.correlationId()).isEqualTo(correlation.isBlank() ? request.eventId().toString() : correlation);
+        assertThat(alert.causationId()).isEqualTo(request.eventId().toString());
+        assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
+    }
+
+    @Test void missingCorrelationReachesOutboxWithSourceEventAsCorrelationAndCause() {
+        var original = event();
+        var request = new EventEnvelope(original.eventId(), original.eventType(), original.eventVersion(),
+                original.occurredAt(), original.producer(), original.aggregateId(), null,
+                null, null, original.payload());
+        deliver(request);
+        var alert = command(Stage.WAITING_STARTED);
+        assertThat(alert.correlationId()).isEqualTo(request.eventId().toString());
+        assertThat(alert.causationId()).isEqualTo(request.eventId().toString());
+    }
+
     @Test void differentRequestsPreserveTheirOwnMetadata() {
         var first = event();
         var otherMilestone = UUID.randomUUID().toString();
