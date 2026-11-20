@@ -27,6 +27,7 @@ import {
 } from '../infrastructure/storage/s3-object-storage';
 import { FileLengthMismatchError } from './file-errors';
 import { DIRECT_UPLOAD_POLICY } from './ingest-policy';
+import { IdempotencyKeyTakenError } from './ports/file.repository';
 import { StoreFileUseCase } from './store-file.use-case';
 
 const MiB = 1024 * 1024;
@@ -221,5 +222,109 @@ describe('StoreFileUseCase on SeaweedFS and MySQL', () => {
       "SELECT COUNT(*) AS n FROM file WHERE uploaded_by = 'short-body-int'",
     );
     expect(rows[0].n).toBe(0);
+  });
+
+  describe('idempotency (D60) on the real unique index', () => {
+    const uploader = `idem-int-${randomUUID()}`;
+    const keyed = (key: string, by = uploader) => ({
+      body: Readable.from([Buffer.from(`%PDF-1.7 ${key}`)]),
+      contentType: 'application/pdf',
+      contentLength: Buffer.byteLength(`%PDF-1.7 ${key}`),
+      uploadedBy: by,
+      idempotencyKey: key,
+    });
+    const rowsOf = async (by: string) => {
+      const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT file_id, idempotency_key FROM file WHERE uploaded_by = ?',
+        [by],
+      );
+      return rows;
+    };
+
+    it('the repository rejects a taken (uploaded_by, idempotency_key) pair with IdempotencyKeyTakenError', async () => {
+      const repo = new FileMysqlRepository(pool);
+      const first = await useCase.execute(
+        keyed('repo-dup'),
+        DIRECT_UPLOAD_POLICY,
+      );
+      fileIds.push(first.fileId);
+
+      const err = await repo
+        .insert({ ...first, fileId: randomUUID() })
+        .catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(IdempotencyKeyTakenError);
+      await expect(
+        repo.findByIdempotencyKey(uploader, 'repo-dup'),
+      ).resolves.toEqual(first);
+    });
+
+    it('rows without a key never collide', async () => {
+      const repo = new FileMysqlRepository(pool);
+      const by = `no-key-int-${randomUUID()}`;
+      const a = await useCase.execute(
+        { ...keyed('x', by), idempotencyKey: null },
+        DIRECT_UPLOAD_POLICY,
+      );
+      const b = await useCase.execute(
+        { ...keyed('x', by), idempotencyKey: null },
+        DIRECT_UPLOAD_POLICY,
+      );
+      fileIds.push(a.fileId, b.fileId);
+
+      expect(a.fileId).not.toBe(b.fileId);
+      expect(await rowsOf(by)).toHaveLength(2);
+      await expect(repo.findById(a.fileId)).resolves.toMatchObject({
+        idempotencyKey: null,
+      });
+    });
+
+    it('keys are compared byte for byte: "Key-A" and "key-a" are two uploads', async () => {
+      const upper = await useCase.execute(keyed('Key-A'), DIRECT_UPLOAD_POLICY);
+      const lower = await useCase.execute(keyed('key-a'), DIRECT_UPLOAD_POLICY);
+      fileIds.push(upper.fileId, lower.fileId);
+
+      expect(lower.fileId).not.toBe(upper.fileId);
+    });
+
+    it('a repeat returns the stored file, and stores no second object', async () => {
+      const before = (await keys()).length;
+      const first = await useCase.execute(
+        keyed('repeat'),
+        DIRECT_UPLOAD_POLICY,
+      );
+      fileIds.push(first.fileId);
+      await pool.query("UPDATE file SET status = 'READY' WHERE file_id = ?", [
+        first.fileId,
+      ]);
+
+      const repeat = await useCase.execute(
+        keyed('repeat'),
+        DIRECT_UPLOAD_POLICY,
+      );
+
+      expect(repeat).toEqual({ ...first, status: 'READY' });
+      expect((await keys()).length).toBe(before + 1);
+    });
+
+    it('concurrent stores of the same pair: one row, one object, the same fileId for all', async () => {
+      const before = await keys();
+      const by = `race-int-${randomUUID()}`;
+
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          useCase.execute(keyed('race', by), DIRECT_UPLOAD_POLICY),
+        ),
+      );
+      fileIds.push(...results.map((r) => r.fileId));
+
+      const rows = await rowsOf(by);
+      expect(rows).toHaveLength(1);
+      expect(new Set(results.map((r) => r.fileId))).toEqual(
+        new Set([rows[0].file_id]),
+      );
+      const added = (await keys()).filter((k) => !before.includes(k));
+      expect(added).toEqual([rows[0].file_id]);
+    });
   });
 });
