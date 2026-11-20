@@ -9,10 +9,53 @@ NestJS 11 on Node 22, port **8089**. Internal only: the gateway never routes it.
 
 ## Status
 
-This is the scaffold and the store core of #116. **No upload endpoint is exposed yet.** The request and response
-of `POST /internal/v1/files` (`storeOnBehalfOf`, `contracts/events/supplementary-services-api.yaml`) are not frozen,
-and the split with #274 is open (asked on #116). Not done yet: virus scan and `file.ready`/`file.failed` (#131),
-store-on-behalf, `store()`, confirm-attached, download and delete (#274), email intake (#275), retention (#276).
+#116: the scaffold, the store core and its one entrypoint so far, `POST /internal/v1/files` (`storeOnBehalfOf`,
+request frozen by D60 in `contracts/events/supplementary-services-api.yaml`). Not done yet: virus scan and
+`file.ready`/`file.failed` (#131, so every file stays `PROCESSING` for now), `store()`, confirm-attached, download
+and delete (#274), email intake (#275), retention (#276).
+
+## `POST /internal/v1/files` (storeOnBehalfOf)
+
+A business service (product-service, contract-service...) stores a file an end-user gave it. Service to service
+only: the gateway never routes `/internal/**`. The body is the **raw file**, streamed straight to object storage;
+there is no multipart and no JSON.
+
+| Header | |
+| --- | --- |
+| `X-Internal-Secret` | `SERVICE_INTERNAL_SECRET`, as every `/internal` endpoint |
+| `X-Acting-User-Id` | UUID of the end-user the caller acts for; stored (lower case) as `uploaded_by` |
+| `Idempotency-Key` | 1 to 255 printable ASCII characters, compared byte for byte |
+| `Content-Type` | The file's own type: `image/jpeg`, `image/png` or `application/pdf` |
+| `Content-Length` | Required, 1 to 10485760 (10 MiB). No chunked body |
+
+```bash
+curl -H "X-Internal-Secret: $SERVICE_INTERNAL_SECRET" -H "X-Acting-User-Id: $USER_ID" \
+     -H "Idempotency-Key: $KEY" -H "Content-Type: application/pdf" \
+     --data-binary @extract.pdf http://localhost:8089/internal/v1/files
+# 202 {"fileId":"…","status":"PROCESSING"}
+```
+
+| Status | `code` | When |
+| --- | --- | --- |
+| 202 | | Stored, `{fileId, status}`; or a repeat, see below |
+| 400 | `VALIDATION_ERROR` | A missing or bad header, a type outside the list, an empty body, a chunked body |
+| 401 | `UNAUTHORIZED` | Missing or wrong `X-Internal-Secret` |
+| 413 | `FILE_TOO_LARGE` | `Content-Length` over 10 MiB |
+| 503 | `FILE_STORAGE_UNAVAILABLE` / `FILE_METADATA_UNAVAILABLE` | Object storage or `file_db` down. Nothing kept; retry with the same key |
+
+Errors use the shared `ErrorEnvelope` (`timestamp, status, error, code, message, path, traceId`). Messages name
+headers, sizes and types only, never a header's value.
+
+**Idempotency (D60).** The pair (`uploaded_by`, `idempotency_key`) is unique on `file`. A repeat of the pair answers
+202 with the same `fileId` and the file's **current** status, and its body is not stored. Two concurrent requests with
+the same pair both stream a blob, but only one row gets in: the other removes its blob and answers the winner's
+`fileId`. The key belongs to the user, not to the calling service, since the shared secret does not say who calls.
+
+**The unread body.** A request refused before its body is read (401, 400, a repeat), or a store that fails part way
+(503), still has bytes on the way. When the declared length is within the cap, file-service reads them to the end
+and throws them away **before** it answers: answering first would let Node close a `Connection: close` socket while
+the caller is still sending, and the caller would get a reset instead of the answer. A body over the cap (413) or
+without a length is not read; the answer carries `Connection: close`.
 
 ## The store core
 
@@ -64,6 +107,7 @@ Environment variables only (no `.env` file). The defaults match the compose serv
 | `S3_BUCKET` | `agricontract-files` | Created on startup when missing |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | `agricontract` / `agricontract-dev-secret` | Dev identity of `infra/seaweedfs/s3.json` |
 | `SERVER_PORT` | `8089` | |
+| `SERVICE_INTERNAL_SECRET` | `changeme-internal` | `X-Internal-Secret` of the callers. Compose requires it in `backend/.env` |
 
 Startup fails when MySQL or the bucket cannot be reached. `GET /actuator/health` answers 200 with
 `components.db` and `components.storage` UP, or 503 with an error code for the one that is down.
@@ -71,7 +115,9 @@ Startup fails when MySQL or the bucket cannot be reached. `GET /actuator/health`
 ## Database
 
 `db/migration/V1__create_file.sql` is the `file` table of design §8 in MySQL syntax, with the same columns,
-defaults, CHECK constraint and indexes. `email_intake_failure` comes with the email intake (#275). The app does not
+defaults, CHECK constraint and indexes, including `idempotency_key` and its unique index with `uploaded_by` (D60).
+`idempotency_key` is `ascii` / `ascii_bin`: MySQL's default collation ignores case, so `Key-A` and `key-a` would
+otherwise be one upload. `email_intake_failure` comes with the email intake (#275). The app does not
 migrate: compose's `file-migrate` (Flyway 10.10) runs before `file-service`, and CI runs the same image.
 
 ## Run and test
@@ -87,7 +133,7 @@ docker compose up -d --build file-service      # optional: the service itself on
 | --- | --- |
 | `npm run lint:check` | ESLint with Prettier |
 | `npm test` | Unit tests, no Docker |
-| `npm run test:int` | The store core on the compose `object-storage` and `file-db` (migrated). Uses a bucket of its own per run and deletes it |
+| `npm run test:int` | The store core and `POST /internal/v1/files` (whole app) on the compose `object-storage` and `file-db` (migrated). Uses a bucket of its own per run and deletes it |
 | `npm run build` | |
 
 In Git Bash on Windows, put `MSYS_NO_PATHCONV=1` in front of a `docker run` that passes container paths such as
@@ -101,6 +147,7 @@ src/application/store-file.use-case  the store core shared by every entrypoint
 src/application/byte-meter.ts        count + SHA-256 + length enforcement while streaming
 src/application/ingest-policy.ts     what each entrypoint accepts
 src/application/ports/               ObjectStoragePort, FileRepository
+src/infrastructure/http/             POST /internal/v1/files: guard, headers, error envelope, unread body
 src/infrastructure/storage/          S3 client and adapter, bucket creation on startup
 src/infrastructure/persistence/      mysql2 pool, `file` repository
 src/infrastructure/health/           /actuator/health
