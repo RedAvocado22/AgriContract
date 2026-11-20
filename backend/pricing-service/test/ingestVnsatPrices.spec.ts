@@ -119,6 +119,17 @@ describe('ingestVnsatPrices use case', () => {
     const cached = await cache.getLatest('dak-lak', 'ca-phe-robusta-nhan-xo');
     assert.equal(cached?.id, repo.rows[0]!.quote.id);
   });
+
+  it('a findLatest error after commit is a cache warning, not an ingestion failure', async () => {
+    const { repo, cache, deps } = setup(source([robustaDakLak, robustaGiaLai]));
+    // appendScrapedBatch commits, then MySQL drops before the cache refresh reads it back
+    repo.findLatest = async () => { throw new Error('ECONNRESET'); };
+
+    assert.deepEqual(await ingestVnsatPrices(deps), { rows: 2, inserted: 2 });
+    assert.equal(repo.rows.length, 2);
+    assert.deepEqual(repo.failures, []);
+    assert.equal(cache.stored.length, 0);
+  });
 });
 
 describe('VnsatPriceIngestionJob (scheduler)', () => {
