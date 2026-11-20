@@ -1,5 +1,8 @@
 import { Readable } from 'node:stream';
-import type { FileRepository } from '../../src/application/ports/file.repository';
+import {
+  IdempotencyKeyTakenError,
+  type FileRepository,
+} from '../../src/application/ports/file.repository';
 import type { ObjectStoragePort } from '../../src/application/ports/object-storage.port';
 import type { StoredFile } from '../../src/domain/stored-file';
 
@@ -43,21 +46,48 @@ export class FakeObjectStorage implements ObjectStoragePort {
   }
 }
 
+/** The `file` table, with its unique (uploadedBy, idempotencyKey) index. */
 export class InMemoryFileRepository implements FileRepository {
   readonly rows = new Map<string, StoredFile>();
   insertError: Error | null = null;
+  findError: Error | null = null;
+  /** Runs just before insert checks the index, to let a concurrent store win. */
+  beforeInsert: (file: StoredFile) => void = () => undefined;
 
   insert(file: StoredFile): Promise<void> {
+    this.beforeInsert(file);
     if (this.insertError) return Promise.reject(this.insertError);
     if (this.rows.has(file.fileId)) {
       return Promise.reject(new Error('duplicate fileId'));
+    }
+    if (
+      file.idempotencyKey !== null &&
+      this.byKey(file.uploadedBy, file.idempotencyKey)
+    ) {
+      return Promise.reject(new IdempotencyKeyTakenError());
     }
     this.rows.set(file.fileId, { ...file });
     return Promise.resolve();
   }
 
   findById(fileId: string): Promise<StoredFile | null> {
+    if (this.findError) return Promise.reject(this.findError);
     return Promise.resolve(this.rows.get(fileId) ?? null);
+  }
+
+  findByIdempotencyKey(
+    uploadedBy: string,
+    idempotencyKey: string,
+  ): Promise<StoredFile | null> {
+    if (this.findError) return Promise.reject(this.findError);
+    const row = this.byKey(uploadedBy, idempotencyKey);
+    return Promise.resolve(row ? { ...row } : null);
+  }
+
+  private byKey(uploadedBy: string, key: string): StoredFile | undefined {
+    return [...this.rows.values()].find(
+      (r) => r.uploadedBy === uploadedBy && r.idempotencyKey === key,
+    );
   }
 }
 

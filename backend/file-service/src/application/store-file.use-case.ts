@@ -13,7 +13,10 @@ import {
   failureCode,
 } from './file-errors';
 import { normalizeContentType, type IngestPolicy } from './ingest-policy';
-import type { FileRepository } from './ports/file.repository';
+import {
+  IdempotencyKeyTakenError,
+  type FileRepository,
+} from './ports/file.repository';
 import type { ObjectStoragePort } from './ports/object-storage.port';
 
 export interface StoreFileInput {
@@ -25,6 +28,11 @@ export interface StoreFileInput {
   contentLength: number;
   /** userId (DIRECT_UPLOAD) or serviceId (SYSTEM_GENERATED), from the entrypoint. */
   uploadedBy: string;
+  /**
+   * The caller's Idempotency-Key, when the entrypoint has one (D60): the pair
+   * (uploadedBy, idempotencyKey) identifies one upload.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface StoreLogger {
@@ -44,6 +52,11 @@ export interface StoreLogger {
  * too, or the process dies in between, a blob without a row is left: §7's
  * orphan cleanup works from rows and cannot see it, so the warning names the
  * fileId (= object key) for a manual delete.
+ *
+ * Idempotency (D60): with a key, an earlier store of the same (uploadedBy,
+ * key) pair is returned as it is now, without reading the body. Two stores
+ * racing with the same pair both write a blob, but only one row gets in (the
+ * unique index): the loser removes its blob and returns the winner's file.
  */
 export class StoreFileUseCase {
   constructor(
@@ -65,6 +78,13 @@ export class StoreFileUseCase {
     }
     if (declared > policy.maxBytes) {
       throw new FileTooLargeError(policy.maxBytes);
+    }
+
+    const idempotencyKey = input.idempotencyKey ?? null;
+    if (idempotencyKey !== null) {
+      // A repeat: the body is left unread, for the entrypoint to discard.
+      const earlier = await this.findEarlier(input.uploadedBy, idempotencyKey);
+      if (earlier) return earlier;
     }
 
     const fileId = randomUUID();
@@ -102,14 +122,32 @@ export class StoreFileUseCase {
       ingestChannel: policy.channel,
       contentType,
       fileSize: meter.bytes,
+      idempotencyKey,
     });
     try {
       await this.files.insert(file);
     } catch (err) {
       await this.removeBlob(fileId);
+      if (err instanceof IdempotencyKeyTakenError && idempotencyKey !== null) {
+        const winner = await this.findEarlier(input.uploadedBy, idempotencyKey);
+        if (winner) return winner;
+        // The winning row is gone again: nothing to point the caller at.
+        throw new FileMetadataUnavailableError('IDEMPOTENCY_KEY_RACE');
+      }
       throw new FileMetadataUnavailableError(failureCode(err));
     }
     return file;
+  }
+
+  private async findEarlier(
+    uploadedBy: string,
+    idempotencyKey: string,
+  ): Promise<StoredFile | null> {
+    try {
+      return await this.files.findByIdempotencyKey(uploadedBy, idempotencyKey);
+    } catch (err) {
+      throw new FileMetadataUnavailableError(failureCode(err));
+    }
   }
 
   private checkContentType(raw: string, policy: IngestPolicy): string {

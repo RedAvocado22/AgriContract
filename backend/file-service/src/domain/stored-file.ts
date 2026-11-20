@@ -31,6 +31,11 @@ export interface StoredFile {
   fileSize: number;
   status: FileStatus;
   attached: boolean;
+  /**
+   * The caller's Idempotency-Key, unique per uploadedBy (D60); null when the
+   * entrypoint has none.
+   */
+  idempotencyKey: string | null;
 }
 
 /** A freshly stored file: PROCESSING, not attached (§2.2, §7). */
@@ -43,6 +48,7 @@ export function newStoredFile(
     | 'ingestChannel'
     | 'contentType'
     | 'fileSize'
+    | 'idempotencyKey'
   >,
 ): StoredFile {
   return { ...fields, status: 'PROCESSING', attached: false };

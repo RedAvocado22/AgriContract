@@ -63,6 +63,7 @@ describe('StoreFileUseCase', () => {
       fileSize: pdf.length,
       status: 'PROCESSING',
       attached: false,
+      idempotencyKey: null,
     });
     expect(file).toEqual(files.rows.get(file.fileId));
   });
@@ -282,6 +283,100 @@ describe('StoreFileUseCase', () => {
           new RegExp(`\\(ECONNRESET\\); object ${key} has no row`),
         ),
       );
+    });
+  });
+
+  describe('with an idempotency key (D60)', () => {
+    const keyed = (overrides: Partial<StoreFileInput> = {}) =>
+      input({ idempotencyKey: 'evidence-upload-1', ...overrides });
+
+    it('records the key on the row', async () => {
+      const file = await useCase.execute(keyed(), DIRECT_UPLOAD_POLICY);
+
+      expect(file.idempotencyKey).toBe('evidence-upload-1');
+      expect(files.rows.get(file.fileId)?.idempotencyKey).toBe(
+        'evidence-upload-1',
+      );
+    });
+
+    it('a repeat returns the same file with its current status, without reading or storing the body', async () => {
+      const first = await useCase.execute(keyed(), DIRECT_UPLOAD_POLICY);
+      files.rows.set(first.fileId, { ...first, status: 'READY' });
+      let read = false;
+      const body = lazyBody(pdf.length, 64 * 1024, () => (read = true));
+
+      const repeat = await useCase.execute(
+        keyed({ body }),
+        DIRECT_UPLOAD_POLICY,
+      );
+
+      expect(repeat.fileId).toBe(first.fileId);
+      expect(repeat.status).toBe('READY');
+      expect(read).toBe(false);
+      expect(storage.objects.size).toBe(1);
+      expect(files.rows.size).toBe(1);
+    });
+
+    it('a repeat is still checked against the policy first', async () => {
+      await useCase.execute(keyed(), DIRECT_UPLOAD_POLICY);
+
+      await expect(
+        useCase.execute(
+          keyed({ contentType: 'image/gif' }),
+          DIRECT_UPLOAD_POLICY,
+        ),
+      ).rejects.toBeInstanceOf(UnsupportedContentTypeError);
+    });
+
+    it('scopes the key to the uploader: the same key from another user is a new file', async () => {
+      const first = await useCase.execute(keyed(), DIRECT_UPLOAD_POLICY);
+      const other = await useCase.execute(
+        keyed({ uploadedBy: 'buyer-user-2' }),
+        DIRECT_UPLOAD_POLICY,
+      );
+
+      expect(other.fileId).not.toBe(first.fileId);
+      expect(files.rows.size).toBe(2);
+    });
+
+    it('a different key from the same user is a new file', async () => {
+      const first = await useCase.execute(keyed(), DIRECT_UPLOAD_POLICY);
+      const other = await useCase.execute(
+        keyed({ idempotencyKey: 'evidence-upload-2' }),
+        DIRECT_UPLOAD_POLICY,
+      );
+
+      expect(other.fileId).not.toBe(first.fileId);
+    });
+
+    it('losing the race to a concurrent store: removes its own blob and returns the winner', async () => {
+      const winner = {
+        ...(await useCase.execute(keyed(), DIRECT_UPLOAD_POLICY)),
+      };
+      // Make the next store miss the lookup, as if the winner's row landed
+      // between its lookup and its insert.
+      files.rows.clear();
+      files.beforeInsert = () => files.rows.set(winner.fileId, winner);
+
+      const result = await useCase.execute(keyed(), DIRECT_UPLOAD_POLICY);
+
+      expect(result).toEqual(winner);
+      expect(files.rows.size).toBe(1);
+      const [loserKey] = storage.deleted;
+      expect(loserKey).not.toBe(winner.fileId);
+      expect(storage.objects.has(loserKey)).toBe(false);
+      expect(storage.objects.has(winner.fileId)).toBe(true);
+    });
+
+    it('the lookup failing is a metadata outage: 503-type error, nothing stored', async () => {
+      files.findError = Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED',
+      });
+
+      await expect(
+        useCase.execute(keyed(), DIRECT_UPLOAD_POLICY),
+      ).rejects.toEqual(new FileMetadataUnavailableError('ECONNREFUSED'));
+      expect(storage.objects.size).toBe(0);
     });
   });
 });
