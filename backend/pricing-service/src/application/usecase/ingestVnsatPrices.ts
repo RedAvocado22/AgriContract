@@ -102,16 +102,21 @@ function toNewRow(row: ScrapedPrice, ingestedAt: string, id: string, sourceUrl: 
   return { quote, idempotencyKey: identity, requestHash: identity, sourceIdentity: identity };
 }
 
-/** Puts the latest committed quote of one province/item into Redis. Redis errors are logged, never thrown. */
+/**
+ * Puts the latest committed quote of one province/item into Redis. It runs after the batch is committed, so
+ * any error here (reading MySQL back or writing Redis) is logged as a warning, never thrown: the ingestion
+ * itself has already succeeded and must not be reported as failed.
+ */
 async function refreshCache(deps: IngestVnsatDeps, provinceSlug: string, itemSlug: string): Promise<void> {
-  const latest = await deps.repository.findLatest(COMMODITY, provinceSlug, itemSlug);
-  if (!latest) return;
   try {
+    const latest = await deps.repository.findLatest(COMMODITY, provinceSlug, itemSlug);
+    if (!latest) return;
     const cached = await deps.cache.getLatest(provinceSlug, itemSlug).catch(() => undefined);
     if (cached?.id !== latest.id) await deps.cache.putLatest(latest);
   } catch (err) {
-    deps.logger.warn('Redis update failed after VNSAT price write; MySQL remains the source of truth', {
-      priceId: latest.id,
+    deps.logger.warn('Cache refresh failed after VNSAT price commit; MySQL remains the source of truth', {
+      provinceSlug,
+      itemSlug,
       error: errorMessage(err),
     });
   }
