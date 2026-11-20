@@ -5,6 +5,7 @@ import { HealthModule } from './infrastructure/health/health';
 import { PersistenceModule } from './infrastructure/persistence/persistence.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { StoreFileModule } from './store-file.module';
+import { StoreOnBehalfOfModule } from './store-on-behalf-of.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { StoreFileModule } from './store-file.module';
     StorageModule,
     HealthModule,
     StoreFileModule,
+    StoreOnBehalfOfModule,
   ],
 })
 export class AppModule {}

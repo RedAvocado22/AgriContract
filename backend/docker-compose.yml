@@ -677,6 +677,7 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-agricontract}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-agricontract-dev-secret}
       S3_BUCKET: ${S3_BUCKET:-agricontract-files}
+      SERVICE_INTERNAL_SECRET: ${SERVICE_INTERNAL_SECRET:?SERVICE_INTERNAL_SECRET must be set in .env}
     # Local only, for manual tests; the gateway never routes file-service.
     ports:
       - "8089:8089"

@@ -16,6 +16,8 @@ export class FakeObjectStorage implements ObjectStoragePort {
   /** Fails `put` with this error after the body is read (or before, see failBeforeRead). */
   putError: Error | null = null;
   failBeforeRead = false;
+  /** With putError: fail once this many bytes are read, leaving the rest unread. */
+  failAfterBytes: number | null = null;
   deleteError: Error | null = null;
   /** Called with each chunk as it arrives, to observe streaming. */
   onChunk: (chunk: Buffer) => void = () => undefined;
@@ -30,9 +32,16 @@ export class FakeObjectStorage implements ObjectStoragePort {
       throw this.putError;
     }
     const chunks: Buffer[] = [];
+    let read = 0;
     for await (const chunk of body as AsyncIterable<Buffer>) {
       this.onChunk(chunk);
       chunks.push(chunk);
+      read += chunk.length;
+      if (this.putError && this.failAfterBytes !== null) {
+        // Leaving the loop destroys the stream it was reading, as a broken
+        // connection to storage would.
+        if (read >= this.failAfterBytes) throw this.putError;
+      }
     }
     if (this.putError) throw this.putError;
     this.objects.set(key, { bytes: Buffer.concat(chunks), ...meta });

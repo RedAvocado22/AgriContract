@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { pipeline, type Readable } from 'node:stream';
+import type { Readable } from 'node:stream';
 import { newStoredFile, type StoredFile } from '../domain/stored-file';
 import { ByteMeter } from './byte-meter';
 import {
@@ -20,7 +20,11 @@ import {
 import type { ObjectStoragePort } from './ports/object-storage.port';
 
 export interface StoreFileInput {
-  /** The bytes, read once as they arrive. */
+  /**
+   * The bytes, read once as they arrive. Never destroyed here: whatever is
+   * left unread (a refusal, a repeat, a failure part way) is the
+   * entrypoint's to discard.
+   */
   body: Readable;
   /** As the caller sent it; normalized and checked against the policy. */
   contentType: string;
@@ -90,9 +94,15 @@ export class StoreFileUseCase {
     const fileId = randomUUID();
     const meter = new ByteMeter(declared);
     let bodyError: Error | undefined;
-    pipeline(input.body, meter, (err) => {
-      if (err) bodyError = err;
+    // pipe, not pipeline: a failure must not destroy the body. For HTTP that
+    // would destroy the socket too, and the error response would never reach
+    // the caller. On a failure the body is unpiped and left as it is, for the
+    // entrypoint to discard the rest.
+    meter.once('error', (err) => {
+      bodyError = err;
     });
+    input.body.once('error', (err) => meter.destroy(err));
+    input.body.pipe(meter);
 
     try {
       await this.storage.put(fileId, meter, {

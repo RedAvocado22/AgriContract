@@ -21,6 +21,11 @@ export interface AppConfig {
     secretAccessKey: string;
   };
   serverPort: number;
+  /**
+   * X-Internal-Secret of service-to-service calls (supplementary-services-api.yaml
+   * storeOnBehalfOf), the same SERVICE_INTERNAL_SECRET as the other services.
+   */
+  serviceInternalSecret: string;
 }
 
 /**
@@ -85,6 +90,7 @@ export function validate(env: Record<string, unknown>): AppConfig {
       secretAccessKey: text('S3_SECRET_KEY', 'agricontract-dev-secret'),
     },
     serverPort: port('SERVER_PORT', 8089),
+    serviceInternalSecret: text('SERVICE_INTERNAL_SECRET', 'changeme-internal'),
   };
 
   if (errors.length > 0) {
