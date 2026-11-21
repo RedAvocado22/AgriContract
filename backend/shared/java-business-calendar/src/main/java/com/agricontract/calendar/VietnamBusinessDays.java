@@ -20,6 +20,7 @@ public final class VietnamBusinessDays {
 
     public static final ZoneId ICT = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final int MAX_DAYS = 30;
+    private static final int MAX_COUNTED_DAYS = 366;
 
     private final Set<LocalDate> holidays;
 
@@ -65,6 +66,51 @@ public final class VietnamBusinessDays {
             }
         }
         return date.plusDays(1).atStartOfDay(ICT).toInstant().minusMillis(1);
+    }
+
+    /**
+     * The business day that is {@code days} business days before {@code date} (1 to 366). Used for the milestone
+     * funding schedule (D64): {@code fundingScheduledDate = businessDaysBefore(expectedDeliveryDate, lead)}.
+     */
+    public LocalDate businessDaysBefore(LocalDate date, int days) {
+        if (date == null) {
+            throw new IllegalArgumentException("date is required");
+        }
+        if (days < 1 || days > MAX_COUNTED_DAYS) {
+            throw new IllegalArgumentException("Business days must be 1.." + MAX_COUNTED_DAYS + ", was " + days);
+        }
+        LocalDate result = date;
+        int remaining = days;
+        while (remaining > 0) {
+            result = result.minusDays(1);
+            if (isBusinessDay(result)) {
+                remaining--;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Business days whose ICT date is after {@code from}'s ICT date and up to {@code to}'s ICT date. Same day: 0;
+     * requested Friday, locked Monday: 1. {@code to} before {@code from} is refused.
+     */
+    public int businessDaysBetween(Instant from, Instant to) {
+        if (from == null || to == null) {
+            throw new IllegalArgumentException("from and to are required");
+        }
+        if (to.isBefore(from)) {
+            throw new IllegalArgumentException("to must not be before from");
+        }
+        LocalDate date = from.atZone(ICT).toLocalDate();
+        LocalDate end = to.atZone(ICT).toLocalDate();
+        int count = 0;
+        while (date.isBefore(end)) {
+            date = date.plusDays(1);
+            if (isBusinessDay(date)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public boolean isBusinessDay(LocalDate date) {

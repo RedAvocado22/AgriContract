@@ -94,4 +94,53 @@ class VietnamBusinessDaysTest {
         assertThat(noHolidays.deadline(Instant.parse("2026-10-19T03:00:00Z"), 30))
                 .isEqualTo(Instant.parse("2026-11-30T16:59:59.999Z"));
     }
+
+    // businessDaysBefore: the milestone funding schedule (D64).
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-12-11, 1, 2026-12-10",   // Friday -> Thursday
+            "2026-12-14, 1, 2026-12-11",   // Monday -> Friday, skips the weekend
+            "2026-12-14, 7, 2026-12-03",   // Mon 14 back 7: 11, 10, 9, 8, 7, 4, 3
+            "2026-12-13, 1, 2026-12-11"})  // Sunday target -> Friday
+    void businessDaysBeforeCountsBackOverWeekends(String date, int days, String expected) {
+        assertThat(noHolidays.businessDaysBefore(LocalDate.parse(date), days)).isEqualTo(LocalDate.parse(expected));
+    }
+
+    @Test
+    void businessDaysBeforeSkipsHolidays() {
+        VietnamBusinessDays calendar = new VietnamBusinessDays(Set.of(LocalDate.parse("2026-12-10")));
+
+        assertThat(calendar.businessDaysBefore(LocalDate.parse("2026-12-11"), 1)).isEqualTo(LocalDate.parse("2026-12-09"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1, 367})
+    void businessDaysBeforeRefusesAnOutOfRangeCount(int days) {
+        assertThatThrownBy(() -> noHolidays.businessDaysBefore(LocalDate.parse("2026-12-11"), days))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // businessDaysBetween: fundingDelayBusinessDays (D64), counted on ICT dates.
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-12-07T01:00:00Z, 2026-12-07T09:00:00Z, 0",   // same ICT day
+            "2026-12-04T03:00:00Z, 2026-12-07T03:00:00Z, 1",   // Friday -> Monday
+            "2026-12-04T03:00:00Z, 2026-12-05T03:00:00Z, 0",   // Friday -> Saturday
+            "2026-12-07T16:30:00Z, 2026-12-07T17:30:00Z, 1",   // 23:30 ICT Monday -> 00:30 ICT Tuesday
+            "2026-12-01T03:00:00Z, 2026-12-10T03:00:00Z, 7"})  // Tue 1 -> Thu 10
+    void businessDaysBetweenCountsIctDatesAfterTheStart(String from, String to, int expected) {
+        assertThat(noHolidays.businessDaysBetween(Instant.parse(from), Instant.parse(to))).isEqualTo(expected);
+    }
+
+    @Test
+    void businessDaysBetweenSkipsHolidaysAndRefusesAReversedRange() {
+        VietnamBusinessDays calendar = new VietnamBusinessDays(Set.of(LocalDate.parse("2026-12-08")));
+
+        assertThat(calendar.businessDaysBetween(Instant.parse("2026-12-07T03:00:00Z"),
+                Instant.parse("2026-12-09T03:00:00Z"))).isEqualTo(1);
+        assertThatThrownBy(() -> calendar.businessDaysBetween(Instant.parse("2026-12-09T03:00:00Z"),
+                Instant.parse("2026-12-07T03:00:00Z"))).isInstanceOf(IllegalArgumentException.class);
+    }
 }
