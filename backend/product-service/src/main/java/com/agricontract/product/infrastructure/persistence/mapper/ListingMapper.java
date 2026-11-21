@@ -1,6 +1,5 @@
 package com.agricontract.product.infrastructure.persistence.mapper;
 
-import com.agricontract.product.application.dto.ListingResponse;
 import com.agricontract.product.domain.model.Listing;
 import com.agricontract.product.domain.model.vo.CategoryId;
 import com.agricontract.product.domain.model.vo.CloseReason;
@@ -56,10 +55,6 @@ public interface ListingMapper {
 
     private static CoffeeQualitySpec spec(Listing listing) {
         return listing.getGoods().declaredQualitySpec();
-    }
-
-    default ListingResponse toResponse(Listing listing) {
-        return ListingResponse.from(listing);
     }
 
     default Listing toDomain(ListingJpaEntity entity, List<ListingPlot> plots) {
