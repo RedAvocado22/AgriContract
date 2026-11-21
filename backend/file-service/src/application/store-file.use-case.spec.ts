@@ -255,6 +255,30 @@ describe('StoreFileUseCase', () => {
       expect(files.rows.size).toBe(0);
     });
 
+    it('object storage down for the put and the cleanup: no "delete by hand" warning for an object never stored', async () => {
+      storage.putError = Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED',
+      });
+      storage.failBeforeRead = true;
+      storage.deleteError = Object.assign(new Error('connect ECONNREFUSED'), {
+        code: 'ECONNREFUSED',
+      });
+
+      await expect(
+        useCase.execute(input(), DIRECT_UPLOAD_POLICY),
+      ).rejects.toEqual(new ObjectStorageUnavailableError('ECONNREFUSED'));
+      // The delete is still tried: a PUT can commit before its response is lost.
+      const [key] = storage.deleted;
+      expect(key).toBeDefined();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        `File ${key}: could not confirm that object ${key} was not stored (ECONNREFUSED)`,
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('must be deleted by hand'),
+      );
+    });
+
     it('metadata: the stored blob is removed, so no blob is left without a row', async () => {
       files.insertError = Object.assign(new Error('Too many connections'), {
         code: 'ER_CON_COUNT_ERROR',

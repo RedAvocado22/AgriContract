@@ -55,7 +55,9 @@ export interface StoreLogger {
  * the blob, so a row never points at a missing blob. If that removal fails
  * too, or the process dies in between, a blob without a row is left: §7's
  * orphan cleanup works from rows and cannot see it, so the warning names the
- * fileId (= object key) for a manual delete.
+ * fileId (= object key) for a manual delete. After a failed put the delete is
+ * still tried (the PUT may have committed), but a failure there is not
+ * reported as a known orphan.
  *
  * Idempotency (D60): with a key, an earlier store of the same (uploadedBy,
  * key) pair is returned as it is now, without reading the body. Two stores
@@ -110,7 +112,9 @@ export class StoreFileUseCase {
         contentLength: declared,
       });
     } catch (err) {
-      await this.removeBlob(fileId);
+      // A PUT can commit before its response is lost, so try the delete
+      // anyway; but nothing is known to be stored.
+      await this.removeBlob(fileId, 'unknown');
       // The body's own failure (length mismatch, client gone) explains the
       // storage error that followed it, so it wins.
       const cause = bodyError ?? err;
@@ -119,7 +123,7 @@ export class StoreFileUseCase {
     }
     if (bodyError) {
       // Storage took the bytes, but the body failed after them: do not keep it.
-      await this.removeBlob(fileId);
+      await this.removeBlob(fileId, 'stored');
       throw bodyError instanceof FileServiceError
         ? bodyError
         : new FileLengthMismatchError(declared, meter.bytes);
@@ -137,7 +141,7 @@ export class StoreFileUseCase {
     try {
       await this.files.insert(file);
     } catch (err) {
-      await this.removeBlob(fileId);
+      await this.removeBlob(fileId, 'stored');
       if (err instanceof IdempotencyKeyTakenError && idempotencyKey !== null) {
         const winner = await this.findEarlier(input.uploadedBy, idempotencyKey);
         if (winner) return winner;
@@ -169,12 +173,24 @@ export class StoreFileUseCase {
     return contentType;
   }
 
-  private async removeBlob(fileId: string): Promise<void> {
+  /**
+   * `stored`: the put succeeded, so a failed delete leaves a known orphan.
+   * `unknown`: the put failed, so the object was most likely never written
+   * (storage down is the usual case); a failed delete then must not send the
+   * operator after an object that may not exist.
+   */
+  private async removeBlob(
+    fileId: string,
+    put: 'stored' | 'unknown',
+  ): Promise<void> {
     try {
       await this.storage.delete(fileId);
     } catch (err) {
+      const code = failureCode(err);
       this.logger.warn(
-        `File ${fileId}: could not remove the blob of a failed store (${failureCode(err)}); object ${fileId} has no row and must be deleted by hand`,
+        put === 'stored'
+          ? `File ${fileId}: could not remove the blob of a failed store (${code}); object ${fileId} has no row and must be deleted by hand`
+          : `File ${fileId}: could not confirm that object ${fileId} was not stored (${code})`,
       );
     }
   }
