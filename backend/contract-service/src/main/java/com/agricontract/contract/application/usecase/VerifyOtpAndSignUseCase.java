@@ -1,5 +1,6 @@
 package com.agricontract.contract.application.usecase;
 
+import com.agricontract.calendar.VietnamBusinessDays;
 import com.agricontract.contract.application.dto.VerifySignCommand;
 import com.agricontract.contract.application.exception.ContractNotFoundException;
 import com.agricontract.contract.application.exception.IdempotencyKeyReusedException;
@@ -16,6 +17,8 @@ import com.agricontract.contract.domain.model.signature.OtpChallenge;
 import com.agricontract.contract.domain.model.signature.OtpPolicy;
 import com.agricontract.contract.domain.model.signature.Signature;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
+import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
+import com.agricontract.contract.domain.model.terms.MilestoneTerm;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.repository.ContractRepository;
@@ -28,6 +31,7 @@ import com.agricontract.contract.application.port.TransactionRunner;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
@@ -63,6 +67,7 @@ public class VerifyOtpAndSignUseCase {
     private final OtpCodes otpCodes;
     private final OtpPolicy policy;
     private final TransactionRunner transactions;
+    private final VietnamBusinessDays calendar;
     private final Clock clock;
 
     public void execute(VerifySignCommand command) {
@@ -155,6 +160,10 @@ public class VerifyOtpAndSignUseCase {
                             "Wrong code and no attempts left; request a new code.");
         }
 
+        ContractConflictException tooSoon = deliveryScheduleTooSoon(contract, role, now);
+        if (tooSoon != null) {
+            return tooSoon;
+        }
         challenges.markVerified(challenge.otpId(), now);
         Signature signature = contract.sign(command.actorId(), challenge, command.authTime(), now,
                 command.ipAddress(), UUID.randomUUID());
@@ -169,6 +178,31 @@ public class VerifyOtpAndSignUseCase {
         claimKey(command, requestHash, signature);
         log.info("Contract {} signed by {} as {} (signature {}), status {}", command.contractId(),
                 command.actorId(), role, signature.signatureId(), contract.getStatus());
+        return null;
+    }
+
+    /**
+     * D67: the second signature is refused while any milestone's funding date (its delivery date minus
+     * fundingLeadBusinessDays business days, D64) is before today in ICT. The seller would otherwise start already
+     * short of the lead the parties agreed, or already late. The parties move the delivery dates and sign again.
+     */
+    private ContractConflictException deliveryScheduleTooSoon(Contract contract, SignerRole role, Instant now) {
+        SignerRole other = role == SignerRole.BUYER ? SignerRole.SELLER : SignerRole.BUYER;
+        if (!contract.getSignedRoles().contains(other)) {
+            return null;
+        }
+        ContractTermsSnapshot terms = contract.getCoffeeTerms().snapshot();
+        int lead = terms.fundingLeadBusinessDays();
+        LocalDate today = now.atZone(VietnamBusinessDays.ICT).toLocalDate();
+        for (MilestoneTerm term : terms.negotiated().milestoneSchedule()) {
+            LocalDate fundingDate = calendar.businessDaysBefore(term.expectedDeliveryDate(), lead);
+            if (fundingDate.isBefore(today)) {
+                return new ContractConflictException(ContractConflictException.DELIVERY_SCHEDULE_TOO_SOON,
+                        "Milestone " + term.milestoneIndex() + " is due on " + term.expectedDeliveryDate()
+                                + ", fewer than " + lead + " business days from today; move its delivery date and"
+                                + " sign again.");
+            }
+        }
         return null;
     }
 }
