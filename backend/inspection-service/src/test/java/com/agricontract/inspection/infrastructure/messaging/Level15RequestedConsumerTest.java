@@ -1,6 +1,9 @@
 package com.agricontract.inspection.infrastructure.messaging;
 
 import com.agricontract.eventing.inbox.ProcessedEventStore;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.agricontract.inspection.application.dto.Level15AssignmentRequestedCommand;
 import com.agricontract.inspection.testsupport.DirectTransactionRunner;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import com.agricontract.inspection.application.exception.InvalidEventPayloadException;
 import org.springframework.amqp.core.Message;
+import org.slf4j.LoggerFactory;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,6 +28,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class Level15RequestedConsumerTest {
     private final ManageLevel15Assignments lifecycle = mock(ManageLevel15Assignments.class);
@@ -47,7 +52,7 @@ class Level15RequestedConsumerTest {
     }
     @ParameterizedTest
     @MethodSource("correlationCases")
-    void resolvesCorrelationWithoutChangingItsValue(String correlationField, String expected) {
+    void resolvesCorrelationForNotificationContract(String correlationField, String expected) {
         consumer.accept(message(VALID.replace("\"correlationId\":\"1349fbf6-44b6-450c-b01d-4b5abaf7c329\"", correlationField)));
         verify(lifecycle).requested(new Level15AssignmentRequestedCommand(
                 "1349fbf6-44b6-450c-b01d-4b5abaf7c327", "1349fbf6-44b6-450c-b01d-4b5abaf7c328",
@@ -59,8 +64,25 @@ class Level15RequestedConsumerTest {
         return Stream.of(
                 Arguments.of("\"correlationId\":null", eventId),
                 Arguments.of("\"correlationId\":\"   \"", eventId),
-                Arguments.of("\"correlationId\":\"req-abc\"", "req-abc"),
+                Arguments.of("\"correlationId\":\"req-abc\"", eventId),
+                Arguments.of("\"correlationId\":\"1-1-1-1-1\"", eventId),
                 Arguments.of("\"correlationId\":\"1349FBF6-44B6-450C-B01D-4B5ABAF7C329\"", "1349FBF6-44B6-450C-B01D-4B5ABAF7C329"));
+    }
+    @Test void invalidCorrelationIsNotLogged() {
+        var logger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        var logs = new ListAppender<ILoggingEvent>();
+        logs.start();
+        logger.addAppender(logs);
+        try {
+            consumer.accept(message(VALID.replace("1349fbf6-44b6-450c-b01d-4b5abaf7c329", "private-untrusted-correlation")));
+            assertThat(logs.list).noneMatch(entry -> entry.getFormattedMessage().contains("private-untrusted-correlation"));
+            verify(lifecycle).requested(new Level15AssignmentRequestedCommand(
+                    "1349fbf6-44b6-450c-b01d-4b5abaf7c327", "1349fbf6-44b6-450c-b01d-4b5abaf7c328",
+                    2, null, "1349fbf6-44b6-450c-b01d-4b5abaf7c326", "1349fbf6-44b6-450c-b01d-4b5abaf7c326"));
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
     }
     @Test void missingCorrelationUsesSourceEventId() {
         consumer.accept(message(VALID.replace("\"correlationId\":\"1349fbf6-44b6-450c-b01d-4b5abaf7c329\",", "")));
