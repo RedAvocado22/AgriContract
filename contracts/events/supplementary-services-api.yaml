@@ -436,7 +436,7 @@ paths:
       parameters:
         - { name: X-Internal-Secret, in: header, required: true, schema: { type: string, minLength: 1 }, description: "SERVICE_INTERNAL_SECRET, as the other /internal endpoints." }
         - { name: X-Acting-User-Id, in: header, required: true, schema: { type: string, format: uuid }, description: "The end-user the calling service acts for; stored as uploadedBy." }
-        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 1, maxLength: 255 } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 1, maxLength: 255, pattern: '^[\x20-\x7E]+$' }, description: "Printable ASCII, compared byte for byte: Key-A and key-a are two uploads." }
         - { name: Content-Length, in: header, required: true, schema: { type: integer, minimum: 1, maximum: 10485760 } }
       requestBody:
         required: true
@@ -453,10 +453,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StoredFileAccepted' }
-        "400": { description: "Missing or invalid X-Acting-User-Id, Idempotency-Key or Content-Length, Content-Type not in the whitelist, or a body shorter or longer than Content-Length" }
-        "401": { description: Missing or invalid X-Internal-Secret }
-        "413": { description: Content-Length over 10 MiB (10485760 bytes) }
-        "503": { description: "Object storage or the file database unavailable; nothing kept, safe to retry with the same Idempotency-Key" }
+        "400": { description: "VALIDATION_ERROR: missing or invalid X-Acting-User-Id, Idempotency-Key or Content-Length, Content-Type not in the whitelist, or a body shorter or longer than Content-Length" }
+        "401": { description: "UNAUTHORIZED: missing or invalid X-Internal-Secret" }
+        "413": { description: "FILE_TOO_LARGE: Content-Length over 10 MiB (10485760 bytes)" }
+        "503": { description: "FILE_STORAGE_UNAVAILABLE (object storage) or FILE_METADATA_UNAVAILABLE (file database); nothing kept, safe to retry with the same Idempotency-Key" }
   /internal/v1/files/{fileId}:
     get:
       operationId: getFile
