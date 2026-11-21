@@ -3,6 +3,7 @@ package com.agricontract.contract.application.usecase;
 import com.agricontract.contract.application.dto.DepositLockedCommand;
 import com.agricontract.contract.application.exception.ActivationRefusedException;
 import com.agricontract.contract.application.port.ContractEventPublisher;
+import com.agricontract.contract.application.service.MilestoneFunding;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
@@ -16,7 +17,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 /**
- * escrow.deposit_locked → SIGNED becomes ACTIVE and contract.activated is written, once (#103, D40). Runs in the
+ * escrow.deposit_locked → SIGNED becomes ACTIVE and contract.activated is written, once (#103, D40). The milestones
+ * are created in the same transaction, and those already due get their funding request (#119, D64). Runs in the
  * consumer's transaction, under the contract row lock.
  * <ul>
  *   <li>Already ACTIVE: a duplicate signal, nothing to do.</li>
@@ -32,6 +34,7 @@ public class ActivateContractUseCase {
 
     private final ContractRepository contracts;
     private final ContractEventPublisher events;
+    private final MilestoneFunding milestoneFunding;
     private final Clock clock;
 
     public void execute(DepositLockedCommand command) {
@@ -53,6 +56,8 @@ public class ActivateContractUseCase {
         contracts.save(contract);
         Instant activatedAt = Instant.now(clock).truncatedTo(ChronoUnit.MICROS);
         events.contractActivated(contract, activatedAt, command.correlationId(), command.eventId());
+        // D63/D64: the milestones exist from ACTIVE; any whose funding date has come is requested now.
+        milestoneFunding.planOnActivation(contract, activatedAt, command.correlationId(), command.eventId());
         log.info("event=contract_activated contractId={} causationId={}", command.contractId(), command.eventId());
     }
 
