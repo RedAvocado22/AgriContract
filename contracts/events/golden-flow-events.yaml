@@ -743,6 +743,13 @@ $defs:
                         properties:
                           remedyType: {not: {const: CONTRACTUAL_PENALTY}}
               - if:
+                  properties: {reputationEligible: {const: true}}
+                  required: [reputationEligible]
+                then:
+                  description: "D66: a reputation lock always carries the reason reputation.locked publishes; null here is an invalid payload."
+                  properties:
+                    breachReasonCode: {$ref: "#/$defs/breachReasonCode"}
+              - if:
                   properties: {qualityDisposition: {enum: [CONFORMING, PARTIALLY_CONFORMING]}}
                   required: [qualityDisposition]
                 then:
