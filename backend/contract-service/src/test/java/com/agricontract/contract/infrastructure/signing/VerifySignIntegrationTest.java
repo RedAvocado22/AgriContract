@@ -1,11 +1,11 @@
 package com.agricontract.contract.infrastructure.signing;
 
-import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.agricontract.calendar.VietnamBusinessDays;
 import com.agricontract.contract.application.dto.InitiateSignCommand;
 import com.agricontract.contract.application.dto.OtpEmail;
 import com.agricontract.contract.application.dto.SignChallengeView;
@@ -29,17 +29,21 @@ import com.agricontract.contract.domain.model.signature.OtpChallenge;
 import com.agricontract.contract.domain.model.signature.Signature;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
 import com.agricontract.contract.domain.model.terms.ContractTemplateProfile;
+import com.agricontract.contract.domain.model.terms.ContractTermsInput;
 import com.agricontract.contract.domain.model.terms.ContractTermsRules;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
+import com.agricontract.contract.domain.model.terms.MilestoneTerm;
 import com.agricontract.contract.domain.model.terms.TermsCanonicalizer;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.contract.domain.repository.OtpChallengeRepository;
 import com.agricontract.contract.domain.repository.SignatureRepository;
+import com.agricontract.contract.infrastructure.config.BusinessCalendarConfiguration;
 import com.agricontract.contract.infrastructure.consent.ConsentConfiguration;
 import com.agricontract.contract.infrastructure.contract.FrozenSchemas;
 import com.agricontract.contract.infrastructure.messaging.OutboxContractEventPublisher;
 import com.agricontract.contract.infrastructure.otp.OtpConfiguration;
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import com.agricontract.contract.infrastructure.persistence.consent.JdbcConsentEvidenceRepository;
 import com.agricontract.contract.infrastructure.persistence.idempotency.JdbcIdempotencyStore;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
@@ -51,7 +55,9 @@ import com.agricontract.contract.infrastructure.terms.JcsTermsCanonicalizer;
 import com.agricontract.eventing.EventingAutoConfiguration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -96,7 +102,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
-@Import({SpringTransactionRunner.class, VerifyOtpAndSignUseCase.class, InitiateSignUseCase.class, SignerEligibility.class, OtpChallengeIssuer.class,
+@Import({BusinessCalendarConfiguration.class, SpringTransactionRunner.class, VerifyOtpAndSignUseCase.class, InitiateSignUseCase.class, SignerEligibility.class, OtpChallengeIssuer.class,
         JdbcOtpChallengeRepository.class, JdbcSignatureRepository.class, OtpConfiguration.class,
         SigningConsentRecorder.class, JdbcConsentEvidenceRepository.class, ConsentConfiguration.class,
         JdbcIdempotencyStore.class, ContractRepositoryImpl.class, ContractMapper.class, JcsTermsCanonicalizer.class,
@@ -208,6 +214,36 @@ class VerifySignIntegrationTest {
                 .containsExactly("buyer@example.com", "seller@example.com");
         assertThat(signatures.findByContractId(id())).extracting(Signature::signerRole)
                 .containsExactlyInAnyOrder(SignerRole.SELLER, SignerRole.BUYER);
+    }
+
+    @Test
+    void secondSignature_isRefused_whenAMilestoneIsDueSoonerThanTheFundingLead() {
+        // D67: delivery in 3 calendar days is inside the 7 business-day lead, so the funding date is already past.
+        contract = offered(withFirstDelivery(LocalDate.now(VietnamBusinessDays.ICT).plusDays(3)));
+        Code seller = codeFor(SELLER, SignerRole.SELLER);
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+
+        Code buyer = codeFor(BUYER, SignerRole.BUYER);
+        assertThatThrownBy(() -> verify.execute(command(BUYER, UUID.randomUUID(), buyer, buyer.code(),
+                Instant.now())))
+                .isInstanceOf(ContractConflictException.class)
+                .extracting("code").isEqualTo(ContractConflictException.DELIVERY_SCHEDULE_TOO_SOON);
+
+        assertThat(status()).isEqualTo(ContractStatus.OFFERED);
+        assertThat(signatures.findByContractId(id())).hasSize(1);
+        assertThat(signedEvents()).isEmpty();
+        assertThat(challenges.findById(buyer.otpId()).orElseThrow().verifiedAt())
+                .as("the code stays unused; new terms need a new code anyway").isNull();
+    }
+
+    @Test
+    void firstSignature_isNotCheckedAgainstTheFundingLead() {
+        contract = offered(withFirstDelivery(LocalDate.now(VietnamBusinessDays.ICT).plusDays(3)));
+        Code seller = codeFor(SELLER, SignerRole.SELLER);
+
+        verify.execute(command(SELLER, UUID.randomUUID(), seller, seller.code(), Instant.now()));
+
+        assertThat(signatures.findByContractId(id())).hasSize(1);
     }
 
     @Test
@@ -521,7 +557,24 @@ class VerifySignIntegrationTest {
     }
 
     private Contract offered() {
-        CanonicalTerms terms = CanonicalTerms.of(ContractTermsSnapshot.assemble(input(), goods(), template, rules),
+        return offered(input());
+    }
+
+    private static ContractTermsInput withFirstDelivery(LocalDate date) {
+        ContractTermsInput t = input();
+        List<MilestoneTerm> schedule = List.of(
+                new MilestoneTerm(1, new BigDecimal("1000"), date, 2),
+                t.milestoneSchedule().get(1));
+        return new ContractTermsInput(t.agreedPrice(), t.currency(), schedule, t.qualityTerms(), t.deliveryTerms(),
+                t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
+                t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
+                t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(),
+                t.fundingLeadBusinessDays());
+    }
+
+    private Contract offered(ContractTermsInput input) {
+        CanonicalTerms terms = CanonicalTerms.of(ContractTermsSnapshot.assemble(input, goods(), template, rules),
                 canonicalizer);
         Contract offered = Contract.offerCoffee(new ContractId(UUID.randomUUID().toString()),
                 goods().listingId().toString(), BUYER, SELLER, "HTX Mua", "HTX Bán", "buyer@example.com",

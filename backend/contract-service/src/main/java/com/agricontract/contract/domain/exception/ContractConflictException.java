@@ -24,6 +24,8 @@ public class ContractConflictException extends RuntimeException {
     public static final String NOT_WITHDRAWABLE = "CONTRACT_NOT_WITHDRAWABLE";
     /** F18 (#232): the second signature on terms whose total differs from the stored reserved quantity. */
     public static final String RESERVED_QUANTITY_MISMATCH = "RESERVED_QUANTITY_MISMATCH";
+    /** D67: the second signature when a milestone's funding date (delivery date minus the lead) is already past. */
+    public static final String DELIVERY_SCHEDULE_TOO_SOON = "DELIVERY_SCHEDULE_TOO_SOON";
 
     private final String code;
 

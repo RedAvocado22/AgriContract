@@ -1,6 +1,5 @@
 package com.agricontract.contract.infrastructure.withdraw;
 
-import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.goods;
 import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.input;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,10 +30,12 @@ import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
 import com.agricontract.contract.domain.model.terms.TermsCanonicalizer;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
+import com.agricontract.contract.infrastructure.config.BusinessCalendarConfiguration;
 import com.agricontract.contract.infrastructure.consent.ConsentConfiguration;
 import com.agricontract.contract.infrastructure.contract.FrozenSchemas;
 import com.agricontract.contract.infrastructure.messaging.OutboxContractEventPublisher;
 import com.agricontract.contract.infrastructure.otp.OtpConfiguration;
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import com.agricontract.contract.infrastructure.persistence.consent.JdbcConsentEvidenceRepository;
 import com.agricontract.contract.infrastructure.persistence.idempotency.JdbcIdempotencyStore;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
@@ -89,7 +90,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
-@Import({SpringTransactionRunner.class, WithdrawOfferUseCase.class, InitiateSignUseCase.class, VerifyOtpAndSignUseCase.class,
+@Import({BusinessCalendarConfiguration.class, SpringTransactionRunner.class, WithdrawOfferUseCase.class, InitiateSignUseCase.class, VerifyOtpAndSignUseCase.class,
         SignerEligibility.class, OtpChallengeIssuer.class, SigningConsentRecorder.class,
         JdbcOtpChallengeRepository.class, JdbcSignatureRepository.class, JdbcConsentEvidenceRepository.class,
         JdbcIdempotencyStore.class, OtpConfiguration.class, ConsentConfiguration.class, ContractRepositoryImpl.class,
