@@ -14,6 +14,7 @@ jobs:
       java: ${{ steps.modules.outputs.java }}
       notification: ${{ steps.modules.outputs.notification }}
       analytics: ${{ steps.modules.outputs.analytics }}
+      file: ${{ steps.modules.outputs.file }}
       frontend: ${{ steps.modules.outputs.frontend }}
       contracts: ${{ steps.filter.outputs.contracts }}
       contract-files: ${{ steps.filter.outputs.contract-files }}
@@ -54,6 +55,7 @@ jobs:
             analytics:
               - 'backend/shared/node-eventing/**'
               - 'backend/analytics-service/**'
+            file: 'backend/file-service/**'
             frontend: 'frontend/**'
             contracts:
               - 'contracts/**'
@@ -75,20 +77,23 @@ jobs:
             java="$all"
             notification=true
             analytics=true
+            file=true
             frontend=true
           else
             java=$(jq -cn --argjson all "$all" --argjson changed "$CHANGES" '$all - ($all - $changed)')
             notification=$(echo "$CHANGES" | jq 'index("notification") != null')
             analytics=$(echo "$CHANGES" | jq 'index("analytics") != null')
+            file=$(echo "$CHANGES" | jq 'index("file") != null')
             frontend=$(echo "$CHANGES" | jq 'index("frontend") != null')
           fi
           {
             echo "java=$java"
             echo "notification=$notification"
             echo "analytics=$analytics"
+            echo "file=$file"
             echo "frontend=$frontend"
           } >> "$GITHUB_OUTPUT"
-          echo "Java modules: $java | notification: $notification | analytics: $analytics | frontend: $frontend"
+          echo "Java modules: $java | notification: $notification | analytics: $analytics | file: $file | frontend: $frontend"
 
   # Every PR closes exactly one issue (Definition of Done). Reads the current body through the API,
   # so fixing the description and re-running this job is enough; no new push needed.
@@ -317,6 +322,80 @@ jobs:
           npm test
           npm run build
 
+  file-service:
+    needs: changes
+    if: needs.changes.outputs.file == 'true'
+    runs-on: ubuntu-latest
+
+    # For test:int. Same image, database and host port as the compose file-db.
+    services:
+      file-db:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: file_db
+        ports:
+          - 3317:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/file-service/package-lock.json
+
+      - name: Lint, test and build file-service
+        working-directory: backend/file-service
+        run: |
+          npm ci
+          npm run lint:check
+          npm test
+          npm run build
+
+      # The app does not migrate; compose's file-migrate does, with the same Flyway image.
+      - name: Migrate file_db (Flyway)
+        run: >-
+          docker run --rm --network host
+          -v "$GITHUB_WORKSPACE/backend/file-service/db/migration:/flyway/sql:ro"
+          flyway/flyway:10.10.0
+          "-url=jdbc:mysql://127.0.0.1:3317/file_db?allowPublicKeyRetrieval=true"
+          -user=root -password=password -connectRetries=20 migrate
+
+      # A service container cannot take a command, and SeaweedFS needs one: same image,
+      # command and S3 identity as the compose object-storage.
+      - name: Start object storage (SeaweedFS S3 API)
+        run: |
+          docker run -d --name object-storage -p 8333:8333 -p 9333:9333 \
+            -v "$GITHUB_WORKSPACE/backend/infra/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro" \
+            chrislusf/seaweedfs:4.48 \
+            server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -master.volumeSizeLimitMB=1024
+          for i in $(seq 1 60); do
+            # The compose healthcheck: the master answers once a volume can take writes, and the
+            # S3 gateway, which starts a few seconds later (before it, :8333 resets the connection).
+            curl -sf -o /dev/null http://127.0.0.1:9333/cluster/healthz \
+              && curl -sf -o /dev/null http://127.0.0.1:8333/healthz && exit 0
+            sleep 2
+          done
+          docker logs object-storage
+          exit 1
+
+      # The store core on real object storage and MySQL.
+      - name: Integration tests (test:int)
+        working-directory: backend/file-service
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3317'
+          S3_ENDPOINT: http://127.0.0.1:8333
+        run: npm run test:int
+
   frontend:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
@@ -343,7 +422,7 @@ jobs:
   # The only required check on main. Jobs skipped by the path filter count as passed;
   # a failed or cancelled job fails the gate.
   ci-gate:
-    needs: [changes, pr-policy, contracts, java, notification-service, analytics-service, frontend]
+    needs: [changes, pr-policy, contracts, java, notification-service, analytics-service, file-service, frontend]
     if: always()
     runs-on: ubuntu-latest
     steps:
