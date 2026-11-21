@@ -1,6 +1,7 @@
 package com.agricontract.contract.infrastructure.config;
 
 import com.agricontract.contract.application.exception.ActivationRefusedException;
+import com.agricontract.contract.application.exception.MilestoneFundingRefusedException;
 import com.agricontract.contract.application.exception.InvalidEventPayloadException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,8 @@ public class RabbitMQConfig {
     public static final String DEPOSIT_LOCKED_QUEUE = "contract-svc.escrow.deposit_locked";
     public static final String DEPOSIT_LOCK_FAILED_QUEUE = "contract-svc.escrow.deposit_lock_failed";
     public static final String ACTIVATION_REFUND_COMPLETED_QUEUE = "contract-svc.escrow.activation_refund_completed";
+    public static final String MILESTONE_FUNDED_QUEUE = "contract-svc.escrow.milestone_funded";
+    public static final String MILESTONE_FUNDING_FAILED_QUEUE = "contract-svc.escrow.milestone_funding_failed";
 
     // DlqMonitor reads the .dlq queues from this bean. agricontract.escrow.dlx is contract-service's own DLX
     // (kept from Phase 1, used by no other service).
@@ -44,6 +47,12 @@ public class RabbitMQConfig {
         Queue refundCompleted = QueueBuilder.durable(ACTIVATION_REFUND_COMPLETED_QUEUE)
                 .deadLetterExchange(dlx.getName()).build();
         Queue refundCompletedDlq = QueueBuilder.durable(ACTIVATION_REFUND_COMPLETED_QUEUE + ".dlq").build();
+        // D64, #119. escrow-service (#120) must declare the same queues ahead before it publishes these events.
+        Queue funded = QueueBuilder.durable(MILESTONE_FUNDED_QUEUE).deadLetterExchange(dlx.getName()).build();
+        Queue fundedDlq = QueueBuilder.durable(MILESTONE_FUNDED_QUEUE + ".dlq").build();
+        Queue fundingFailed = QueueBuilder.durable(MILESTONE_FUNDING_FAILED_QUEUE)
+                .deadLetterExchange(dlx.getName()).build();
+        Queue fundingFailedDlq = QueueBuilder.durable(MILESTONE_FUNDING_FAILED_QUEUE + ".dlq").build();
         return new Declarables(List.of(
                 new TopicExchange("agricontract.contracts", true, false), escrow, dlx,
                 depositLocked, depositLockedDlq,
@@ -54,7 +63,13 @@ public class RabbitMQConfig {
                 BindingBuilder.bind(lockFailedDlq).to(dlx).with("escrow.deposit_lock_failed"),
                 refundCompleted, refundCompletedDlq,
                 BindingBuilder.bind(refundCompleted).to(escrow).with("escrow.activation_refund_completed"),
-                BindingBuilder.bind(refundCompletedDlq).to(dlx).with("escrow.activation_refund_completed")));
+                BindingBuilder.bind(refundCompletedDlq).to(dlx).with("escrow.activation_refund_completed"),
+                funded, fundedDlq,
+                BindingBuilder.bind(funded).to(escrow).with("escrow.milestone_funded"),
+                BindingBuilder.bind(fundedDlq).to(dlx).with("escrow.milestone_funded"),
+                fundingFailed, fundingFailedDlq,
+                BindingBuilder.bind(fundingFailed).to(escrow).with("escrow.milestone_funding_failed"),
+                BindingBuilder.bind(fundingFailedDlq).to(dlx).with("escrow.milestone_funding_failed")));
     }
 
     @Bean
@@ -86,7 +101,9 @@ public class RabbitMQConfig {
         Map<Class<? extends Throwable>, Boolean> retryableExceptions = Map.of(
                 InvalidEventPayloadException.class, false,
                 // A contract that cannot be activated now will not be on a retry either (D40).
-                ActivationRefusedException.class, false
+                ActivationRefusedException.class, false,
+                // A funding result its milestone cannot take will not fit on a retry either.
+                MilestoneFundingRefusedException.class, false
         );
         SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(3, retryableExceptions, true, true);
 
