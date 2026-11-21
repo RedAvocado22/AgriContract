@@ -18,7 +18,7 @@ CREATE TABLE file (
     -- Idempotency-Key of StoreOnBehalfOf (D60); NULL when the entrypoint has none (e.g. EMAIL_INTAKE).
     -- Byte-wise ASCII: two keys that differ only in case are two uploads, not one.
     idempotency_key   VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NULL,
-    created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_file_deletion_metadata CHECK (
       (deleted_at IS NULL AND deletion_reason IS NULL)
       OR (deleted_at IS NOT NULL AND deletion_reason IS NOT NULL AND length(trim(deletion_reason)) > 0)
