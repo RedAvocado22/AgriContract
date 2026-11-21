@@ -226,7 +226,7 @@ $defs:
                 oneOf: [{enum: [DEPOSIT_LOCKED, DEPOSIT_RELEASED, DEPOSIT_SEIZED]}, {type: "null"}]
             additionalProperties: false
         x-publisher: escrow-service
-        x-consumers: [contract-service, escrow-service]
+        x-consumers: [contract-service]
         x-source: milestone-escrow-phase2-design.md section 7.2
         x-verification-matrix: [11]
   escrowDepositLockFailed:
@@ -1117,6 +1117,57 @@ $defs:
         x-source: milestone-escrow-phase2-design.md sections 6.4, 6.7 and 7.1
         x-side-effect-boundary: Observational milestone outcome only. Money and reputation are already triggered by remedy.finalized and must not be consumed here.
         x-verification-matrix: [11g, 11n, 26e]
+  milestoneFundingRequested:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: milestone.funding_requested}
+          producer: {const: contract-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, milestoneIndex, buyerId, batchAmount, requestedAt]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              milestoneIndex: {type: integer, minimum: 1, maximum: 100}
+              buyerId: {$ref: "#/$defs/uuid"}
+              batchAmount:
+                allOf: [{$ref: "#/$defs/positiveMoney"}]
+                pattern: "^[0-9]+\\.00$"
+                description: committedQuantity x effectiveUnitPrice, rounded once to the whole dong HALF_UP by contract-service. Escrow locks exactly this amount and never recomputes it.
+              requestedAt: {type: string, format: date-time, description: UTC instant the request was emitted; start of fundingDelayBusinessDays.}
+        x-publisher: contract-service
+        x-consumers: [escrow-service]
+        x-source: milestone-escrow-phase2-design.md sections 6.2, 6b and 7.1
+        x-trigger: >-
+          Emitted once per milestone, on the Vietnam business day that is fundingLeadBusinessDays before
+          expectedDeliveryDate, or at once when the contract becomes ACTIVE after that day. Each milestone
+          follows its own schedule and never waits for the previous milestone to settle.
+        x-idempotency: escrow dedups by envelope eventId and keeps at most one funding leg per milestoneId; bank lock retries reuse the bank.lock_requested eventId (D27).
+        x-verification-matrix: [11m]
+  escrowMilestoneFunded:
+    allOf:
+      - $ref: "./event-envelope.yaml"
+      - type: object
+        properties:
+          eventType: {const: escrow.milestone_funded}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, milestoneId, lockedAt]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              milestoneId: {$ref: "#/$defs/uuid"}
+              lockedAt: {type: string, format: date-time, description: UTC instant of the bank.lock_completed that locked the batch; end of fundingDelayBusinessDays.}
+        x-publisher: escrow-service
+        x-consumers: [contract-service]
+        x-source: milestone-escrow-phase2-design.md sections 6b and 7.1
+        x-side-effect-boundary: Moves the milestone from CREATED to IN_PROGRESS and fixes fundingDelayBusinessDays. The seller has no delivery obligation for a milestone before this event.
+        x-idempotency: contract-service dedups by envelope eventId; a milestone already funded ignores a later copy.
+        x-verification-matrix: [11m]
   escrowMilestoneFundingFailed:
     allOf:
       - $ref: "./event-envelope.yaml"
@@ -1135,6 +1186,7 @@ $defs:
         x-publisher: escrow-service
         x-consumers: [contract-service]
         x-source: milestone-escrow-phase2-design.md section 6b and 7.1
+        x-trigger: Retries for a milestone.funding_requested are exhausted. Applies to every milestone, milestone 1 included.
         x-verification-matrix: [11m]
   reputationLocked:
     allOf:
@@ -1519,6 +1571,8 @@ oneOf:
   - $ref: "#/$defs/milestoneForceMajeureClaimed"
   - $ref: "#/$defs/milestoneForceMajeureResolved"
   - $ref: "#/$defs/milestoneCancelledWithPenalty"
+  - $ref: "#/$defs/milestoneFundingRequested"
+  - $ref: "#/$defs/escrowMilestoneFunded"
   - $ref: "#/$defs/escrowMilestoneFundingFailed"
   - $ref: "#/$defs/reputationLocked"
   - $ref: "#/$defs/reputationUnlocked"
