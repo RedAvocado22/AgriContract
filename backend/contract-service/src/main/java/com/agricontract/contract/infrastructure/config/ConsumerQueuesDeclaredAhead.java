@@ -27,7 +27,8 @@ import org.springframework.context.annotation.Configuration;
  *       {@code contract.signed} and {@code contract.terminated} (#399), so contracts signed or ended before audit
  *       exists still reach the audit chain;</li>
  *   <li>escrow-service, until #385 merges: {@code escrow-svc.contract.activation_refund_requested}, DLX
- *       {@code agricontract.contracts.dlx} (its RabbitMQConfig).</li>
+ *       {@code agricontract.contracts.dlx} (its RabbitMQConfig);</li>
+ *   <li>escrow-service, until #120 merges: {@code escrow-svc.milestone.funding_requested}, same DLX (D63).</li>
  * </ul>
  * Remove a pair once its consumer declares it. Plain Queue/Binding beans, not a Declarables: DlqMonitor watches
  * contract-service's own DLQs only.
@@ -53,6 +54,8 @@ public class ConsumerQueuesDeclaredAhead {
     static final String REFUND_REQUESTED_KEY = "contract.activation_refund_requested";
     static final String REFUND_REQUESTED_QUEUE = "escrow-svc." + REFUND_REQUESTED_KEY;
     static final String ESCROW_DLX = "agricontract.contracts.dlx";
+    static final String FUNDING_REQUESTED_KEY = "milestone.funding_requested";
+    static final String FUNDING_REQUESTED_QUEUE = "escrow-svc." + FUNDING_REQUESTED_KEY;
 
     static final String WITHDRAWN_KEY = "contract.withdrawn";
     static final String WITHDRAWN_QUEUE = "product-svc." + WITHDRAWN_KEY;
@@ -202,6 +205,26 @@ public class ConsumerQueuesDeclaredAhead {
     @Bean
     Binding refundRequestedDlqBinding() {
         return BindingBuilder.bind(refundRequestedDlq()).to(escrowContractsDlx()).with(REFUND_REQUESTED_KEY);
+    }
+
+    @Bean
+    Queue fundingRequestedQueue() {
+        return QueueBuilder.durable(FUNDING_REQUESTED_QUEUE).deadLetterExchange(ESCROW_DLX).build();
+    }
+
+    @Bean
+    Queue fundingRequestedDlq() {
+        return QueueBuilder.durable(FUNDING_REQUESTED_QUEUE + ".dlq").build();
+    }
+
+    @Bean
+    Binding fundingRequestedBinding() {
+        return BindingBuilder.bind(fundingRequestedQueue()).to(CONTRACTS).with(FUNDING_REQUESTED_KEY);
+    }
+
+    @Bean
+    Binding fundingRequestedDlqBinding() {
+        return BindingBuilder.bind(fundingRequestedDlq()).to(escrowContractsDlx()).with(FUNDING_REQUESTED_KEY);
     }
 
     // #233 withdraw: product-service (#126) releases the reservation, notification-service (#278) emails the other

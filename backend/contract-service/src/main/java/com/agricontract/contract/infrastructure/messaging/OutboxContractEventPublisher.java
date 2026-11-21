@@ -4,6 +4,8 @@ import com.agricontract.contract.application.port.ContractEventPublisher;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.activation.ActivationRecovery;
 import com.agricontract.contract.domain.model.consent.SignerRole;
+import com.agricontract.contract.domain.model.milestone.FundingStatus;
+import com.agricontract.contract.domain.model.milestone.Milestone;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
 import com.agricontract.eventing.EventEnvelope;
@@ -48,6 +50,7 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
     static final String CONTRACT_TERMINATED = "contract.terminated";
     static final String CONTRACT_TERMINATED_REQUESTED = "notification.contract_terminated_requested";
     static final String WITHDRAW_OFFER = "WITHDRAW_OFFER";
+    static final String MILESTONE_FUNDING_REQUESTED = "milestone.funding_requested";
 
     private static final Pattern UUID_TEXT =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -344,5 +347,32 @@ public class OutboxContractEventPublisher implements ContractEventPublisher {
             throw new IllegalStateException("contract.signed needs " + field + " as a UUID, got " + value);
         }
         return value;
+    }
+
+    /**
+     * golden-flow-events.yaml milestoneFundingRequested, to escrow-service on agricontract.contracts. batchAmount is
+     * already rounded to the whole đồng (D65); escrow locks exactly it.
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void milestoneFundingRequested(Contract contract, Milestone milestone, String correlationId,
+                                          String causationId) {
+        if (milestone.fundingStatus() != FundingStatus.FUNDING_PENDING || milestone.batchAmount() == null
+                || !milestone.contractId().equals(contract.getContractId().value())) {
+            throw new IllegalStateException("milestone.funding_requested for milestone " + milestone.milestoneId()
+                    + " in funding status " + milestone.fundingStatus());
+        }
+        String contractId = uuid(contract.getContractId().value(), "contractId");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("contractId", contractId);
+        payload.put("milestoneId", uuid(milestone.milestoneId(), "milestoneId"));
+        payload.put("milestoneIndex", milestone.milestoneIndex());
+        payload.put("buyerId", uuid(contract.getBuyerId(), "buyerId"));
+        payload.put("batchAmount", milestone.batchAmount().wire());
+        payload.put("requestedAt", milestone.fundingRequestedAt().toString());
+
+        outbox.append(new EventEnvelope(UUID.randomUUID(), MILESTONE_FUNDING_REQUESTED, 1,
+                milestone.fundingRequestedAt(), PRODUCER, contractId,
+                correlationId != null ? correlationId : contractId, causationId, null, payload));
     }
 }

@@ -3,6 +3,7 @@ package com.agricontract.contract.application.port;
 import com.agricontract.contract.domain.model.Contract;
 import com.agricontract.contract.domain.model.activation.ActivationRecovery;
 import com.agricontract.contract.domain.model.consent.SignerRole;
+import com.agricontract.contract.domain.model.milestone.Milestone;
 
 import java.time.Instant;
 import java.util.List;
@@ -66,4 +67,10 @@ public interface ContractEventPublisher {
 
     /** notification.contract_terminated_requested, WITHDRAW_OFFER (#233): emails the other party. */
     void offerWithdrawnNoticeRequested(Contract contract, SignerRole requestedBy, Instant withdrawnAt);
+
+    /**
+     * milestone.funding_requested (D63): escrow locks exactly the milestone's batchAmount from the buyer. Written once
+     * per milestone, by the activation or by the daily schedule (D64).
+     */
+    void milestoneFundingRequested(Contract contract, Milestone milestone, String correlationId, String causationId);
 }

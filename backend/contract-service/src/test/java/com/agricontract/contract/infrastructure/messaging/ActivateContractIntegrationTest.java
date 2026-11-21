@@ -5,20 +5,30 @@ import static com.agricontract.contract.domain.model.terms.CoffeeTermsFixtures.i
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.agricontract.calendar.VietnamBusinessDays;
 import com.agricontract.contract.application.exception.ActivationRefusedException;
 import com.agricontract.contract.application.exception.InvalidEventPayloadException;
+import com.agricontract.contract.application.service.MilestoneFunding;
 import com.agricontract.contract.application.usecase.ActivateContractUseCase;
 import com.agricontract.contract.domain.model.Contract;
+import com.agricontract.contract.domain.model.milestone.FundingStatus;
+import com.agricontract.contract.domain.model.milestone.Milestone;
+import com.agricontract.contract.domain.model.milestone.MilestoneStatus;
 import com.agricontract.contract.domain.model.terms.CanonicalTerms;
 import com.agricontract.contract.domain.model.terms.ContractTemplateProfile;
+import com.agricontract.contract.domain.model.terms.ContractTermsInput;
 import com.agricontract.contract.domain.model.terms.ContractTermsRules;
 import com.agricontract.contract.domain.model.terms.ContractTermsSnapshot;
+import com.agricontract.contract.domain.model.terms.MilestoneTerm;
 import com.agricontract.contract.domain.model.terms.TermsCanonicalizer;
 import com.agricontract.contract.domain.model.vo.ContractId;
 import com.agricontract.contract.domain.model.vo.ContractStatus;
+import com.agricontract.contract.infrastructure.config.BusinessCalendarConfiguration;
 import com.agricontract.contract.infrastructure.consent.ConsentConfiguration;
 import com.agricontract.contract.infrastructure.contract.FrozenSchemas;
+import com.agricontract.contract.infrastructure.persistence.SpringTransactionRunner;
 import com.agricontract.contract.infrastructure.persistence.mapper.ContractMapper;
+import com.agricontract.contract.infrastructure.persistence.milestone.JdbcMilestoneRepository;
 import com.agricontract.contract.infrastructure.persistence.repository.ContractRepositoryImpl;
 import com.agricontract.contract.infrastructure.persistence.signature.JdbcSignatureRepository;
 import com.agricontract.contract.infrastructure.terms.ContractTermsConfiguration;
@@ -28,7 +38,9 @@ import com.agricontract.eventing.EventEnvelopeCodec;
 import com.agricontract.eventing.EventingAutoConfiguration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -61,7 +73,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({JacksonAutoConfiguration.class, EventingAutoConfiguration.class})
-@Import({DepositLockedConsumer.class, ActivateContractUseCase.class, OutboxContractEventPublisher.class,
+@Import({BusinessCalendarConfiguration.class, SpringTransactionRunner.class, MilestoneFunding.class, JdbcMilestoneRepository.class, DepositLockedConsumer.class, ActivateContractUseCase.class, OutboxContractEventPublisher.class,
         ContractRepositoryImpl.class, JdbcSignatureRepository.class, ContractMapper.class,
         JcsTermsCanonicalizer.class, ContractTermsConfiguration.class, ConsentConfiguration.class})
 @Testcontainers
@@ -87,6 +99,7 @@ class ActivateContractIntegrationTest {
     @Autowired ContractTermsRules rules;
     @Autowired ContractTemplateProfile template;
     @Autowired JdbcTemplate jdbc;
+    @Autowired JdbcMilestoneRepository milestones;
 
     private Contract contract;
 
@@ -114,6 +127,49 @@ class ActivateContractIntegrationTest {
     }
 
     @Test
+    void activation_createsOneWaitingMilestonePerTerm_withItsFundingDate() throws Exception {
+        setStatus(ContractStatus.SIGNED);
+
+        consumer.onDepositLocked(message(depositLocked(LOCKED, LOCKED)));
+
+        List<Milestone> planned = milestones.findByContractId(contract.getContractId().value());
+        assertThat(planned).extracting(Milestone::milestoneIndex).containsExactly(1, 2);
+        assertThat(planned).allSatisfy(m -> {
+            assertThat(m.status()).isEqualTo(MilestoneStatus.CREATED);
+            assertThat(m.fundingStatus()).isEqualTo(FundingStatus.NOT_REQUESTED);
+            assertThat(m.batchAmount()).isNull();
+        });
+        // 7 business days before Mon 15/12/2036 and Tue 20/01/2037 (the test calendar's holidays are in 2026).
+        assertThat(planned.get(0).fundingScheduledDate()).isEqualTo(LocalDate.parse("2036-12-04"));
+        assertThat(planned.get(1).fundingScheduledDate()).isEqualTo(LocalDate.parse("2037-01-09"));
+        assertThat(fundingRequests()).as("nothing due yet").isEmpty();
+    }
+
+    @Test
+    void activation_requestsAtOnce_aMilestoneWhoseFundingDateHasPassed() throws Exception {
+        contract = offered(withFirstDelivery(LocalDate.now(VietnamBusinessDays.ICT).plusDays(3)));
+        setStatus(ContractStatus.SIGNED);
+        EventEnvelope signal = depositLocked(LOCKED, LOCKED);
+
+        consumer.onDepositLocked(message(signal));
+
+        List<Milestone> planned = milestones.findByContractId(contract.getContractId().value());
+        assertThat(planned.get(0).fundingStatus()).isEqualTo(FundingStatus.FUNDING_PENDING);
+        assertThat(planned.get(0).batchAmount().wire()).isEqualTo("95000000.00");
+        assertThat(planned.get(1).fundingStatus()).isEqualTo(FundingStatus.NOT_REQUESTED);
+        List<JsonNode> requests = fundingRequests();
+        assertThat(requests).hasSize(1);
+        JsonNode request = requests.get(0);
+        FrozenSchemas.assertEvent("milestoneFundingRequested", request);
+        assertThat(request.at("/payload/milestoneId").asText()).isEqualTo(planned.get(0).milestoneId());
+        assertThat(request.at("/payload/milestoneIndex").asInt()).isEqualTo(1);
+        assertThat(request.at("/payload/buyerId").asText()).isEqualTo(BUYER);
+        assertThat(request.at("/payload/batchAmount").asText()).isEqualTo("95000000.00");
+        assertThat(request.get("causationId").asText()).isEqualTo(signal.eventId().toString());
+        assertThat(request.get("correlationId").asText()).isEqualTo(signal.correlationId());
+    }
+
+    @Test
     void sameSignalTwice_orANewSignalForAnActiveContract_isANoOp() throws Exception {
         setStatus(ContractStatus.SIGNED);
         EventEnvelope signal = depositLocked(LOCKED, LOCKED);
@@ -124,6 +180,7 @@ class ActivateContractIntegrationTest {
 
         assertThat(status()).isEqualTo(ContractStatus.ACTIVE);
         assertThat(activatedEvents()).hasSize(1);
+        assertThat(milestones.findByContractId(contract.getContractId().value())).hasSize(2);
     }
 
     @Test
@@ -219,8 +276,37 @@ class ActivateContractIntegrationTest {
         return contracts.findById(contract.getContractId()).orElseThrow().getStatus();
     }
 
+    private List<JsonNode> fundingRequests() {
+        return jdbc.queryForList("SELECT envelope FROM event_outbox WHERE event_type = 'milestone.funding_requested'"
+                        + " AND aggregate_id = ?", String.class, contract.getContractId().value()).stream()
+                .map(json -> {
+                    try {
+                        return new ObjectMapper().readTree(json);
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                }).toList();
+    }
+
+    static ContractTermsInput withFirstDelivery(LocalDate date) {
+        ContractTermsInput t = input();
+        List<MilestoneTerm> schedule = List.of(
+                new MilestoneTerm(1, new BigDecimal("1000"), date, 2),
+                t.milestoneSchedule().get(1));
+        return new ContractTermsInput(t.agreedPrice(), t.currency(), schedule, t.qualityTerms(), t.deliveryTerms(),
+                t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
+                t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
+                t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(),
+                t.fundingLeadBusinessDays());
+    }
+
     private Contract offered() {
-        CanonicalTerms terms = CanonicalTerms.of(ContractTermsSnapshot.assemble(input(), goods(), template, rules),
+        return offered(input());
+    }
+
+    private Contract offered(ContractTermsInput input) {
+        CanonicalTerms terms = CanonicalTerms.of(ContractTermsSnapshot.assemble(input, goods(), template, rules),
                 canonicalizer);
         Contract offered = Contract.offerCoffee(new ContractId(UUID.randomUUID().toString()),
                 goods().listingId().toString(), BUYER, SELLER, "HTX Mua", "HTX Bán", "buyer@example.com",
