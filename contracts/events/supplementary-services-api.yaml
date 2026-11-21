@@ -384,6 +384,48 @@ paths:
         "403": { description: Not ADMIN/Association }
 
   # ---------- inspection-service (Level 1.5 report submission) ----------
+  /api/v1/inspections/{contractId}/milestones/{milestoneId}/report-files:
+    post:
+      operationId: uploadInspectionReportFile
+      summary: INSPECTOR uploads the Level 1.5 report file for the active assignment
+      description: >-
+        Source inspection-service design §2.5 (D62, 21/11/2026). Only the INSPECTOR of
+        the active Level 1.5 assignment for this milestone (same gate and same 403 as
+        submitInspectionReport). The body is the raw file, streamed, with the same rules
+        as file-service storeOnBehalfOf (D60): Content-Type image/jpeg, image/png or
+        application/pdf, Content-Length required (no chunked body), at most 10 MiB.
+        inspection-service streams it to storeOnBehalfOf with X-Acting-User-Id = the
+        inspector and the same Idempotency-Key, then records the fileId against the
+        assignment. Only a file recorded here can be the reportFileId of
+        submitInspectionReport. The file is PROCESSING until the virus scan ends; the
+        inspector may upload again (a new key gives a new file) and submit the one that
+        is right.
+      x-owner: inspection-service
+      x-auth: INSPECTOR
+      parameters:
+        - { name: contractId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: milestoneId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 1, maxLength: 255, pattern: '^[\x20-\x7E]+$' }, description: "Passed to storeOnBehalfOf: a repeat returns the same fileId without storing the body again." }
+        - { name: Content-Length, in: header, required: true, schema: { type: integer, minimum: 1, maximum: 10485760 } }
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+          application/pdf:
+            schema: { type: string, format: binary }
+      responses:
+        "202":
+          description: Stored and recorded for this assignment (PROCESSING), or a repeat of the same Idempotency-Key with the file's current status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StoredFileAccepted' }
+        "400": { description: "VALIDATION_ERROR: missing or invalid Idempotency-Key or Content-Length, Content-Type not in the whitelist, or a body shorter or longer than Content-Length" }
+        "403": { description: "Not the INSPECTOR of the active Level 1.5 assignment for this milestone, or eligibility (KYC/license expiry) failed (inspection design 2.5)" }
+        "413": { description: "FILE_TOO_LARGE: Content-Length over 10 MiB (10485760 bytes)" }
+        "503": { description: "file-service or the eligibility dependency (user-service) unavailable; nothing recorded, safe to retry with the same Idempotency-Key" }
   /api/v1/inspections/{contractId}/milestones/{milestoneId}/reports:
     post:
       operationId: submitInspectionReport
@@ -407,10 +449,10 @@ paths:
             schema: { $ref: '#/components/schemas/InspectionReportSubmission' }
       responses:
         "201": { description: Report recorded and signed }
-        "400": { description: Malformed report submission }
+        "400": { description: "Malformed report submission, or REPORT_FILE_NOT_UPLOADED: reportFileId was not uploaded through uploadInspectionReportFile for this assignment (D62)" }
         "403": { description: "Not the INSPECTOR of the active Level 1.5 assignment for this milestone, or eligibility (KYC/license expiry) failed (inspection design 2.5)" }
-        "409": { description: Report already signed (UNIQUE report_id) }
-        "503": { description: Eligibility dependency (user-service) unavailable; fail closed per error catalog }
+        "409": { description: "Report already signed (UNIQUE report_id), or REPORT_FILE_NOT_READY: the file is still being scanned or was rejected (upload again)" }
+        "503": { description: "Eligibility dependency (user-service) or file-service unavailable; fail closed per error catalog" }
 
   # ---------- file-service (INTERNAL ONLY — gateway does not expose) ----------
   /internal/v1/files:

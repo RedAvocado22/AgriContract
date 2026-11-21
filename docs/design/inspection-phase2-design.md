@@ -151,6 +151,13 @@ Phí giám định không tính ở inspection-service — contract-service quy�
 
 **Known limitation còn lại:** lệnh huỷ chỉ đúng thứ tự với yêu cầu khi cả hai đi chung queue và không lỗi. Nếu xử lý yêu cầu bị lỗi, retry sau khi lệnh huỷ đã xử lý xong, inspection có thể giao một ca đã hết tranh chấp; inspector làm uổng, contract-service bỏ qua report. Chặn triệt để cần lệnh huỷ mang id của đúng yêu cầu bị huỷ và inspection lưu id đó — chưa làm vì một milestone có thể bị giám định nhiều lần và chi phí đổi schema không xứng với xác suất.
 
+**File report Level 1.5 — upload qua inspection, gắn với lượt giao (bổ sung 21/11/2026, D62):** trước đây `submitInspectionReport` chỉ nhận `reportFileId` mà không có đường nào cho inspector upload file (gateway không mở file-service), và nếu nhận mọi `fileId` đã `READY` thì inspector gắn được file không phải của mình (VD ảnh bằng chứng của seller). Chốt:
+
+- **Upload:** `uploadInspectionReportFile` (`POST /api/v1/inspections/{contractId}/milestones/{milestoneId}/report-files`), cùng gate với submit (inspector của assignment đang active, eligibility §2.2, 403 cùng một message). Body là bytes thô, đọc theo stream, đúng luật `storeOnBehalfOf` (file-service §3, D60): `image/jpeg` | `image/png` | `application/pdf`, `Content-Length` bắt buộc, ≤ 10 MiB. Inspection chuyển thẳng stream sang `storeOnBehalfOf` với `X-Acting-User-Id` = inspector và cùng `Idempotency-Key`, không giữ cả file trong bộ nhớ. Nhận `fileId` xong → ghi `level1_5_report_file (file_id, commission_id)` (§5), trả `202 {fileId, status}`. Gửi lại cùng key → file-service trả cùng `fileId` mà không đọc body; inspection ghi dòng nếu chưa có (no-op nếu có rồi), đọc bỏ phần body còn lại rồi mới trả lời. Một assignment upload được nhiều file (gửi nhầm bản thì upload bản khác); chỉ file được nộp mới thành bằng chứng.
+- **Nộp:** `reportFileId` phải có trong `level1_5_report_file` với đúng `commission_id` của assignment đang active → không có thì 400 `REPORT_FILE_NOT_UPLOADED`. Sau đó gọi `GetFile(fileId)` (file-service §3, #274): 404 (chưa quét xong hoặc bị loại) → 409 `REPORT_FILE_NOT_READY`; 200 → tính SHA-256 trên đúng bytes đọc về làm `report_file_hash`. Hash lấy từ bytes đang lưu, không từ lúc upload, nên luôn khớp file thật. Inspection không cần nghe `file.ready` cho nhánh này.
+- **DB enforce:** `inspection_report.report_file_id` + composite FK `(report_file_id, l15_commission_id)` → `level1_5_report_file (file_id, commission_id)`: report Level 1.5 không thể trỏ file của lượt giao khác.
+- **Giữ file:** report lưu xong → gọi `confirm-attached` (file-service §3, #274) sau commit, ghi `attached_confirmed_at`. Lỗi → job thử lại các file đã gắn report mà `attached_confirmed_at` còn NULL — trước 1 tuần dọn orphan của file-service (§7). File upload mà không nộp không được confirm, file-service tự dọn.
+
 **Binding report ↔ assignment:** report `LEVEL_1_5` lưu `l15_commission_id` trỏ tới assignment đã cho phép nộp (§5) — trả lời được "report này nộp theo lần giao nào" khi 1 milestone bị giám định nhiều lần (FM contest rồi dispute số lượng). Không dùng chung cột `commission_id` của Level 2. **DB enforce (28/10/2026):** mỗi assignment có tối đa 1 report (`UNIQUE(l15_commission_id)`), và composite FK chặn report trỏ lệch contract/milestone/inspector của assignment (§5).
 
 ## 3. Level 2 — External Inspector (Admin-mediated → Auto-intake + Human-confirm)
@@ -446,6 +453,18 @@ CREATE TABLE level1_5_inspection_assignment (
 -- Không FK sang contract/milestone/user (khác service). Không liên quan level2_inspection_commission.
 -- Cần MySQL >= 8.0.16 để CHECK được enforce.
 
+CREATE TABLE level1_5_report_file (               -- D62 21/11/2026, §2.5: file report inspector đã upload cho 1 lượt giao
+    file_id                 CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,  -- fileId của file-service
+    commission_id           CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    uploaded_at             TIMESTAMP(6) NOT NULL,
+    attached_confirmed_at   TIMESTAMP(6) NULL,       -- confirm-attached đã thành công (file-service §7); chỉ NULL → giá trị
+    PRIMARY KEY (file_id),
+    UNIQUE KEY uk_l15_report_file_binding (file_id, commission_id),  -- đích của composite FK từ inspection_report
+    CONSTRAINT fk_l15_report_file_assignment FOREIGN KEY (commission_id)
+        REFERENCES level1_5_inspection_assignment (commission_id)
+);
+-- Migration additive (sau V4 report). Không FK sang file-service (khác service).
+
 CREATE TABLE inspection_report (
     report_id                        CHAR(36) PRIMARY KEY,
     contract_id                      CHAR(36) NULL,     -- NOT NULL cho LEVEL_1_5 và LEVEL_2 OPERATOR_MANUAL;
@@ -457,6 +476,10 @@ CREATE TABLE inspection_report (
     content                           JSON NOT NULL,   -- MySQL 8 (sửa dialect 18/07/2026)
     milestone_id                      CHAR(36) NULL,   -- bắt buộc trước khi CONFIRMED
     report_file_hash                  VARCHAR(64) NOT NULL,
+    report_file_id                    CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+                                                       -- D62 21/11/2026: fileId của file report; Level 1.5 bắt buộc
+                                                       -- (use case + FK fk_report_l15_file), Level 2 điền khi intake có fileId.
+                                                       -- Thêm bằng migration additive (ALTER), không sửa V4.
     normalized_result                 JSON NULL,       -- InspectionSettlementResultV1; bắt buộc khi CONFIRMED
     result_hash                       VARCHAR(64) NULL, -- SHA256 RFC8785 canonical normalized_result
     report_hash                       VARCHAR(64) NULL,        -- bắt buộc khi CONFIRMED; commit resultHash + identity/file/timestamp/actor
@@ -505,6 +528,10 @@ CREATE TABLE inspection_report (
         REFERENCES level1_5_inspection_assignment (commission_id, contract_id, milestone_id, inspector_id),
                                                  -- report khớp đúng assignment + contract + milestone + inspector;
                                                  -- row LEVEL_2 có cột NULL nên FK không áp (MATCH SIMPLE)
+    CONSTRAINT fk_report_l15_file FOREIGN KEY (report_file_id, l15_commission_id)
+        REFERENCES level1_5_report_file (file_id, commission_id),
+                                                 -- D62: file của report Level 1.5 phải upload cho đúng lượt giao đó;
+                                                 -- row LEVEL_2 có l15_commission_id NULL nên FK không áp (MATCH SIMPLE)
     CONSTRAINT chk_report_tier CHECK (tier IN ('LEVEL_1_5', 'LEVEL_2')),
     CONSTRAINT chk_report_l15_required CHECK (
         tier <> 'LEVEL_1_5' OR (
