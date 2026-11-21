@@ -27,6 +27,7 @@ oneOf:
   - {$ref: "#/$defs/verifierKeyAnchorRequested"}
   - {$ref: "#/$defs/level15AssignmentWaitingRequested"}
   - {$ref: "#/$defs/level15InspectorAssignmentRequested"}
+  - {$ref: "#/$defs/escrowLegAlertRequested"}
 $defs:
   uuid: {type: string, format: uuid}
   nullableUuid:
@@ -534,3 +535,37 @@ $defs:
               reportDueAt: {type: string, format: date-time}
               freeCancelUntil: {type: string, format: date-time}
               stage: {enum: [ASSIGNED, CANCELLED]}
+  escrowLegAlertRequested:
+    x-publisher: escrow-service
+    x-consumers: [notification-service]
+    x-semantics: >-
+      Staff-only operational alert (milestone-escrow design §3.1b, D68). The command carries no
+      recipients: notification-service sends to its own notification.operatorEmail. STUCK once per
+      waiting episode when a leg stays in a state that waits on the bank (REQUESTED, CANCEL_PENDING,
+      RETURN_REQUESTED) longer than escrow.leg-monitor.stuck-after; RESOLVED once when a leg alerted
+      STUCK receives its bank result; RETURN_EXHAUSTED once when a return failed and no resend is left.
+      bankCommandEventId is the sourceEventId escrow sent to the bank for that state (requestEventId for
+      lock states, returnRequestEventId for return states), so the operator can find the matching bank
+      log line, including a bank_command_replay_mismatch. since is when the problem began: entry into
+      the waiting state for STUCK and RESOLVED, the last failed return for RETURN_EXHAUSTED.
+    allOf:
+      - {$ref: "#/$defs/commandEnvelope"}
+      - type: object
+        properties:
+          eventType: {const: notification.escrow_leg_alert_requested}
+          producer: {const: escrow-service}
+          payload:
+            type: object
+            required: [contractId, legId, legKind, party, legStatus, amount, bankCommandEventId, since, stage]
+            additionalProperties: false
+            properties:
+              contractId: {$ref: "#/$defs/uuid"}
+              legId: {$ref: "#/$defs/uuid"}
+              legKind: {enum: [DEPOSIT]}
+              party: {enum: [BUYER, SELLER]}
+              legStatus:
+                enum: [REQUESTED, LOCKED, FAILED, CANCEL_PENDING, CANCELLED, RETURN_REQUESTED, RETURN_FAILED, RETURNED]
+              amount: {$ref: "#/$defs/money"}
+              bankCommandEventId: {$ref: "#/$defs/uuid"}
+              since: {type: string, format: date-time}
+              stage: {enum: [STUCK, RESOLVED, RETURN_EXHAUSTED]}
