@@ -18,6 +18,18 @@ public record VndAmount(BigDecimal value) implements Comparable<VndAmount> {
         value = value.setScale(2, RoundingMode.UNNECESSARY);
     }
 
+    /**
+     * The one rounding rule for money contract-service computes (D65): to the whole đồng, HALF_UP, written with the two
+     * decimals the wire format requires ("11875617.00"). Round once, store the result, and derive any remainder by
+     * subtraction, never by rounding again.
+     */
+    public static VndAmount ofDong(BigDecimal exact) {
+        if (exact == null) {
+            throw new InvalidContractTermsException("VND amount is required");
+        }
+        return new VndAmount(exact.setScale(0, RoundingMode.HALF_UP).setScale(2, RoundingMode.UNNECESSARY));
+    }
+
     public static VndAmount parse(String wire) {
         if (wire == null || !WIRE.matcher(wire).matches()) {
             throw new InvalidContractTermsException("VND amount must look like 12345.00: " + wire);

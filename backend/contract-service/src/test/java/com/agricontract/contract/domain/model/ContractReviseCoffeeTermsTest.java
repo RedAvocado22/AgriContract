@@ -101,7 +101,7 @@ class ContractReviseCoffeeTermsTest {
                 t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
                 t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
 
         assertThatThrownBy(() -> offered().reviseCoffeeTerms(SELLER, terms(moreKg)))
                 .isInstanceOf(InvalidContractTermsException.class)
@@ -130,7 +130,7 @@ class ContractReviseCoffeeTermsTest {
                 t.qualityTerms(), t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(),
                 t.toleranceRate(), t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
 
         Contract contract = offered();
         contract.reviseCoffeeTerms(BUYER, terms(rescheduled));
@@ -174,7 +174,7 @@ class ContractReviseCoffeeTermsTest {
                 t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
                 t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
     }
 
     /** Signs through the Phase 2 path: a verified challenge for the current terms. */

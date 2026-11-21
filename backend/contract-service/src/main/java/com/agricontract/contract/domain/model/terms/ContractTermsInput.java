@@ -3,7 +3,10 @@ package com.agricontract.contract.domain.model.terms;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** The part of the terms the parties negotiate (create/PATCH). goodsTerms and totalContractValue are server-derived. */
+/**
+ * The part of the terms the parties negotiate (create/PATCH). goodsTerms and totalContractValue are server-derived.
+ * fundingLeadBusinessDays may be omitted on input: {@link ContractTermsSnapshot#assemble} stores 7 (D64).
+ */
 public record ContractTermsInput(
         VndAmount agreedPrice,
         String currency,
@@ -23,9 +26,18 @@ public record ContractTermsInput(
         BigDecimal disputeFloorReleaseRate,
         BigDecimal sellerDepositRate,
         String level2InspectorOrg,
-        LegalProfile legalProfile) {
+        LegalProfile legalProfile,
+        Integer fundingLeadBusinessDays) {
 
     public ContractTermsInput {
         milestoneSchedule = milestoneSchedule == null ? null : List.copyOf(milestoneSchedule);
+    }
+
+    /** The same terms with fundingLeadBusinessDays set; assemble uses it to store the default. */
+    public ContractTermsInput withFundingLeadBusinessDays(int days) {
+        return new ContractTermsInput(agreedPrice, currency, milestoneSchedule, qualityTerms, deliveryTerms,
+                inspectionTerms, priceBand, priceAdjustmentRule, toleranceRate, shortfallPenaltyThreshold,
+                buyerPenaltyRate, sellerPenaltyRate, forceMajeureReportWindowDays, buyerConfirmWindowDays,
+                buyerDepositRate, disputeFloorReleaseRate, sellerDepositRate, level2InspectorOrg, legalProfile, days);
     }
 }

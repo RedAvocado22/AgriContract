@@ -20,6 +20,31 @@ class ContractTermsRulesTest {
     }
 
     @Test
+    void totalContractValue_isRoundedToTheWholeDong_halfUp() {
+        // D65: 95,000.01 × 2,500.5 kg = 237,547,525.005 → 237,547,525; deposits are taken from that rounded total.
+        ContractTermsSnapshot snapshot = ContractTermsSnapshot.assemble(withPrice("95000.01"), goods(), template(), RULES);
+
+        assertThat(snapshot.totalContractValue().wire()).isEqualTo("237547525.00");
+        assertThat(snapshot.buyerDepositAmount().wire()).isEqualTo("11877376.00");
+    }
+
+    @Test
+    void fundingLead_defaultsToSeven_whenLeftOut_andIsStoredInTheSnapshot() {
+        ContractTermsSnapshot snapshot = ContractTermsSnapshot.assemble(withLead(null), goods(), template(), RULES);
+
+        assertThat(snapshot.negotiated().fundingLeadBusinessDays()).isEqualTo(7);
+        assertThat(snapshot.fundingLeadBusinessDays()).isEqualTo(7);
+    }
+
+    @Test
+    void fundingLead_mustStayBetweenThreeAndSixty() {
+        RULES.validateNegotiated(withLead(3));
+        RULES.validateNegotiated(withLead(60));
+        assertRejected(() -> RULES.validateNegotiated(withLead(2)), "fundingLeadBusinessDays");
+        assertRejected(() -> RULES.validateNegotiated(withLead(61)), "fundingLeadBusinessDays");
+    }
+
+    @Test
     void nonCoffeeGoodsAreRejected() {
         CoffeeGoodsTerms rice = new CoffeeGoodsTerms("RICE", goods().listingId(), goods().productId(),
                 goods().categoryId(), "Gạo", "ST25", "KG", 2026, null, goods().originSnapshot(), null);
@@ -46,7 +71,7 @@ class ContractTermsRulesTest {
                 t.qualityTerms(), t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(),
                 t.toleranceRate(), t.shortfallPenaltyThreshold(), new BigDecimal("0.0801"), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
         assertRejected(() -> RULES.validateNegotiated(tooHigh), "buyerPenaltyRate (legal cap)");
     }
 
@@ -76,7 +101,7 @@ class ContractTermsRulesTest {
                 t.qualityTerms(), t.deliveryTerms(), t.inspectionTerms(), band, t.priceAdjustmentRule(),
                 t.toleranceRate(), t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
         assertRejected(() -> RULES.validateNegotiated(outside), "inside priceBand");
     }
 
@@ -87,7 +112,7 @@ class ContractTermsRulesTest {
                 t.qualityTerms(), t.deliveryTerms(), inspection(InspectionTier.LEVEL_2), t.priceBand(),
                 t.priceAdjustmentRule(), t.toleranceRate(), t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(),
                 t.sellerPenaltyRate(), t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(),
-                t.buyerDepositRate(), t.disputeFloorReleaseRate(), t.sellerDepositRate(), null, t.legalProfile());
+                t.buyerDepositRate(), t.disputeFloorReleaseRate(), t.sellerDepositRate(), null, t.legalProfile(), t.fundingLeadBusinessDays());
         assertRejected(() -> RULES.validateNegotiated(levelTwo), "level2InspectorOrg is required");
     }
 
@@ -100,7 +125,7 @@ class ContractTermsRulesTest {
                 t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
                 t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
         assertRejected(() -> RULES.validateNegotiated(withGap), "without gaps");
     }
 
@@ -134,7 +159,7 @@ class ContractTermsRulesTest {
                 t.qualityTerms(), t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(),
                 t.toleranceRate(), t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), new BigDecimal("0.02"),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
         assertRejected(() -> RULES.validateNegotiated(lowDeposit), "buyerDepositRate");
     }
 
@@ -149,7 +174,7 @@ class ContractTermsRulesTest {
                 t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
                 t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
     }
 
     private static ContractTermsInput with(ContractTermsInput t, LegalProfile legal) {
@@ -157,10 +182,30 @@ class ContractTermsRulesTest {
                 t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
                 t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), legal);
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), legal,
+                t.fundingLeadBusinessDays());
     }
 
     private static void assertRejected(Runnable action, String message) {
         assertThatThrownBy(action::run).isInstanceOf(InvalidContractTermsException.class).hasMessageContaining(message);
+    }
+
+    private static ContractTermsInput withLead(Integer days) {
+        ContractTermsInput t = input();
+        return new ContractTermsInput(t.agreedPrice(), t.currency(), t.milestoneSchedule(), t.qualityTerms(),
+                t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
+                t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
+                t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), days);
+    }
+
+    private static ContractTermsInput withPrice(String price) {
+        ContractTermsInput t = input();
+        return new ContractTermsInput(VndAmount.parse(price), t.currency(), t.milestoneSchedule(), t.qualityTerms(),
+                t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(), t.toleranceRate(),
+                t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
+                t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(),
+                t.fundingLeadBusinessDays());
     }
 }

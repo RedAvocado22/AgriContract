@@ -1,12 +1,12 @@
 package com.agricontract.contract.domain.model.terms;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 
 /**
  * Full terms the parties sign: negotiated part + fixed template profile + frozen goods + derived total.
  * This whole object, flattened to the ContractTermsSnapshot wire shape, is what signedContentHash covers.
+ * totalContractValue is rounded once to the whole đồng (D65).
  */
 public record ContractTermsSnapshot(
         ContractTermsInput negotiated,
@@ -20,11 +20,11 @@ public record ContractTermsSnapshot(
         rules.validateNegotiated(negotiated);
         rules.validateGoods(goodsTerms);
         rules.validateTemplate(template);
-        VndAmount total = new VndAmount(negotiated.agreedPrice().value()
-                .multiply(sum(negotiated.milestoneSchedule()))
-                .setScale(2, RoundingMode.HALF_UP));
+        ContractTermsInput resolved = negotiated.fundingLeadBusinessDays() != null ? negotiated
+                : negotiated.withFundingLeadBusinessDays(ContractTermsRules.DEFAULT_FUNDING_LEAD_DAYS);
+        VndAmount total = VndAmount.ofDong(resolved.agreedPrice().value().multiply(sum(resolved.milestoneSchedule())));
         rules.validateTotal(total);
-        return new ContractTermsSnapshot(negotiated, template, goodsTerms, total);
+        return new ContractTermsSnapshot(resolved, template, goodsTerms, total);
     }
 
     /** Requested quantity in kg is derived only from the milestone schedule. */
@@ -42,11 +42,18 @@ public record ContractTermsSnapshot(
         return deposit(negotiated.sellerDepositRate());
     }
 
-    /** HALF_UP to 0 decimals, then written with the 2 decimals the money format requires ("11875617.00"). */
+    /** Rounded to the whole đồng, HALF_UP (D38, D65). */
     private VndAmount deposit(BigDecimal rate) {
-        return new VndAmount(totalContractValue.value().multiply(rate)
-                .setScale(0, RoundingMode.HALF_UP)
-                .setScale(2, RoundingMode.UNNECESSARY));
+        return VndAmount.ofDong(totalContractValue.value().multiply(rate));
+    }
+
+    /**
+     * D64: the lead the parties agreed. Snapshots signed before the term existed carry null and get the default,
+     * the same value create/PATCH would have stored.
+     */
+    public int fundingLeadBusinessDays() {
+        Integer days = negotiated.fundingLeadBusinessDays();
+        return days != null ? days : ContractTermsRules.DEFAULT_FUNDING_LEAD_DAYS;
     }
 
     private static BigDecimal sum(List<MilestoneTerm> schedule) {
