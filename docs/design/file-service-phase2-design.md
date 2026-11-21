@@ -94,11 +94,16 @@ Core logic (tính `storageHash`, lưu MinIO, insert `File` metadata) dùng chung
 - **Body là bytes thô của file, đọc theo stream.** `Content-Type` là loại của chính file (`image/jpeg` | `image/png` | `application/pdf`). `Content-Length` bắt buộc, không nhận chunked. Nhờ vậy cap 10 MiB (10 × 1024 × 1024) và whitelist được check trước khi đọc byte nào. Body dài hoặc ngắn hơn `Content-Length` → 400, không giữ lại gì.
 - **Không dùng multipart:** service gọi sang là Java, gửi thẳng stream đơn giản hơn dựng form.
 - **Header:** `X-Internal-Secret` (như các `/internal` khác), `X-Acting-User-Id` (UUID, ghi vào `uploaded_by`), `Idempotency-Key`.
-- **Trả `202 {fileId, status}`.** 400 header/type/độ dài sai, 401 sai secret, 413 quá 10 MiB, 503 storage hoặc DB lỗi (không giữ gì, retry cùng key được).
+- **Trả `202 {fileId, status}`.** Lỗi theo `ErrorEnvelope` chung, `code` do file-service đặt (error-catalog không có mã canonical cho file-service):
+  - 400 `VALIDATION_ERROR`: header/type/độ dài sai.
+  - 401 `UNAUTHORIZED`: sai secret.
+  - 413 `FILE_TOO_LARGE`: quá 10 MiB.
+  - 503 `FILE_STORAGE_UNAVAILABLE` (storage) hoặc `FILE_METADATA_UNAVAILABLE` (DB): không giữ gì, retry cùng key được.
 - **Idempotency theo cặp (`uploaded_by`, `idempotency_key`)**, unique trên bảng `file` (§8):
   - Gửi lại cùng cặp → 202 cùng `fileId` + status hiện tại, không lưu body lần nữa.
   - 2 request song song cùng cặp → chỉ 1 dòng insert được. Bên thua xoá blob của mình và trả `fileId` của bên thắng.
   - Key gắn theo user chứ không theo service gọi, vì shared secret không cho biết service nào gọi.
+  - Key chỉ gồm ASCII in được, so từng byte (phân biệt hoa thường): `Key-A` và `key-a` là 2 lần upload. Collation mặc định của MySQL bỏ qua hoa thường, sẽ gộp 2 key đó làm 1 và trả nhầm file khác của chính user đó. `X-Acting-User-Id` lưu chữ thường để cặp không phụ thuộc cách caller viết UUID.
 - **Không có cột `purpose`:** đúng §2, file-service không biết nghiệp vụ. "Owner" là `uploaded_by`; file dùng để làm gì nằm ở tên field của service sở hữu (`sellerEvidenceFileId`, …).
 - **Chia việc:** #116 làm khung service + core lưu dùng chung + endpoint này; #274 làm `store()`, confirm-attached, `GET`, `DELETE`.
 
@@ -201,7 +206,7 @@ CREATE TABLE file (
     legal_hold        BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at        TIMESTAMP NULL,          -- governance tombstone; blob deletion follows
     deletion_reason   TEXT NULL,
-    idempotency_key   VARCHAR(255) NULL,      -- Idempotency-Key của StoreOnBehalfOf (D60); NULL khi entrypoint không có key (VD EMAIL_INTAKE)
+    idempotency_key   VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NULL,  -- Idempotency-Key của StoreOnBehalfOf (D60); NULL khi entrypoint không có key (VD EMAIL_INTAKE); so từng byte, §3
     created_at        TIMESTAMP NOT NULL DEFAULT now(),
     CONSTRAINT ck_file_deletion_metadata CHECK (
       (deleted_at IS NULL AND deletion_reason IS NULL)
