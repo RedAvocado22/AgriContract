@@ -30,7 +30,7 @@ class JcsTermsCanonicalizerTest {
                 t.qualityTerms(), t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(),
                 new BigDecimal("0.0500"), t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), t.buyerDepositRate(),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
         assertThat(hash(ContractTermsSnapshot.assemble(padded, goods(), template(), RULES))).isEqualTo(hash(snapshot()));
     }
 
@@ -41,7 +41,7 @@ class JcsTermsCanonicalizerTest {
                 t.qualityTerms(), t.deliveryTerms(), t.inspectionTerms(), t.priceBand(), t.priceAdjustmentRule(),
                 t.toleranceRate(), t.shortfallPenaltyThreshold(), t.buyerPenaltyRate(), t.sellerPenaltyRate(),
                 t.forceMajeureReportWindowDays(), t.buyerConfirmWindowDays(), new BigDecimal("0.06"),
-                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile());
+                t.disputeFloorReleaseRate(), t.sellerDepositRate(), t.level2InspectorOrg(), t.legalProfile(), t.fundingLeadBusinessDays());
         assertThat(hash(ContractTermsSnapshot.assemble(otherDeposit, goods(), template(), RULES)))
                 .isNotEqualTo(hash(snapshot()));
     }
@@ -74,7 +74,7 @@ class JcsTermsCanonicalizerTest {
         assertThat(wire.get("goodsTerms").has("traceabilitySnapshot")).isTrue();
         assertThat(wire.get("goodsTerms").get("traceabilitySnapshot").isNull()).isTrue();
         assertThat(wire.get("milestoneSchedule").get(0).get("expectedDeliveryDate").textValue())
-                .isEqualTo("2026-12-15");
+                .isEqualTo("2036-12-15");
     }
 
     @Test

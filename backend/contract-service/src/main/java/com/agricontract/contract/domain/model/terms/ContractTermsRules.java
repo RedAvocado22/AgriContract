@@ -23,6 +23,11 @@ public class ContractTermsRules {
     private static final BigDecimal MAX_MILESTONE_KG = new BigDecimal("1000000");
     private static final BigDecimal HUNDRED = new BigDecimal("100");
     private static final int MAX_MILESTONES = 100;
+    /** D64: floor 3 keeps the seller protected (the stronger party cannot push the lock onto the delivery day); the
+     *  ceiling only rejects unreasonable input. 7 when the parties leave it out. */
+    public static final int MIN_FUNDING_LEAD_DAYS = 3;
+    public static final int MAX_FUNDING_LEAD_DAYS = 60;
+    public static final int DEFAULT_FUNDING_LEAD_DAYS = 7;
 
     private final BigDecimal level2SafetyBufferRate;
 
@@ -61,6 +66,10 @@ public class ContractTermsRules {
         int confirmDays = required(t.buyerConfirmWindowDays(), "buyerConfirmWindowDays");
         if (confirmDays < 2 || confirmDays > 10) {
             fail("buyerConfirmWindowDays must be between 2 and 10");
+        }
+        Integer leadDays = t.fundingLeadBusinessDays();
+        if (leadDays != null && (leadDays < MIN_FUNDING_LEAD_DAYS || leadDays > MAX_FUNDING_LEAD_DAYS)) {
+            fail("fundingLeadBusinessDays must be between " + MIN_FUNDING_LEAD_DAYS + " and " + MAX_FUNDING_LEAD_DAYS);
         }
         within(t.buyerDepositRate(), new BigDecimal("0.03"), new BigDecimal("0.10"), "buyerDepositRate");
         within(t.sellerDepositRate(), BigDecimal.ZERO, BigDecimal.ONE, "sellerDepositRate");
