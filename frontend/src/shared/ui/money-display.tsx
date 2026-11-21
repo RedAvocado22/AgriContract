@@ -1,13 +1,14 @@
 import type { ComponentProps } from "react"
 
 import { cn } from "@/shared/lib/utils"
+import { formatDecimalVnd } from "@/shared/lib/decimal-display"
 
 type MoneySign = "positive" | "negative" | "neutral"
 type MoneyEmphasis = "default" | "large"
 
 interface MoneyDisplayProps extends Omit<ComponentProps<"span">, "children"> {
   /** Giá trị tuyệt đối — dấu +/- được quyết định bởi prop `sign`, không suy ra từ số âm. */
-  amount: number
+  amount: number | string
   sign?: MoneySign
   emphasis?: MoneyEmphasis
   unit?: string
@@ -33,12 +34,20 @@ function MoneyDisplay({
   ...props
 }: MoneyDisplayProps) {
   const { prefix, className: signClassName } = signStyles[sign]
-  const formatted = new Intl.NumberFormat("vi-VN").format(Math.abs(amount))
+  const formatted =
+    typeof amount === "string"
+      ? formatDecimalVnd(amount)
+      : new Intl.NumberFormat("vi-VN").format(Math.abs(amount))
 
   return (
     <span
       data-slot="money-display"
-      className={cn("font-mono tabular-nums", emphasisStyles[emphasis], signClassName, className)}
+      className={cn(
+        "font-mono tabular-nums",
+        emphasisStyles[emphasis],
+        signClassName,
+        className
+      )}
       {...props}
     >
       {prefix}

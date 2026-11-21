@@ -15,9 +15,15 @@ interface SidebarItem {
 
 interface AppSidebarProps extends Omit<ComponentProps<"nav">, "children"> {
   items: SidebarItem[]
+  organizationName?: string
 }
 
-function AppSidebar({ items, className, ...props }: AppSidebarProps) {
+function AppSidebar({
+  items,
+  organizationName,
+  className,
+  ...props
+}: AppSidebarProps) {
   let lastSection: string | undefined
 
   return (
@@ -29,8 +35,14 @@ function AppSidebar({ items, className, ...props }: AppSidebarProps) {
       )}
       {...props}
     >
+      {organizationName && (
+        <p className="break-words px-4 pb-3 text-sm font-medium">
+          {organizationName}
+        </p>
+      )}
       {items.map((item) => {
-        const showSectionHeader = item.section !== undefined && item.section !== lastSection
+        const showSectionHeader =
+          item.section !== undefined && item.section !== lastSection
         lastSection = item.section
 
         return (

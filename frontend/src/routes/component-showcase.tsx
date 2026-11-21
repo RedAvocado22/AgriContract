@@ -238,10 +238,11 @@ function ComponentShowcase() {
         </div>
       </Section>
 
-      <Section title="FileUpload — 3 trạng thái">
+      <Section title="FileUpload — 4 trạng thái (gồm tệp chỉ trên thiết bị)">
         <div className="max-w-md">
           <FileUpload
             files={[
+              { name: "giay-to-chua-gui.pdf", sizeLabel: "120 KB", status: "local" },
               { name: "can-hang-01.jpg", sizeLabel: "2,1 MB", status: "processing" },
               { name: "can-hang-02.jpg", sizeLabel: "1,8 MB", status: "ready" },
               {
@@ -763,6 +764,9 @@ function ComponentShowcase() {
       </Section>
 
       <Section title="MoneyDisplay">
+        <Row label="Chuỗi decimal chính xác (dữ liệu minh họa)">
+          <MoneyDisplay amount="9999999999999999.99" />
+        </Row>
         <Row label="Sign + emphasis">
           <MoneyDisplay amount={2_500_000_000} sign="positive" />
           <MoneyDisplay amount={400_000_000} sign="negative" />

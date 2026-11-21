@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom"
 
 import { cn } from "@/shared/lib/utils"
-import { buttonVariants } from "@/shared/ui/button"
+import { AccountMenu } from "@/features/auth/components/account-menu"
 
 const NAV_LINKS = [
   { label: "Sàn nguồn hàng", to: "/listing" },
@@ -20,7 +20,8 @@ function PublicNav() {
       </Link>
       <nav className="flex gap-[26px] text-sm text-text-secondary">
         {NAV_LINKS.map((link) => {
-          const isActive = pathname === link.to || pathname.startsWith(link.to + "/")
+          const isActive =
+            pathname === link.to || pathname.startsWith(link.to + "/")
           return (
             <Link
               key={link.to}
@@ -37,15 +38,7 @@ function PublicNav() {
         })}
       </nav>
       <div className="flex-1" />
-      <Link
-        to="/login"
-        className="text-sm text-text-secondary hover:text-text-primary"
-      >
-        Đăng nhập
-      </Link>
-      <Link to="/register" className={cn(buttonVariants({ size: "nav" }))}>
-        Đăng ký doanh nghiệp
-      </Link>
+      <AccountMenu />
     </div>
   )
 }
