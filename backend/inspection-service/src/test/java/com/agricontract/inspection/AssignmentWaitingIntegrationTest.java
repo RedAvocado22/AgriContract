@@ -181,16 +181,24 @@ class AssignmentWaitingIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"req-abc", "   "})
-    void resolvedCorrelationReachesOutboxWithSourceEventAsCause(String correlation) {
+    void resolvedCorrelationReachesOutboxWithSourceEventAsCause(String correlation) throws Exception {
         var original = event();
         var request = new EventEnvelope(original.eventId(), original.eventType(), original.eventVersion(),
                 original.occurredAt(), original.producer(), original.aggregateId(), correlation,
                 null, null, original.payload());
         deliver(request);
         var alert = command(Stage.WAITING_STARTED);
-        assertThat(alert.correlationId()).isEqualTo(correlation.isBlank() ? request.eventId().toString() : correlation);
+        assertThat(alert.correlationId()).isEqualTo(request.eventId().toString());
         assertThat(alert.causationId()).isEqualTo(request.eventId().toString());
         assertThat(count("level1_5_assignment_waiting")).isEqualTo(1);
+        var root = (ObjectNode) new ObjectMapper(new YAMLFactory()).readTree(
+                Path.of(System.getProperty("contracts.directory"), "events", "notification-commands.yaml").toFile());
+        root.remove("oneOf");
+        root.put("$ref", "#/$defs/level15AssignmentWaitingRequested");
+        var schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(root,
+                SchemaValidatorsConfig.builder().formatAssertionsEnabled(true).build());
+        var envelope = new ObjectMapper().readTree(jdbc.queryForObject("SELECT envelope FROM event_outbox", String.class));
+        assertThat(schema.validate(envelope)).isEmpty();
     }
 
     @Test void missingCorrelationReachesOutboxWithSourceEventAsCorrelationAndCause() {

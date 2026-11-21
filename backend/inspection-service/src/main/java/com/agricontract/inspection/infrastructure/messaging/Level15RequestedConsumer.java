@@ -60,7 +60,9 @@ public class Level15RequestedConsumer {
             throw new IllegalArgumentException("Invalid assignment payload");
         OffsetDateTime.parse(text(payload.get("requestedAt")));
         String correlationId = event.correlationId();
-        if (correlationId == null || correlationId.isBlank()) {
+        try {
+            id(correlationId);
+        } catch (IllegalArgumentException invalidCorrelation) {
             correlationId = event.eventId().toString();
         }
         return new Level15AssignmentRequestedCommand(id(payload.get("contractId")),
